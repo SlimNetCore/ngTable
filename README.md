@@ -10,7 +10,7 @@
 
 Built with **Angular standalone components and signals**, with no business dependency, no mandatory i18n dependency, and no network calls performed by the component.
 
-![ng-table overview](https://github.com/SlimNetCore/ngTable/tree/main/captures/img.png)
+![ng-table overview](https://raw.githubusercontent.com/SlimNetCore/ngTable/main/captures/img.png)
 
 ## 📦 Installation
 
@@ -102,7 +102,7 @@ That's it. Sorting, filtering and rendering work immediately with the default co
 
 Le composant ne fait **aucun appel réseau** : `rows()` est fourni par le parent (déjà chargé, ou paginé côté serveur selon le mode).
 
-![Vue d'ensemble : sélection de lignes, filtres inline, colonne d'actions](https://github.com/SlimNetCore/ngTable/tree/main/captures/img_1.png)
+![Vue d'ensemble : sélection de lignes, filtres inline, colonne d'actions](https://raw.githubusercontent.com/SlimNetCore/ngTable/main/captures/img_1.png)
 
 ## Pattern contrôlé / non-contrôlé
 
@@ -1024,7 +1024,7 @@ onPageChange(event: PageEvent): void {
 
 Système permettant à l'utilisateur de sauvegarder l'état complet d'affichage (colonnes visibles, ordre, tri, filtres, et pagination si `pageTrackingEnabled=true`) sous un nom, d'y revenir, d'en créer plusieurs, de les supprimer.
 
-![Une vue nommée ("vue test") activée, affichée en chip à côté du bouton "Vues"](https://github.com/SlimNetCore/ngTable/tree/main/captures/img_2.png)
+![Une vue nommée ("vue test") activée, affichée en chip à côté du bouton "Vues"](https://raw.githubusercontent.com/SlimNetCore/ngTable/main/captures/img_2.png)
 
 ```html
 <ng-table
