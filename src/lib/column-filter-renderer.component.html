@@ -1,0 +1,117 @@
+@if (type() === 'date') {
+  <mat-form-field appearance="outline" class="date-range-field">
+    <mat-label>{{ filterByPlaceholder() }}</mat-label>
+    <mat-date-range-input [rangePicker]="picker" [separator]="'–'">
+      <input
+        (dateChange)="onDraftDateRangeChange('from', $event.value)"
+        (dateInput)="onDraftDateRangeChange('from', $event.value)"
+        (keydown.enter)="applyDateRange()"
+        [placeholder]="labels().dateStart"
+        [value]="draftDateRange().from"
+        matStartDate
+      />
+      <input
+        (dateChange)="onDraftDateRangeChange('to', $event.value)"
+        (dateInput)="onDraftDateRangeChange('to', $event.value)"
+        (keydown.enter)="applyDateRange()"
+        [placeholder]="labels().dateEnd"
+        [value]="draftDateRange().to"
+        matEndDate
+      />
+    </mat-date-range-input>
+    <mat-datepicker-toggle [for]="picker" matIconSuffix></mat-datepicker-toggle>
+    <mat-date-range-picker #picker (opened)="syncDraftDateRange()">
+      <mat-date-range-picker-actions>
+        <button (click)="cancelDateRange()" mat-button matDateRangePickerCancel type="button">
+          {{ labels().cancel }}
+        </button>
+        <button
+          (click)="applyDateRange()"
+          color="primary"
+          mat-flat-button
+          matDateRangePickerApply
+          type="button"
+        >
+          {{ labels().ok }}
+        </button>
+      </mat-date-range-picker-actions>
+    </mat-date-range-picker>
+  </mat-form-field>
+} @else {
+  @if (isSelectType()) {
+    <mat-form-field
+      [class.active]="isActive()"
+      appearance="outline"
+      class="select-filter-field"
+    >
+      <mat-select
+        (selectionChange)="onMatSelect($event.value)"
+        [multiple]="isMultiSelect()"
+        [panelWidth]="'360px'"
+        [placeholder]="placeholder() || filterByPlaceholder()"
+        [value]="selectedValues()"
+        panelClass="column-filter-select-panel"
+      >
+        <mat-option
+          (onSelectionChange)="onPanelFilterOptionSelection($event)"
+          [value]="panelFilterOptionValue"
+          class="panel-filter-option"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            (mousedown)="$event.stopPropagation()"
+            class="panel-filter-content"
+          >
+            <ng-table-select-filter
+              (valueChange)="onPanelFilterChange($event)"
+              [clearLabel]="labels().clearFilter"
+              [placeholder]="labels().search"
+            />
+          </div>
+        </mat-option>
+        @if (!isMultiSelect()) {
+          <mat-option value="">{{ labels().all }}</mat-option>
+        }
+        @if (type() === 'boolean') {
+          @for (o of booleanOptions(); track o.value) {
+            @if (isPanelOptionVisible(o.label)) {
+              <mat-option [value]="o.value">{{ o.label }}</mat-option>
+            }
+          }
+        } @else {
+          @for (o of options(); track o.value) {
+            @if (isPanelOptionVisible(o.label)) {
+              <mat-option [value]="o.value">{{ o.label }}</mat-option>
+            }
+          }
+        }
+      </mat-select>
+    </mat-form-field>
+  } @else {
+    <div [class.active]="isActive()" class="field-shell">
+      <input
+        (input)="onInput($event)"
+        [attr.type]="inputType()"
+        [placeholder]="placeholder() || filterByPlaceholder()"
+        [value]="value()"
+        class="col-filter"
+      />
+
+      @if (showsTrailingIcon()) {
+        <mat-icon class="field-icon">{{ trailingIcon() }}</mat-icon>
+      }
+    </div>
+  }
+}
+
+@if (isActive()) {
+  <button
+    (click)="clear.emit()"
+    [attr.aria-label]="labels().clearFilter"
+    class="clear-filter"
+    mat-icon-button
+    type="button"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@sbourahla/ng-table",
+  "version": "0.1.3",
+  "description": "Table Angular Material configurable : colonnes, tri, filtres, vues sauvegardées, modes local/remote. Sans dépendance i18n ni métier.",
+  "keywords": [
+    "angular",
+    "angular-material",
+    "table",
+    "data-table",
+    "datagrid",
+    "grid"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/material": "^22.0.0",
+    "rxjs": "^7.0.0"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}

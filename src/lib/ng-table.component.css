@@ -1,0 +1,731 @@
+:host {
+  display: block;
+}
+
+.context-menu-anchor {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3000;
+}
+
+.list-panel {
+  border: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border-radius: 20px;
+  background: var(--app-surface, #ffffff);
+  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
+}
+
+.list-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 16px 12px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+}
+
+.ng-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.ng-table .mat-mdc-header-cell,
+.ng-table .mat-mdc-header-row,
+.ng-table .mat-mdc-row {
+  overflow: visible;
+}
+
+.ng-table .mat-mdc-header-cell {
+  position: relative;
+  overflow: visible;
+}
+
+/* Les cellules de données, elles, doivent couper leur contenu : en `table-layout:
+   fixed`, une colonne peut devenir plus étroite que son contenu (redimensionnement
+   d'une voisine), et sans découpe le contenu se superposerait à la colonne suivante.
+   Exclut la ligne de détail et la ligne d'actions mobile, qui occupent toute la
+   largeur et doivent rester libres. */
+.ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell) .cell-content {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.selection-header-cell,
+.selection-cell {
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  padding-inline: 8px !important;
+  text-align: center;
+}
+
+.selection-header-cell .mdc-checkbox,
+.selection-cell .mdc-checkbox {
+  margin: 0 auto;
+}
+
+.th-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+}
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-left: -4px;
+  color: var(--app-muted, #4f6573);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.drag-handle mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.ng-table .mat-mdc-header-cell:hover .drag-handle {
+  opacity: 1;
+}
+
+.drag-handle:hover {
+  color: var(--app-primary, #3a7ca5);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Native HTML5 drag-and-drop: header cell being dragged / hovered as a drop target.
+   No live sibling reflow is attempted (that's what broke the table layout with CDK's
+   transform-based approach) — columns simply swap once, on drop. */
+.ng-table .mat-mdc-header-cell.column-dragging {
+  opacity: 0.4;
+}
+
+.ng-table .mat-mdc-header-cell.column-drag-over {
+  box-shadow: inset 2px 0 0 var(--app-primary, #3a7ca5);
+  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+}
+
+@media (max-width: 760px) {
+  .drag-handle {
+    display: none;
+  }
+}
+
+.header-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--app-text, #0d1d26);
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.header-button:disabled {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.header-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sort-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--app-primary, #3a7ca5);
+}
+
+.filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+  color: var(--app-muted, #4f6573);
+  border-radius: 10px;
+}
+
+.filter-button .mat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+}
+
+.filter-button:focus-visible {
+  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline-offset: 2px;
+  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+}
+
+.filter-button.filter-active {
+  color: var(--mat-sys-error, #b3261e);
+  background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 14%, transparent);
+}
+
+.filter-button.filter-active .mat-icon {
+  color: var(--mat-sys-error, #b3261e) !important;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: auto;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: 8;
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 6px;
+  width: 1px;
+  background: var(--app-border, rgba(15, 23, 42, 0.13));
+}
+
+.resize-handle:hover {
+  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 10%, transparent);
+}
+
+.resize-handle:hover::after {
+  background: var(--app-primary, #3a7ca5);
+}
+
+.menu-body {
+  box-sizing: border-box;
+  padding: 10px;
+  width: min(88vw, 340px);
+  min-height: 86px;
+}
+
+.filter-menu-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -2px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  color: var(--app-primary, #3a7ca5);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filter-menu-title mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.filter-loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* CSS-only spinner — no external loader component/dependency needed. */
+.ngt-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+  border-top-color: var(--app-primary, #3a7ca5);
+  border-radius: 50%;
+  animation: ngt-spin 0.7s linear infinite;
+}
+
+.ngt-spinner--sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+@keyframes ngt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.filter-loading-label {
+  font-size: 12px;
+  color: var(--app-muted, #4f6573);
+}
+
+.filter-loading-error {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--mat-sys-error, #b3261e);
+  font-weight: 600;
+}
+
+.ngt-filter-menu-panel.mat-mdc-menu-panel {
+  min-width: min(92vw, 380px) !important;
+  max-width: min(92vw, 380px) !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  border-radius: 20px;
+  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
+  background: var(--app-filter-panel-bg, #ffffff);
+  backdrop-filter: blur(var(--app-blur, 0px));
+}
+
+.ngt-filter-menu-panel .mat-mdc-menu-content {
+  display: flex;
+  justify-content: center;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.ngt-filter-menu-panel ng-table-column-filter {
+  width: min(100%, 320px);
+  margin-inline: auto;
+}
+
+/* Le filtre "plage de dates" utilise toute la largeur disponible du panneau (au lieu
+   d'être bridé à 320px) — sans élargir le panneau lui-même, qui garde sa taille
+   standard pour tous les types de filtres. */
+.ngt-filter-menu-panel ng-table-column-filter:has(.date-range-field) {
+  width: 100%;
+}
+
+/* --- Saved views ----------------------------------------------------- */
+.active-view-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+  color: var(--app-primary, #3a7ca5);
+  font-size: 0.72rem;
+  font-weight: 700;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ngt-views-menu-panel.mat-mdc-menu-panel {
+  min-width: min(92vw, 320px) !important;
+  max-width: min(92vw, 320px) !important;
+  border-radius: 20px;
+  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
+  background: var(--app-filter-panel-bg, #ffffff);
+}
+
+.views-menu-body {
+  box-sizing: border-box;
+  padding: 10px;
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+}
+
+.views-save-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.views-name-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  border-radius: 10px;
+  background: var(--app-field-bg, #ffffff);
+  color: inherit;
+  font: inherit;
+}
+
+.views-name-input:focus {
+  outline: none;
+  border-color: var(--app-primary, #3a7ca5);
+}
+
+.views-save-btn {
+  flex: 0 0 auto;
+  color: var(--app-primary, #3a7ca5);
+}
+
+.views-divider {
+  margin: 10px 0 6px;
+  border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+}
+
+.views-empty-note {
+  margin: 10px 2px 2px;
+  color: var(--app-muted, #4f6573);
+  font-size: 0.8rem;
+}
+
+.view-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 10px;
+}
+
+.view-row:hover {
+  background: var(--app-hover-surface, #f6fbff);
+}
+
+.view-row.active .view-row-label {
+  color: var(--app-primary, #3a7ca5);
+  font-weight: 700;
+}
+
+.view-row-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.view-row-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-row-label mat-icon {
+  flex: 0 0 auto;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--app-primary, #3a7ca5);
+}
+
+.view-row-delete {
+  flex: 0 0 auto;
+  color: var(--app-muted, #4f6573);
+}
+
+.view-row-delete:hover {
+  color: #c62828;
+}
+
+.data-row {
+  cursor: pointer;
+}
+
+.cell-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.copy-action-btn {
+  --mdc-icon-button-state-layer-size: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 10px;
+  opacity: 0;
+  color: var(--app-muted, #4f6573);
+  transition: opacity 140ms ease, color 140ms ease;
+}
+
+.copy-action-btn .mat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+}
+
+.data-row:hover .copy-action-btn,
+.copy-action-btn:focus-visible {
+  opacity: 1;
+}
+
+.copy-action-btn:hover,
+.copy-action-btn:focus-visible {
+  color: var(--app-primary, #3a7ca5);
+}
+
+.no-data-cell {
+  text-align: center;
+  color: var(--app-muted, #4f6573);
+  padding: 16px;
+}
+
+.mobile-actions-row .mat-mdc-cell {
+  padding-top: 8px;
+  padding-bottom: 10px;
+  border-top: 0;
+  background: var(--app-surface-soft, #f7fbfe);
+}
+
+.mobile-actions-cell {
+  width: 100%;
+}
+
+.detail-row-container .mat-mdc-cell {
+  padding: 0;
+  border-top: 0;
+  border-bottom: 0;
+}
+
+.detail-row-container.detail-row-collapsed {
+  display: none;
+}
+
+.detail-row {
+  padding: 0 !important;
+}
+
+.mobile-actions-row .row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- Inline filters (rendered inside the header cell) --------------- */
+.inline-filter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 0 8px;
+  min-width: 0;
+}
+
+.inline-filter ng-table-column-filter,
+.inline-filter ng-table-dynamic-filter-host {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.inline-filter .mat-mdc-form-field {
+  width: 100%;
+  font-size: 0.8rem;
+}
+
+.inline-filter .mat-mdc-form-field-infix {
+  min-height: 36px;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.inline-filter .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.ng-table .mat-mdc-header-cell:has(.inline-filter) {
+  vertical-align: top;
+  padding-top: 8px;
+  padding-right: 16px;
+}
+
+.ng-table .mat-mdc-header-cell:has(.inline-filter) .th-wrap {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+}
+
+.ng-table .mat-mdc-header-cell:has(.inline-filter) .header-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.ng-table .mat-mdc-header-cell:has(.inline-filter) .header-label {
+  text-align: center;
+}
+
+/* --- Active filters bar (below the list) --------------------------- */
+.active-filters-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  background: var(--app-surface-soft, #f7fbfe);
+  border-radius: 20px 20px 0 0;
+}
+
+.active-filters-bar__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-muted, #4f6573);
+  white-space: nowrap;
+}
+
+.active-filters-bar__label mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  color: var(--app-primary, #3a7ca5);
+}
+
+.active-filters-bar__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.active-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--app-primary-outline, rgba(58, 124, 165, 0.34));
+  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+  color: var(--app-primary, #3a7ca5);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.active-filter-chip__field {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.active-filter-chip__field::after {
+  content: ':';
+}
+
+.active-filter-chip__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+  color: var(--app-text, #0d1d26);
+}
+
+.active-filter-chip__clear {
+  --mdc-icon-button-state-layer-size: 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-muted, #4f6573);
+}
+
+.active-filter-chip__clear .mat-icon {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  line-height: 14px;
+}
+
+.active-filter-chip__clear:hover {
+  color: var(--mat-sys-error, #b3261e);
+}
+
+.active-filters-bar__reset {
+  flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .active-filters-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .active-filters-bar__reset {
+    width: 100%;
+  }
+
+  .active-filter-chip__value {
+    max-width: 140px;
+  }
+}
+
+@media (max-width: 900px) {
+  .list-panel {
+    border-radius: 16px;
+  }
+
+  .list-actions {
+    justify-content: stretch;
+    padding: 12px;
+  }
+
+  .list-actions button {
+    width: 100%;
+  }
+
+  .ng-table {
+    min-width: 720px;
+  }
+}

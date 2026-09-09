@@ -1,0 +1,21 @@
+<mat-form-field appearance="outline" class="select-filter-input">
+  <mat-icon matPrefix>search</mat-icon>
+  <input
+    #searchInput
+    (input)="valueChange.emit(searchInput.value)"
+    [placeholder]="placeholder"
+    autocomplete="off"
+    matInput
+  />
+  @if (searchInput.value) {
+    <button
+      (click)="onClear(searchInput)"
+      [attr.aria-label]="clearLabel"
+      mat-icon-button
+      matSuffix
+      type="button"
+    >
+      <mat-icon>close</mat-icon>
+    </button>
+  }
+</mat-form-field>

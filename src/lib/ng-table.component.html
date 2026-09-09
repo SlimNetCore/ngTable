@@ -1,0 +1,368 @@
+<section class="list-panel">
+  @if (rowContextMenuEnabled() && rowContextMenuTemplate()) {
+    <div
+      #rowContextMenuTrigger="matMenuTrigger"
+      [matMenuTriggerFor]="contextMenu"
+      [style.left.px]="contextMenuPosition().x"
+      [style.top.px]="contextMenuPosition().y"
+      class="context-menu-anchor"
+    ></div>
+
+    <mat-menu #contextMenu="matMenu" (closed)="onRowContextMenuClosed()">
+      @if (contextMenuRow(); as row) {
+        <ng-container *ngTemplateOutlet="rowContextMenuTemplate()!; context: { $implicit: row, row: row }"/>
+      }
+    </mat-menu>
+  }
+
+  <div class="list-actions">
+    <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" mat-stroked-button type="button">
+      <mat-icon>view_column</mat-icon>
+      {{ effectiveLabels().columnsButton }}
+    </button>
+
+    <mat-menu #columnsMenu="matMenu">
+      @for (column of columnsMenuItems(); track column.id) {
+        <button (click)="$event.stopPropagation()" mat-menu-item>
+          <mat-checkbox
+            (change)="onToggleColumnVisibility(column.id, $event.checked)"
+            [checked]="isColumnVisible(column.id)"
+          >
+            {{ column.header }}
+          </mat-checkbox>
+        </button>
+      }
+    </mat-menu>
+
+    @if (viewsEnabled()) {
+      <button [matMenuTriggerFor]="viewsMenu" mat-stroked-button type="button">
+        <mat-icon>bookmark</mat-icon>
+        {{ effectiveLabels().viewsButton }}
+        @if (activeView(); as av) {
+          <span class="active-view-chip">{{ av.name }}</span>
+        }
+      </button>
+
+      <mat-menu #viewsMenu="matMenu" class="ngt-views-menu-panel">
+        <div (click)="$event.stopPropagation()" class="views-menu-body">
+          <div class="views-save-row">
+            <input
+              (input)="newViewName.set($any($event.target).value)"
+              (keydown.enter)="saveCurrentAsView(newViewName())"
+              [value]="newViewName()"
+              class="views-name-input"
+              [placeholder]="effectiveLabels().viewNamePlaceholder"
+              type="text"
+            />
+            <button
+              (click)="saveCurrentAsView(newViewName())"
+              [disabled]="!newViewName().trim()"
+              class="views-save-btn"
+              mat-icon-button
+              [title]="effectiveLabels().saveView"
+              type="button"
+            >
+              <mat-icon>save</mat-icon>
+            </button>
+          </div>
+
+          @if (viewsList().length > 0) {
+            <div class="views-divider"></div>
+            @for (view of viewsList(); track view.id) {
+              <div [class.active]="view.id === activeViewId()" class="view-row">
+                <button (click)="activateView(view)" class="view-row-label" type="button">
+                  <mat-icon>{{ view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+                  <span>{{ view.name }}</span>
+                </button>
+                <button (click)="deleteView(view)" [title]="effectiveLabels().deleteView" class="view-row-delete"
+                        mat-icon-button
+                        type="button">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            }
+          } @else {
+            <p class="views-empty-note">{{ effectiveLabels().noSavedViews }}</p>
+          }
+        </div>
+      </mat-menu>
+    }
+  </div>
+
+  @if (showActiveFiltersBar() && activeFilterSummaries().length > 0) {
+    <div class="active-filters-bar">
+      <span class="active-filters-bar__label">
+        <mat-icon>filter_alt</mat-icon>
+        {{ effectiveLabels().activeFilters }}
+      </span>
+
+      <div class="active-filters-bar__chips">
+        @for (summary of activeFilterSummaries(); track summary.columnId) {
+          <span class="active-filter-chip">
+            <span class="active-filter-chip__field">{{ summary.label }}</span>
+            <span class="active-filter-chip__value">{{ summary.value }}</span>
+            <button
+              (click)="clearFilter(summary.columnId)"
+              [attr.aria-label]="effectiveLabels().clearFilter"
+              class="active-filter-chip__clear"
+              mat-icon-button
+              type="button"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          </span>
+        }
+      </div>
+
+      <button (click)="clearAllFilters()" class="active-filters-bar__reset" mat-stroked-button type="button">
+        <mat-icon>filter_alt_off</mat-icon>
+        {{ effectiveLabels().resetFiltersButton }}
+      </button>
+    </div>
+  }
+
+  <div (scroll)="onTableWrapScroll()" class="table-wrap">
+    <table [dataSource]="displayedRows()" [style.min-width.px]="minTableWidthPx()" [trackBy]="resolvedTrackBy"
+           class="ng-table" mat-table multiTemplateDataRows>
+      @if (rowSelectionEnabled()) {
+        <ng-container matColumnDef="__row_selection__">
+          <th *matHeaderCellDef class="selection-header-cell" mat-header-cell>
+            <mat-checkbox
+              (change)="onToggleAllDisplayedRows($event)"
+              [checked]="areAllDisplayedRowsSelected()"
+              [indeterminate]="hasPartiallySelectedDisplayedRows()"
+            />
+          </th>
+          <td *matCellDef="let row" class="selection-cell" mat-cell>
+            <mat-checkbox
+              (change)="onToggleRowSelection($event, row)"
+              (click)="$event.stopPropagation()"
+              [checked]="isRowSelected(row)"
+            />
+          </td>
+        </ng-container>
+      }
+
+      @for (column of columns(); track trackByColumn($index, column)) {
+        <ng-container [matColumnDef]="column.id">
+          <th (dragleave)="onColumnDragLeave(column)"
+              (dragover)="onColumnDragOver($event, column)"
+              (drop)="onColumnDrop($event, column)"
+              *matHeaderCellDef
+              [class.column-drag-over]="dragOverColumnId() === column.id"
+              [class.column-dragging]="draggingColumnId() === column.id"
+              [style.max-width.px]="column.maxWidthPx ?? null" [style.min-width.px]="column.minWidthPx ?? null"
+              [style.width.px]="columnWidthPx(column)" mat-header-cell>
+            <div class="th-wrap">
+              <span
+                (dragend)="onColumnDragEnd()"
+                (dragstart)="onColumnDragStart($event, column)"
+                [attr.draggable]="!isMobileView()"
+                class="drag-handle"
+                [title]="effectiveLabels().dragToReorder"
+              >
+                <mat-icon>drag_indicator</mat-icon>
+              </span>
+              <button
+                (click)="onHeaderSort(column)"
+                [attr.aria-label]="currentSortAriaLabel(column)"
+                [disabled]="!column.sortable"
+                class="header-button"
+                type="button"
+              >
+                <span class="header-label">{{ column.header }}</span>
+                @if (column.sortable) {
+                  <mat-icon class="sort-icon">{{ currentSortIcon(column) }}</mat-icon>
+                }
+              </button>
+
+              @if (column.filter; as filter) {
+                @if (!shouldRenderInlineFilter(column)) {
+                  <button
+                    #filterTrigger="matMenuTrigger"
+                    (menuClosed)="onFilterMenuClosed(column.id)"
+                    (menuOpened)="onFilterMenuOpened(column.id, filterTrigger, filter)"
+                    [attr.aria-label]="filterByAriaLabel(column)"
+                    [class.filter-active]="isFilterActive(column.id)"
+                    [matMenuTriggerFor]="menu"
+                    class="filter-button"
+                    mat-icon-button
+                    type="button"
+                  >
+                    <mat-icon>{{ isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off' }}</mat-icon>
+                  </button>
+
+                  <mat-menu #menu="matMenu" class="ngt-filter-menu-panel">
+                    <div
+                      (click)="$event.stopPropagation()"
+                      (keydown.enter)="closeFilterMenuOnEnter($event, filterTrigger)"
+                      class="menu-body"
+                    >
+                      @if (filterMenuTitle(column); as menuTitle) {
+                        <div class="filter-menu-title">
+                          <mat-icon>filter_alt</mat-icon>
+                          <span>{{ menuTitle }}</span>
+                        </div>
+                      }
+
+                      @if (isFilterOptionsLoading(column.id)) {
+                        <div class="filter-loading-inline">
+                          <span aria-hidden="true" class="ngt-spinner"></span>
+                          <span class="filter-loading-label">{{ effectiveLabels().refOptionsLoading }}</span>
+                        </div>
+                      }
+
+                      @if (filterOptionsError(column.id)) {
+                        <div class="filter-loading-error">{{ filterOptionsError(column.id) }}</div>
+                      }
+
+                      @if (filter.component) {
+                        <ng-table-dynamic-filter-host
+                          (clear)="clearFilter(column.id)"
+                          (valueChange)="onFilterValue(column.id, $event)"
+                          [componentInputs]="filter.componentInputs ?? {}"
+                          [component]="filter.component"
+                          [value]="currentFilterValue(column.id)"
+                        />
+                      } @else {
+                        <ng-table-column-filter
+                          (clear)="clearFilter(column.id)"
+                          (valueChange)="onFilterValue(column.id, $event)"
+                          [label]="filter.label ?? column.header"
+                          [labels]="effectiveLabels()"
+                          [options]="resolvedFilterOptions(column.id, filter)"
+                          [placeholder]="filter.placeholder ?? ''"
+                          [type]="filter.type ?? 'text'"
+                          [value]="currentFilterValue(column.id)"
+                        />
+                      }
+                    </div>
+                  </mat-menu>
+                }
+              }
+
+            </div>
+
+            @if (shouldRenderInlineFilter(column) && column.filter; as filter) {
+              <div (click)="$event.stopPropagation()" class="inline-filter">
+                @if (isFilterOptionsLoading(column.id)) {
+                  <div class="filter-loading-inline">
+                    <span aria-hidden="true" class="ngt-spinner ngt-spinner--sm"></span>
+                  </div>
+                }
+
+                @if (filterOptionsError(column.id)) {
+                  <div class="filter-loading-error">{{ filterOptionsError(column.id) }}</div>
+                }
+
+                @if (filter.component) {
+                  <ng-table-dynamic-filter-host
+                    (clear)="clearFilter(column.id)"
+                    (valueChange)="onFilterValue(column.id, $event)"
+                    [componentInputs]="filter.componentInputs ?? {}"
+                    [component]="filter.component"
+                    [value]="currentFilterValue(column.id)"
+                  />
+                } @else {
+                  <ng-table-column-filter
+                    (clear)="clearFilter(column.id)"
+                    (valueChange)="onFilterValue(column.id, $event)"
+                    [label]="filter.label ?? column.header"
+                    [labels]="effectiveLabels()"
+                    [options]="resolvedFilterOptions(column.id, filter)"
+                    [placeholder]="filter.placeholder ?? ''"
+                    [type]="filter.type ?? 'text'"
+                    [value]="currentFilterValue(column.id)"
+                  />
+                }
+              </div>
+            }
+
+            @if (column.resizable) {
+              <span
+                (dblclick)="onResizeAutoFit($event, column)"
+                (mousedown)="onResizeStart($event, column)"
+                class="resize-handle"
+              ></span>
+            }
+          </th>
+
+          <td *matCellDef="let row; let rowIndex = index" [style.max-width.px]="column.maxWidthPx ?? null"
+              [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
+            <div class="cell-content">
+              @if (column.cellTemplate) {
+                <ng-container
+                  *ngTemplateOutlet="
+                    column.cellTemplate;
+                    context: { $implicit: row, row: row, value: cellValue(row, column), column: column }
+                  "
+                />
+              } @else {
+                {{ cellValue(row, column) }}
+              }
+
+              @if (hasCopyAction(column, row)) {
+                <button
+                  (click)="onCopyCellValue($event, column, row, rowIndex)"
+                  [matTooltip]="copyTooltip(column)"
+                  class="copy-action-btn"
+                  mat-icon-button
+                  type="button"
+                >
+                  <mat-icon>{{ copyIconName(column, row, rowIndex) }}</mat-icon>
+                </button>
+              }
+            </div>
+          </td>
+        </ng-container>
+      }
+
+      <ng-container matColumnDef="__mobile_actions__">
+        <td *matCellDef="let row" [attr.colspan]="mobileActionsColspan()" class="mobile-actions-cell" mat-cell>
+          @if (actionColumn()?.cellTemplate && mobileActionsCellContext(row); as context) {
+            <ng-container *ngTemplateOutlet="actionColumn()!.cellTemplate; context: context"/>
+          }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="__detail_row__">
+        <td *matCellDef="let row; let rowIndex = dataIndex" [attr.colspan]="detailRowColspan()" class="detail-row"
+            mat-cell>
+          @if (detailRowTemplate() && isDetailExpanded(rowIndex, row)) {
+            <ng-container *ngTemplateOutlet="detailRowTemplate()!; context: { $implicit: row, row: row }"/>
+          }
+        </td>
+      </ng-container>
+
+      <tr *matHeaderRowDef="displayedColumnIds()" mat-header-row></tr>
+      <tr
+        (click)="onRowClick(row)"
+        (contextmenu)="onRowContextMenu($event, row)"
+        *matRowDef="let row; let rowIndex = index; columns: displayedColumnIds(); when: dataRowWhen"
+        [attr.aria-expanded]="detailRowTemplate() ? isDetailExpanded(rowIndex, row) : null"
+        [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
+        [ngClass]="rowClasses(row)"
+        class="data-row"
+        mat-row
+      ></tr>
+      <tr
+        *matRowDef="let row; let rowIndex = index; columns: detailRowColumns; when: detailRowRenderWhen"
+        [class.detail-row-collapsed]="!isDetailExpanded(rowIndex, row)"
+        class="detail-row-container"
+        mat-row
+      ></tr>
+      <tr
+        *matRowDef="let row; columns: mobileActionRowColumns(); when: mobileActionsRowWhen"
+        [attr.data-mobile-row-key]="row?.id ?? row?.ID ?? ''"
+        class="mobile-actions-row"
+        mat-row
+      ></tr>
+      <tr *matNoDataRow class="mat-mdc-row">
+        <td [attr.colspan]="displayedColumnIds().length || 1" class="mat-mdc-cell no-data-cell">
+          {{ resolvedEmptyLabel() }}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+</section>
