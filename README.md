@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@sbourahla/ng-table)](https://www.npmjs.com/package/@sbourahla/ng-table)
 [![npm downloads](https://img.shields.io/npm/dm/@sbourahla/ng-table)](https://www.npmjs.com/package/@sbourahla/ng-table)
-[![license](https://img.shields.io/npm/l/@sbourahla/ng-table)](https://github.com/sbourahla/ng-table)
+[![license](https://img.shields.io/npm/l/@sbourahla/ng-table)](https://github.com/SlimNetCore/ngTable)
 
 **A powerful and configurable Angular Material data table component built for modern Angular applications.**
 
