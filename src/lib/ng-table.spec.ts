@@ -1,4 +1,12 @@
-import {Component, computed, provideZonelessChangeDetection, signal, TemplateRef, viewChild} from '@angular/core';
+import {
+  Component,
+  computed,
+  provideZonelessChangeDetection,
+  signal,
+  TemplateRef,
+  TrackByFunction,
+  viewChild,
+} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {MatCheckboxChange} from '@angular/material/checkbox';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -437,6 +445,37 @@ describe('NgTableComponent', () => {
 
       expect(component.hasPartiallySelectedDisplayedRows()).toBe(true);
       expect(component.areAllDisplayedRowsSelected()).toBe(false);
+    });
+
+    it('conserve la sélection correcte après un changement de pageSize, sans id ni rowKeyAccessor', async () => {
+      const rowsWithoutId = ROWS.map(({id, ...rest}) => rest) as unknown as Row[];
+      const {component, setInput} = await createTable({
+        rows: rowsWithoutId,
+        rowSelectionEnabled: true,
+        pageTrackingEnabled: true,
+        pageSize: 1,
+      });
+
+      const targetRow = rowsWithoutId[1]; // 'alice'
+      component.onToggleRowSelection({checked: true} as MatCheckboxChange, targetRow);
+      expect(component.isRowSelected(targetRow)).toBe(true);
+
+      await setInput('pageSize', 2); // ex. l'utilisateur change la taille de page
+
+      expect(component.isRowSelected(targetRow)).toBe(true);
+      expect(component.selectedRowsCount()).toBe(1);
+    });
+
+    it("ignore rowTrackBy pour la clé de sélection (c'est un trackBy de rendu, pas une clé métier)", async () => {
+      // Un trackBy qui renvoie toujours la même valeur (ex. basé sur l'index de rendu,
+      // non stable au tri/filtre/pagination) ne doit jamais faire confondre deux lignes.
+      const degenerateTrackBy: TrackByFunction<Row> = () => 'same-for-every-row';
+      const {component} = await createTable({rowSelectionEnabled: true, rowTrackBy: degenerateTrackBy});
+
+      component.onToggleRowSelection({checked: true} as MatCheckboxChange, ROWS[0]);
+
+      expect(component.isRowSelected(ROWS[0])).toBe(true);
+      expect(component.isRowSelected(ROWS[1])).toBe(false);
     });
   });
 

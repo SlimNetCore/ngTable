@@ -264,6 +264,14 @@ export class NgTableComponent implements OnDestroy {
   readonly loadingTemplate = input<TemplateRef<unknown> | null>(null);
   readonly minTableWidthPx = input(760);
   readonly rowClassFn = input<((row: any) => string | string[] | Record<string, boolean> | null) | null>(null);
+  /**
+   * `trackBy` custom pour le rendu de la table (perf uniquement). N'est PAS
+   * utilisé pour la clé métier de sélection/expansion/copie — celle-ci vient
+   * uniquement de `rowKeyAccessor` (ou de `row.id`/`row.ID`, ou de la référence
+   * de la ligne). Une fonction de `trackBy` incorpore souvent l'index de rendu,
+   * qui n'est pas stable au tri/filtre/pagination — inadaptée à une clé de
+   * sélection, d'où cette séparation stricte.
+   */
   readonly rowTrackBy = input<TrackByFunction<any> | null>(null);
   /** Template de detail (master/detail). Quand null, pas de detail row. */
   readonly detailRowTemplate = input<TemplateRef<{ $implicit: any; row: any }> | null>(null);
@@ -1579,7 +1587,10 @@ export class NgTableComponent implements OnDestroy {
     if (externalTrackBy) {
       return externalTrackBy(index, row);
     }
-    return row?.id ?? row?.ID ?? index;
+    // Jamais l'index en dernier recours : il change au tri/filtre/pagination,
+    // ce qui ferait réutiliser la vue (et la case à cocher) d'une ligne pour
+    // une autre — voir `rowKey()` pour la même règle côté sélection.
+    return row?.id ?? row?.ID ?? row;
   };
 
   resolvedTrackBy: TrackByFunction<any> = (index: number, row: any): any =>
@@ -1830,14 +1841,15 @@ export class NgTableComponent implements OnDestroy {
   }
 
   private rowKey(row: any): unknown {
-    // Cle metier stable: rowKeyAccessor > rowTrackBy > heuristique id.
+    // Cle metier stable: rowKeyAccessor > heuristique id > reference de la ligne.
+    // Volontairement PAS `rowTrackBy` ici : c'est un trackBy de rendu (perf),
+    // qui incorpore souvent l'index — un index n'est pas stable au tri/filtre/
+    // pagination, ce qui ferait migrer silencieusement la sélection d'une ligne
+    // vers une autre au lieu de rester attachée à la bonne (bug corrigé : cette
+    // branche appelait aussi `rowTrackBy` avec un index toujours à `0`).
     const accessor = this.rowKeyAccessor();
     if (accessor) {
       return accessor(row);
-    }
-    const externalTrackBy = this.rowTrackBy();
-    if (externalTrackBy) {
-      return externalTrackBy(0, row);
     }
     return row?.id ?? row?.ID ?? row;
   }
