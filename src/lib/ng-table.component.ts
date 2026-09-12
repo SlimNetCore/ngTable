@@ -589,6 +589,7 @@ export class NgTableComponent implements OnDestroy {
     const start = this.pageIndex() * size;
     return filteredSorted.slice(start, start + size);
   });
+
   private readonly mobileActionsColumnId = '__mobile_actions__';
   readonly mobileActionRowColumns = computed(() => {
     if (!this.isMobileView()) {

@@ -640,6 +640,42 @@ fetch(query: NgTableRemoteQuery): void {
 
 Point important : `ng-table` n'applique **plus aucun** filtrage/tri local dans ce mode — `serverRows()` doit déjà être exactement la page voulue, sinon la table affichera des résultats incohérents avec les filtres visibles.
 
+### Étape 17bis — Traduire votre `<mat-paginator>`
+
+`ng-table` ne rend pas de pagination lui-même (voir les Étapes 16/17) — vous branchez votre propre `<mat-paginator>`. Son i18n est un mécanisme **entièrement séparé** de `labels`/`provideNgTableLabels()` : sans rien faire, ses textes ("Items per page", "of"...) restent en anglais même si le reste de la table est traduit. `NgTablePaginatorIntl` fournit une traduction française prête à l'emploi :
+
+```ts
+// Pour toute l'application (app.config.ts)
+import {provideNgTablePaginatorIntl} from '@sbourahla/ng-table';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideNgTablePaginatorIntl(), /* ... */],
+};
+```
+
+```ts
+// Ou juste pour le composant qui affiche le <mat-paginator>
+@Component({
+  providers: [provideNgTablePaginatorIntl()],
+  // ...
+})
+export class CommandeListComponent {}
+```
+
+Pour ne changer qu'un texte ponctuellement, étendez la classe plutôt que d'utiliser d'autres clés :
+
+```ts
+import {NgTablePaginatorIntl} from '@sbourahla/ng-table';
+import {MatPaginatorIntl} from '@angular/material/paginator';
+
+class MyPaginatorIntl extends NgTablePaginatorIntl {
+  override itemsPerPageLabel = 'Lignes par page';
+}
+
+// providers du composant :
+providers: [{provide: MatPaginatorIntl, useClass: MyPaginatorIntl}]
+```
+
 ### Étape 18 — Vues sauvegardées
 
 Ajoutez un système "vues nommées" (colonnes/ordre/largeurs/tri/filtres/pagination), persistées automatiquement :
