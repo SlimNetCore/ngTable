@@ -104,6 +104,7 @@
     <div [class.active]="isActive()" class="field-shell">
       <input
         (input)="onInput($event)"
+        [attr.aria-label]="placeholder() || filterByPlaceholder()"
         [attr.type]="inputType()"
         [placeholder]="placeholder() || filterByPlaceholder()"
         [value]="value()"
@@ -111,7 +112,7 @@
       />
 
       @if (showsTrailingIcon()) {
-        <mat-icon class="field-icon">{{ trailingIcon() }}</mat-icon>
+        <mat-icon aria-hidden="true" class="field-icon">{{ trailingIcon() }}</mat-icon>
       }
     </div>
   }
@@ -125,6 +126,6 @@
     mat-icon-button
     type="button"
   >
-    <mat-icon>close</mat-icon>
+    <mat-icon aria-hidden="true">close</mat-icon>
   </button>
 }

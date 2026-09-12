@@ -53,6 +53,16 @@ export interface NgTableLabels {
   exportConfirm: string;
   /** `aria-label` de l'overlay de chargement. */
   loading: string;
+  /** `aria-label` par défaut du `<table>` quand `[ariaLabel]` n'est pas fourni. */
+  tableLabel: string;
+  /** `aria-label` de la case "tout sélectionner" (en-tête). */
+  selectAllRows: string;
+  /** `aria-label` d'une case de sélection de ligne. Interpolé : `{index}` = numéro de ligne (1-based). */
+  selectRow: string;
+  /** `aria-label` de la poignée de réorganisation d'une colonne (glisser-déposer ou flèches gauche/droite au clavier). */
+  dragHandleLabel: string;
+  /** `aria-label` de la poignée de redimensionnement d'une colonne (glisser ou flèches gauche/droite au clavier). */
+  resizeHandleLabel: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -90,6 +100,11 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   exportToPage: 'à la page',
   exportConfirm: 'Exporter',
   loading: 'Chargement en cours',
+  tableLabel: 'Tableau de données',
+  selectAllRows: 'Sélectionner toutes les lignes',
+  selectRow: 'Sélectionner la ligne {index}',
+  dragHandleLabel: 'Réordonner la colonne : glisser-déposer, ou flèches gauche/droite au clavier',
+  resizeHandleLabel: 'Redimensionner la colonne : glisser, ou flèches gauche/droite au clavier',
 };
 
 /**

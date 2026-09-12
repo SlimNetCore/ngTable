@@ -1028,6 +1028,169 @@ describe('NgTableComponent', () => {
       expect(measured?.style.maxWidth ?? '').toBe('');
       expect(measured?.style.whiteSpace ?? '').toBe('');
     });
+
+    it('redimensionne au clavier (flèches gauche/droite) sur la poignée', async () => {
+      const {component, fixture} = await createTable({columns: resizableColumns()});
+      const column = component.columns()[0];
+      const handle = fixture.nativeElement.querySelector('.resize-handle') as HTMLElement;
+
+      component.onResizeHandleKeydown(
+        {key: 'ArrowRight', target: handle, preventDefault: () => undefined} as unknown as KeyboardEvent,
+        column,
+      );
+      expect(component.columnWidthPx(column)).toBe(216); // 200 + le pas de 16px
+
+      component.onResizeHandleKeydown(
+        {key: 'ArrowLeft', target: handle, preventDefault: () => undefined} as unknown as KeyboardEvent,
+        column,
+      );
+      component.onResizeHandleKeydown(
+        {key: 'ArrowLeft', target: handle, preventDefault: () => undefined} as unknown as KeyboardEvent,
+        column,
+      );
+      expect(component.columnWidthPx(column)).toBe(200 - 16);
+    });
+
+    it('ignore les touches autres que les flèches, et une colonne non redimensionnable', async () => {
+      const {component} = await createTable({columns: resizableColumns()});
+      const column = component.columns()[0];
+      const nonResizable = columns()[1];
+
+      component.onResizeHandleKeydown({key: 'Enter', target: null} as unknown as KeyboardEvent, column);
+      expect(component.columnWidthPx(column)).toBe(200);
+
+      component.onResizeHandleKeydown(
+        {key: 'ArrowRight', target: null, preventDefault: () => undefined} as unknown as KeyboardEvent,
+        nonResizable,
+      );
+      expect(component.columnWidthPx(nonResizable)).toBeNull();
+    });
+  });
+
+  describe('accessibilité', () => {
+    it('expose aria-sort sur les colonnes triables, rien sur les autres', async () => {
+      const {component} = await createTable();
+      const sortable = component.columns()[0]; // `nom`, sortable: true
+      const nonSortableColumn = component.columns()[3]; // `actif`, sortable non défini
+
+      expect(component.ariaSortValue(sortable)).toBe('none');
+      expect(component.ariaSortValue(nonSortableColumn)).toBeNull();
+
+      component.onHeaderSort(sortable);
+      expect(component.ariaSortValue(sortable)).toBe('ascending');
+
+      component.onHeaderSort(sortable);
+      expect(component.ariaSortValue(sortable)).toBe('descending');
+    });
+
+    it('donne un aria-label à la case "tout sélectionner" et à chaque case de ligne', async () => {
+      const {fixture} = await createTable({rowSelectionEnabled: true});
+
+      const headerCheckboxInput = fixture.nativeElement.querySelector(
+        '.selection-header-cell input[type="checkbox"]',
+      );
+      const rowCheckboxInputs = fixture.nativeElement.querySelectorAll('.selection-cell input[type="checkbox"]');
+
+      expect(headerCheckboxInput.getAttribute('aria-label')).toBe(NG_TABLE_DEFAULT_LABELS.selectAllRows);
+      expect(rowCheckboxInputs[0].getAttribute('aria-label')).toBe('Sélectionner la ligne 1');
+      expect(rowCheckboxInputs[1].getAttribute('aria-label')).toBe('Sélectionner la ligne 2');
+    });
+
+    it('rend les lignes focusables au clavier seulement quand elles font quelque chose', async () => {
+      const {fixture: plainFixture} = await createTable();
+      expect(plainFixture.nativeElement.querySelector('tr.data-row').getAttribute('tabindex')).toBeNull();
+
+      const {fixture: contextMenuFixture} = await createTable({
+        rowContextMenuEnabled: true,
+        rowContextMenuTemplate: {} as TemplateRef<unknown>,
+      });
+      expect(contextMenuFixture.nativeElement.querySelector('tr.data-row').getAttribute('tabindex')).toBe('0');
+    });
+
+    it('Entrée/Espace sur une ligne équivaut à un clic (bascule le détail)', async () => {
+      @Component({
+        standalone: true,
+        template: `<ng-template #tpl let-row>{{ row.nom }}</ng-template>`,
+      })
+      class HostComponent {
+        readonly tpl = viewChild.required<TemplateRef<unknown>>('tpl');
+      }
+      const hostFixture = TestBed.createComponent(HostComponent);
+      await hostFixture.whenStable();
+
+      const {component} = await createTable({detailRowTemplate: hostFixture.componentInstance.tpl()});
+      const row = ROWS[0];
+
+      component.onRowKeydown({key: 'Enter', preventDefault: () => undefined} as unknown as KeyboardEvent, row);
+      expect(component.isRowExpanded(row)).toBe(true);
+
+      component.onRowKeydown({key: ' ', preventDefault: () => undefined} as unknown as KeyboardEvent, row);
+      expect(component.isRowExpanded(row)).toBe(false);
+    });
+
+    it('réordonne les colonnes au clavier (flèches gauche/droite sur la poignée)', async () => {
+      const {component} = await createTable();
+      const emitted: string[][] = [];
+      component.columnOrderChange.subscribe((order) => emitted.push(order));
+      const nomColumn = component.columns()[0];
+
+      component.onColumnHandleKeydown(
+        {key: 'ArrowRight', preventDefault: () => undefined} as unknown as KeyboardEvent,
+        nomColumn,
+      );
+
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0].indexOf('nom')).toBe(1); // décalée d'un cran vers la droite
+
+      component.onColumnHandleKeydown(
+        {key: 'ArrowLeft', preventDefault: () => undefined} as unknown as KeyboardEvent,
+        nomColumn,
+      );
+      expect(emitted[1].indexOf('nom')).toBe(0); // revenue à sa place
+    });
+
+    it('ne réordonne pas hors limites (première/dernière colonne)', async () => {
+      const {component} = await createTable();
+      const emitted: string[][] = [];
+      component.columnOrderChange.subscribe((order) => emitted.push(order));
+      const firstColumn = component.columns()[0];
+      const lastColumn = component.columns()[component.columns().length - 1];
+
+      component.onColumnHandleKeydown(
+        {key: 'ArrowLeft', preventDefault: () => undefined} as unknown as KeyboardEvent,
+        firstColumn,
+      );
+      component.onColumnHandleKeydown(
+        {key: 'ArrowRight', preventDefault: () => undefined} as unknown as KeyboardEvent,
+        lastColumn,
+      );
+
+      expect(emitted).toHaveLength(0);
+    });
+
+    it('donne un nom accessible à la table (aria-label), personnalisable', async () => {
+      const {fixture: defaultFixture} = await createTable();
+      expect(defaultFixture.nativeElement.querySelector('table.ng-table').getAttribute('aria-label')).toBe(
+        NG_TABLE_DEFAULT_LABELS.tableLabel,
+      );
+
+      const {fixture: customFixture} = await createTable({ariaLabel: 'Liste des commandes'});
+      expect(customFixture.nativeElement.querySelector('table.ng-table').getAttribute('aria-label')).toBe(
+        'Liste des commandes',
+      );
+    });
+
+    it('donne un aria-label au bouton de copie (jusque-là muet, seul le matTooltip le décrivait)', async () => {
+      const {fixture} = await createTable();
+      const copyBtn = fixture.nativeElement.querySelector('.copy-action-btn');
+      expect(copyBtn.getAttribute('aria-label')).toBe(NG_TABLE_DEFAULT_LABELS.copy);
+    });
+
+    it('affiche un texte accessible (pas seulement une icône) pendant le chargement', async () => {
+      const {fixture} = await createTable({loading: true});
+      const hiddenText = fixture.nativeElement.querySelector('.ngt-loading-overlay .ngt-visually-hidden');
+      expect(hiddenText?.textContent?.trim()).toBe(NG_TABLE_DEFAULT_LABELS.loading);
+    });
   });
 
   describe('robustesse', () => {

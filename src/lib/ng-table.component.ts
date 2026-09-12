@@ -259,6 +259,13 @@ export class NgTableComponent implements OnDestroy {
    * changement de langue), préférez `provideNgTableLabels()`.
    */
   readonly labels = input<Partial<NgTableLabels>>({});
+  /**
+   * `aria-label` du `<table>` — décrit ce que la table représente pour un lecteur
+   * d'écran (ex. "Liste des commandes"). `null` (défaut) retombe sur
+   * `labels.tableLabel`, générique mais toujours présent : un tableau de données
+   * doit avoir un nom accessible (WCAG 1.3.1 / 4.1.2).
+   */
+  readonly ariaLabel = input<string | null>(null);
   /** Message affiché quand `rows()` est vide (ou vide après filtrage en mode local). */
   readonly emptyLabel = input<string | null>(null);
   /**
@@ -986,6 +993,34 @@ export class NgTableComponent implements OnDestroy {
     document.addEventListener('mouseup', this.onMouseUpBound);
   }
 
+  /**
+   * Keyboard-operable alternative to dragging the resize handle: ArrowLeft/ArrowRight
+   * shrink/grow the column by a fixed step while the handle is focused. The mouse-only
+   * drag otherwise has no keyboard equivalent at all (WCAG 2.1.1 Keyboard).
+   */
+  onResizeHandleKeydown(event: KeyboardEvent, column: NgTableColumn<any>): void {
+    if (!column.resizable || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) {
+      return;
+    }
+    event.preventDefault();
+
+    // Même raison que dans `onResizeStart` : sans figer les largeurs rendues des
+    // colonnes voisines, `table-layout: fixed` les laisse s'écraser sous leur
+    // `minWidthPx` au lieu de laisser le tableau déborder en scroll horizontal.
+    this.freezeRenderedColumnWidths(event.target as HTMLElement | null);
+
+    const step = 16;
+    const delta = event.key === 'ArrowLeft' ? -step : step;
+    const widthMap = this.columnWidths();
+    const currentWidth = widthMap[column.id] ?? column.widthPx ?? 180;
+    const minWidth = column.minWidthPx ?? 120;
+    const maxWidth = column.maxWidthPx ?? 620;
+    const nextWidth = Math.max(minWidth, Math.min(maxWidth, currentWidth + delta));
+
+    this.columnWidths.update((current) => ({...current, [column.id]: nextWidth}));
+    this.requestFilterPositionUpdate();
+  }
+
   onResizeAutoFit(event: MouseEvent, column: NgTableColumn<any>): void {
     if (!column.resizable) {
       return;
@@ -1100,6 +1135,23 @@ export class NgTableComponent implements OnDestroy {
     return sort.direction === 'asc' ? labels.sortAsc : labels.sortDesc;
   }
 
+  /**
+   * `aria-sort` du `<th>` — norme WAI-ARIA pour les tableaux triables (APG "Table"
+   * pattern). `null` pour une colonne non triable : l'attribut n'est alors pas
+   * posé du tout (un `aria-sort="none"` sur une colonne qu'on ne peut pas trier
+   * induirait en erreur un lecteur d'écran en laissant croire que c'est possible).
+   */
+  ariaSortValue(column: NgTableColumn<any>): 'ascending' | 'descending' | 'none' | null {
+    if (!column.sortable) {
+      return null;
+    }
+    const sort = this.sortState();
+    if (sort.columnId !== column.id || !sort.direction) {
+      return 'none';
+    }
+    return sort.direction === 'asc' ? 'ascending' : 'descending';
+  }
+
   cellValue(row: any, column: NgTableColumn<any>): unknown {
     return column.valueAccessor(row);
   }
@@ -1115,6 +1167,61 @@ export class NgTableComponent implements OnDestroy {
     if (this.isUncontrolledDetailMode() && this.detailRowToggleOnRowClick()) {
       this.toggleDetail(row);
     }
+  }
+
+  /** `{index}` interpolé en 1-based — plus lisible qu'un index 0-based pour un utilisateur de lecteur d'écran. */
+  rowSelectAriaLabel(rowIndex: number): string {
+    return this.effectiveLabels().selectRow.replace('{index}', `${rowIndex + 1}`);
+  }
+
+  /** A row is a keyboard focus stop only when it actually does something — no needless tab stops otherwise. */
+  isRowInteractive(): boolean {
+    return !!this.detailRowTemplate() || (this.rowContextMenuEnabled() && !!this.rowContextMenuTemplate());
+  }
+
+  /**
+   * Enter/Space mirrors a row click (detail toggle); the "ContextMenu" key or
+   * Shift+F10 opens the row's context menu — the standard keyboard equivalent for a
+   * right-click, per the WAI-ARIA APG. Without this, `rowContextMenuEnabled` would
+   * only ever be reachable with a mouse.
+   */
+  onRowKeydown(event: KeyboardEvent, row: any): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.onRowClick(row);
+      return;
+    }
+
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+      event.preventDefault();
+      this.openRowContextMenuFromKeyboard(event.currentTarget as HTMLElement | null, row);
+    }
+  }
+
+  private openRowContextMenuFromKeyboard(rowElement: HTMLElement | null, row: any): void {
+    if (!this.rowContextMenuEnabled() || !this.rowContextMenuTemplate()) {
+      return;
+    }
+
+    // Pas de coordonnées souris pour une ouverture clavier : on ancre le menu au
+    // coin de la ligne plutôt qu'à un point de clic.
+    const rect = rowElement?.getBoundingClientRect();
+    const x = rect ? rect.left + 12 : 0;
+    const y = rect ? rect.top + 12 : 0;
+
+    this.contextMenuRow.set(row);
+    this.contextMenuPosition.set({x, y});
+    this.detachContextMenuAnchorFromHost();
+    this.rowContextMenu.emit({row, position: {x, y}});
+
+    const trigger = this.contextMenuTriggerRef();
+    if (!trigger) {
+      return;
+    }
+    if (trigger.menuOpen) {
+      trigger.closeMenu();
+    }
+    requestAnimationFrame(() => trigger.openMenu());
   }
 
   isFilterOptionsLoading(columnId: string): boolean {
@@ -1416,13 +1523,50 @@ export class NgTableComponent implements OnDestroy {
     const sourceId = this.draggingColumnId();
     this.draggingColumnId.set(null);
     this.dragOverColumnId.set(null);
-    if (!sourceId || sourceId === column.id) {
+    if (!sourceId) {
+      return;
+    }
+    this.moveColumnNextTo(sourceId, column.id);
+  }
+
+  onColumnDragEnd(): void {
+    this.draggingColumnId.set(null);
+    this.dragOverColumnId.set(null);
+  }
+
+  /**
+   * Keyboard-operable alternative to the drag-and-drop reorder: ArrowLeft/ArrowRight
+   * while the drag handle is focused move the column one step in that direction.
+   * Native HTML5 drag-and-drop (used for the mouse path) has no keyboard equivalent
+   * at all, so this is required for WCAG 2.1.1 (Keyboard) — not just a nicety.
+   */
+  onColumnHandleKeydown(event: KeyboardEvent, column: NgTableColumn<any>): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return;
+    }
+    event.preventDefault();
+
+    const reorderable = this.visibleColumns().map((c) => c.id);
+    const fromIndex = reorderable.indexOf(column.id);
+    if (fromIndex === -1) {
+      return;
+    }
+    const toIndex = event.key === 'ArrowLeft' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= reorderable.length) {
+      return;
+    }
+    this.moveColumnNextTo(column.id, reorderable[toIndex]);
+  }
+
+  /** Moves `sourceId` to `targetId`'s position. Shared by the drag-drop and keyboard reorder paths. */
+  private moveColumnNextTo(sourceId: string, targetId: string): void {
+    if (sourceId === targetId) {
       return;
     }
 
     const reorderable = this.visibleColumns().map((c) => c.id);
     const fromIndex = reorderable.indexOf(sourceId);
-    const toIndex = reorderable.indexOf(column.id);
+    const toIndex = reorderable.indexOf(targetId);
     if (fromIndex === -1 || toIndex === -1) {
       return;
     }
@@ -1438,11 +1582,6 @@ export class NgTableComponent implements OnDestroy {
     const next = [...reorderable, ...hiddenIds];
     this.internalColumnOrder.set(next);
     this.columnOrderChange.emit(next);
-  }
-
-  onColumnDragEnd(): void {
-    this.draggingColumnId.set(null);
-    this.dragOverColumnId.set(null);
   }
 
   shouldRenderInlineFilter(column: NgTableColumn<any>): boolean {

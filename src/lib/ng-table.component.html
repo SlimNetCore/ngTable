@@ -17,26 +17,29 @@
 
   <div class="list-actions">
     <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" mat-stroked-button type="button">
-      <mat-icon>view_column</mat-icon>
+      <mat-icon aria-hidden="true">view_column</mat-icon>
       {{ effectiveLabels().columnsButton }}
     </button>
 
     <mat-menu #columnsMenu="matMenu">
       @for (column of columnsMenuItems(); track column.id) {
-        <button (click)="$event.stopPropagation()" mat-menu-item>
+        <!-- `<div mat-menu-item>` et non `<button>` : un `<mat-checkbox>` est lui-même
+             un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
+             et perturbe la navigation clavier/lecteur d'écran (contrôle dans contrôle). -->
+        <div (click)="$event.stopPropagation()" mat-menu-item>
           <mat-checkbox
             (change)="onToggleColumnVisibility(column.id, $event.checked)"
             [checked]="isColumnVisible(column.id)"
           >
             {{ column.header }}
           </mat-checkbox>
-        </button>
+        </div>
       }
     </mat-menu>
 
     @if (viewsEnabled()) {
       <button [matMenuTriggerFor]="viewsMenu" mat-stroked-button type="button">
-        <mat-icon>bookmark</mat-icon>
+        <mat-icon aria-hidden="true">bookmark</mat-icon>
         {{ effectiveLabels().viewsButton }}
         @if (activeView(); as av) {
           <span class="active-view-chip">{{ av.name }}</span>
@@ -56,13 +59,14 @@
             />
             <button
               (click)="saveCurrentAsView(newViewName())"
+              [attr.aria-label]="effectiveLabels().saveView"
               [disabled]="!newViewName().trim()"
               class="views-save-btn"
               mat-icon-button
               [title]="effectiveLabels().saveView"
               type="button"
             >
-              <mat-icon>save</mat-icon>
+              <mat-icon aria-hidden="true">save</mat-icon>
             </button>
           </div>
 
@@ -70,20 +74,23 @@
             <div class="views-divider"></div>
             @for (view of viewsList(); track view.id) {
               <div [class.active]="view.id === activeViewId()" class="view-row">
-                <button (click)="activateView(view)" class="view-row-label" type="button">
-                  <mat-icon>{{ view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+                <button (click)="activateView(view)" [attr.aria-current]="view.id === activeViewId() ? 'true' : null"
+                        class="view-row-label" type="button">
+                  <mat-icon aria-hidden="true">{{ view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
                   <span>{{ view.name }}</span>
                 </button>
-                <button (click)="updateView(view)" [title]="effectiveLabels().updateView" class="view-row-update"
+                <button (click)="updateView(view)" [attr.aria-label]="effectiveLabels().updateView"
+                        [title]="effectiveLabels().updateView" class="view-row-update"
                         [class.view-row-update--done]="viewUpdateIconName(view) === 'check'"
                         mat-icon-button
                         type="button">
-                  <mat-icon>{{ viewUpdateIconName(view) }}</mat-icon>
+                  <mat-icon aria-hidden="true">{{ viewUpdateIconName(view) }}</mat-icon>
                 </button>
-                <button (click)="deleteView(view)" [title]="effectiveLabels().deleteView" class="view-row-delete"
+                <button (click)="deleteView(view)" [attr.aria-label]="effectiveLabels().deleteView"
+                        [title]="effectiveLabels().deleteView" class="view-row-delete"
                         mat-icon-button
                         type="button">
-                  <mat-icon>delete</mat-icon>
+                  <mat-icon aria-hidden="true">delete</mat-icon>
                 </button>
               </div>
             }
@@ -101,7 +108,7 @@
         mat-stroked-button
         type="button"
       >
-        <mat-icon>download</mat-icon>
+        <mat-icon aria-hidden="true">download</mat-icon>
         {{ effectiveLabels().exportButton }}
       </button>
 
@@ -135,7 +142,7 @@
           </div>
 
           <button (click)="confirmExportDialog()" class="export-confirm-btn" mat-flat-button type="button">
-            <mat-icon>download</mat-icon>
+            <mat-icon aria-hidden="true">download</mat-icon>
             {{ effectiveLabels().exportConfirm }}
           </button>
         </div>
@@ -146,7 +153,7 @@
   @if (showActiveFiltersBar() && activeFilterSummaries().length > 0) {
     <div class="active-filters-bar">
       <span class="active-filters-bar__label">
-        <mat-icon>filter_alt</mat-icon>
+        <mat-icon aria-hidden="true">filter_alt</mat-icon>
         {{ effectiveLabels().activeFilters }}
       </span>
 
@@ -162,22 +169,23 @@
               mat-icon-button
               type="button"
             >
-              <mat-icon>close</mat-icon>
+              <mat-icon aria-hidden="true">close</mat-icon>
             </button>
           </span>
         }
       </div>
 
       <button (click)="clearAllFilters()" class="active-filters-bar__reset" mat-stroked-button type="button">
-        <mat-icon>filter_alt_off</mat-icon>
+        <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
         {{ effectiveLabels().resetFiltersButton }}
       </button>
     </div>
   }
 
-  <div [class.table-viewport--loading]="loading()" class="table-viewport">
+  <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--loading]="loading()" class="table-viewport">
   <div (scroll)="onTableWrapScroll()" class="table-wrap">
-    <table [dataSource]="displayedRows()" [fixedLayout]="true" [style.min-width.px]="minTableWidthPx()"
+    <table [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [dataSource]="displayedRows()"
+           [fixedLayout]="true" [style.min-width.px]="minTableWidthPx()"
            [trackBy]="resolvedTrackBy"
            class="ng-table" mat-table multiTemplateDataRows>
       @if (rowSelectionEnabled()) {
@@ -185,14 +193,16 @@
           <th *matHeaderCellDef class="selection-header-cell" mat-header-cell>
             <mat-checkbox
               (change)="onToggleAllDisplayedRows($event)"
+              [aria-label]="effectiveLabels().selectAllRows"
               [checked]="areAllDisplayedRowsSelected()"
               [indeterminate]="hasPartiallySelectedDisplayedRows()"
             />
           </th>
-          <td *matCellDef="let row" class="selection-cell" mat-cell>
+          <td *matCellDef="let row; let rowIndex = index" class="selection-cell" mat-cell>
             <mat-checkbox
               (change)="onToggleRowSelection($event, row)"
               (click)="$event.stopPropagation()"
+              [aria-label]="rowSelectAriaLabel(rowIndex)"
               [checked]="isRowSelected(row)"
             />
           </td>
@@ -205,6 +215,7 @@
               (dragover)="onColumnDragOver($event, column)"
               (drop)="onColumnDrop($event, column)"
               *matHeaderCellDef
+              [attr.aria-sort]="ariaSortValue(column)"
               [class.column-drag-over]="dragOverColumnId() === column.id"
               [class.column-dragging]="draggingColumnId() === column.id"
               [style.max-width.px]="column.maxWidthPx ?? null" [style.min-width.px]="column.minWidthPx ?? null"
@@ -213,11 +224,15 @@
               <span
                 (dragend)="onColumnDragEnd()"
                 (dragstart)="onColumnDragStart($event, column)"
+                (keydown)="onColumnHandleKeydown($event, column)"
+                [attr.aria-label]="effectiveLabels().dragHandleLabel"
                 [attr.draggable]="!isMobileView()"
-                class="drag-handle"
                 [title]="effectiveLabels().dragToReorder"
+                class="drag-handle"
+                role="button"
+                tabindex="0"
               >
-                <mat-icon>drag_indicator</mat-icon>
+                <mat-icon aria-hidden="true">drag_indicator</mat-icon>
               </span>
               <button
                 (click)="onHeaderSort(column)"
@@ -228,7 +243,7 @@
               >
                 <span [ngTableTruncateTooltip]="column.header" class="header-label">{{ column.header }}</span>
                 @if (column.sortable) {
-                  <mat-icon class="sort-icon">{{ currentSortIcon(column) }}</mat-icon>
+                  <mat-icon aria-hidden="true" class="sort-icon">{{ currentSortIcon(column) }}</mat-icon>
                 }
               </button>
 
@@ -245,7 +260,7 @@
                     mat-icon-button
                     type="button"
                   >
-                    <mat-icon>{{ isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off' }}</mat-icon>
+                    <mat-icon aria-hidden="true">{{ isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off' }}</mat-icon>
                   </button>
 
                   <mat-menu #menu="matMenu" class="ngt-filter-menu-panel">
@@ -256,7 +271,7 @@
                     >
                       @if (filterMenuTitle(column); as menuTitle) {
                         <div class="filter-menu-title">
-                          <mat-icon>filter_alt</mat-icon>
+                          <mat-icon aria-hidden="true">filter_alt</mat-icon>
                           <span>{{ menuTitle }}</span>
                         </div>
                       }
@@ -337,8 +352,16 @@
             @if (column.resizable) {
               <span
                 (dblclick)="onResizeAutoFit($event, column)"
+                (keydown)="onResizeHandleKeydown($event, column)"
                 (mousedown)="onResizeStart($event, column)"
+                [attr.aria-label]="effectiveLabels().resizeHandleLabel"
+                [attr.aria-valuemax]="column.maxWidthPx ?? null"
+                [attr.aria-valuemin]="column.minWidthPx ?? null"
+                [attr.aria-valuenow]="columnWidthPx(column)"
+                aria-orientation="vertical"
                 class="resize-handle"
+                role="separator"
+                tabindex="0"
               ></span>
             }
           </th>
@@ -365,12 +388,13 @@
               @if (hasCopyAction(column, row)) {
                 <button
                   (click)="onCopyCellValue($event, column, row, rowIndex)"
+                  [attr.aria-label]="copyTooltip(column)"
                   [matTooltip]="copyTooltip(column)"
                   class="copy-action-btn"
                   mat-icon-button
                   type="button"
                 >
-                  <mat-icon>{{ copyIconName(column, row, rowIndex) }}</mat-icon>
+                  <mat-icon aria-hidden="true">{{ copyIconName(column, row, rowIndex) }}</mat-icon>
                 </button>
               }
             </div>
@@ -399,8 +423,10 @@
       <tr
         (click)="onRowClick(row)"
         (contextmenu)="onRowContextMenu($event, row)"
+        (keydown)="onRowKeydown($event, row)"
         *matRowDef="let row; let rowIndex = index; columns: displayedColumnIds(); when: dataRowWhen"
         [attr.aria-expanded]="detailRowTemplate() ? isDetailExpanded(rowIndex, row) : null"
+        [attr.tabindex]="isRowInteractive() ? 0 : null"
         [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
         [ngClass]="rowClasses(row)"
         class="data-row"
@@ -427,13 +453,14 @@
   </div>
 
   @if (loading()) {
-    <div [attr.aria-label]="effectiveLabels().loading" class="ngt-loading-overlay" role="status">
+    <div aria-live="polite" class="ngt-loading-overlay" role="status">
       <div class="ngt-loading-overlay__backdrop"></div>
       <div class="ngt-loading-overlay__content">
         @if (loadingTemplate()) {
           <ng-container *ngTemplateOutlet="loadingTemplate()"/>
         } @else {
           <span aria-hidden="true" class="ngt-spinner ngt-spinner--lg"></span>
+          <span class="ngt-visually-hidden">{{ effectiveLabels().loading }}</span>
         }
       </div>
     </div>

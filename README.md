@@ -896,6 +896,7 @@ interface NgTableFilterConfig {
 | `columnOrder`               | `ReadonlyArray<string> \| null`                                  | `null`    | Mode contrôlé de l'ordre des colonnes.                                                                               |
 | `filters`                   | `Record<string, string> \| null`                                 | `null`    | Mode contrôlé des filtres.                                                                                           |
 | `labels`                    | `Partial<NgTableLabels>`                                         | `{}`      | Textes à surcharger (voir "Personnaliser les textes").                                                              |
+| `ariaLabel`                 | `string \| null`                                                 | `null`    | `aria-label` du `<table>` (ex. "Liste des commandes"). `null` = `labels.tableLabel` (générique, toujours présent).   |
 | `emptyLabel`                | `string \| null`                                                 | `null`    | Message si liste vide ; `null` = utilise `labels.noData`.                                                            |
 | `loading`                   | `boolean`                                                        | `false`   | Affiche un overlay de chargement centré sur la table (bloque l'interaction tant qu'il est visible). Piloté par le parent. |
 | `loadingTemplate`           | `TemplateRef<unknown> \| null`                                   | `null`    | Contenu custom de l'overlay de chargement ; `null` = spinner intégré.                                                 |
@@ -1048,7 +1049,12 @@ export interface NgTableLabels {
   exportFromPage: string;       // libellé "de la page"
   exportToPage: string;         // libellé "à la page"
   exportConfirm: string;        // libellé du bouton de confirmation de l'export
-  loading: string;              // aria-label de l'overlay de chargement
+  loading: string;              // aria-label de l'overlay de chargement (et texte accessible affiché dedans)
+  tableLabel: string;           // aria-label par défaut du <table> si [ariaLabel] n'est pas fourni
+  selectAllRows: string;        // aria-label de la case "tout sélectionner"
+  selectRow: string;            // aria-label d'une case de ligne — {index} = numéro de ligne (1-based)
+  dragHandleLabel: string;      // aria-label de la poignée de réorganisation (glisser OU flèches gauche/droite)
+  resizeHandleLabel: string;    // aria-label de la poignée de redimensionnement (glisser OU flèches gauche/droite)
 }
 ```
 
@@ -1289,6 +1295,58 @@ Le menu est positionné au point de clic exact (l'ancre technique est reparenté
 ## Responsive
 
 Sous 760px, la table bascule en vue mobile : seule la colonne marquée `mobileRowActions: true` reste visible (colonne d'actions condensée), la poignée de drag-and-drop est désactivée. Au-dessus, si la somme des largeurs dépasse `minTableWidthPx`, un scroll horizontal apparaît plutôt que de compresser les colonnes.
+
+## Accessibilité
+
+`ng-table` vise WCAG 2.1 AA et les patterns WAI-ARIA APG (table triable, window splitter, menu contextuel). Rien à activer : le tableau de base est utilisable au clavier et par lecteur d'écran dès l'installation.
+
+### Nom accessible de la table
+
+```html
+<ng-table [ariaLabel]="'Liste des commandes'" ... />
+```
+
+Sans `[ariaLabel]`, `labels.tableLabel` ("Tableau de données" par défaut) s'applique — un `<table>` doit toujours avoir un nom accessible (WCAG 1.3.1 / 4.1.2), donc plutôt un défaut générique que rien du tout.
+
+### Tri (`aria-sort`)
+
+Chaque `<th>` triable expose `aria-sort="ascending" | "descending" | "none"`, conforme au pattern APG "Table". Une colonne non triable ne porte pas l'attribut du tout — un `aria-sort="none"` dessus laisserait croire à tort qu'elle est triable.
+
+### Sélection de lignes
+
+Les cases à cocher (`rowSelectionEnabled`) ont un `aria-label` explicite — `labels.selectAllRows` pour "tout sélectionner", `labels.selectRow` (`{index}` interpolé, 1-based) pour chaque ligne — au lieu d'être des cases muettes.
+
+### Réordonnancement et redimensionnement des colonnes au clavier
+
+Les deux étaient **uniquement à la souris** avant cette passe (drag-and-drop HTML5 natif et `mousedown`/`mousemove`, sans équivalent clavier — une violation WCAG 2.1.1). Les deux poignées sont maintenant des contrôles focusables (`tabindex="0"`) :
+
+- **Poignée de réorganisation** (`role="button"`, `labels.dragHandleLabel`) : flèches gauche/droite au clavier, glisser-déposer à la souris — les deux appellent le même code de réordonnancement, donc un résultat identique quel que soit le mode.
+- **Poignée de redimensionnement** (`role="separator"` + `aria-orientation="vertical"` + `aria-valuenow`/`aria-valuemin`/`aria-valuemax`, `labels.resizeHandleLabel` — le pattern APG "Window Splitter") : flèches gauche/droite pour ±16px, glisser à la souris, double-clic pour l'auto-fit (souris uniquement, l'auto-fit clavier n'a pas d'équivalent direct).
+
+### Lignes interactives
+
+Une ligne ne devient un arrêt de tabulation (`tabindex="0"`) **que si elle fait quelque chose** — détail expansible (`detailRowTemplate`) ou menu contextuel (`rowContextMenuEnabled`) — pour ne pas cribler un grand tableau d'arrêts de tabulation inutiles sur des lignes purement informatives :
+
+- **Entrée / Espace** : équivalent clavier du clic (bascule le détail).
+- **Touche Menu, ou Maj+F10** : équivalent clavier standard du clic droit — ouvre le menu contextuel (`rowContextMenuEnabled`), ancré au coin de la ligne (pas de coordonnées souris disponibles au clavier).
+
+### Chargement
+
+L'overlay (`[loading]`) porte `role="status"` + `aria-live="polite"`, et le conteneur de la table `aria-busy="true"` pendant le chargement. Le spinner par défaut est accompagné d'un texte réservé aux lecteurs d'écran (`labels.loading`, visuellement masqué via la classe utilitaire `.ngt-visually-hidden`) — un `role="status"` sans aucun texte associé n'est pas annoncé de façon fiable par tous les lecteurs d'écran. Un `[loadingTemplate]` custom est responsable de son propre contenu accessible.
+
+### Icônes et boutons
+
+Toutes les `<mat-icon>` purement décoratives (à côté d'un texte visible, ou dont le bouton porte déjà un `aria-label`) sont `aria-hidden="true"`, pour éviter qu'un lecteur d'écran ne lise deux fois la même information (le nom de l'icône ligature, puis le texte). Chaque bouton icône-seul (copier, sauvegarder/mettre à jour/supprimer une vue...) a désormais un `aria-label` explicite — certains ne s'appuyaient auparavant que sur `title` (fonctionne, mais faible : pas de survol tactile, lu de façon inconsistante par certains lecteurs d'écran) ou, pour le bouton copier, uniquement sur `matTooltip` (qui documente via `aria-describedby`, pas `aria-label` — un bouton icône-seul sans l'un des deux n'a **aucun** nom accessible, violation WCAG 4.1.2).
+
+### HTML valide
+
+Le menu "Colonnes" imbriquait un `<mat-checkbox>` (lui-même interactif) dans un `<button mat-menu-item>` — contenu interactif dans un `<button>`, invalide en HTML et source de confusion pour la navigation clavier/lecteur d'écran. Remplacé par un `<div mat-menu-item>` (le sélecteur `[mat-menu-item]` n'exige pas un `<button>`).
+
+### Ce qui reste à la charge du consommateur
+
+- **Contraste des couleurs** : les variables `--app-*` (voir "Personnaliser le style") sont sous votre contrôle — vérifiez le contraste de votre charte (WCAG 1.4.3, ratio 4.5:1 pour le texte standard).
+- **`cellTemplate` / `rowContextMenuTemplate` / `loadingTemplate`** : leur contenu est libre — à vous de leur donner des noms accessibles (boutons, liens, contrôles de formulaire) et de respecter la même rigueur clavier.
+- **`ariaLabel`** : pensez à le renseigner avec un intitulé propre à votre écran (ex. "Liste des commandes") plutôt que de garder le défaut générique.
 
 ## Points d'attention
 

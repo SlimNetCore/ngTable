@@ -2,6 +2,21 @@
   display: block;
 }
 
+/* Contenu réservé aux lecteurs d'écran — pattern "sr-only" standard : retiré du
+   rendu visuel sans `display:none`/`visibility:hidden`, qui le retireraient
+   aussi de l'arbre d'accessibilité. */
+.ngt-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .context-menu-anchor {
   position: fixed;
   width: 1px;
@@ -156,11 +171,23 @@
   height: 18px;
 }
 
-.ng-table .mat-mdc-header-cell:hover .drag-handle {
+.ng-table .mat-mdc-header-cell:hover .drag-handle,
+.ng-table .mat-mdc-header-cell:focus-within .drag-handle {
   opacity: 1;
 }
 
 .drag-handle:hover {
+  color: var(--app-primary, #3a7ca5);
+}
+
+/* La poignée n'est visible qu'au survol/focus de l'en-tête (`opacity: 0` par
+   défaut plus haut) — sans ce `:focus-visible` dédié, un focus clavier resterait
+   invisible même après le `:focus-within` ci-dessus (qui gère seulement
+   l'opacité), violant WCAG 2.4.7 (indicateur de focus visible). */
+.drag-handle:focus-visible {
+  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline-offset: 2px;
+  border-radius: 4px;
   color: var(--app-primary, #3a7ca5);
 }
 
@@ -287,6 +314,16 @@
 }
 
 .resize-handle:hover::after {
+  background: var(--app-primary, #3a7ca5);
+}
+
+.resize-handle:focus-visible {
+  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 16%, transparent);
+  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline-offset: -2px;
+}
+
+.resize-handle:focus-visible::after {
   background: var(--app-primary, #3a7ca5);
 }
 
@@ -597,6 +634,14 @@
 
 .data-row {
   cursor: pointer;
+}
+
+/* Uniquement pertinent quand `tabindex="0"` est posé (`isRowInteractive()` —
+   détail expansible ou menu contextuel) ; une ligne non focusable n'a jamais ce
+   focus visible à afficher. */
+.data-row:focus-visible {
+  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline-offset: -2px;
 }
 
 .cell-content {
