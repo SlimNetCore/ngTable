@@ -1,6 +1,6 @@
 {
   "name": "@sbourahla/ng-table",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Table Angular Material configurable : colonnes, tri, filtres, vues sauvegardées, modes local/remote. Sans dépendance i18n ni métier.",
   "keywords": [
     "angular",
