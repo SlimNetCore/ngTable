@@ -26,8 +26,35 @@
 }
 
 .table-wrap {
+  position: relative;
   overflow-x: auto;
   border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+}
+
+.table-wrap--loading {
+  min-height: 160px;
+}
+
+.ngt-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+
+.ngt-loading-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--app-surface, #ffffff);
+  opacity: 0.85;
+}
+
+.ngt-loading-overlay__content {
+  position: relative;
+  height: 100%;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ng-table {
@@ -283,6 +310,12 @@
   width: 14px;
   height: 14px;
   border-width: 2px;
+}
+
+.ngt-spinner--lg {
+  width: 34px;
+  height: 34px;
+  border-width: 3px;
 }
 
 @keyframes ngt-spin {

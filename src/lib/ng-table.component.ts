@@ -251,6 +251,17 @@ export class NgTableComponent implements OnDestroy {
   readonly labels = input<Partial<NgTableLabels>>({});
   /** Message affiché quand `rows()` est vide (ou vide après filtrage en mode local). */
   readonly emptyLabel = input<string | null>(null);
+  /**
+   * Affiche un overlay de chargement centré au milieu de la table (bloque
+   * l'interaction avec les lignes tant qu'il est visible). A piloter depuis le
+   * parent — `ng-table` ne sait pas lui-même si une requête est en cours.
+   */
+  readonly loading = input(false);
+  /**
+   * Contenu custom de l'overlay de chargement. `null` (défaut) affiche le spinner
+   * intégré ; sinon ce template remplace entièrement le rendu par défaut.
+   */
+  readonly loadingTemplate = input<TemplateRef<unknown> | null>(null);
   readonly minTableWidthPx = input(760);
   readonly rowClassFn = input<((row: any) => string | string[] | Record<string, boolean> | null) | null>(null);
   readonly rowTrackBy = input<TrackByFunction<any> | null>(null);

@@ -51,6 +51,8 @@ export interface NgTableLabels {
   exportToPage: string;
   /** Libellé du bouton de confirmation de l'export. */
   exportConfirm: string;
+  /** `aria-label` de l'overlay de chargement. */
+  loading: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -87,6 +89,7 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   exportFromPage: 'De la page',
   exportToPage: 'à la page',
   exportConfirm: 'Exporter',
+  loading: 'Chargement en cours',
 };
 
 /**

@@ -176,7 +176,7 @@
     </div>
   }
 
-  <div (scroll)="onTableWrapScroll()" class="table-wrap">
+  <div (scroll)="onTableWrapScroll()" [class.table-wrap--loading]="loading()" class="table-wrap">
     <table [dataSource]="displayedRows()" [style.min-width.px]="minTableWidthPx()" [trackBy]="resolvedTrackBy"
            class="ng-table" mat-table multiTemplateDataRows>
       @if (rowSelectionEnabled()) {
@@ -420,6 +420,19 @@
         </td>
       </tr>
     </table>
+
+    @if (loading()) {
+      <div [attr.aria-label]="effectiveLabels().loading" class="ngt-loading-overlay" role="status">
+        <div class="ngt-loading-overlay__backdrop"></div>
+        <div class="ngt-loading-overlay__content">
+          @if (loadingTemplate()) {
+            <ng-container *ngTemplateOutlet="loadingTemplate()"/>
+          } @else {
+            <span aria-hidden="true" class="ngt-spinner ngt-spinner--lg"></span>
+          }
+        </div>
+      </div>
+    }
   </div>
 
 </section>

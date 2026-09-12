@@ -690,6 +690,39 @@ onExportRequested(query: NgTableRemoteQuery): void {
 
 `NgTableRemoteQuery` (`{sort, filters, page}`) reprend le tri/filtres/page courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
 
+### Étape 18ter — Indicateur de chargement
+
+`[loading]="true"` affiche un overlay centré au milieu de la table (bloque l'interaction avec les lignes tant qu'il est visible) — c'est au parent de le piloter, `ng-table` ne sait pas lui-même qu'une requête est en cours :
+
+```html
+<ng-table [loading]="isLoading()" [columns]="columns" [rows]="rows()" />
+```
+
+```ts
+readonly isLoading = signal(false);
+
+fetch(query: NgTableRemoteQuery): void {
+  this.isLoading.set(true);
+  this.api.search(query).subscribe({
+    next: (res) => { this.serverRows.set(res.items); this.total.set(res.total); },
+    complete: () => this.isLoading.set(false),
+  });
+}
+```
+
+Sans rien fournir de plus, un spinner par défaut s'affiche (CSS pur, aucune dépendance). Pour un rendu custom (logo animé, barre de progression...), fournissez `[loadingTemplate]` :
+
+```html
+<ng-table [loading]="isLoading()" [loadingTemplate]="myLoader()" ... />
+<ng-template #myLoader>
+  <div class="mon-loader"><mat-spinner diameter="40" /></div>
+</ng-template>
+```
+
+```ts
+protected readonly myLoader = viewChild<TemplateRef<unknown>>('myLoader');
+```
+
 ### Étape 19 — Personnaliser les textes et l'internationalisation
 
 Sans rien faire, tous les textes sont en français. Pour surcharger ponctuellement :
@@ -838,6 +871,8 @@ interface NgTableFilterConfig {
 | `filters`                   | `Record<string, string> \| null`                                 | `null`    | Mode contrôlé des filtres.                                                                                           |
 | `labels`                    | `Partial<NgTableLabels>`                                         | `{}`      | Textes à surcharger (voir "Personnaliser les textes").                                                              |
 | `emptyLabel`                | `string \| null`                                                 | `null`    | Message si liste vide ; `null` = utilise `labels.noData`.                                                            |
+| `loading`                   | `boolean`                                                        | `false`   | Affiche un overlay de chargement centré sur la table (bloque l'interaction tant qu'il est visible). Piloté par le parent. |
+| `loadingTemplate`           | `TemplateRef<unknown> \| null`                                   | `null`    | Contenu custom de l'overlay de chargement ; `null` = spinner intégré.                                                 |
 | `minTableWidthPx`           | `number`                                                         | `760`     | Largeur mini avant scroll horizontal (desktop).                                                                      |
 | `rowClassFn`                | `(row) => string \| string[] \| Record<string, boolean> \| null` | `null`    | Classes CSS dynamiques par ligne.                                                                                    |
 | `rowTrackBy`                | `TrackByFunction<any> \| null`                                   | `null`    | `trackBy` custom.                                                                                                    |
@@ -987,6 +1022,7 @@ export interface NgTableLabels {
   exportFromPage: string;       // libellé "de la page"
   exportToPage: string;         // libellé "à la page"
   exportConfirm: string;        // libellé du bouton de confirmation de l'export
+  loading: string;              // aria-label de l'overlay de chargement
 }
 ```
 

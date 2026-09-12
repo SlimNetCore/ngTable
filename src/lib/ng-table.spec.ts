@@ -1,4 +1,4 @@
-import {computed, provideZonelessChangeDetection, signal} from '@angular/core';
+import {Component, computed, provideZonelessChangeDetection, signal, TemplateRef, viewChild} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {MatCheckboxChange} from '@angular/material/checkbox';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -545,6 +545,41 @@ describe('NgTableComponent', () => {
 
       expect(component.activeViewId()).toBe('v1');
       expect(ids(component.displayedRows())).toEqual(['1', '3']); // filtré + trié desc sur montant
+    });
+  });
+
+  describe('chargement', () => {
+    it("n'affiche pas d'overlay par défaut", async () => {
+      const {fixture} = await createTable();
+
+      expect(fixture.nativeElement.querySelector('.ngt-loading-overlay')).toBeFalsy();
+    });
+
+    it('affiche le spinner par défaut quand loading=true', async () => {
+      const {fixture} = await createTable({loading: true});
+
+      const overlay = fixture.nativeElement.querySelector('.ngt-loading-overlay');
+      expect(overlay).toBeTruthy();
+      expect(overlay.querySelector('.ngt-spinner')).toBeTruthy();
+    });
+
+    it('affiche le loadingTemplate fourni à la place du spinner par défaut', async () => {
+      @Component({
+        standalone: true,
+        template: `<ng-template #tpl><div class="custom-loader">Chargement...</div></ng-template>`,
+      })
+      class HostComponent {
+        readonly tpl = viewChild.required<TemplateRef<unknown>>('tpl');
+      }
+
+      const hostFixture = TestBed.createComponent(HostComponent);
+      await hostFixture.whenStable();
+      const template = hostFixture.componentInstance.tpl();
+
+      const {fixture} = await createTable({loading: true, loadingTemplate: template});
+
+      expect(fixture.nativeElement.querySelector('.custom-loader')?.textContent).toContain('Chargement...');
+      expect(fixture.nativeElement.querySelector('.ngt-spinner')).toBeFalsy();
     });
   });
 
