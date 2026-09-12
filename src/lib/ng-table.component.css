@@ -25,20 +25,32 @@
   padding: 16px 16px 12px;
 }
 
-.table-wrap {
+/*
+ * `.table-viewport` (non-scrollant) porte le positionnement de l'overlay de
+ * chargement ; `.table-wrap` (scrollant horizontalement) reste un enfant normal.
+ * L'overlay doit vivre HORS du conteneur qui scrolle : un `position:absolute`
+ * placé À L'INTÉRIEUR d'un ancêtre `overflow-x:auto` fait partie de son contenu
+ * scrollable — il se décale/disparaît avec le scroll horizontal au lieu de
+ * rester plaqué sur toute la table visible (c'est ce qui donnait l'impression
+ * que le fond de l'overlay ne couvrait qu'une partie de la table).
+ */
+.table-viewport {
   position: relative;
+}
+
+.table-wrap {
   overflow-x: auto;
   border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
 }
 
-.table-wrap--loading {
+.table-viewport--loading {
   min-height: 160px;
 }
 
 .ngt-loading-overlay {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 20;
 }
 
 .ngt-loading-overlay__backdrop {
@@ -57,7 +69,21 @@
   justify-content: center;
 }
 
-.ng-table {
+/*
+ * `table-layout: fixed` est VITAL pour la troncature : en layout `auto`, une
+ * cellule en `white-space: nowrap` élargit sa colonne pour contenir tout le
+ * texte — plus rien ne déborde, donc plus aucun "…" possible.
+ *
+ * Material pose `.mat-mdc-table { table-layout: auto; white-space: normal; }`,
+ * de MÊME spécificité (0,1,0) que `.ng-table` : selon l'ordre d'injection des
+ * feuilles de style, c'est Material qui gagnait et le layout repassait en
+ * `auto`. D'où la double ceinture : `[fixedLayout]="true"` côté template (le
+ * mécanisme officiel du CdkTable, sa classe est déclarée après dans la feuille
+ * de Material) + cette règle à spécificité (0,2,0) qui gagne quel que soit
+ * l'ordre.
+ */
+.ng-table,
+.ng-table.mat-mdc-table {
   width: 100%;
   table-layout: fixed;
 }
@@ -552,6 +578,11 @@
   color: var(--app-primary, #3a7ca5);
 }
 
+.view-row-update--done,
+.view-row-update--done:hover {
+  color: #2e7d32;
+}
+
 .view-row-delete {
   flex: 0 0 auto;
   color: var(--app-muted, #4f6573);
@@ -577,16 +608,24 @@
   align-items: flex-start;
 }
 
-.cell-text--truncate {
+/*
+ * Spécificité renforcée (`.ng-table td.mat-mdc-cell ...`, même niveau que la
+ * règle d'`overflow` sur le `<td>` plus haut) : les styles de typographie
+ * internes de Material sur `.mat-mdc-cell` (ex. `white-space`) sont sinon
+ * prioritaires selon l'ordre d'injection des styles, et l'ellipsis ne
+ * s'affichait jamais malgré des règles correctes en apparence.
+ */
+.ng-table td.mat-mdc-cell .cell-text--truncate {
   display: block;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
 }
 
-.cell-text--wrap {
+.ng-table td.mat-mdc-cell .cell-text--wrap {
   display: block;
   min-width: 0;
   white-space: normal;

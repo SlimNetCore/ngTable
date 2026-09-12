@@ -75,9 +75,10 @@
                   <span>{{ view.name }}</span>
                 </button>
                 <button (click)="updateView(view)" [title]="effectiveLabels().updateView" class="view-row-update"
+                        [class.view-row-update--done]="viewUpdateIconName(view) === 'check'"
                         mat-icon-button
                         type="button">
-                  <mat-icon>sync</mat-icon>
+                  <mat-icon>{{ viewUpdateIconName(view) }}</mat-icon>
                 </button>
                 <button (click)="deleteView(view)" [title]="effectiveLabels().deleteView" class="view-row-delete"
                         mat-icon-button
@@ -104,43 +105,41 @@
         {{ effectiveLabels().exportButton }}
       </button>
 
-      @if (exportMode() === 'local') {
-        <mat-menu #exportMenu="matMenu" class="ngt-export-menu-panel">
-          <div (click)="$event.stopPropagation()" class="export-menu-body">
-            <p class="export-menu-title">{{ effectiveLabels().exportDialogTitle }}</p>
+      <mat-menu #exportMenu="matMenu" class="ngt-export-menu-panel">
+        <div (click)="$event.stopPropagation()" class="export-menu-body">
+          <p class="export-menu-title">{{ effectiveLabels().exportDialogTitle }}</p>
 
-            <div class="export-range-row">
-              <label class="export-range-field">
-                <span>{{ effectiveLabels().exportFromPage }}</span>
-                <input
-                  (input)="exportFromPage.set($any($event.target).valueAsNumber || 1)"
-                  [max]="exportTotalPages()"
-                  [value]="exportFromPage()"
-                  class="export-range-input"
-                  min="1"
-                  type="number"
-                />
-              </label>
-              <label class="export-range-field">
-                <span>{{ effectiveLabels().exportToPage }}</span>
-                <input
-                  (input)="exportToPage.set($any($event.target).valueAsNumber || 1)"
-                  [max]="exportTotalPages()"
-                  [value]="exportToPage()"
-                  class="export-range-input"
-                  min="1"
-                  type="number"
-                />
-              </label>
-            </div>
-
-            <button (click)="confirmExportDialog()" class="export-confirm-btn" mat-flat-button type="button">
-              <mat-icon>download</mat-icon>
-              {{ effectiveLabels().exportConfirm }}
-            </button>
+          <div class="export-range-row">
+            <label class="export-range-field">
+              <span>{{ effectiveLabels().exportFromPage }}</span>
+              <input
+                (input)="exportFromPage.set($any($event.target).valueAsNumber || 1)"
+                [max]="exportTotalPages()"
+                [value]="exportFromPage()"
+                class="export-range-input"
+                min="1"
+                type="number"
+              />
+            </label>
+            <label class="export-range-field">
+              <span>{{ effectiveLabels().exportToPage }}</span>
+              <input
+                (input)="exportToPage.set($any($event.target).valueAsNumber || 1)"
+                [max]="exportTotalPages()"
+                [value]="exportToPage()"
+                class="export-range-input"
+                min="1"
+                type="number"
+              />
+            </label>
           </div>
-        </mat-menu>
-      }
+
+          <button (click)="confirmExportDialog()" class="export-confirm-btn" mat-flat-button type="button">
+            <mat-icon>download</mat-icon>
+            {{ effectiveLabels().exportConfirm }}
+          </button>
+        </div>
+      </mat-menu>
     }
   </div>
 
@@ -176,8 +175,10 @@
     </div>
   }
 
-  <div (scroll)="onTableWrapScroll()" [class.table-wrap--loading]="loading()" class="table-wrap">
-    <table [dataSource]="displayedRows()" [style.min-width.px]="minTableWidthPx()" [trackBy]="resolvedTrackBy"
+  <div [class.table-viewport--loading]="loading()" class="table-viewport">
+  <div (scroll)="onTableWrapScroll()" class="table-wrap">
+    <table [dataSource]="displayedRows()" [fixedLayout]="true" [style.min-width.px]="minTableWidthPx()"
+           [trackBy]="resolvedTrackBy"
            class="ng-table" mat-table multiTemplateDataRows>
       @if (rowSelectionEnabled()) {
         <ng-container matColumnDef="__row_selection__">
@@ -346,12 +347,15 @@
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
             <div class="cell-content" [class.cell-content--wrap]="column.textOverflow === 'wrap'">
               @if (column.cellTemplate) {
-                <ng-container
-                  *ngTemplateOutlet="
-                    column.cellTemplate;
-                    context: { $implicit: row, row: row, value: cellValue(row, column), column: column }
-                  "
-                />
+                <span class="cell-text" [class.cell-text--truncate]="column.textOverflow !== 'wrap'"
+                      [class.cell-text--wrap]="column.textOverflow === 'wrap'">
+                  <ng-container
+                    *ngTemplateOutlet="
+                      column.cellTemplate;
+                      context: { $implicit: row, row: row, value: cellValue(row, column), column: column }
+                    "
+                  />
+                </span>
               } @else if (column.textOverflow === 'wrap') {
                 <span class="cell-text cell-text--wrap">{{ cellValue(row, column) }}</span>
               } @else {
@@ -420,19 +424,20 @@
         </td>
       </tr>
     </table>
+  </div>
 
-    @if (loading()) {
-      <div [attr.aria-label]="effectiveLabels().loading" class="ngt-loading-overlay" role="status">
-        <div class="ngt-loading-overlay__backdrop"></div>
-        <div class="ngt-loading-overlay__content">
-          @if (loadingTemplate()) {
-            <ng-container *ngTemplateOutlet="loadingTemplate()"/>
-          } @else {
-            <span aria-hidden="true" class="ngt-spinner ngt-spinner--lg"></span>
-          }
-        </div>
+  @if (loading()) {
+    <div [attr.aria-label]="effectiveLabels().loading" class="ngt-loading-overlay" role="status">
+      <div class="ngt-loading-overlay__backdrop"></div>
+      <div class="ngt-loading-overlay__content">
+        @if (loadingTemplate()) {
+          <ng-container *ngTemplateOutlet="loadingTemplate()"/>
+        } @else {
+          <span aria-hidden="true" class="ngt-spinner ngt-spinner--lg"></span>
+        }
       </div>
-    }
+    </div>
+  }
   </div>
 
 </section>

@@ -109,10 +109,14 @@ export interface NgTableColumn<T> {
   maxWidthPx?: number;
   cellTemplate?: TemplateRef<{ $implicit: T; row: T; value: unknown; column: NgTableColumn<T> }>;
   /**
-   * Comportement du texte de cellule quand il dépasse la largeur de la colonne.
-   * `'truncate'` (défaut) : une ligne, coupée avec "…", tooltip affichée au survol
-   * uniquement si le texte est réellement tronqué. `'wrap'` : retour à la ligne normal.
-   * Sans effet si `cellTemplate` est fourni (le template gère son propre rendu).
+   * Comportement du texte de cellule quand il dépasse la largeur de la colonne —
+   * s'applique aussi bien à `valueAccessor` qu'au rendu d'un `cellTemplate`.
+   * `'truncate'` (défaut) : une ligne, coupée avec "…" (tooltip au survol
+   * uniquement si le texte est réellement tronqué, sauf avec `cellTemplate` — le
+   * rendu riche n'est pas résumable en tooltip). `'wrap'` : retour à la ligne
+   * normal. Un `cellTemplate` produisant plusieurs éléments côte à côte qui
+   * doivent pouvoir se répartir sur plusieurs lignes doit passer explicitement
+   * en `'wrap'` (le défaut `'truncate'` les forcerait sur une seule ligne).
    */
   textOverflow?: 'truncate' | 'wrap';
   sortValueAccessor?: (row: T) => string | number | boolean | Date | null | undefined;
@@ -496,6 +500,8 @@ export class NgTableComponent implements OnDestroy {
   protected readonly draggingColumnId = signal<string | null>(null);
   protected readonly dragOverColumnId = signal<string | null>(null);
   protected readonly copiedCellKey = signal<string | null>(null);
+  /** Id de la vue venant d'être mise à jour — pilote la coche transitoire du bouton. */
+  protected readonly updatedViewId = signal<string | null>(null);
   protected readonly lazyFilterOptions = signal<Record<string, NgTableFilterOption[]>>({});
   protected readonly lazyFilterLoading = signal<Record<string, boolean>>({});
   /** `true` = "empty options" error, `false` = no error, a loader error is tracked separately below. */
@@ -896,6 +902,21 @@ export class NgTableComponent implements OnDestroy {
     const now = new Date().toISOString();
     const nextViews = store.views.map((v) => (v.id === view.id ? {...v, state, updatedAt: now} : v));
     this.commitViewsStore({views: nextViews, activeViewId: view.id});
+
+    // Feedback transitoire (icône -> check) — même mécanisme que la copie de
+    // cellule. Pas de notification/toast : la librairie n'a pas de dépendance
+    // UI pour ça, et un swap d'icône reste visible même si le menu est resté ouvert.
+    this.updatedViewId.set(view.id);
+    setTimeout(() => {
+      if (this.updatedViewId() === view.id) {
+        this.updatedViewId.set(null);
+      }
+    }, 1400);
+  }
+
+  /** Icône du bouton "mettre à jour" d'une vue — coche transitoire juste après l'action. */
+  viewUpdateIconName(view: NgTableView): string {
+    return this.updatedViewId() === view.id ? 'check' : 'sync';
   }
 
   private captureCurrentViewState(): NgTableViewState {

@@ -118,6 +118,44 @@ describe('NgTableComponent', () => {
       expect(cells[1].querySelector('.cell-text--truncate')).toBeTruthy();
     });
 
+    it('force le layout fixe de la table (sans lui, une cellule `nowrap` élargit sa colonne et rien ne peut être tronqué)', async () => {
+      const {fixture} = await createTable();
+      const table = fixture.nativeElement.querySelector('table.ng-table');
+
+      // `[fixedLayout]="true"` : Material pose `table-layout: auto` sur
+      // `.mat-mdc-table`, de même spécificité que `.ng-table` — cette classe
+      // (déclarée après dans sa feuille) garantit le layout fixe.
+      expect(table.classList.contains('mat-table-fixed-layout')).toBe(true);
+    });
+
+    it('tronque par défaut le rendu d’un cellTemplate, comme pour valueAccessor, sauf textOverflow: "wrap" explicite', async () => {
+      @Component({
+        standalone: true,
+        template: `<ng-template #tpl let-value>{{ value }}</ng-template>`,
+      })
+      class HostComponent {
+        readonly tpl = viewChild.required<TemplateRef<unknown>>('tpl');
+      }
+
+      const hostFixture = TestBed.createComponent(HostComponent);
+      await hostFixture.whenStable();
+      const template = hostFixture.componentInstance.tpl();
+
+      const withDefault = columns();
+      withDefault[0] = {...withDefault[0], cellTemplate: template};
+      const withWrap = columns();
+      withWrap[1] = {...withWrap[1], cellTemplate: template, textOverflow: 'wrap'};
+
+      const {fixture: defaultFixture} = await createTable({columns: withDefault});
+      const defaultCells = defaultFixture.nativeElement.querySelectorAll('td.mat-mdc-cell');
+      expect(defaultCells[0].querySelector('.cell-text--truncate')).toBeTruthy();
+
+      const {fixture: wrapFixture} = await createTable({columns: withWrap});
+      const wrapCells = wrapFixture.nativeElement.querySelectorAll('td.mat-mdc-cell');
+      expect(wrapCells[1].querySelector('.cell-text--wrap')).toBeTruthy();
+      expect(wrapCells[1].querySelector('.cell-text--truncate')).toBeFalsy();
+    });
+
     it('ajoute la colonne technique de sélection quand elle est activée', async () => {
       const {component} = await createTable({rowSelectionEnabled: true});
 
@@ -522,6 +560,21 @@ describe('NgTableComponent', () => {
       expect(component.viewsList()[0].name).toBe('Ma vue');
       expect(component.activeView()?.state.filters['statut']).toBe('BROUILLON');
       expect(component.activeViewId()).toBe(view.id);
+    });
+
+    it('affiche une coche transitoire sur le bouton de mise à jour d’une vue', async () => {
+      vi.useFakeTimers();
+      const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
+      component.saveCurrentAsView('Ma vue');
+      const view = component.viewsList()[0];
+
+      expect(component.viewUpdateIconName(view)).toBe('sync');
+
+      component.updateView(view);
+      expect(component.viewUpdateIconName(view)).toBe('check');
+
+      vi.advanceTimersByTime(1400);
+      expect(component.viewUpdateIconName(view)).toBe('sync');
     });
 
     it('réapplique l’état complet à l’activation d’une vue', async () => {
