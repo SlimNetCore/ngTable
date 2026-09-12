@@ -74,6 +74,11 @@
                   <mat-icon>{{ view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
                   <span>{{ view.name }}</span>
                 </button>
+                <button (click)="updateView(view)" [title]="effectiveLabels().updateView" class="view-row-update"
+                        mat-icon-button
+                        type="button">
+                  <mat-icon>sync</mat-icon>
+                </button>
                 <button (click)="deleteView(view)" [title]="effectiveLabels().deleteView" class="view-row-delete"
                         mat-icon-button
                         type="button">

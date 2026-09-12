@@ -458,6 +458,22 @@ describe('NgTableComponent', () => {
       expect(component.activeView()?.state.filters['statut']).toBe('BROUILLON');
     });
 
+    it('met à jour une vue existante avec l’affichage courant sans changer son nom ni son id', async () => {
+      const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
+      component.onFilterValue('statut', 'VALIDEE');
+      component.saveCurrentAsView('Ma vue');
+      const view = component.viewsList()[0];
+
+      component.onFilterValue('statut', 'BROUILLON');
+      component.updateView(view);
+
+      expect(component.viewsList()).toHaveLength(1);
+      expect(component.viewsList()[0].id).toBe(view.id);
+      expect(component.viewsList()[0].name).toBe('Ma vue');
+      expect(component.activeView()?.state.filters['statut']).toBe('BROUILLON');
+      expect(component.activeViewId()).toBe(view.id);
+    });
+
     it('réapplique l’état complet à l’activation d’une vue', async () => {
       const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
       component.onFilterValue('statut', 'VALIDEE');

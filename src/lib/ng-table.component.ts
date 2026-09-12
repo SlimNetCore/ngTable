@@ -781,14 +781,7 @@ export class NgTableComponent implements OnDestroy {
       return;
     }
 
-    const state: NgTableViewState = {
-      columnVisibility: {...this.effectiveColumnVisibility()},
-      columnOrder: [...this.effectiveColumnOrder()],
-      sort: {...this.sortState()},
-      filters: {...this.columnFilters()},
-      ...(this.pageTrackingEnabled() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
-    };
-
+    const state = this.captureCurrentViewState();
     const store = this.effectiveViewsStore();
     const now = new Date().toISOString();
     const existing = store.views.find((v) => v.name === trimmed);
@@ -806,6 +799,29 @@ export class NgTableComponent implements OnDestroy {
 
     this.commitViewsStore({views: nextViews, activeViewId});
     this.newViewName.set('');
+  }
+
+  /**
+   * Overwrites an existing view's saved presentation with the list's current one
+   * (columns, order, sort, filters, and pagination when `pageTrackingEnabled=true`),
+   * keeping its name and id. The updated view becomes the active one.
+   */
+  updateView(view: NgTableView): void {
+    const state = this.captureCurrentViewState();
+    const store = this.effectiveViewsStore();
+    const now = new Date().toISOString();
+    const nextViews = store.views.map((v) => (v.id === view.id ? {...v, state, updatedAt: now} : v));
+    this.commitViewsStore({views: nextViews, activeViewId: view.id});
+  }
+
+  private captureCurrentViewState(): NgTableViewState {
+    return {
+      columnVisibility: {...this.effectiveColumnVisibility()},
+      columnOrder: [...this.effectiveColumnOrder()],
+      sort: {...this.sortState()},
+      filters: {...this.columnFilters()},
+      ...(this.pageTrackingEnabled() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
+    };
   }
 
   isFilterActive(columnId: string): boolean {

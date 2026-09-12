@@ -452,6 +452,15 @@
   color: var(--app-primary, #3a7ca5);
 }
 
+.view-row-update {
+  flex: 0 0 auto;
+  color: var(--app-muted, #4f6573);
+}
+
+.view-row-update:hover {
+  color: var(--app-primary, #3a7ca5);
+}
+
 .view-row-delete {
   flex: 0 0 auto;
   color: var(--app-muted, #4f6573);

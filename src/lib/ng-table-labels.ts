@@ -33,6 +33,8 @@ export interface NgTableLabels {
   viewNamePlaceholder: string;
   /** Tooltip du bouton d'enregistrement d'une vue. */
   saveView: string;
+  /** Tooltip du bouton de mise à jour d'une vue existante avec l'affichage actuel. */
+  updateView: string;
   /** Tooltip du bouton de suppression d'une vue. */
   deleteView: string;
   /** Message affiché quand aucune vue n'est enregistrée. */
@@ -66,6 +68,7 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   no: 'Non',
   viewNamePlaceholder: 'Nom de la vue',
   saveView: 'Enregistrer la vue actuelle',
+  updateView: 'Mettre à jour cette vue avec l\'affichage actuel',
   deleteView: 'Supprimer la vue',
   noSavedViews: 'Aucune vue enregistrée',
   dragToReorder: 'Glisser pour réordonner',

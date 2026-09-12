@@ -918,6 +918,7 @@ export interface NgTableLabels {
   no: string;
   viewNamePlaceholder: string;  // champ "nom de la vue"
   saveView: string;             // tooltip du bouton d'enregistrement d'une vue
+  updateView: string;           // tooltip du bouton de mise à jour d'une vue existante
   deleteView: string;           // tooltip du bouton de suppression d'une vue
   noSavedViews: string;         // message quand aucune vue n'est enregistrée
   dragToReorder: string;        // tooltip de la poignée de réorganisation des colonnes
@@ -1039,6 +1040,7 @@ Système permettant à l'utilisateur de sauvegarder l'état complet d'affichage 
 - **Mode non contrôlé** (dès que `viewsStorageKey` est fourni) : persistance automatique dans `localStorage`, sous la clé namespacée `` `ng-table.views.${viewsStorageKey}` ``.
 - **Mode contrôlé** (`[viewsStore]` fourni) : le composant n'écrit plus dans `localStorage`, il émet seulement `(viewsStoreChange)` — à vous de décider où stocker.
 - Au chargement, la dernière vue active est automatiquement réappliquée si le store en contient une.
+- Chaque vue de la liste a un bouton "mettre à jour" (icône `sync`) qui écrase son état sauvegardé avec l'affichage courant (colonnes, ordre, tri, filtres, pagination), sans avoir à retaper son nom dans le champ de création — contrairement à `saveCurrentAsView`, qui ne met à jour que par correspondance de nom. Appelable aussi directement : `updateView(view: NgTableView): void`.
 
 **Point d'attention** : si `columnVisibility` est **contrôlé** par le parent, l'activation d'une vue ne suffit pas à faire réapparaître les bonnes colonnes visuellement — il faut resynchroniser explicitement via `(viewActivated)` :
 
