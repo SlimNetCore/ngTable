@@ -548,6 +548,72 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('export', () => {
+    it('exporte un CSV local des colonnes visibles, exclut les colonnes exportable:false', async () => {
+      const cols = columns();
+      cols.push({id: 'actions', header: 'Actions', valueAccessor: () => '', exportable: false});
+      const {component} = await createTable({columns: cols, exportEnabled: true});
+
+      let capturedBlob: Blob | null = null;
+      const createObjectURLSpy = vi
+        .spyOn(URL, 'createObjectURL')
+        .mockImplementation((blob) => {
+          capturedBlob = blob as Blob;
+          return 'blob:mock';
+        });
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+      const completed: unknown[] = [];
+      component.localExportCompleted.subscribe((e) => completed.push(e));
+
+      component.openExportDialog();
+
+      expect(completed).toEqual([{fromPage: 1, toPage: 1, rowCount: 3}]);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      const text = await capturedBlob!.text();
+      expect(text).toContain('Nom;Montant;Statut;Actif');
+      expect(text).not.toContain('Actions');
+
+      createObjectURLSpy.mockRestore();
+    });
+
+    it('émet remoteExportRequested en mode remote, sans générer de fichier', async () => {
+      const {component} = await createTable({exportEnabled: true, exportMode: 'remote', dataMode: 'remote'});
+      const requests: unknown[] = [];
+      component.remoteExportRequested.subscribe((q) => requests.push(q));
+      const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL');
+
+      component.openExportDialog();
+
+      expect(requests).toHaveLength(1);
+      expect(createObjectURLSpy).not.toHaveBeenCalled();
+      createObjectURLSpy.mockRestore();
+    });
+
+    it('exige une confirmation de plage quand plusieurs pages sont exportables', async () => {
+      const {component} = await createTable({exportEnabled: true, pageTrackingEnabled: true, pageSize: 1});
+
+      expect(component.exportTotalPages()).toBe(3);
+
+      const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+      component.openExportDialog();
+      expect(createObjectURLSpy).not.toHaveBeenCalled();
+      expect(component.exportFromPage()).toBe(1);
+      expect(component.exportToPage()).toBe(3);
+
+      component.exportFromPage.set(2);
+      component.exportToPage.set(3);
+      component.confirmExportDialog();
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+
+      createObjectURLSpy.mockRestore();
+    });
+  });
+
   describe('labels', () => {
     it('utilise les textes par défaut de la librairie', async () => {
       const {component} = await createTable();

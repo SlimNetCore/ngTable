@@ -41,6 +41,16 @@ export interface NgTableLabels {
   noSavedViews: string;
   /** Tooltip de la poignée de réorganisation des colonnes. */
   dragToReorder: string;
+  /** Libellé du bouton d'export. */
+  exportButton: string;
+  /** Titre de la boîte de dialogue de choix de plage de pages (export local). */
+  exportDialogTitle: string;
+  /** Libellé précédant le sélecteur "page de début". */
+  exportFromPage: string;
+  /** Libellé précédant le sélecteur "page de fin". */
+  exportToPage: string;
+  /** Libellé du bouton de confirmation de l'export. */
+  exportConfirm: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -72,6 +82,11 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   deleteView: 'Supprimer la vue',
   noSavedViews: 'Aucune vue enregistrée',
   dragToReorder: 'Glisser pour réordonner',
+  exportButton: 'Exporter',
+  exportDialogTitle: 'Exporter les données',
+  exportFromPage: 'De la page',
+  exportToPage: 'à la page',
+  exportConfirm: 'Exporter',
 };
 
 /**

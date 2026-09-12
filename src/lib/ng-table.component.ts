@@ -55,6 +55,24 @@ export interface NgTableRemoteQuery {
   page: { index: number; size: number };
 }
 
+/**
+ * `local`: `ng-table` génère lui-même le fichier d'export (CSV) à partir des données
+ * déjà chargées, après que l'utilisateur choisit une plage de pages dans une boîte
+ * de dialogue intégrée. Aucun appel réseau.
+ * `remote`: `ng-table` ne génère rien — il émet `(remoteExportRequested)` avec le
+ * tri/filtres/page courants ; à l'appelant de construire sa requête serveur (avec
+ * ses propres paramètres additionnels, ex. via un store) et de déclencher le
+ * téléchargement du fichier généré côté back.
+ */
+export type NgTableExportMode = 'local' | 'remote';
+
+/** Résultat d'un export `local` réussi — informatif (analytics, toast...). */
+export interface NgTableLocalExportEvent {
+  fromPage: number;
+  toPage: number;
+  rowCount: number;
+}
+
 export type NgTableFilterOption = { value: string; label: string };
 
 /**
@@ -107,6 +125,10 @@ export interface NgTableColumn<T> {
     valueAccessor?: (row: T) => string;
     tooltip?: string;
   };
+  /** `false` exclut la colonne de l'export (ex. une colonne d'actions/boutons). `true` par défaut. */
+  exportable?: boolean;
+  /** Valeur utilisée pour l'export si elle doit différer de `valueAccessor` (ex. valeur brute vs rendu riche d'un `cellTemplate`). */
+  exportValueAccessor?: (row: T) => string | number | boolean | null | undefined;
 }
 
 export interface NgTableSortChange {
@@ -321,6 +343,13 @@ export class NgTableComponent implements OnDestroy {
   /** Controlled mode: parent owns the views store entirely (backend, file, etc.). */
   readonly viewsStore = input<NgTableViewsStore | null>(null);
 
+  /** Show/hide the export button. Off by default. */
+  readonly exportEnabled = input(false);
+  /** See {@link NgTableExportMode}. `'local'` by default. */
+  readonly exportMode = input<NgTableExportMode>('local');
+  /** Base filename (without extension) used for the file generated in `exportMode='local'`. */
+  readonly exportFilename = input('export');
+
   readonly rowClick = output<any>();
   /** Emitted whenever any filter value changes. */
   readonly filtersChange = output<Record<string, string>>();
@@ -346,6 +375,15 @@ export class NgTableComponent implements OnDestroy {
   readonly viewActivated = output<NgTableView | null>();
   /** Emitted when an activated view carries pagination — apply it to your own paginator. */
   readonly viewPaginationRestore = output<{ pageIndex: number; pageSize: number }>();
+  /**
+   * `exportMode='remote'` only: the user clicked the export button. Carries the
+   * current sort/filters/page — build your server export request from this (add
+   * whatever extra parameters your backend needs, e.g. from your own store) and
+   * handle the resulting file/download yourself; `ng-table` does not call your API.
+   */
+  readonly remoteExportRequested = output<NgTableRemoteQuery>();
+  /** `exportMode='local'` only: emitted after the CSV file has been generated and downloaded. */
+  readonly localExportCompleted = output<NgTableLocalExportEvent>();
   /**
    * `dataMode='remote'` only: emitted with the full current sort + filters whenever
    * either changes (sort toggle, filter value, reset, or a saved view activating with
@@ -450,6 +488,24 @@ export class NgTableComponent implements OnDestroy {
   protected readonly contextMenuPosition = signal<{ x: number; y: number }>({x: 0, y: 0});
   protected readonly contextMenuTriggerRef = viewChild<MatMenuTrigger>('rowContextMenuTrigger');
   protected readonly newViewName = signal('');
+  protected readonly exportFromPage = signal(1);
+  protected readonly exportToPage = signal(1);
+  /**
+   * Total number of locally-exportable "pages" (>= 1). Based on the filtered/sorted
+   * row count and `pageSize()`; always `1` when pagination isn't tracked (there is
+   * only one "page": everything), so the export dialog only asks for a page range
+   * when it's actually meaningful.
+   */
+  readonly exportTotalPages = computed(() => {
+    if (!this.pageTrackingEnabled()) {
+      return 1;
+    }
+    const size = this.pageSize();
+    if (!size || size <= 0) {
+      return 1;
+    }
+    return Math.max(1, Math.ceil(this.filteredSortedRows().length / size));
+  });
   /** Local mode pipeline: rows source -> filtres -> tri (sans pagination). */
   private readonly filteredSortedRows = computed(() => {
     const sourceRows = this.rows();
@@ -1192,6 +1248,89 @@ export class NgTableComponent implements OnDestroy {
     const nextViews = store.views.filter((v) => v.id !== view.id);
     const nextActiveId = store.activeViewId === view.id ? (nextViews[0]?.id ?? null) : store.activeViewId;
     this.commitViewsStore({views: nextViews, activeViewId: nextActiveId});
+  }
+
+  /**
+   * Click on the export button. `remote` mode emits `(remoteExportRequested)`
+   * directly (no dialog — the caller owns the whole flow). `local` mode opens the
+   * page-range dialog, unless there's only a single exportable page, in which case
+   * it exports immediately.
+   */
+  openExportDialog(): void {
+    if (this.exportMode() === 'remote') {
+      this.remoteExportRequested.emit({
+        sort: this.sortState(),
+        filters: this.columnFilters(),
+        page: {index: this.pageIndex(), size: this.pageTrackingEnabled() ? this.pageSize() : 0},
+      });
+      return;
+    }
+
+    const total = this.exportTotalPages();
+    if (total <= 1) {
+      this.exportLocalRange(1, 1);
+      return;
+    }
+    this.exportFromPage.set(1);
+    this.exportToPage.set(total);
+  }
+
+  /** Confirms the page-range dialog and triggers the local CSV export. */
+  confirmExportDialog(): void {
+    const total = this.exportTotalPages();
+    const from = Math.min(Math.max(1, Math.round(this.exportFromPage()) || 1), total);
+    const to = Math.min(Math.max(from, Math.round(this.exportToPage()) || from), total);
+    this.exportLocalRange(from, to);
+  }
+
+  private exportLocalRange(fromPage: number, toPage: number): void {
+    const allRows = this.filteredSortedRows();
+    const size = this.pageTrackingEnabled() && this.pageSize() > 0 ? this.pageSize() : allRows.length || 1;
+    const rows = this.pageTrackingEnabled() ? allRows.slice((fromPage - 1) * size, toPage * size) : allRows;
+
+    this.downloadCsv(this.buildExportCsv(rows), `${this.exportFilename()}.csv`);
+    this.localExportCompleted.emit({fromPage, toPage, rowCount: rows.length});
+  }
+
+  private buildExportCsv(rows: readonly any[]): string {
+    const exportColumns = this.visibleColumns().filter((column) => column.exportable !== false);
+    const lines = [exportColumns.map((column) => this.csvEscape(column.header)).join(';')];
+
+    for (const row of rows) {
+      const cells = exportColumns.map((column) => {
+        const raw = column.exportValueAccessor ? column.exportValueAccessor(row) : column.valueAccessor(row);
+        return this.csvEscape(this.formatExportValue(raw));
+      });
+      lines.push(cells.join(';'));
+    }
+
+    return lines.join('\r\n');
+  }
+
+  private formatExportValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return value instanceof Date ? value.toISOString() : String(value);
+  }
+
+  /** Quotes a CSV field only when needed (separator, quote or newline present). */
+  private csvEscape(value: string): string {
+    return /[";\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  }
+
+  private downloadCsv(content: string, filename: string): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    // BOM UTF-8 : sans lui, Excel interprète le CSV en Latin-1 et corrompt les accents.
+    const blob = new Blob(['﻿' + content], {type: 'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   /** Reorders columns after a header drag-and-drop. Disabled on mobile (columns are already collapsed there). */

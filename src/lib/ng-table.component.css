@@ -406,6 +406,65 @@
   font-size: 0.8rem;
 }
 
+.ngt-export-menu-panel.mat-mdc-menu-panel {
+  min-width: min(92vw, 280px) !important;
+  max-width: min(92vw, 280px) !important;
+  border-radius: 20px;
+  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
+  background: var(--app-filter-panel-bg, #ffffff);
+}
+
+.export-menu-body {
+  box-sizing: border-box;
+  padding: 12px;
+}
+
+.export-menu-title {
+  margin: 0 0 10px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.export-range-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.export-range-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--app-muted, #4f6573);
+}
+
+.export-range-input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  border-radius: 10px;
+  background: var(--app-field-bg, #ffffff);
+  color: var(--app-text, #0d1d26);
+  font: inherit;
+}
+
+.export-range-input:focus {
+  outline: none;
+  border-color: var(--app-primary, #3a7ca5);
+}
+
+.export-confirm-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .view-row {
   display: flex;
   align-items: center;

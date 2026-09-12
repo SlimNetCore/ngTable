@@ -92,6 +92,56 @@
         </div>
       </mat-menu>
     }
+
+    @if (exportEnabled()) {
+      <button
+        (click)="openExportDialog()"
+        [matMenuTriggerFor]="exportMode() === 'local' && exportTotalPages() > 1 ? exportMenu : null"
+        mat-stroked-button
+        type="button"
+      >
+        <mat-icon>download</mat-icon>
+        {{ effectiveLabels().exportButton }}
+      </button>
+
+      @if (exportMode() === 'local') {
+        <mat-menu #exportMenu="matMenu" class="ngt-export-menu-panel">
+          <div (click)="$event.stopPropagation()" class="export-menu-body">
+            <p class="export-menu-title">{{ effectiveLabels().exportDialogTitle }}</p>
+
+            <div class="export-range-row">
+              <label class="export-range-field">
+                <span>{{ effectiveLabels().exportFromPage }}</span>
+                <input
+                  (input)="exportFromPage.set($any($event.target).valueAsNumber || 1)"
+                  [max]="exportTotalPages()"
+                  [value]="exportFromPage()"
+                  class="export-range-input"
+                  min="1"
+                  type="number"
+                />
+              </label>
+              <label class="export-range-field">
+                <span>{{ effectiveLabels().exportToPage }}</span>
+                <input
+                  (input)="exportToPage.set($any($event.target).valueAsNumber || 1)"
+                  [max]="exportTotalPages()"
+                  [value]="exportToPage()"
+                  class="export-range-input"
+                  min="1"
+                  type="number"
+                />
+              </label>
+            </div>
+
+            <button (click)="confirmExportDialog()" class="export-confirm-btn" mat-flat-button type="button">
+              <mat-icon>download</mat-icon>
+              {{ effectiveLabels().exportConfirm }}
+            </button>
+          </div>
+        </mat-menu>
+      }
+    }
   </div>
 
   @if (showActiveFiltersBar() && activeFilterSummaries().length > 0) {

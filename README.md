@@ -651,6 +651,45 @@ onViewsStoreChange(store: NgTableViewsStore): void {
 }
 ```
 
+### Étape 18bis — Export (CSV local ou génération serveur)
+
+Un bouton "Exporter" dans la barre d'actions, avec deux modes au choix via `exportMode` :
+
+**Mode `local`** (défaut) — `ng-table` génère lui-même le CSV, aucune requête réseau :
+
+```html
+<ng-table [exportEnabled]="true" [exportFilename]="'commandes'" ... />
+```
+
+Au clic, si les données locales tiennent sur plusieurs pages (`pageTrackingEnabled=true` avec plus d'une page), une boîte de dialogue demande la plage à exporter ("de la page 1 à la page X", X = le nombre total de pages après filtrage) ; sinon le fichier est généré immédiatement avec toutes les lignes filtrées/triées. Colonnes exportées : celles actuellement visibles, dans leur ordre courant.
+
+```ts
+{
+  id: 'montant',
+  header: 'Montant',
+  valueAccessor: (c) => `${c.montant} €`,       // affiché en cellule
+  exportValueAccessor: (c) => c.montant,        // exporté en CSV : valeur numérique brute
+}
+{id: 'actions', header: 'Actions', valueAccessor: () => '', cellTemplate: actionsTpl, exportable: false}
+```
+
+**Mode `remote`** — le back génère l'export (fichier volumineux, job asynchrone...) ; `ng-table` ne fait qu'émettre une demande, à vous de construire la requête et de gérer le résultat :
+
+```html
+<ng-table [exportEnabled]="true" [exportMode]="'remote'" (remoteExportRequested)="onExportRequested($event)" ... />
+```
+
+```ts
+onExportRequested(query: NgTableRemoteQuery): void {
+  // Ajoutez vos propres paramètres (ex. depuis un store applicatif) avant l'appel :
+  this.exportApi.generate({...query, format: 'xlsx', locale: this.currentLocale()}).subscribe((res) => {
+    window.open(res.downloadUrl, '_blank');
+  });
+}
+```
+
+`NgTableRemoteQuery` (`{sort, filters, page}`) reprend le tri/filtres/page courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
+
 ### Étape 19 — Personnaliser les textes et l'internationalisation
 
 Sans rien faire, tous les textes sont en français. Pour surcharger ponctuellement :
@@ -766,6 +805,8 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 | `filterPredicate?`                         | `(row: T, filterValue: string) => boolean`                             | Logique de filtrage custom (remplace le filtrage par défaut).                                                                                  |
 | `mobileRowActions?`                        | `boolean`                                                              | Colonne d'actions condensée affichée en vue mobile (les autres colonnes sont masquées).                                                        |
 | `copy?`                                    | `boolean \| {valueAccessor?, tooltip?}`                                | Bouton "copier" sur la cellule. `true` copie `valueAccessor(row)` ; l'objet permet un accessor/tooltip dédiés (`tooltip` = texte déjà résolu). |
+| `exportable?`                              | `boolean`                                                               | Exclut la colonne de l'export CSV si `false` (utile pour une colonne d'actions/boutons). `true` par défaut.                                    |
+| `exportValueAccessor?`                     | `(row: T) => string \| number \| boolean \| null \| undefined`         | Valeur exportée si différente de `valueAccessor` (ex. valeur brute plutôt que le rendu riche d'un `cellTemplate`).                              |
 
 ### `NgTableFilterConfig`
 
@@ -823,6 +864,9 @@ interface NgTableFilterConfig {
 | `viewsEnabled`              | `boolean`                                                        | `false`   | Affiche/masque le bloc "Vues" (bouton + menu).                                                                       |
 | `viewsStorageKey`           | `string \| null`                                                 | `null`    | Mode non contrôlé : clé de persistance `localStorage` des vues.                                                      |
 | `viewsStore`                | `NgTableViewsStore \| null`                                      | `null`    | Mode contrôlé : le parent possède le store des vues.                                                                 |
+| `exportEnabled`              | `boolean`                                                        | `false`   | Affiche le bouton d'export.                                                                                           |
+| `exportMode`                 | `'local' \| 'remote'`                                            | `'local'` | Voir "Export".                                                                                                        |
+| `exportFilename`             | `string`                                                         | `'export'`| Nom de fichier (sans extension) du CSV généré en mode `local`.                                                        |
 
 ### Outputs
 
@@ -843,6 +887,8 @@ interface NgTableFilterConfig {
 | `remoteQueryChange`      | `NgTableRemoteQuery` (`{sort, filters, page}`)                                | **Mode `remote`.** Émis à chaque changement de tri/filtre, état complet, prêt pour une requête serveur unique.                                                             |
 | `filteredCountChange`    | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Total après filtrage, pour `[length]` de votre paginator.                                                                   |
 | `pageIndexChange`        | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Émis avec `0` quand un filtre/tri doit remettre la page à zéro.                                                             |
+| `remoteExportRequested`  | `NgTableRemoteQuery` (`{sort, filters, page}`)                                | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
+| `localExportCompleted`   | `NgTableLocalExportEvent` (`{fromPage, toPage, rowCount}`)                    | **`exportMode='local'`.** Émis après la génération et le téléchargement du CSV — informatif (toast, analytics...).                                                         |
 
 ## Personnaliser les textes (`NgTableLabels`)
 
@@ -936,6 +982,11 @@ export interface NgTableLabels {
   deleteView: string;           // tooltip du bouton de suppression d'une vue
   noSavedViews: string;         // message quand aucune vue n'est enregistrée
   dragToReorder: string;        // tooltip de la poignée de réorganisation des colonnes
+  exportButton: string;         // libellé du bouton d'export
+  exportDialogTitle: string;    // titre de la boîte de dialogue de plage de pages
+  exportFromPage: string;       // libellé "de la page"
+  exportToPage: string;         // libellé "à la page"
+  exportConfirm: string;        // libellé du bouton de confirmation de l'export
 }
 ```
 
