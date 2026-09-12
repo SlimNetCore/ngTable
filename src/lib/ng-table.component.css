@@ -53,7 +53,6 @@
    largeur et doivent rester libres. */
 .ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell) {
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell) .cell-content {
@@ -479,6 +478,38 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
+  max-width: 100%;
+}
+
+.cell-content--wrap {
+  align-items: flex-start;
+}
+
+.cell-text--truncate {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.cell-text--wrap {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.ngt-truncate-tooltip {
+  max-width: 360px !important;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+  background: var(--app-text, #0d1d26) !important;
+  color: var(--app-surface, #ffffff) !important;
+  font-size: 0.78rem !important;
+  line-height: 1.35 !important;
+  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
 }
 
 .copy-action-btn {

@@ -367,6 +367,19 @@ readonly columns = computed<NgTableColumn<Commande>[]>(() => [
 
 (`columns` devient un `computed()` car `viewChild()` n'est disponible qu'après le premier rendu — pattern standard pour toute colonne avec `cellTemplate`.)
 
+### Étape 8bis — Débordement du texte de cellule
+
+Quand le texte d'une cellule dépasse la largeur de sa colonne, deux modes au choix via `textOverflow` (sans effet si `cellTemplate` est fourni — le template gère alors son propre rendu) :
+
+```ts
+{id: 'description', header: 'Description', valueAccessor: (c) => c.description, textOverflow: 'wrap'}
+// ou, explicitement (c'est déjà le défaut) :
+{id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference, textOverflow: 'truncate'}
+```
+
+- `'truncate'` (défaut) : une seule ligne, coupée avec "…" ; au survol, une tooltip affiche le texte complet — mais **uniquement si le texte est réellement tronqué** (comparaison `scrollWidth`/`clientWidth`), pas de tooltip superflue sinon.
+- `'wrap'` : retour à la ligne normal, la ligne du tableau s'agrandit pour accueillir le texte complet.
+
 ### Étape 9 — Copie de cellule
 
 Affiche un bouton "copier" au survol de la cellule, avec un feedback visuel bref :
@@ -747,6 +760,7 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 | `resizable?`                               | `boolean`                                                              | Active le redimensionnement (drag sur la bordure du `<th>`, double-clic = auto-fit).                                                           |
 | `widthPx?` / `minWidthPx?` / `maxWidthPx?` | `number`                                                               | Contraintes de largeur.                                                                                                                        |
 | `cellTemplate?`                            | `TemplateRef<{$implicit: T; row: T; value: unknown; column}>`          | Template custom de cellule.                                                                                                                    |
+| `textOverflow?`                            | `'truncate' \| 'wrap'`                                                 | Comportement du texte quand il dépasse la colonne (`'truncate'` par défaut, avec tooltip au survol si réellement tronqué). Sans effet avec `cellTemplate`. |
 | `sortValueAccessor?`                       | `(row: T) => string \| number \| boolean \| Date \| null \| undefined` | Valeur utilisée pour le tri si différente de `valueAccessor`.                                                                                  |
 | `filter?`                                  | `NgTableFilterConfig`                                                  | Configuration du filtre (voir plus bas).                                                                                                       |
 | `filterPredicate?`                         | `(row: T, filterValue: string) => boolean`                             | Logique de filtrage custom (remplace le filtrage par défaut).                                                                                  |

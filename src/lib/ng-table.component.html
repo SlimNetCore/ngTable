@@ -294,7 +294,7 @@
 
           <td *matCellDef="let row; let rowIndex = index" [style.max-width.px]="column.maxWidthPx ?? null"
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
-            <div class="cell-content">
+            <div class="cell-content" [class.cell-content--wrap]="column.textOverflow === 'wrap'">
               @if (column.cellTemplate) {
                 <ng-container
                   *ngTemplateOutlet="
@@ -302,8 +302,10 @@
                     context: { $implicit: row, row: row, value: cellValue(row, column), column: column }
                   "
                 />
+              } @else if (column.textOverflow === 'wrap') {
+                <span class="cell-text cell-text--wrap">{{ cellValue(row, column) }}</span>
               } @else {
-                {{ cellValue(row, column) }}
+                <span [ngTableTruncateTooltip]="cellText(row, column)" class="cell-text cell-text--truncate">{{ cellValue(row, column) }}</span>
               }
 
               @if (hasCopyAction(column, row)) {

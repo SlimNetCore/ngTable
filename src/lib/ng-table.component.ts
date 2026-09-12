@@ -28,6 +28,7 @@ import {firstValueFrom, Observable, Subject, timer} from 'rxjs';
 import {debounce, groupBy, mergeMap} from 'rxjs/operators';
 import {ColumnFilterRendererComponent, ColumnFilterType} from './column-filter-renderer.component';
 import {DynamicFilterHostComponent} from './dynamic-filter-host.component';
+import {TruncateTooltipDirective} from './truncate-tooltip.directive';
 import {
   NG_TABLE_DEFAULT_LABELS,
   NG_TABLE_LABELS,
@@ -89,6 +90,13 @@ export interface NgTableColumn<T> {
   minWidthPx?: number;
   maxWidthPx?: number;
   cellTemplate?: TemplateRef<{ $implicit: T; row: T; value: unknown; column: NgTableColumn<T> }>;
+  /**
+   * Comportement du texte de cellule quand il dépasse la largeur de la colonne.
+   * `'truncate'` (défaut) : une ligne, coupée avec "…", tooltip affichée au survol
+   * uniquement si le texte est réellement tronqué. `'wrap'` : retour à la ligne normal.
+   * Sans effet si `cellTemplate` est fourni (le template gère son propre rendu).
+   */
+  textOverflow?: 'truncate' | 'wrap';
   sortValueAccessor?: (row: T) => string | number | boolean | Date | null | undefined;
   filter?: NgTableFilterConfig;
   filterPredicate?: (row: T, filterValue: string) => boolean;
@@ -173,6 +181,7 @@ export interface NgTableViewsStore {
     MatTooltipModule,
     ColumnFilterRendererComponent,
     DynamicFilterHostComponent,
+    TruncateTooltipDirective,
   ],
   templateUrl: './ng-table.component.html',
   styleUrl: './ng-table.component.css',
@@ -990,6 +999,12 @@ export class NgTableComponent implements OnDestroy {
 
   cellValue(row: any, column: NgTableColumn<any>): unknown {
     return column.valueAccessor(row);
+  }
+
+  /** Texte de la tooltip de troncature — même valeur que la cellule, en `string`. */
+  cellText(row: any, column: NgTableColumn<any>): string {
+    const value = this.cellValue(row, column);
+    return value === null || value === undefined ? '' : String(value);
   }
 
   onRowClick(row: any): void {

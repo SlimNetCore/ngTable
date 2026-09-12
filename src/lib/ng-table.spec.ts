@@ -99,6 +99,17 @@ describe('NgTableComponent', () => {
       expect(component.displayedColumnIds()).toEqual(['nom', 'statut', 'actif']);
     });
 
+    it('tronque le texte de cellule par défaut, et le fait retourner à la ligne avec textOverflow: "wrap"', async () => {
+      const withOverflow = columns();
+      withOverflow[0] = {...withOverflow[0], textOverflow: 'wrap'};
+      const {fixture} = await createTable({columns: withOverflow});
+      const cells = fixture.nativeElement.querySelectorAll('td.mat-mdc-cell');
+
+      expect(cells[0].querySelector('.cell-text--wrap')).toBeTruthy();
+      expect(cells[0].querySelector('.cell-text--truncate')).toBeFalsy();
+      expect(cells[1].querySelector('.cell-text--truncate')).toBeTruthy();
+    });
+
     it('ajoute la colonne technique de sélection quand elle est activée', async () => {
       const {component} = await createTable({rowSelectionEnabled: true});
 
