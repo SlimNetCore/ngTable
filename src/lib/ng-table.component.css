@@ -207,9 +207,12 @@
 }
 
 .header-label {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
 }
 
 .sort-icon {
@@ -632,15 +635,56 @@
   overflow-wrap: break-word;
 }
 
+/*
+ * Tooltip de troncature — entièrement paramétrable via les variables
+ * `--ngt-tooltip-*`, chacune retombant sur un token de la charte (`--app-*`)
+ * puis sur une valeur en dur : sans rien configurer, la tooltip suit déjà le
+ * thème de la table.
+ *
+ * IMPORTANT : la tooltip est rendue dans le conteneur d'overlay du CDK, à la
+ * racine du `<body>` — donc HORS de l'arbre de `ng-table`. Les variables
+ * doivent être déclarées globalement (`:root`, `html`, `body`...) et non sur
+ * l'élément `<ng-table>`, sinon elles n'atteignent jamais la bulle.
+ *
+ *   :root {
+ *     --ngt-tooltip-bg: #1f2937;
+ *     --ngt-tooltip-color: #f9fafb;
+ *     --ngt-tooltip-radius: 12px;
+ *     --ngt-tooltip-max-width: 520px;
+ *   }
+ *
+ * Les deux niveaux sont couverts : les tokens Material (pour ce que Material
+ * pilote lui-même) ET la surface `.mat-mdc-tooltip-surface`, qui est la bulle
+ * réellement visible — styler seulement le panneau `.ngt-truncate-tooltip` ne
+ * change rien à l'écran, c'est la surface qui porte fond, padding et rayon.
+ */
 .ngt-truncate-tooltip {
-  max-width: 360px !important;
-  padding: 6px 10px !important;
-  border-radius: 8px !important;
-  background: var(--app-text, #0d1d26) !important;
-  color: var(--app-surface, #ffffff) !important;
-  font-size: 0.78rem !important;
-  line-height: 1.35 !important;
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
+  --mat-tooltip-container-color: var(--ngt-tooltip-bg, var(--app-text, #0d1d26));
+  --mat-tooltip-supporting-text-color: var(--ngt-tooltip-color, var(--app-surface, #ffffff));
+  --mat-tooltip-supporting-text-size: var(--ngt-tooltip-font-size, 0.78rem);
+  --mat-tooltip-supporting-text-line-height: var(--ngt-tooltip-line-height, 1.45);
+  --mat-tooltip-supporting-text-weight: var(--ngt-tooltip-font-weight, 400);
+  --mat-tooltip-container-shape: var(--ngt-tooltip-radius, 10px);
+}
+
+.ngt-truncate-tooltip .mat-mdc-tooltip-surface {
+  max-width: var(--ngt-tooltip-max-width, 420px);
+  padding: var(--ngt-tooltip-padding, 8px 12px);
+  border-radius: var(--ngt-tooltip-radius, 10px);
+  border: var(--ngt-tooltip-border, 1px solid rgba(255, 255, 255, 0.08));
+  box-shadow: var(--ngt-tooltip-shadow, 0 10px 30px rgba(15, 23, 42, 0.28));
+  background: var(--ngt-tooltip-bg, var(--app-text, #0d1d26));
+  color: var(--ngt-tooltip-color, var(--app-surface, #ffffff));
+  font-family: var(--ngt-tooltip-font-family, inherit);
+  font-size: var(--ngt-tooltip-font-size, 0.78rem);
+  font-weight: var(--ngt-tooltip-font-weight, 400);
+  line-height: var(--ngt-tooltip-line-height, 1.45);
+  letter-spacing: 0.01em;
+  text-align: left;
+  /* Le texte complet doit pouvoir respirer sur plusieurs lignes : c'est tout
+     l'intérêt de la tooltip quand la cellule, elle, est coupée à une ligne. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .copy-action-btn {

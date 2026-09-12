@@ -25,7 +25,10 @@ export type ColumnFilterType =
   | 'tel'
   | 'url'
   | 'number'
+  /** Date simple : un seul jour, valeur sérialisée `"YYYY-MM-DD"`. */
   | 'date'
+  /** Période : deux bornes, valeur sérialisée `"YYYY-MM-DD..YYYY-MM-DD"` (bornes incluses, une borne peut être vide). */
+  | 'range'
   | 'datetime-local'
   | 'time'
   | 'month'
@@ -88,6 +91,8 @@ export class ColumnFilterRendererComponent {
     from: null,
     to: null,
   });
+  /** Brouillon du type `date` (jour unique) — distinct de la période `range`. */
+  protected readonly draftDate = signal<Date | null>(null);
   private previousType: ColumnFilterType | null = null;
 
   constructor() {
@@ -95,6 +100,7 @@ export class ColumnFilterRendererComponent {
       const currentType = this.type();
       const currentValue = this.value();
       this.syncDraftDateRange(currentType, currentValue);
+      this.syncDraftDate(currentType, currentValue);
 
       if (this.previousType !== null && this.previousType !== currentType) {
         this.panelFilter.set('');
@@ -226,12 +232,36 @@ export class ColumnFilterRendererComponent {
     });
   }
 
-  private isDateRangeType(type: ColumnFilterType = this.type()): boolean {
+  /** Type `date` : un jour unique, committé immédiatement (action délibérée, pas de brouillon à valider). */
+  onSingleDateChange(value: Date | null): void {
+    const normalized = this.normalizeDate(value);
+    this.draftDate.set(normalized);
+    this.valueChange.emit(this.toIsoDate(normalized));
+  }
+
+  syncDraftDate(type: ColumnFilterType = this.type(), value: string = this.value()): void {
+    if (!this.isSingleDateType(type)) {
+      this.draftDate.set(null);
+      return;
+    }
+    this.draftDate.set(this.isoToDate(this.normalizeIsoDate(value)));
+  }
+
+  isSingleDateType(type: ColumnFilterType = this.type()): boolean {
     return type === 'date';
   }
 
+  isDateRangeType(type: ColumnFilterType = this.type()): boolean {
+    return type === 'range';
+  }
+
   private isNativeInputType(type: ColumnFilterType = this.type()): boolean {
-    return !this.isDateRangeType(type) && type !== 'boolean' && type !== 'enum';
+    return (
+      !this.isDateRangeType(type) &&
+      !this.isSingleDateType(type) &&
+      type !== 'boolean' &&
+      type !== 'enum'
+    );
   }
 
   private parseDateRange(value: string): { from: string; to: string } {

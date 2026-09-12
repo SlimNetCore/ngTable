@@ -17,7 +17,8 @@
   width: 100%;
 }
 
-.date-range-field {
+.date-range-field,
+.date-field {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
@@ -25,6 +26,34 @@
   align-self: center;
   --mat-form-field-container-height: 40px;
   --mat-form-field-container-vertical-padding: 8px;
+}
+
+/* Type `date` (jour unique) — même habillage que la période, en plus simple :
+   un seul input, pas de séparateur ni de double borne à répartir. */
+:host ::ng-deep .date-field .mat-mdc-text-field-wrapper {
+  background: var(--app-field-bg, #ffffff);
+  border-radius: 12px;
+}
+
+:host ::ng-deep .date-field .mat-mdc-form-field-infix {
+  min-height: 40px;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  display: flex;
+  align-items: center;
+}
+
+:host ::ng-deep .date-field input.mat-mdc-input-element,
+:host ::ng-deep .date-field input.mat-mdc-input-element::placeholder {
+  font-family: var(--filter-font-family);
+  font-size: var(--filter-font-size);
+  font-weight: var(--filter-font-weight);
+  text-overflow: ellipsis;
+}
+
+:host ::ng-deep .date-field input.mat-mdc-input-element::placeholder {
+  color: var(--app-muted, #4f6573);
+  text-transform: none;
 }
 
 :host ::ng-deep .date-range-field .mat-mdc-text-field-wrapper {
@@ -251,11 +280,13 @@
 /* Une plage de dates affiche deux dates + un séparateur + le sélecteur : c'est le
    filtre le plus gourmand en largeur. On lui rend de la place en compactant la
    gouttière et le bouton d'effacement, pour éviter que les dates soient tronquées. */
-:host:has(.date-range-field) {
+:host:has(.date-range-field),
+:host:has(.date-field) {
   gap: 6px;
 }
 
-:host:has(.date-range-field) .clear-filter {
+:host:has(.date-range-field) .clear-filter,
+:host:has(.date-field) .clear-filter {
   width: 32px;
   height: 32px;
   min-width: 32px;
@@ -294,6 +325,7 @@
 }
 
 :host-context(.inline-filter) .date-range-field,
+:host-context(.inline-filter) .date-field,
 :host-context(.inline-filter) .select-filter-field {
   width: 100%;
 }

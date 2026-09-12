@@ -170,6 +170,12 @@ export interface NgTableViewState {
   columnOrder: string[];
   sort: NgTableSortChange;
   filters: Record<string, string>;
+  /**
+   * Largeurs de colonnes (px) issues du redimensionnement, par id de colonne.
+   * Optionnel : les vues enregistrées avant l'ajout de cette option n'en ont pas,
+   * elles restaurent alors simplement les largeurs par défaut des colonnes.
+   */
+  columnWidths?: Record<string, number>;
   /** Only populated when `pageTrackingEnabled=true` (reuses `[pageIndex]`/`[pageSize]`). */
   pageIndex?: number;
   pageSize?: number;
@@ -925,6 +931,7 @@ export class NgTableComponent implements OnDestroy {
       columnOrder: [...this.effectiveColumnOrder()],
       sort: {...this.sortState()},
       filters: {...this.columnFilters()},
+      columnWidths: {...this.columnWidths()},
       ...(this.pageTrackingEnabled() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
     };
   }
@@ -1784,6 +1791,11 @@ export class NgTableComponent implements OnDestroy {
     this.internalColumnOrder.set([...state.columnOrder]);
     this.sortState.set({...state.sort});
     this.columnFilters.set({...state.filters});
+    // Vue enregistrée avant l'ajout des largeurs : on laisse celles en cours
+    // plutôt que de tout réinitialiser à l'activation.
+    if (state.columnWidths) {
+      this.columnWidths.set({...state.columnWidths});
+    }
     this.filtersChange.emit(this.columnFilters());
     this.onQueryStateChanged();
     if (state.pageIndex !== undefined && state.pageSize !== undefined) {
@@ -1929,7 +1941,7 @@ export class NgTableComponent implements OnDestroy {
       return rawValue;
     }
 
-    if (filter.type === 'date' && rawValue.includes('..')) {
+    if (filter.type === 'range' && rawValue.includes('..')) {
       const [from = '', to = ''] = rawValue.split('..', 2);
       if (from && to) {
         return `${from} → ${to}`;
@@ -2066,6 +2078,11 @@ export class NgTableComponent implements OnDestroy {
       return false;
     }
 
+    const filterType = column.filter?.type;
+    if (filterType === 'date' || filterType === 'range') {
+      return this.matchesDateFilter(raw, filterValue, filterType);
+    }
+
     if (typeof raw === 'boolean') {
       const expected = lowerFilter === 'true' || lowerFilter === '1';
       return raw === expected;
@@ -2080,6 +2097,66 @@ export class NgTableComponent implements OnDestroy {
     }
 
     return `${raw}`.toLowerCase().includes(lowerFilter);
+  }
+
+  /**
+   * Filtrage par défaut des types `date` (jour exact) et `range` (période, bornes
+   * incluses, chacune pouvant être vide = borne ouverte).
+   *
+   * La valeur de cellule est ramenée à un jour `"YYYY-MM-DD"` (`Date`, chaîne ISO,
+   * ou toute date parsable) : sur ce format, la comparaison lexicographique est
+   * équivalente à la comparaison chronologique, donc pas de `Date` à instancier
+   * par ligne et par rendu.
+   */
+  private matchesDateFilter(raw: unknown, filterValue: string, type: 'date' | 'range'): boolean {
+    const cellDay = this.toIsoDay(raw);
+    if (!cellDay) {
+      return false;
+    }
+
+    if (type === 'date') {
+      const day = this.normalizeIsoDay(filterValue);
+      // Valeur de filtre non parsable (saisie libre en cours) : on retombe sur une
+      // correspondance textuelle plutôt que de tout masquer.
+      return day ? cellDay === day : `${raw}`.toLowerCase().includes(filterValue.toLowerCase());
+    }
+
+    const [fromRaw = '', toRaw = ''] = filterValue.split('..', 2);
+    const from = this.normalizeIsoDay(fromRaw);
+    const to = this.normalizeIsoDay(toRaw);
+    if (!from && !to) {
+      return false;
+    }
+
+    return (!from || cellDay >= from) && (!to || cellDay <= to);
+  }
+
+  /** Ramène une valeur de cellule à un jour `"YYYY-MM-DD"`, ou `''` si ce n'est pas une date. */
+  private toIsoDay(raw: unknown): string {
+    if (raw instanceof Date) {
+      return Number.isNaN(raw.getTime()) ? '' : this.formatIsoDay(raw);
+    }
+
+    const text = `${raw}`.trim();
+    // Couvre "2026-01-12" comme "2026-01-12T08:30:00Z" sans passer par `Date`.
+    const leadingIsoDay = /^(\d{4}-\d{2}-\d{2})/.exec(text);
+    if (leadingIsoDay) {
+      return leadingIsoDay[1];
+    }
+
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? '' : this.formatIsoDay(parsed);
+  }
+
+  private normalizeIsoDay(value: string): string {
+    const raw = (value ?? '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+  }
+
+  private formatIsoDay(value: Date): string {
+    const month = `${value.getMonth() + 1}`.padStart(2, '0');
+    const day = `${value.getDate()}`.padStart(2, '0');
+    return `${value.getFullYear()}-${month}-${day}`;
   }
 
   private getSortValue(row: any, column: NgTableColumn<any>): string | number | Date | boolean | null {

@@ -8,10 +8,12 @@ import {
   viewChild,
 } from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {By} from '@angular/platform-browser';
 import {MatCheckboxChange} from '@angular/material/checkbox';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {NgTableColumn, NgTableComponent, NgTableRemoteQuery, NgTableSortChange} from './ng-table.component';
 import {NG_TABLE_DEFAULT_LABELS, provideNgTableLabels} from './ng-table-labels';
+import {TruncateTooltipDirective} from './truncate-tooltip.directive';
 
 interface Row {
   id: string;
@@ -116,6 +118,14 @@ describe('NgTableComponent', () => {
       expect(cells[0].querySelector('.cell-text--wrap')).toBeTruthy();
       expect(cells[0].querySelector('.cell-text--truncate')).toBeFalsy();
       expect(cells[1].querySelector('.cell-text--truncate')).toBeTruthy();
+    });
+
+    it('porte la tooltip de troncature sur le libellé d’en-tête, avec le texte de la colonne', async () => {
+      const {fixture} = await createTable();
+      const headerLabelEl = fixture.debugElement.query(By.css('th.mat-mdc-header-cell .header-label'));
+      const directive = headerLabelEl.injector.get(TruncateTooltipDirective);
+
+      expect(directive.text).toBe('Nom');
     });
 
     it('force le layout fixe de la table (sans lui, une cellule `nowrap` élargit sa colonne et rien ne peut être tronqué)', async () => {
@@ -239,6 +249,59 @@ describe('NgTableComponent', () => {
       component.onFilterValue('actif', 'false');
 
       expect(ids(component.displayedRows())).toEqual(['2']);
+    });
+
+    it('filtre sur un jour exact avec le type `date`', async () => {
+      const cols = columns();
+      cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, filter: {type: 'date'}});
+      const {component} = await createTable({columns: cols});
+
+      component.onFilterValue('date', '2026-02-20');
+
+      expect(ids(component.displayedRows())).toEqual(['3']);
+    });
+
+    it('filtre sur une période, bornes incluses, avec le type `range`', async () => {
+      const cols = columns();
+      cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, filter: {type: 'range'}});
+      const {component} = await createTable({columns: cols});
+
+      component.onFilterValue('date', '2026-01-15..2026-02-20');
+
+      expect(ids(component.displayedRows())).toEqual(['2', '3']);
+    });
+
+    it('accepte une borne ouverte dans une période', async () => {
+      const cols = columns();
+      cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, filter: {type: 'range'}});
+      const {component} = await createTable({columns: cols});
+
+      component.onFilterValue('date', '2026-02-01..');
+      expect(ids(component.displayedRows())).toEqual(['1', '3']);
+
+      component.onFilterValue('date', '..2026-02-01');
+      expect(ids(component.displayedRows())).toEqual(['2']);
+    });
+
+    it('accepte une valeur de cellule `Date` (pas seulement une chaîne ISO)', async () => {
+      const cols = columns();
+      cols.push({id: 'date', header: 'Date', valueAccessor: (r) => new Date(r.date), filter: {type: 'date'}});
+      const {component} = await createTable({columns: cols});
+
+      component.onFilterValue('date', '2026-03-02');
+
+      expect(ids(component.displayedRows())).toEqual(['1']);
+    });
+
+    it('affiche une période sous forme "début → fin" dans la barre de filtres actifs', async () => {
+      const cols = columns();
+      cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, filter: {type: 'range', label: 'Date'}});
+      const {component} = await createTable({columns: cols});
+
+      component.onFilterValue('date', '2026-01-15..2026-02-20');
+
+      const summary = component.activeFilterSummaries().find((s) => s.columnId === 'date');
+      expect(summary?.value).toBe('2026-01-15 → 2026-02-20');
     });
 
     it('applique filterPredicate quand il est fourni', async () => {
@@ -589,6 +652,63 @@ describe('NgTableComponent', () => {
 
       expect(ids(component.displayedRows())).toEqual(['1', '3']);
       expect(component.activeViewId()).toBe(view.id);
+    });
+
+    it('enregistre les largeurs de colonnes redimensionnées dans la vue et les restaure', async () => {
+      const cols = columns();
+      cols[0] = {...cols[0], resizable: true, widthPx: 200, minWidthPx: 100, maxWidthPx: 300};
+      const {component} = await createTable({columns: cols, viewsEnabled: true, viewsStorageKey: 'test-list'});
+      const column = component.columns()[0];
+      const resizeEvent = {
+        detail: 1,
+        clientX: 0,
+        target: null,
+        preventDefault: () => undefined,
+        stopPropagation: () => undefined,
+      } as unknown as MouseEvent;
+
+      component.onResizeStart(resizeEvent, column);
+      component['onResizeMove']({clientX: 60} as MouseEvent);
+      component['stopResize']();
+      expect(component.columnWidthPx(column)).toBe(260);
+
+      component.saveCurrentAsView('Large');
+      const view = component.viewsList()[0];
+      expect(view.state.columnWidths?.[column.id]).toBe(260);
+
+      // L'utilisateur remet la colonne à une autre largeur, puis réactive la vue.
+      component.onResizeStart(resizeEvent, column);
+      component['onResizeMove']({clientX: -60} as MouseEvent);
+      component['stopResize']();
+      expect(component.columnWidthPx(column)).toBe(200);
+
+      component.activateView(view);
+
+      expect(component.columnWidthPx(column)).toBe(260);
+    });
+
+    it('active sans erreur une vue enregistrée avant l’ajout des largeurs (columnWidths absent)', async () => {
+      const legacyView = {
+        id: 'v-legacy',
+        name: 'Ancienne vue',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        state: {
+          columnVisibility: {nom: true, montant: true, statut: true, actif: true},
+          columnOrder: [],
+          sort: {columnId: '', direction: '' as const},
+          filters: {statut: 'VALIDEE'},
+        },
+      };
+      localStorage.setItem(
+        'ng-table.views.test-list',
+        JSON.stringify({views: [legacyView], activeViewId: 'v-legacy'}),
+      );
+
+      const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
+
+      expect(component.activeViewId()).toBe('v-legacy');
+      expect(ids(component.displayedRows())).toEqual(['1', '3']);
     });
 
     it('supprime une vue et bascule sur celle qui reste', async () => {

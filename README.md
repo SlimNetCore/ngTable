@@ -89,12 +89,12 @@ That's it. Sorting, filtering and rendering work immediately with the default co
 
 - **Colonnes** : visibilité (menu intégré), ordre (drag-and-drop natif HTML5), largeur (redimensionnable + auto-fit au double-clic), templates de cellule custom
 - **Tri** — sur n'importe quelle colonne marquée `sortable`
-- **Filtres** par colonne — texte, nombre, date/plage de dates, énuméré (select), booléen, ou un composant de filtre 100% custom ; en menu ou inline dans l'en-tête ; options chargées à la demande (`optionsLoader`) avec debounce automatique sur les champs texte
+- **Filtres** par colonne — texte, nombre, date (jour unique), période (plage de dates), énuméré (select), booléen, ou un composant de filtre 100% custom ; en menu ou inline dans l'en-tête ; options chargées à la demande (`optionsLoader`) avec debounce automatique sur les champs texte
 - **Sélection de lignes** (case à cocher), interne ou pilotée par le parent
 - **Ligne détail** (master/detail), 3 modes (non contrôlé, par prédicat, par clé)
 - **Menu contextuel** (clic droit) fourni par le parent
 - **Copie rapide** d'une cellule en un clic
-- **Vues sauvegardées** : l'utilisateur enregistre/active/supprime des configurations nommées (colonnes, ordre, tri, filtres, pagination) — persistées en `localStorage` par défaut, ou déléguées entièrement au parent (API, fichier...)
+- **Vues sauvegardées** : l'utilisateur enregistre/active/supprime des configurations nommées (colonnes, ordre, largeurs, tri, filtres, pagination) — persistées en `localStorage` par défaut, ou déléguées entièrement au parent (API, fichier...)
 - **Deux modes de données** :
   - `local` (défaut) : tri/filtre/pagination appliqués côté client, zéro requête après le chargement initial
   - `remote` : le composant affiche `rows()` tel quel et notifie chaque changement de tri/filtre via un événement combiné unique, prêt à devenir une requête serveur
@@ -239,11 +239,26 @@ Chaque type de filtre s'active via `filter: {type: ...}`.
 {id: 'urgent', header: 'Urgent', valueAccessor: (c) => c.urgent, filter: {type: 'boolean'}}
 ```
 
-**Date / plage de dates** (`type: 'date'` affiche un sélecteur de plage — la valeur sérialisée est `"YYYY-MM-DD..YYYY-MM-DD"`) :
+**Date** (`type: 'date'` — un **jour unique**, sélecteur de date simple, valeur sérialisée `"YYYY-MM-DD"`) :
 
 ```ts
 {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, filter: {type: 'date'}}
 ```
+
+**Période** (`type: 'range'` — **deux bornes**, sélecteur de plage, valeur sérialisée `"YYYY-MM-DD..YYYY-MM-DD"`) :
+
+```ts
+{id: 'dateCommande', header: 'Période', valueAccessor: (c) => c.dateCommande, filter: {type: 'range'}}
+```
+
+Les deux sont filtrés nativement par `ng-table` en mode `local`, sans `filterPredicate` à écrire :
+
+- `date` : égalité sur le jour.
+- `range` : **bornes incluses**, et chaque borne peut être vide pour une plage ouverte (`"2026-02-01.."` = à partir du 1er février, `"..2026-02-01"` = jusqu'au 1er février).
+
+La valeur de cellule peut être une chaîne ISO (`"2026-01-12"`, `"2026-01-12T08:30:00Z"`), un objet `Date`, ou toute date parsable — elle est ramenée au jour pour la comparaison.
+
+> **Changement de comportement** — avant la séparation des deux types, `type: 'date'` affichait un sélecteur de **plage**. Une colonne qui attendait ce comportement doit désormais déclarer `type: 'range'`. À l'inverse, `type: 'date'` devient ce que son nom annonce : un jour unique.
 
 Sans `filter`, une colonne n'est simplement pas filtrable (pas d'icône, pas de menu).
 
@@ -388,6 +403,8 @@ S'applique aussi bien à une colonne `cellTemplate` — par défaut `'truncate'`
 ```
 
 Dans ce cas, la tooltip de troncature n'est pas affichée (le rendu du template n'est pas résumable en texte simple) — seule la coupure visuelle avec "…" s'applique. Si le template doit pouvoir se répartir sur plusieurs lignes (plusieurs badges, icône + texte long...), passez explicitement `textOverflow: 'wrap'`.
+
+**Le libellé d'en-tête aussi** : sans rien configurer, un `header` trop long pour sa colonne est coupé avec "…", avec la même tooltip au survol (même mécanisme, même variables CSS — voir "Tooltip de troncature" plus bas) affichant le titre complet, uniquement si réellement tronqué.
 
 ### Étape 9 — Copie de cellule
 
@@ -625,7 +642,7 @@ Point important : `ng-table` n'applique **plus aucun** filtrage/tri local dans c
 
 ### Étape 18 — Vues sauvegardées
 
-Ajoutez un système "vues nommées" (colonnes/ordre/tri/filtres/pagination), persistées automatiquement :
+Ajoutez un système "vues nommées" (colonnes/ordre/largeurs/tri/filtres/pagination), persistées automatiquement :
 
 ```html
 <ng-table
@@ -854,7 +871,7 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 
 ```ts
 interface NgTableFilterConfig {
-  type?: ColumnFilterType;   // 'text' | 'number' | 'date' | 'boolean' | 'enum' | 'search' | 'email' | ...
+  type?: ColumnFilterType;   // 'text' | 'number' | 'date' (jour unique) | 'range' (période) | 'boolean' | 'enum' | 'search' | 'email' | ...
   options?: {value: string; label: string}[];   // options statiques (select) — label = texte déjà résolu
   optionsLoader?: () => Observable<...> | Promise<...>;  // options chargées à la demande
   placeholder?: string;
@@ -1072,6 +1089,37 @@ Le composant utilise aussi `var(--mat-sys-error, #b3261e)` (badges/icônes d'err
 }
 ```
 
+### Tooltip de troncature
+
+La tooltip affichée au survol d'une cellule tronquée (`textOverflow: 'truncate'`) **ou d'un libellé d'en-tête tronqué** suit déjà la charte par défaut (elle reprend `--app-text` / `--app-surface`) — les deux partagent exactement le même mécanisme et les mêmes variables, une seule surcharge les couvre toutes les deux. Chaque aspect reste surchargeable indépendamment :
+
+| Variable                  | Rôle                         | Défaut                                 |
+|---------------------------|------------------------------|----------------------------------------|
+| `--ngt-tooltip-bg`        | Fond de la bulle             | `var(--app-text, #0d1d26)`             |
+| `--ngt-tooltip-color`     | Couleur du texte             | `var(--app-surface, #ffffff)`          |
+| `--ngt-tooltip-radius`    | Rayon des coins              | `10px`                                 |
+| `--ngt-tooltip-padding`   | Marge intérieure             | `8px 12px`                             |
+| `--ngt-tooltip-max-width` | Largeur maxi de la bulle     | `420px`                                |
+| `--ngt-tooltip-border`    | Bordure                      | `1px solid rgba(255, 255, 255, 0.08)`  |
+| `--ngt-tooltip-shadow`    | Ombre portée                 | `0 10px 30px rgba(15, 23, 42, 0.28)`   |
+| `--ngt-tooltip-font-family` | Police                     | `inherit`                              |
+| `--ngt-tooltip-font-size` | Taille de police             | `0.78rem`                              |
+| `--ngt-tooltip-font-weight` | Graisse                    | `400`                                  |
+| `--ngt-tooltip-line-height` | Interligne                 | `1.45`                                 |
+
+```css
+:root {
+  --ngt-tooltip-bg: #4c1d95;
+  --ngt-tooltip-color: #f5f3ff;
+  --ngt-tooltip-radius: 16px;
+  --ngt-tooltip-max-width: 520px;
+}
+```
+
+⚠️ **À déclarer globalement** (`:root`, `html`, `body`...), **pas** sur l'élément `<ng-table>` : la tooltip est rendue par le CDK dans son conteneur d'overlay, à la racine du `<body>`, donc hors de l'arbre DOM de la table — des variables posées sur `<ng-table>` ne l'atteindraient jamais.
+
+Pour un contrôle total au-delà de ces variables, la bulle porte la classe `.ngt-truncate-tooltip` (la surface visible étant `.ngt-truncate-tooltip .mat-mdc-tooltip-surface`).
+
 ## Mode local / distant
 
 `dataMode` détermine si le composant traite `rows()` comme le jeu de données complet (à filtrer/trier/paginer lui-même) ou comme une page déjà préparée par le serveur.
@@ -1133,7 +1181,21 @@ onPageChange(event: PageEvent): void {
 
 ## Vues sauvegardées ("Views")
 
-Système permettant à l'utilisateur de sauvegarder l'état complet d'affichage (colonnes visibles, ordre, tri, filtres, et pagination si `pageTrackingEnabled=true`) sous un nom, d'y revenir, d'en créer plusieurs, de les supprimer.
+Système permettant à l'utilisateur de sauvegarder l'état complet d'affichage (colonnes visibles, ordre, **largeurs redimensionnées**, tri, filtres, et pagination si `pageTrackingEnabled=true`) sous un nom, d'y revenir, d'en créer plusieurs, de les supprimer.
+
+```ts
+interface NgTableViewState {
+  columnVisibility: Record<string, boolean>;
+  columnOrder: string[];
+  columnWidths?: Record<string, number>;  // largeurs (px) issues du resize, par id de colonne
+  sort: NgTableSortChange;
+  filters: Record<string, string>;
+  pageIndex?: number;                     // seulement si pageTrackingEnabled=true
+  pageSize?: number;
+}
+```
+
+Les largeurs sont capturées à l'enregistrement (bouton "enregistrer" ou "mettre à jour" d'une vue) et réappliquées à l'activation, qu'elles viennent d'un drag sur la poignée de redimensionnement ou d'un auto-fit au double-clic. `columnWidths` est optionnel : une vue enregistrée avant l'ajout de cette option s'active sans erreur et conserve simplement les largeurs courantes.
 
 ![Une vue nommée ("vue test") activée, affichée en chip à côté du bouton "Vues"](https://raw.githubusercontent.com/SlimNetCore/ngTable/main/captures/img_2.png)
 
@@ -1150,7 +1212,7 @@ Système permettant à l'utilisateur de sauvegarder l'état complet d'affichage 
 - **Mode non contrôlé** (dès que `viewsStorageKey` est fourni) : persistance automatique dans `localStorage`, sous la clé namespacée `` `ng-table.views.${viewsStorageKey}` ``.
 - **Mode contrôlé** (`[viewsStore]` fourni) : le composant n'écrit plus dans `localStorage`, il émet seulement `(viewsStoreChange)` — à vous de décider où stocker.
 - Au chargement, la dernière vue active est automatiquement réappliquée si le store en contient une.
-- Chaque vue de la liste a un bouton "mettre à jour" (icône `sync`) qui écrase son état sauvegardé avec l'affichage courant (colonnes, ordre, tri, filtres, pagination), sans avoir à retaper son nom dans le champ de création — contrairement à `saveCurrentAsView`, qui ne met à jour que par correspondance de nom. Appelable aussi directement : `updateView(view: NgTableView): void`.
+- Chaque vue de la liste a un bouton "mettre à jour" (icône `sync`, qui passe brièvement en coche verte après le clic) qui écrase son état sauvegardé avec l'affichage courant (colonnes, ordre, largeurs, tri, filtres, pagination), sans avoir à retaper son nom dans le champ de création — contrairement à `saveCurrentAsView`, qui ne met à jour que par correspondance de nom. Appelable aussi directement : `updateView(view: NgTableView): void`.
 
 **Point d'attention** : si `columnVisibility` est **contrôlé** par le parent, l'activation d'une vue ne suffit pas à faire réapparaître les bonnes colonnes visuellement — il faut resynchroniser explicitement via `(viewActivated)` :
 

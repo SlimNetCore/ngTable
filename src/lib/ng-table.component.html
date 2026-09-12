@@ -226,7 +226,7 @@
                 class="header-button"
                 type="button"
               >
-                <span class="header-label">{{ column.header }}</span>
+                <span [ngTableTruncateTooltip]="column.header" class="header-label">{{ column.header }}</span>
                 @if (column.sortable) {
                   <mat-icon class="sort-icon">{{ currentSortIcon(column) }}</mat-icon>
                 }

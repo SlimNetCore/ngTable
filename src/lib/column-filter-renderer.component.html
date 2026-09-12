@@ -1,4 +1,17 @@
 @if (type() === 'date') {
+  <mat-form-field appearance="outline" class="date-field">
+    <mat-label>{{ filterByPlaceholder() }}</mat-label>
+    <input
+      (dateChange)="onSingleDateChange($event.value)"
+      [matDatepicker]="singlePicker"
+      [placeholder]="placeholder() || filterByPlaceholder()"
+      [value]="draftDate()"
+      matInput
+    />
+    <mat-datepicker-toggle [for]="singlePicker" matIconSuffix></mat-datepicker-toggle>
+    <mat-datepicker #singlePicker/>
+  </mat-form-field>
+} @else if (type() === 'range') {
   <mat-form-field appearance="outline" class="date-range-field">
     <mat-label>{{ filterByPlaceholder() }}</mat-label>
     <mat-date-range-input [rangePicker]="picker" [separator]="'–'">
