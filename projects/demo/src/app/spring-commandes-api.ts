@@ -4,6 +4,8 @@ import {CommandesBackend, CommandesPage} from './fake-commandes-api';
 /** URL du backend : `/api` est relayé vers http://localhost:8080 par `proxy.conf.json` (`npm start`). */
 const SEARCH_URL = '/api/commandes/search';
 const EXPORT_URL = '/api/commandes/export';
+/** Message d'erreur quand aucun backend ne répond. */
+export const UNREACHABLE = 'backend Spring Boot injoignable';
 
 /**
  * Vrai serveur : le backend Spring Boot de `examples/spring-boot-backend`. Il reçoit
@@ -40,10 +42,14 @@ async function send(url: string, body: unknown): Promise<Response> {
   try {
     response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
   } catch {
-    throw new Error('backend Spring Boot injoignable');
+    throw new Error(UNREACHABLE);
   }
   if (response.status === 502 || response.status === 503 || response.status === 504) {
-    throw new Error('backend Spring Boot injoignable'); // réponse du proxy de `npm start`
+    throw new Error(UNREACHABLE); // réponse du proxy de `npm start`
+  }
+  if (response.status === 404) {
+    // Le backend répond, mais ne connaît pas cet endpoint : il a été lancé avant la mise à jour.
+    throw new Error(`le backend Spring Boot lancé n'est pas à jour (${url} introuvable). Arrêtez-le, puis relancez-le après git pull`);
   }
   if (!response.ok) {
     const message = await response.text();

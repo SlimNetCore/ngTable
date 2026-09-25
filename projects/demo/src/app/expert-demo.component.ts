@@ -17,7 +17,7 @@ import {
 } from '@sbourahla/ng-table';
 import {CLIENTS, Commande, CommandeStatut, STATUT_LABELS, STATUT_OPTIONS} from './demo-data';
 import {CommandesBackend, FakeCommandesApi} from './fake-commandes-api';
-import {SpringCommandesApi} from './spring-commandes-api';
+import {SpringCommandesApi, UNREACHABLE} from './spring-commandes-api';
 import {MontantPresetFilterComponent} from './montant-preset-filter.component';
 
 interface LogEntry {
@@ -226,8 +226,9 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
 })
 export class ExpertDemoComponent {
   protected readonly table = viewChild.required<NgTableComponent<Commande>>(NgTableComponent);
-  private api: CommandesBackend = new FakeCommandesApi(2000);
-  protected readonly backend = signal<'fake' | 'spring'>('fake');
+  /** Serveur choisi, retenu d'une visite à l'autre (préférence locale au navigateur). */
+  protected readonly backend = signal<'fake' | 'spring'>(readBackendChoice());
+  private api: CommandesBackend = this.backend() === 'spring' ? new SpringCommandesApi() : new FakeCommandesApi(2000);
   protected readonly serverError = signal(false);
   protected readonly exportFormat = signal<NgTableExportFormat>('csv');
   private readonly injector = inject(Injector);
@@ -320,6 +321,7 @@ export class ExpertDemoComponent {
   /** Serveur simulé dans le navigateur, ou vrai backend Spring Boot. */
   protected setBackend(backend: 'fake' | 'spring'): void {
     this.backend.set(backend);
+    saveBackendChoice(backend);
     this.switchApi(backend === 'spring' ? new SpringCommandesApi() : new FakeCommandesApi(this.datasetSize()));
   }
 
@@ -380,7 +382,7 @@ export class ExpertDemoComponent {
     this.total.set(0);
     this.groupSummaries.set(null);
     this.serverError.set(true);
-    this.serverStatus.set(this.backend() === 'spring'
+    this.serverStatus.set(message === UNREACHABLE
       ? `Erreur du serveur : ${message}. Lancez le backend : cd examples/spring-boot-backend puis ./mvnw spring-boot:run (mvnw.cmd sous Windows).`
       : `Erreur du serveur : ${message}.`);
     this.log('erreur serveur', message);
@@ -417,5 +419,23 @@ export class ExpertDemoComponent {
     const time = new Date().toLocaleTimeString('fr-FR');
     const text = typeof detail === 'string' ? detail : JSON.stringify(detail);
     this.logEntries.update((entries) => [{id: ++this.logId, time, event, detail: text}, ...entries].slice(0, 40));
+  }
+}
+
+const BACKEND_KEY = 'ng-table-demo.backend';
+
+function readBackendChoice(): 'fake' | 'spring' {
+  try {
+    return localStorage.getItem(BACKEND_KEY) === 'spring' ? 'spring' : 'fake';
+  } catch {
+    return 'fake'; // stockage indisponible (navigation privée, SSR...)
+  }
+}
+
+function saveBackendChoice(backend: 'fake' | 'spring'): void {
+  try {
+    localStorage.setItem(BACKEND_KEY, backend);
+  } catch {
+    // préférence non retenue : sans conséquence
   }
 }
