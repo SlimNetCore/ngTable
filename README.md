@@ -949,7 +949,7 @@ interface CommandesPage {
 
 #### Côté Spring Boot
 
-Trois classes génériques, réutilisables pour toutes vos tables (paquet `com.example.ngtable`), puis quelques lignes par écran.
+Quatre classes génériques, réutilisables pour toutes vos tables (paquet `com.example.ngtable`), puis quelques lignes par écran. La quatrième, `NgTableExporter`, sert à l'export (voir plus bas).
 
 <details>
 <summary><code>NgTable.java</code> : le contrat JSON (requête, réponse)</summary>
@@ -1013,6 +1013,38 @@ public final class NgTable {
    * est demandé, TOUS les groupes dans l'ordre d'affichage.
    */
   public record Result<T>(List<T> rows, long total, List<GroupSummary> groupSummaries) {
+  }
+
+  /** Une colonne à exporter, telle qu'affichée par la table. */
+  public record ExportColumn(String id, String header) {
+  }
+
+  /**
+   * Corps de l'export : exactement ce qu'émet {@code (remoteExportRequested)}, c'est-à-dire la
+   * requête courante plus les colonnes affichées (dans l'ordre), le format et le nom de fichier.
+   */
+  public record ExportRequest(
+      Sort sort,
+      List<Sort> sorts,
+      Map<String, String> filters,
+      Page page,
+      String search,
+      String groupBy,
+      List<String> collapsedGroups,
+      List<ExportColumn> columns,
+      String format,
+      String filename) {
+
+    public ExportRequest {
+      columns = columns != null ? columns : List.of();
+      format = format != null ? format : "csv";
+      filename = filename != null ? filename : "export";
+    }
+
+    /** La requête de la table (filtres, recherche, tri, regroupement). */
+    public Query query() {
+      return new Query(sort, sorts, filters, page, search, groupBy, collapsedGroups);
+    }
   }
 }
 ```
@@ -1143,6 +1175,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Exécute une {@link NgTable.Query} sur une entité JPA : filtres, recherche globale, tri,
@@ -1184,21 +1217,49 @@ public class NgTableJpaSearch<E> {
       throw new IllegalArgumentException(
           "Taille de page attendue entre 1 et " + maxPageSize + " (activez la pagination côté Angular)");
     }
-    NgTableColumn group = query.groupBy() == null ? null : column(query.groupBy(), c -> c.groupable, "regroupable");
-    NgTable.Sort groupSort = group == null ? null : query.sorts().stream()
-        .filter(sort -> sort.columnId().equals(group.id))
-        .findFirst()
-        .orElse(new NgTable.Sort(group.id, "asc"));
-
-    CriteriaBuilder cb = em.getCriteriaBuilder();
+    NgTableColumn group = groupColumn(query);
 
     // 1. La page : triée d'abord par la colonne de regroupement, sans les groupes repliés.
-    CriteriaQuery<E> rowsQuery = cb.createQuery(entity);
-    Root<E> root = rowsQuery.from(entity);
-    rowsQuery.where(where(query, group, true, cb, root));
+    List<E> rows = rowsQuery(query, group, true)
+        .setFirstResult(page.index() * page.size())
+        .setMaxResults(page.size())
+        .getResultList();
+
+    // 2. Le total : lignes des groupes dépliés seulement (c'est ce que pagine la table).
+    long total = count(query, group, true);
+
+    // 3. Les résumés : TOUS les groupes (repliés compris), dans le même ordre que les lignes.
+    List<NgTable.GroupSummary> summaries = group == null ? null : summaries(query, group, groupSort(query, group).descending());
+    return new NgTable.Result<>(rows, total, summaries);
+  }
+
+  /**
+   * Nombre de lignes qu'exporterait {@link #streamAll} : filtres et recherche appliqués,
+   * toutes pages confondues, groupes repliés compris.
+   */
+  public long countAll(NgTable.Query query) {
+    return count(query, groupColumn(query), false);
+  }
+
+  /**
+   * Toutes les lignes de la requête, dans l'ordre de la table, sans pagination et groupes
+   * repliés compris (replier un groupe change l'affichage, pas les données exportées).
+   * Lues au fil de l'eau : à consommer dans une transaction, puis à fermer.
+   */
+  public Stream<E> streamAll(NgTable.Query query) {
+    return rowsQuery(query, groupColumn(query), false)
+        .setHint("org.hibernate.fetchSize", 500)
+        .getResultStream();
+  }
+
+  private TypedQuery<E> rowsQuery(NgTable.Query query, NgTableColumn group, boolean excludeCollapsed) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<E> cq = cb.createQuery(entity);
+    Root<E> root = cq.from(entity);
+    cq.where(where(query, group, excludeCollapsed, cb, root));
     List<Order> orders = new ArrayList<>();
     if (group != null) {
-      orders.add(order(cb, path(root, group.attribute), groupSort.descending()));
+      orders.add(order(cb, path(root, group.attribute), groupSort(query, group).descending()));
     }
     for (NgTable.Sort sort : query.sorts()) {
       if (group == null || !sort.columnId().equals(group.id)) {
@@ -1207,21 +1268,28 @@ public class NgTableJpaSearch<E> {
       }
     }
     orders.add(cb.asc(root.get(idAttribute)));
-    rowsQuery.orderBy(orders);
-    TypedQuery<E> typed = em.createQuery(rowsQuery)
-        .setFirstResult(page.index() * page.size())
-        .setMaxResults(page.size());
-    List<E> rows = typed.getResultList();
+    cq.orderBy(orders);
+    return em.createQuery(cq);
+  }
 
-    // 2. Le total : lignes des groupes dépliés seulement (c'est ce que pagine la table).
-    CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
-    Root<E> countRoot = countQuery.from(entity);
-    countQuery.select(cb.count(countRoot)).where(where(query, group, true, cb, countRoot));
-    long total = em.createQuery(countQuery).getSingleResult();
+  private long count(NgTable.Query query, NgTableColumn group, boolean excludeCollapsed) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Long> cq = cb.createQuery(Long.class);
+    Root<E> root = cq.from(entity);
+    cq.select(cb.count(root)).where(where(query, group, excludeCollapsed, cb, root));
+    return em.createQuery(cq).getSingleResult();
+  }
 
-    // 3. Les résumés : TOUS les groupes (repliés compris), dans le même ordre que les lignes.
-    List<NgTable.GroupSummary> summaries = group == null ? null : summaries(query, group, groupSort.descending());
-    return new NgTable.Result<>(rows, total, summaries);
+  private NgTableColumn groupColumn(NgTable.Query query) {
+    return query.groupBy() == null ? null : column(query.groupBy(), c -> c.groupable, "regroupable");
+  }
+
+  /** Sens de tri de la colonne de regroupement : celui de son niveau de tri s'il existe, croissant sinon. */
+  private static NgTable.Sort groupSort(NgTable.Query query, NgTableColumn group) {
+    return query.sorts().stream()
+        .filter(sort -> sort.columnId().equals(group.id))
+        .findFirst()
+        .orElse(new NgTable.Sort(group.id, "asc"));
   }
 
   private List<NgTable.GroupSummary> summaries(NgTable.Query query, NgTableColumn group, boolean descending) {
@@ -1234,7 +1302,7 @@ public class NgTableJpaSearch<E> {
     for (NgTableColumn column : aggregated) {
       selections.add(aggregate(cb, path(root, column.attribute), column.aggregate));
     }
-    cq.multiselect(selections)
+    cq.select(cb.tuple(selections.toArray(Selection<?>[]::new)))
         .where(where(query, group, false, cb, root))
         .groupBy(key)
         .orderBy(order(cb, key, descending));
@@ -1483,18 +1551,34 @@ import static com.example.ngtable.NgTableColumn.Filter.TEXT;
 
 import com.example.ngtable.NgTable;
 import com.example.ngtable.NgTableColumn;
+import com.example.ngtable.NgTableExporter;
 import com.example.ngtable.NgTableJpaSearch;
 import jakarta.persistence.EntityManager;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CommandeSearchService {
 
+  private final EntityManager em;
   private final NgTableJpaSearch<Commande> search;
 
+  /** Valeur écrite dans le fichier pour chaque colonne : ce que la table affiche. */
+  private final NgTableExporter<Commande> exporter = new NgTableExporter<Commande>()
+      .column("reference", Commande::getReference)
+      .column("client", Commande::getClient)
+      .column("statut", c -> c.getStatut() == null ? null : c.getStatut().label())
+      .column("montant", Commande::getMontant)
+      .column("dateCommande", Commande::getDateCommande)
+      .column("urgent", c -> c.isUrgent() ? "Oui" : "Non")
+      .column("description", Commande::getDescription);
+
   public CommandeSearchService(EntityManager em) {
+    this.em = em;
     // Une entrée par colonne Angular : même id, et même type de filtre que `filter.type`.
     this.search = new NgTableJpaSearch<>(em, Commande.class, "id", List.of(
         NgTableColumn.of("reference").filter(TEXT).sortable().searchable(),
@@ -1512,6 +1596,21 @@ public class CommandeSearchService {
     return new NgTable.Result<>(
         result.rows().stream().map(CommandeDto::from).toList(), result.total(), result.groupSummaries());
   }
+
+  /** Valide la demande d'export et compte les lignes, avant tout envoi au navigateur. */
+  @Transactional(readOnly = true)
+  public NgTableExporter.Download prepareExport(NgTable.ExportRequest request) {
+    return exporter.prepare(request, search.countAll(request.query()));
+  }
+
+  /** Écrit le fichier : les lignes sont lues et écrites au fil de l'eau. */
+  @Transactional(readOnly = true)
+  public void export(NgTable.ExportRequest request, NgTableExporter.Download download, OutputStream out) throws IOException {
+    try (Stream<Commande> rows = search.streamAll(request.query())) {
+      // Détachées une à une : le contexte de persistance ne grossit pas avec l'export.
+      exporter.write(download, request.columns(), rows.peek(em::detach), out);
+    }
+  }
 }
 ```
 
@@ -1519,7 +1618,13 @@ public class CommandeSearchService {
 package com.example.commandes;
 
 import com.example.ngtable.NgTable;
+import com.example.ngtable.NgTableExporter;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeParseException;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -1541,6 +1646,21 @@ public class CommandeController {
   @PostMapping("/search")
   public NgTable.Result<CommandeDto> search(@RequestBody NgTable.Query query) {
     return service.search(query);
+  }
+
+  /**
+   * Export de toutes les lignes de la requête (pas seulement la page), avec les colonnes
+   * affichées : le corps est ce qu'émet {@code (remoteExportRequested)}.
+   */
+  @PostMapping("/export")
+  public void export(@RequestBody NgTable.ExportRequest request, HttpServletResponse response) throws IOException {
+    // Validation d'abord : une erreur ici donne un 400, pas un fichier tronqué.
+    NgTableExporter.Download download = service.prepareExport(request);
+    response.setContentType(download.contentType());
+    response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+        ContentDisposition.attachment().filename(download.filename(), StandardCharsets.UTF_8).build().toString());
+    response.setHeader("X-Export-Rows", Long.toString(download.rowCount()));
+    service.export(request, download, response.getOutputStream());
   }
 
   /** Colonne inconnue, valeur de filtre invalide, page trop grande : 400 plutôt que 500. */
@@ -1634,10 +1754,264 @@ public record CommandeDto(String id, String reference, String client, CommandeSt
 ```java
 package com.example.commandes;
 
-public enum CommandeStatut { BROUILLON, VALIDEE, EXPEDIEE, ANNULEE }
+public enum CommandeStatut {
+  BROUILLON("Brouillon"),
+  VALIDEE("Validée"),
+  EXPEDIEE("Expédiée"),
+  ANNULEE("Annulée");
+
+  /** Libellé affiché (celui des options du filtre côté Angular), utilisé dans les exports. */
+  private final String label;
+
+  CommandeStatut(String label) {
+    this.label = label;
+  }
+
+  public String label() {
+    return label;
+  }
+}
 ```
 
 </details>
+
+#### Export généré par le serveur
+
+Avec `[exportMode]="'remote'"`, le bouton « Exporter » émet `(remoteExportRequested)`. Le serveur y trouve la requête courante, plus les colonnes affichées (`columns`), le format (`format`) et le nom de fichier (`filename`). Il renvoie le fichier de **toutes** les lignes de la requête, pas seulement la page affichée. Les groupes repliés sont inclus : replier change l'affichage, pas les données.
+
+```html
+<ng-table [exportEnabled]="true" [exportMode]="'remote'" [exportFormat]="'xlsx'" [exportFilename]="'commandes'"
+          (remoteExportRequested)="exporter($event)" ... />
+```
+
+```ts
+exporter(request: NgTableRemoteExportRequest): void {
+  this.http.post('/api/commandes/export', request, {observe: 'response', responseType: 'blob'}).subscribe((response) => {
+    const filename = /filename="?([^";]+)"?/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? 'export';
+    const url = URL.createObjectURL(response.body!);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+}
+```
+
+Côté Spring, `NgTableExporter` écrit le fichier au fil de l'eau : les lignes sont lues en flux (`NgTableJpaSearch.streamAll`), puis détachées une à une. Aucune n'est gardée en mémoire.
+
+- **CSV** : même format que l'export local de la table, avec le séparateur `;`, un BOM UTF-8 et des guillemets si nécessaire.
+- **XLSX** (Apache POI, SXSSF) : nombres et dates typés (sommables et triables dans Excel), en-têtes en gras et figés.
+
+La demande est validée **avant** d'écrire le fichier (colonnes connues, format, nombre de lignes). Une erreur donne donc un 400, et jamais un fichier tronqué.
+
+<details>
+<summary><code>NgTableExporter.java</code> : écriture CSV et XLSX en continu</summary>
+
+```java
+package com.example.ngtable;
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Stream;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+
+/**
+ * Écrit l'export demandé par {@code (remoteExportRequested)} : les colonnes affichées, dans
+ * l'ordre et avec les libellés de la table, en CSV (comme l'export local : séparateur
+ * {@code ;}, UTF-8 avec BOM) ou en XLSX (nombres, dates et booléens typés, en-têtes figés).
+ * Les lignes sont écrites au fil de l'eau : rien n'est chargé en entier en mémoire.
+ *
+ * @param <E> type des lignes
+ */
+public class NgTableExporter<E> {
+
+  public enum Format { CSV, XLSX }
+
+  /** Ce que le contrôleur met dans les en-têtes HTTP, avant d'écrire le fichier. */
+  public record Download(Format format, String filename, String contentType, long rowCount) {
+  }
+
+  private final Map<String, Function<? super E, ?>> values = new LinkedHashMap<>();
+  private int maxRows = 200_000;
+
+  /**
+   * Colonne exportable : id de la colonne Angular, et valeur écrite dans le fichier
+   * (texte affiché, nombre, {@code LocalDate}, booléen...).
+   */
+  public NgTableExporter<E> column(String id, Function<? super E, ?> value) {
+    values.put(id, value);
+    return this;
+  }
+
+  /** Nombre maximal de lignes exportées (200 000 par défaut). */
+  public NgTableExporter<E> maxRows(int maxRows) {
+    this.maxRows = maxRows;
+    return this;
+  }
+
+  /**
+   * Vérifie la demande AVANT d'écrire quoi que ce soit : une erreur au milieu d'un fichier
+   * déjà envoyé donnerait un téléchargement tronqué au lieu d'une erreur 400.
+   */
+  public Download prepare(NgTable.ExportRequest request, long rowCount) {
+    Format format = switch (request.format().toLowerCase(Locale.ROOT)) {
+      case "csv" -> Format.CSV;
+      case "xlsx" -> Format.XLSX;
+      default -> throw new IllegalArgumentException("Format d'export inconnu : " + request.format());
+    };
+    if (request.columns().isEmpty()) {
+      throw new IllegalArgumentException("Aucune colonne à exporter");
+    }
+    for (NgTable.ExportColumn column : request.columns()) {
+      if (!values.containsKey(column.id())) {
+        throw new IllegalArgumentException("Colonne non exportable : " + column.id());
+      }
+    }
+    if (rowCount > maxRows) {
+      throw new IllegalArgumentException(
+          "Export limité à " + maxRows + " lignes (" + rowCount + " demandées) : affinez les filtres");
+    }
+    String base = request.filename().replaceAll("[^\\p{L}\\p{N}._ -]", "").strip();
+    String filename = (base.isEmpty() ? "export" : base) + (format == Format.XLSX ? ".xlsx" : ".csv");
+    String contentType = format == Format.XLSX
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "text/csv;charset=UTF-8";
+    return new Download(format, filename, contentType, rowCount);
+  }
+
+  public void write(Download download, List<NgTable.ExportColumn> columns, Stream<? extends E> rows, OutputStream out)
+      throws IOException {
+    List<Function<? super E, ?>> accessors = columns.stream().<Function<? super E, ?>>map(c -> values.get(c.id())).toList();
+    if (download.format() == Format.XLSX) {
+      writeXlsx(columns, accessors, rows.iterator(), out);
+    } else {
+      writeCsv(columns, accessors, rows.iterator(), out);
+    }
+  }
+
+  private void writeCsv(List<NgTable.ExportColumn> columns, List<Function<? super E, ?>> accessors,
+                        Iterator<? extends E> rows, OutputStream out) throws IOException {
+    Writer writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+    // BOM UTF-8 : sans lui, Excel lit le CSV en Latin-1 et corrompt les accents.
+    writer.write('﻿');
+    writeCsvLine(writer, columns.stream().map(NgTable.ExportColumn::header).toList());
+    while (rows.hasNext()) {
+      E row = rows.next();
+      writer.write("\r\n");
+      writeCsvLine(writer, accessors.stream().map(accessor -> text(accessor.apply(row))).toList());
+    }
+    writer.flush();
+  }
+
+  private static void writeCsvLine(Writer writer, List<String> cells) throws IOException {
+    for (int i = 0; i < cells.size(); i++) {
+      if (i > 0) {
+        writer.write(';');
+      }
+      String cell = cells.get(i);
+      boolean quote = cell.indexOf('"') >= 0 || cell.indexOf(';') >= 0 || cell.indexOf('\n') >= 0 || cell.indexOf('\r') >= 0;
+      writer.write(quote ? '"' + cell.replace("\"", "\"\"") + '"' : cell);
+    }
+  }
+
+  private void writeXlsx(List<NgTable.ExportColumn> columns, List<Function<? super E, ?>> accessors,
+                         Iterator<? extends E> rows, OutputStream out) throws IOException {
+    // 100 lignes en mémoire au plus : les autres sont écrites dans un fichier temporaire.
+    SXSSFWorkbook workbook = new SXSSFWorkbook(100);
+    try {
+      SXSSFSheet sheet = workbook.createSheet("Export");
+      Font bold = workbook.createFont();
+      bold.setBold(true);
+      CellStyle headerStyle = workbook.createCellStyle();
+      headerStyle.setFont(bold);
+      CellStyle dateStyle = workbook.createCellStyle();
+      dateStyle.setDataFormat(workbook.getCreationHelper().createDataFormat().getFormat("dd/mm/yyyy"));
+      CellStyle dateTimeStyle = workbook.createCellStyle();
+      dateTimeStyle.setDataFormat(workbook.getCreationHelper().createDataFormat().getFormat("dd/mm/yyyy hh:mm"));
+
+      Row header = sheet.createRow(0);
+      for (int i = 0; i < columns.size(); i++) {
+        Cell cell = header.createCell(i);
+        cell.setCellValue(columns.get(i).header());
+        cell.setCellStyle(headerStyle);
+        sheet.setColumnWidth(i, Math.min(60, Math.max(12, columns.get(i).header().length() + 4)) * 256);
+      }
+      sheet.createFreezePane(0, 1);
+
+      int rowIndex = 1;
+      while (rows.hasNext()) {
+        E row = rows.next();
+        Row line = sheet.createRow(rowIndex++);
+        for (int i = 0; i < accessors.size(); i++) {
+          Object value = accessors.get(i).apply(row);
+          if (value == null) {
+            continue;
+          }
+          Cell cell = line.createCell(i);
+          switch (value) {
+            case Number number -> cell.setCellValue(number.doubleValue());
+            case Boolean bool -> cell.setCellValue(bool);
+            case LocalDate date -> {
+              cell.setCellValue(date);
+              cell.setCellStyle(dateStyle);
+            }
+            case LocalDateTime dateTime -> {
+              cell.setCellValue(dateTime);
+              cell.setCellStyle(dateTimeStyle);
+            }
+            default -> cell.setCellValue(text(value));
+          }
+        }
+      }
+      workbook.write(out);
+    } finally {
+      workbook.close(); // supprime aussi les fichiers temporaires (POI 5)
+    }
+  }
+
+  private static String text(Object value) {
+    if (value == null) {
+      return "";
+    }
+    if (value instanceof BigDecimal number) {
+      // 97.80 (échelle de la colonne SQL) -> "97.8", comme l'export local de la table.
+      return number.stripTrailingZeros().toPlainString();
+    }
+    return value.toString();
+  }
+}
+```
+
+</details>
+
+Dépendance à ajouter pour le XLSX :
+
+```xml
+<dependency>
+  <groupId>org.apache.poi</groupId>
+  <artifactId>poi-ooxml</artifactId>
+  <version>5.5.1</version>
+</dependency>
+```
 
 #### Points d'attention
 
@@ -1765,15 +2139,21 @@ Au clic, si les données locales tiennent sur plusieurs pages (`pageTrackingEnab
 ```
 
 ```ts
-onExportRequested(query: NgTableRemoteQuery): void {
+onExportRequested(request: NgTableRemoteExportRequest): void {
   // Ajoutez vos propres paramètres (ex. depuis un store applicatif) avant l'appel :
-  this.exportApi.generate({...query, format: 'xlsx', locale: this.currentLocale()}).subscribe((res) => {
+  this.exportApi.generate({...request, locale: this.currentLocale()}).subscribe((res) => {
     window.open(res.downloadUrl, '_blank');
   });
 }
 ```
 
-`NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy, collapsedGroups}`) reprend le tri/filtres/page/recherche globale courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
+`NgTableRemoteExportRequest` reprend la requête courante, comme `remoteQueryChange` (`{sort, sorts, filters, page, search, groupBy, collapsedGroups}`). Elle ajoute ce qu'il faut au serveur pour produire le même fichier que l'export local :
+
+- `columns` : les colonnes visibles, dans l'ordre affiché (colonne de référence et colonnes épinglées comprises), sans celles marquées `exportable: false`. Chacune est donnée par `{id, header}`, avec le libellé déjà traduit.
+- `format` : `[exportFormat]` (`'csv'` ou `'xlsx'`).
+- `filename` : `[exportFilename]`, sans extension.
+
+Un backend Spring Boot qui génère ce fichier est décrit à l'Étape 17ter. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
 
 ### Étape 18ter — Indicateur de chargement
 
@@ -2057,7 +2437,7 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `remoteQueryChange`      | `NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy, collapsedGroups}`)       | **Mode `remote`.** Émis à chaque changement de tri/filtre, état complet, prêt pour une requête serveur unique.                                                             |
 | `filteredCountChange`    | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Total après filtrage, pour `[length]` de votre paginator.                                                                   |
 | `pageIndexChange`        | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Émis avec `0` quand un filtre/tri doit remettre la page à zéro.                                                             |
-| `remoteExportRequested`  | `NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy, collapsedGroups}`)       | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
+| `remoteExportRequested`  | `NgTableRemoteExportRequest` (requête + `columns`, `format`, `filename`)                      | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
 | `localExportCompleted`   | `NgTableLocalExportEvent` (`{fromPage, toPage, rowCount}`)                    | **`exportMode='local'`.** Émis après la génération et le téléchargement du CSV — informatif (toast, analytics...).                                                         |
 
 ## Personnaliser les textes (`NgTableLabels`)

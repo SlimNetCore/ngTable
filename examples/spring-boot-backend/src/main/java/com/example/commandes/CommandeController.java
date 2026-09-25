@@ -1,7 +1,13 @@
 package com.example.commandes;
 
 import com.example.ngtable.NgTable;
+import com.example.ngtable.NgTableExporter;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeParseException;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,6 +29,21 @@ public class CommandeController {
   @PostMapping("/search")
   public NgTable.Result<CommandeDto> search(@RequestBody NgTable.Query query) {
     return service.search(query);
+  }
+
+  /**
+   * Export de toutes les lignes de la requête (pas seulement la page), avec les colonnes
+   * affichées : le corps est ce qu'émet {@code (remoteExportRequested)}.
+   */
+  @PostMapping("/export")
+  public void export(@RequestBody NgTable.ExportRequest request, HttpServletResponse response) throws IOException {
+    // Validation d'abord : une erreur ici donne un 400, pas un fichier tronqué.
+    NgTableExporter.Download download = service.prepareExport(request);
+    response.setContentType(download.contentType());
+    response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+        ContentDisposition.attachment().filename(download.filename(), StandardCharsets.UTF_8).build().toString());
+    response.setHeader("X-Export-Rows", Long.toString(download.rowCount()));
+    service.export(request, download, response.getOutputStream());
   }
 
   /** Colonne inconnue, valeur de filtre invalide, page trop grande : 400 plutôt que 500. */

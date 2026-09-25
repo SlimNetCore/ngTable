@@ -1,4 +1,4 @@
-import {NgTableGroupSummary, NgTableRemoteQuery} from '@sbourahla/ng-table';
+import {NgTableGroupSummary, NgTableRemoteExportRequest, NgTableRemoteQuery} from '@sbourahla/ng-table';
 import {CLIENTS, Commande, CommandeStatut, STATUT_LABELS} from './demo-data';
 
 export interface CommandesPage {
@@ -13,8 +13,8 @@ export interface CommandesPage {
 /** Ce que la démo attend d'un serveur : le faux (dans le navigateur) ou le vrai (Spring Boot). */
 export interface CommandesBackend {
   query(query: NgTableRemoteQuery): Promise<CommandesPage>;
-  /** Nombre de lignes qu'exporterait le serveur pour cette requête (toutes pages confondues). */
-  count(query: NgTableRemoteQuery): Promise<number>;
+  /** Export côté serveur ; renvoie le message à afficher. */
+  export(request: NgTableRemoteExportRequest): Promise<string>;
 }
 
 const STATUTS = Object.keys(STATUT_LABELS) as CommandeStatut[];
@@ -125,9 +125,14 @@ export class FakeCommandesApi implements CommandesBackend {
     return new Promise((resolve) => setTimeout(() => resolve(page), latencyMs));
   }
 
-  /** Nombre de lignes qu'exporterait le serveur pour cette requête (toutes pages confondues). */
-  count(query: NgTableRemoteQuery): Promise<number> {
-    return Promise.resolve(this.resolve({...query, collapsedGroups: []}).indices.length);
+  /** Le serveur simulé ne produit pas de fichier : il annonce ce qu'il exporterait. */
+  export(request: NgTableRemoteExportRequest): Promise<string> {
+    const count = this.resolve({...request, collapsedGroups: []}).indices.length;
+    const columns = request.columns.map((column) => column.header).join(', ');
+    return Promise.resolve(
+      `Serveur simulé : l'export ${request.format.toUpperCase()} porterait sur ${count} ligne(s) et ${request.columns.length} colonne(s) (${columns}). ` +
+      'Choisissez « Spring Boot » pour recevoir un vrai fichier.',
+    );
   }
 
   private commande(i: number): Commande {

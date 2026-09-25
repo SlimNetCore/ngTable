@@ -11,7 +11,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {By} from '@angular/platform-browser';
 import {MatCheckboxChange} from '@angular/material/checkbox';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {NgTableColumn, NgTableComponent, NgTableRemoteQuery, NgTableSortChange} from './ng-table.component';
+import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRemoteQuery, NgTableSortChange} from './ng-table.component';
 import {NG_TABLE_DEFAULT_LABELS, provideNgTableLabels} from './ng-table-labels';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
 
@@ -1615,6 +1615,27 @@ describe('NgTableComponent', () => {
       expect(requests).toHaveLength(1);
       expect(createObjectURLSpy).not.toHaveBeenCalled();
       createObjectURLSpy.mockRestore();
+    });
+
+    it('remoteExportRequested porte les colonnes affichées, dans l’ordre, avec format et nom de fichier', async () => {
+      const cols = columns().map((column) => (column.id === 'actif' ? {...column, exportable: false} : column));
+      const {component, setInput} = await createTable({
+        columns: cols, exportEnabled: true, exportMode: 'remote', dataMode: 'remote',
+        exportFormat: 'xlsx', exportFilename: 'commandes', columnOrder: ['statut', 'nom', 'montant', 'actif'],
+      });
+      await setInput('columnVisibility', {montant: false});
+      const requests: NgTableRemoteExportRequest[] = [];
+      component.remoteExportRequested.subscribe((q) => requests.push(q));
+
+      component.openExportDialog();
+
+      expect(requests[0]).toMatchObject({
+        columns: [{id: 'statut', header: 'Statut'}, {id: 'nom', header: 'Nom'}], // montant masqué, actif non exportable
+        format: 'xlsx',
+        filename: 'commandes',
+        filters: expect.any(Object),
+        page: {index: 0, size: 0},
+      });
     });
 
     it('exige une confirmation de plage quand plusieurs pages sont exportables', async () => {

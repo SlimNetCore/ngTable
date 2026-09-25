@@ -7,6 +7,7 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 Voir aussi `ROADMAP.md` pour le suivi détaillé.
 
 ### Documentation
+- `examples/spring-boot-backend` : export CSV / XLSX (`POST /api/commandes/export`, `NgTableExporter`, Apache POI en continu). Démo expert : punaise « colonne de référence » et choix du format d'export.
 - `examples/spring-boot-backend` : le backend de l'Étape 17ter en projet Spring Boot autonome (H2, 100 000 commandes, tests, Maven Wrapper). La démo expert peut s'y brancher (**Serveur → Spring Boot**, proxy `/api` de `npm start`).
 - README, Étape 17ter : backend Spring Boot complet pour le mode `remote` (contrat JSON requête / réponse, format des filtres par type, tri avec regroupement, groupes repliés, résumés de groupes), en JPA Criteria, testé avec Spring Boot 3.5 et 4.1.
 
@@ -16,6 +17,7 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - Tests exécutables avec Vitest (`npm test`, `npm run test:ci`), lint avec angular-eslint (`npm run lint`), CI GitHub Actions.
 
 ### Ajouté
+- `(remoteExportRequested)` émet un `NgTableRemoteExportRequest` : la requête courante, plus `columns` (colonnes visibles dans l'ordre affiché, hors `exportable: false`, avec leur libellé), `format` (`[exportFormat]`) et `filename` (`[exportFilename]`). Le serveur peut ainsi produire le même fichier que l'export local. Compatible : le type étend `NgTableRemoteQuery`.
 - `NG_TABLE_LABELS_EN` : textes anglais prêts à l'emploi (`provideNgTableLabels(() => NG_TABLE_LABELS_EN)`).
 - `ColumnFilterType` est exporté par l'API publique.
 - `@angular/cdk` est déclaré en peerDependency (déjà requis de fait via Material) ; `@angular/router` en peerDependency optionnelle.

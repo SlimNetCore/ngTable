@@ -9,7 +9,9 @@ import {
   NgTableColumn,
   NgTableComponent,
   NgTableGroupSummary,
+  NgTableExportFormat,
   NgTableQueryState,
+  NgTableRemoteExportRequest,
   NgTableRemoteQuery,
   NgTableViewsStore,
 } from '@sbourahla/ng-table';
@@ -82,6 +84,14 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           <span class="server">Fixé par <code>demo.commandes.count</code> (100 000 par défaut) dans le backend.</span>
         }
       </div>
+      <div class="actions-row">
+        <span class="setting-label">Format d'export</span>
+        <mat-button-toggle-group [value]="exportFormat()" (change)="exportFormat.set($event.value)">
+          <mat-button-toggle value="csv">CSV</mat-button-toggle>
+          <mat-button-toggle value="xlsx">Excel (xlsx)</mat-button-toggle>
+        </mat-button-toggle-group>
+        <span class="server">Bouton « Exporter » de la table : le fichier est généré par le serveur.</span>
+      </div>
       <div class="perf">
         <div><strong>{{ total().toLocaleString('fr-FR') }}</strong><span>lignes correspondantes côté serveur</span></div>
         <div><strong>{{ renderedRows() }}</strong><span>lignes rendues dans la table</span></div>
@@ -146,6 +156,9 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           (viewActivated)="log('viewActivated', $event?.name ?? null)"
           [exportEnabled]="true"
           [exportMode]="'remote'"
+          [exportFormat]="exportFormat()"
+          [exportFilename]="'commandes'"
+          [referenceColumnSelectable]="true"
           (remoteExportRequested)="exportOnServer($event)"
           [detailRowTemplate]="detailTpl"
           (remoteQueryChange)="load($event)"
@@ -192,7 +205,10 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           Les groupes se replient : <code>collapsedGroups</code> part dans la requête et le serveur exclut leurs lignes.</li>
         <li>Vrai backend au choix : Spring Boot + JPA (<code>examples/spring-boot-backend</code>), appelé par
           <code>fetch</code> via le proxy <code>/api</code> de <code>npm start</code>.</li>
-        <li>Export généré côté serveur (<code>exportMode='remote'</code>).</li>
+        <li>Export généré côté serveur (<code>exportMode='remote'</code>) : <code>(remoteExportRequested)</code> porte la
+          requête, les colonnes affichées (dans l'ordre), le format et le nom de fichier ; Spring Boot renvoie le CSV ou le
+          XLSX de toutes les lignes.</li>
+        <li>Colonne de référence choisie avec la punaise du menu « Colonnes » (<code>referenceColumnSelectable</code>).</li>
         <li>Textes traduits via <code>[labels]</code> (<code>NG_TABLE_LABELS_EN</code>).</li>
         <li>En test : <code>NgTableHarness</code> (<code>&#64;sbourahla/ng-table/testing</code>) pilote cette table comme
           un utilisateur.</li>
@@ -213,6 +229,7 @@ export class ExpertDemoComponent {
   private api: CommandesBackend = new FakeCommandesApi(2000);
   protected readonly backend = signal<'fake' | 'spring'>('fake');
   protected readonly serverError = signal(false);
+  protected readonly exportFormat = signal<NgTableExportFormat>('csv');
   private readonly injector = inject(Injector);
   private lastQuery: NgTableRemoteQuery = {sort: {columnId: '', direction: ''}, sorts: [], filters: {}, search: '', page: {index: 0, size: 20}};
   protected readonly datasetSize = signal(2000);
@@ -345,11 +362,12 @@ export class ExpertDemoComponent {
     this.serverStatus.set(`Serveur : ${page.total.toLocaleString('fr-FR')} commande(s) correspondent, page ${query.page.index + 1} reçue.`);
   }
 
-  protected async exportOnServer(query: NgTableRemoteQuery): Promise<void> {
-    this.log('remoteExportRequested', query);
+  protected async exportOnServer(request: NgTableRemoteExportRequest): Promise<void> {
+    this.log('remoteExportRequested', request);
+    this.serverStatus.set('Export en cours côté serveur…');
     try {
-      const count = await this.api.count(query);
-      this.serverStatus.set(`Export lancé côté serveur : ${count} ligne(s), toutes pages confondues.`);
+      this.serverStatus.set(await this.api.export(request));
+      this.serverError.set(false);
     } catch (error) {
       this.showServerError(error);
     }

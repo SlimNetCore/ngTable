@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Exécute une {@link NgTable.Query} sur une entité JPA : filtres, recherche globale, tri,
@@ -64,21 +65,49 @@ public class NgTableJpaSearch<E> {
       throw new IllegalArgumentException(
           "Taille de page attendue entre 1 et " + maxPageSize + " (activez la pagination côté Angular)");
     }
-    NgTableColumn group = query.groupBy() == null ? null : column(query.groupBy(), c -> c.groupable, "regroupable");
-    NgTable.Sort groupSort = group == null ? null : query.sorts().stream()
-        .filter(sort -> sort.columnId().equals(group.id))
-        .findFirst()
-        .orElse(new NgTable.Sort(group.id, "asc"));
-
-    CriteriaBuilder cb = em.getCriteriaBuilder();
+    NgTableColumn group = groupColumn(query);
 
     // 1. La page : triée d'abord par la colonne de regroupement, sans les groupes repliés.
-    CriteriaQuery<E> rowsQuery = cb.createQuery(entity);
-    Root<E> root = rowsQuery.from(entity);
-    rowsQuery.where(where(query, group, true, cb, root));
+    List<E> rows = rowsQuery(query, group, true)
+        .setFirstResult(page.index() * page.size())
+        .setMaxResults(page.size())
+        .getResultList();
+
+    // 2. Le total : lignes des groupes dépliés seulement (c'est ce que pagine la table).
+    long total = count(query, group, true);
+
+    // 3. Les résumés : TOUS les groupes (repliés compris), dans le même ordre que les lignes.
+    List<NgTable.GroupSummary> summaries = group == null ? null : summaries(query, group, groupSort(query, group).descending());
+    return new NgTable.Result<>(rows, total, summaries);
+  }
+
+  /**
+   * Nombre de lignes qu'exporterait {@link #streamAll} : filtres et recherche appliqués,
+   * toutes pages confondues, groupes repliés compris.
+   */
+  public long countAll(NgTable.Query query) {
+    return count(query, groupColumn(query), false);
+  }
+
+  /**
+   * Toutes les lignes de la requête, dans l'ordre de la table, sans pagination et groupes
+   * repliés compris (replier un groupe change l'affichage, pas les données exportées).
+   * Lues au fil de l'eau : à consommer dans une transaction, puis à fermer.
+   */
+  public Stream<E> streamAll(NgTable.Query query) {
+    return rowsQuery(query, groupColumn(query), false)
+        .setHint("org.hibernate.fetchSize", 500)
+        .getResultStream();
+  }
+
+  private TypedQuery<E> rowsQuery(NgTable.Query query, NgTableColumn group, boolean excludeCollapsed) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<E> cq = cb.createQuery(entity);
+    Root<E> root = cq.from(entity);
+    cq.where(where(query, group, excludeCollapsed, cb, root));
     List<Order> orders = new ArrayList<>();
     if (group != null) {
-      orders.add(order(cb, path(root, group.attribute), groupSort.descending()));
+      orders.add(order(cb, path(root, group.attribute), groupSort(query, group).descending()));
     }
     for (NgTable.Sort sort : query.sorts()) {
       if (group == null || !sort.columnId().equals(group.id)) {
@@ -87,21 +116,28 @@ public class NgTableJpaSearch<E> {
       }
     }
     orders.add(cb.asc(root.get(idAttribute)));
-    rowsQuery.orderBy(orders);
-    TypedQuery<E> typed = em.createQuery(rowsQuery)
-        .setFirstResult(page.index() * page.size())
-        .setMaxResults(page.size());
-    List<E> rows = typed.getResultList();
+    cq.orderBy(orders);
+    return em.createQuery(cq);
+  }
 
-    // 2. Le total : lignes des groupes dépliés seulement (c'est ce que pagine la table).
-    CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
-    Root<E> countRoot = countQuery.from(entity);
-    countQuery.select(cb.count(countRoot)).where(where(query, group, true, cb, countRoot));
-    long total = em.createQuery(countQuery).getSingleResult();
+  private long count(NgTable.Query query, NgTableColumn group, boolean excludeCollapsed) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Long> cq = cb.createQuery(Long.class);
+    Root<E> root = cq.from(entity);
+    cq.select(cb.count(root)).where(where(query, group, excludeCollapsed, cb, root));
+    return em.createQuery(cq).getSingleResult();
+  }
 
-    // 3. Les résumés : TOUS les groupes (repliés compris), dans le même ordre que les lignes.
-    List<NgTable.GroupSummary> summaries = group == null ? null : summaries(query, group, groupSort.descending());
-    return new NgTable.Result<>(rows, total, summaries);
+  private NgTableColumn groupColumn(NgTable.Query query) {
+    return query.groupBy() == null ? null : column(query.groupBy(), c -> c.groupable, "regroupable");
+  }
+
+  /** Sens de tri de la colonne de regroupement : celui de son niveau de tri s'il existe, croissant sinon. */
+  private static NgTable.Sort groupSort(NgTable.Query query, NgTableColumn group) {
+    return query.sorts().stream()
+        .filter(sort -> sort.columnId().equals(group.id))
+        .findFirst()
+        .orElse(new NgTable.Sort(group.id, "asc"));
   }
 
   private List<NgTable.GroupSummary> summaries(NgTable.Query query, NgTableColumn group, boolean descending) {
@@ -114,7 +150,7 @@ public class NgTableJpaSearch<E> {
     for (NgTableColumn column : aggregated) {
       selections.add(aggregate(cb, path(root, column.attribute), column.aggregate));
     }
-    cq.multiselect(selections)
+    cq.select(cb.tuple(selections.toArray(Selection<?>[]::new)))
         .where(where(query, group, false, cb, root))
         .groupBy(key)
         .orderBy(order(cb, key, descending));

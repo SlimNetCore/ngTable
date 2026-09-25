@@ -153,6 +153,25 @@ export interface NgTableRemoteQuery {
   collapsedGroups?: string[];
 }
 
+/** Colonne à exporter, telle qu'affichée : identifiant et libellé d'en-tête. */
+export interface NgTableExportColumn {
+  id: string;
+  header: string;
+}
+
+/**
+ * `(remoteExportRequested)` : la requête courante (filtres, tri, recherche, regroupement),
+ * plus ce qu'il faut au serveur pour produire le fichier comme l'export local.
+ */
+export interface NgTableRemoteExportRequest extends NgTableRemoteQuery {
+  /** Colonnes visibles, dans l'ordre affiché, sans celles marquées `exportable: false`. */
+  columns: NgTableExportColumn[];
+  /** `[exportFormat]`. */
+  format: NgTableExportFormat;
+  /** `[exportFilename]`, sans extension. */
+  filename: string;
+}
+
 /**
  * `local`: `ng-table` génère lui-même le fichier d'export (CSV) à partir des données
  * déjà chargées, après que l'utilisateur choisit une plage de pages dans une boîte
@@ -710,7 +729,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * whatever extra parameters your backend needs, e.g. from your own store) and
    * handle the resulting file/download yourself; `ng-table` does not call your API.
    */
-  readonly remoteExportRequested = output<NgTableRemoteQuery>();
+  readonly remoteExportRequested = output<NgTableRemoteExportRequest>();
   /** `exportMode='local'` only: emitted after the CSV file has been generated and downloaded. */
   readonly localExportCompleted = output<NgTableLocalExportEvent>();
   /**
@@ -2403,7 +2422,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
    */
   openExportDialog(): void {
     if (this.exportMode() === 'remote') {
-      this.remoteExportRequested.emit(this.buildRemoteQuery(this.pageIndex(), this.pageSize()));
+      this.remoteExportRequested.emit({
+        ...this.buildRemoteQuery(this.pageIndex(), this.pageSize()),
+        columns: this.exportColumns().map((column) => ({id: column.id, header: column.header})),
+        format: this.exportFormat(),
+        filename: this.exportFilename(),
+      });
       return;
     }
 
@@ -2549,9 +2573,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.localExportCompleted.emit({fromPage, toPage, rowCount: rows.length});
   }
 
+  /** Colonnes exportées (local et remote) : visibles, dans l'ordre affiché, hors `exportable: false`. */
+  private readonly exportColumns = computed(() => this.visibleColumns().filter((column) => column.exportable !== false));
+
   /** En-têtes puis une ligne par enregistrement ; valeurs typées (le CSV les convertit en texte). */
   private buildExportMatrix(rows: readonly T[]): ExportCell[][] {
-    const exportColumns = this.visibleColumns().filter((column) => column.exportable !== false);
+    const exportColumns = this.exportColumns();
     const matrix: ExportCell[][] = [exportColumns.map((column) => column.header)];
     for (const row of rows) {
       matrix.push(

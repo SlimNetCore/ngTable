@@ -57,4 +57,36 @@ public final class NgTable {
    */
   public record Result<T>(List<T> rows, long total, List<GroupSummary> groupSummaries) {
   }
+
+  /** Une colonne à exporter, telle qu'affichée par la table. */
+  public record ExportColumn(String id, String header) {
+  }
+
+  /**
+   * Corps de l'export : exactement ce qu'émet {@code (remoteExportRequested)}, c'est-à-dire la
+   * requête courante plus les colonnes affichées (dans l'ordre), le format et le nom de fichier.
+   */
+  public record ExportRequest(
+      Sort sort,
+      List<Sort> sorts,
+      Map<String, String> filters,
+      Page page,
+      String search,
+      String groupBy,
+      List<String> collapsedGroups,
+      List<ExportColumn> columns,
+      String format,
+      String filename) {
+
+    public ExportRequest {
+      columns = columns != null ? columns : List.of();
+      format = format != null ? format : "csv";
+      filename = filename != null ? filename : "export";
+    }
+
+    /** La requête de la table (filtres, recherche, tri, regroupement). */
+    public Query query() {
+      return new Query(sort, sorts, filters, page, search, groupBy, collapsedGroups);
+    }
+  }
 }
