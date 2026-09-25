@@ -460,14 +460,30 @@ export class NgTableComponent implements OnDestroy {
   readonly activeViewId = computed(() => this.effectiveViewsStore().activeViewId);
   readonly activeView = computed(() => this.viewsList().find((v) => v.id === this.activeViewId()) ?? null);
 
-  readonly visibleColumns = computed(() => {
+  /**
+   * Colonnes visibles, dans l'ordre naturel de `columns()` — PAS trié par
+   * `columnOrder`. Sert de base à `visibleColumns()` (qui applique le tri) et,
+   * séparément, à tout ce qui ne dépend PAS de l'ordre d'affichage
+   * (`filteredSortedRows` notamment) : sa référence reste stable tant que
+   * l'ENSEMBLE des colonnes visibles ne change pas, même si leur ORDRE change.
+   * Sans cette séparation, glisser une colonne pour la réordonner ferait
+   * recalculer `visibleColumns()` avec une nouvelle référence à chaque fois,
+   * ce qui invaliderait tout computed qui en dépend — y compris
+   * `filteredSortedRows`, qui refiltrerait/retrierait alors la TOTALITÉ des
+   * lignes à chaque réordonnancement, même si le filtrage/tri ne dépend en
+   * rien de l'ordre des colonnes. Sur une grosse liste, c'est précisément ce
+   * qui rend le réordonnancement des colonnes perceptiblement lent.
+   */
+  private readonly visibleColumnsUnordered = computed(() => {
     const columns = this.columns();
     const visibility = this.effectiveColumnVisibility();
-
-    const filtered = !visibility
+    return !visibility
       ? columns.filter((column) => column.visible !== false)
       : columns.filter((column) => visibility[column.id] ?? true);
+  });
 
+  readonly visibleColumns = computed(() => {
+    const filtered = this.visibleColumnsUnordered();
     const order = this.effectiveColumnOrder();
     if (order.length === 0) {
       return filtered;
@@ -544,10 +560,16 @@ export class NgTableComponent implements OnDestroy {
     }
     return Math.max(1, Math.ceil(this.filteredSortedRows().length / size));
   });
-  /** Local mode pipeline: rows source -> filtres -> tri (sans pagination). */
+  /**
+   * Local mode pipeline: rows source -> filtres -> tri (sans pagination).
+   * Dépend de `visibleColumnsUnordered()`, PAS de `visibleColumns()` — le
+   * filtrage/tri ne dépend en rien de l'ORDRE des colonnes, seulement de
+   * lesquelles sont visibles et de leurs valeurs de filtre. Voir le
+   * commentaire de `visibleColumnsUnordered`.
+   */
   private readonly filteredSortedRows = computed(() => {
     const sourceRows = this.rows();
-    const activeColumns = this.visibleColumns();
+    const activeColumns = this.visibleColumnsUnordered();
     const filters = this.columnFilters();
     const sort = this.sortState();
 
@@ -770,11 +792,14 @@ export class NgTableComponent implements OnDestroy {
     });
 
     // Inline mode: lazy filter options must be loaded eagerly since there is no menu-open event.
+    // `visibleColumnsUnordered` : quelles colonnes sont visibles importe, leur ordre non —
+    // évite de repasser sur toutes les colonnes (déjà chargées, donc no-op, mais pas gratuit
+    // sur beaucoup de colonnes) à chaque réordonnancement.
     effect(() => {
       if (!this.inlineFilters()) {
         return;
       }
-      for (const column of this.visibleColumns()) {
+      for (const column of this.visibleColumnsUnordered()) {
         if (column.filter?.optionsLoader) {
           void this.ensureLazyFilterOptions(column.id, column.filter);
         }

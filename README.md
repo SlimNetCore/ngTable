@@ -1393,7 +1393,7 @@ Le menu "Colonnes" imbriquait un `<mat-checkbox>` (lui-même interactif) dans un
 
 ## Points d'attention
 
-- **Performance** : en mode `local`, `displayedRows()` (filtre + tri) est recalculé à chaque changement de `rows`/`columns`/filtres/tri — pour de très gros volumes, préférez `dataMode='remote'`.
+- **Performance** : en mode `local`, `displayedRows()` (filtre + tri) est recalculé à chaque changement de `rows`/`columns`/filtres/tri — pour de très gros volumes, préférez `dataMode='remote'`. Réordonner les colonnes (glisser-déposer ou flèches clavier) n'en fait **volontairement pas partie** : ça ne change ni les lignes filtrées ni leur tri, donc `displayedRows()` n'est pas recalculé — seul l'ordre d'affichage des colonnes change. Le coût restant (déplacer les cellules dans le DOM pour refléter le nouvel ordre) vient d'Angular CDK Table et grandit avec le nombre de lignes **rendues** ; pour une très grosse liste sans pagination, activer `pageTrackingEnabled` (ou passer en `dataMode='remote'` paginé) réduit ce nombre et rend le réordonnancement visiblement plus rapide.
 - **`rowKeyAccessor`** : recommandé dès que `rowSelectionEnabled`, `expandedRowKeys`, ou les vues sont utilisés sans `row.id` fiable et stable.
 - **Le jeu de filtres est construit par le composant** : `columnFilters` est toujours dérivé de `columns()` (une entrée par colonne filtrable, jamais tronqué) — aucun consommateur n'a besoin d'énumérer lui-même ses colonnes filtrables ; un backend générique peut transmettre `remoteQueryChange.filters`/`filtersChange` tel quel.
 

@@ -513,6 +513,24 @@ describe('NgTableComponent', () => {
 
       expect(emitted).toEqual([]);
     });
+
+    it("ne refiltre/retrie pas les lignes quand seul l'ordre des colonnes change (perf)", async () => {
+      const {component} = await createTable();
+      // Emprunte le pipeline filtre + tri de `filteredSortedRows` avant de réordonner.
+      component.onFilterValue('statut', 'VALIDEE');
+      component.onHeaderSort(component.columns()[0]);
+      const before = component.displayedRows();
+
+      const dragEvent = {preventDefault: () => undefined, dataTransfer: null} as unknown as DragEvent;
+      component.onColumnDragStart(dragEvent, component.columns()[3]); // `actif`
+      component.onColumnDrop(dragEvent, component.columns()[0]); // déposé sur `nom`
+
+      // Même référence : `filteredSortedRows` (dépend de `visibleColumnsUnordered`,
+      // pas `visibleColumns`) n'a pas été recalculé — seul l'ordre d'affichage
+      // des colonnes doit changer, jamais le contenu/tri des lignes.
+      expect(component.displayedRows()).toBe(before);
+      expect(component.displayedColumnIds()).toEqual(['actif', 'nom', 'montant', 'statut']);
+    });
   });
 
   describe('sélection de lignes', () => {
