@@ -45,6 +45,7 @@ import {
 } from './grid-navigation';
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
 import {matchesAllFilters, searchText, SortLevel, sortRows} from './row-pipeline';
+import {buildGroups, computeAggregate, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
 import {escapeCssToken, measureNaturalWidth} from './dom-utils';
 import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
 import {formatRangeValue, matchesSearchTerms, NgTableTextOperator, searchTerms} from './filter-matching';
@@ -163,6 +164,13 @@ export interface NgTableFilterConfig {
   componentInputs?: Record<string, unknown>;
 }
 
+/**
+ * Agrégat d'une colonne, affiché dans les en-têtes de groupe et la ligne de totaux :
+ * somme, moyenne, minimum, maximum (valeurs numériques de `valueAccessor`), nombre de
+ * lignes, ou fonction personnalisée recevant les lignes du groupe.
+ */
+export type NgTableAggregate<T> = 'sum' | 'avg' | 'min' | 'max' | 'count' | ((rows: readonly T[]) => unknown);
+
 export interface NgTableColumn<T> {
   id: string;
   /** Libellé d'en-tête affiché tel quel (texte déjà résolu — plus une clé i18n). */
@@ -203,6 +211,13 @@ export interface NgTableColumn<T> {
    * plutôt que le code brut).
    */
   searchable?: boolean | ((row: T) => string);
+  /** Agrégat affiché dans les en-têtes de groupe et la ligne de totaux (voir `NgTableAggregate`). */
+  aggregate?: NgTableAggregate<T>;
+  /**
+   * Proposée dans le menu « Grouper » (`[groupingEnabled]`). Par défaut : oui pour une
+   * colonne triable ou filtrable.
+   */
+  groupable?: boolean;
   copy?:
     | boolean
     | {
@@ -265,6 +280,8 @@ export interface NgTableViewState {
   columnWidths?: Record<string, number>;
   /** Colonne de référence choisie (voir `referenceColumn`). Absente = `pinned` déclarés des colonnes. */
   referenceColumnId?: string | null;
+  /** Colonne de regroupement (voir `groupBy`). */
+  groupBy?: string | null;
   /** Recherche globale. Absente des vues enregistrées avant son ajout (= pas de recherche). */
   search?: string;
   /** Only populated when `pageTrackingEnabled=true` (reuses `[pageIndex]`/`[pageSize]`). */
@@ -490,6 +507,18 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * la ligne, Espace la sélectionne, Maj+F10 ouvre son menu contextuel.
    */
   readonly cellNavigation = input(false);
+  /**
+   * Bouton « Grouper » dans la barre d'actions : regroupe les lignes par la valeur
+   * d'une colonne (mode local). Voir `groupBy`, `NgTableColumn.aggregate`.
+   */
+  readonly groupingEnabled = input(false);
+  /**
+   * Colonne de regroupement (`null` = aucun). `model()` : liable en `[(groupBy)]`,
+   * ou laissée au composant. Mode local uniquement ; enregistrée dans les vues.
+   */
+  readonly groupBy = model<string | null>(null);
+  /** Ligne de totaux en bas de la table, pour les colonnes qui déclarent un `aggregate` (mode local). */
+  readonly showTotals = input(false);
   /** Tri sur plusieurs colonnes : Maj+clic sur un en-tête ajoute un niveau de tri. */
   readonly multiSort = input(false);
   /** Mode contrôlé de la recherche globale ; `null` = non contrôlé. */
@@ -644,7 +673,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   /** `[length]` du paginateur intégré. */
   protected readonly paginatorLength = computed(() =>
-    this.dataMode() === 'remote' ? (this.totalCount() ?? this.rows().length) : this.filteredSortedRows().length,
+    this.dataMode() === 'remote' ? (this.totalCount() ?? this.rows().length) : this.pageableCount(),
   );
 
   protected readonly displayedColumnIds = computed(
@@ -896,25 +925,83 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.rows();
     return {columns: this.searchableColumns(), cache: new WeakMap<object, string>()};
   });
+  /** Colonne de regroupement effective (mode local, colonne existante), sinon `null`. */
+  protected readonly groupColumn = computed(() => {
+    const id = this.groupBy();
+    if (!id || this.dataMode() !== 'local') {
+      return null;
+    }
+    return this.columns().find((column) => column.id === id) ?? null;
+  });
+
+  /** Colonnes proposées dans le menu « Grouper ». */
+  protected readonly groupableColumns = computed(() =>
+    this.columnsMenuItems().filter((column) => column.groupable ?? (!!column.sortable || !!column.filter)),
+  );
+
+  /** Clés des groupes repliés. Vidé quand la colonne de regroupement change. */
+  protected readonly collapsedGroups = signal<ReadonlySet<string>>(new Set());
+
+  private readonly groups = computed(() => {
+    const column = this.groupColumn();
+    if (!column) {
+      return null;
+    }
+    const sort = this.sortState();
+    const descending = sort.columnId === column.id && sort.direction === 'desc';
+    return buildGroups(this.filteredSortedRows(), column, descending, this.collator);
+  });
+
+  /** Unités paginées avec regroupement : lignes des groupes dépliés, un élément par groupe replié. */
+  private readonly groupUnits = computed(() => {
+    const groups = this.groups();
+    return groups ? groupedUnits(groups, this.collapsedGroups()) : null;
+  });
+
+  /** Nombre d'éléments paginés : lignes filtrées, ou unités quand les lignes sont regroupées. */
+  protected readonly pageableCount = computed(() => this.groupUnits()?.length ?? this.filteredSortedRows().length);
+
   readonly displayedRows = computed(() => {
     if (this.dataMode() === 'remote') {
       // Le serveur a déjà filtré/trié/paginé — on affiche tel quel.
       return this.rows();
     }
-
-    const filteredSorted = this.filteredSortedRows();
-    if (!this.pagingActive()) {
-      return filteredSorted;
+    const units = this.groupUnits();
+    if (units) {
+      return this.currentPage(units).flatMap((unit) => (unit.kind === 'row' ? [unit.row] : []));
     }
-
-    const size = this.pageSize();
-    if (!size || size <= 0) {
-      return filteredSorted;
-    }
-
-    const start = this.pageIndex() * size;
-    return filteredSorted.slice(start, start + size);
+    return this.currentPage(this.filteredSortedRows());
   });
+
+  /** Source de données de la table : les lignes affichées, avec les en-têtes de groupe intercalés. */
+  protected readonly tableRows = computed<(T | NgTableGroupRow<T>)[]>(() => {
+    const units = this.groupUnits();
+    return units ? withGroupHeaders(this.currentPage(units)) : this.displayedRows();
+  });
+
+  /** Agrégats de chaque groupe, par colonne (texte prêt à afficher), calculés une fois par changement. */
+  private readonly groupAggregates = computed(() => {
+    const result = new Map<RowGroup<T>, Record<string, string>>();
+    const columns = this.columns().filter((column) => column.aggregate);
+    for (const group of this.groups() ?? []) {
+      result.set(group, this.aggregateTexts(columns, group.rows));
+    }
+    return result;
+  });
+
+  /** Ligne de totaux (mode local) : agrégats sur toutes les lignes filtrées. */
+  protected readonly totals = computed(() => {
+    if (!this.showTotals() || this.dataMode() !== 'local') {
+      return null;
+    }
+    const columns = this.columns().filter((column) => column.aggregate);
+    return columns.length > 0 ? this.aggregateTexts(columns, this.filteredSortedRows()) : null;
+  });
+
+  /** Colonne qui porte le libellé d'un en-tête de groupe / de la ligne de totaux : la première affichée. */
+  protected readonly leadColumnId = computed(() => this.visibleColumns()[0]?.id ?? null);
+
+  protected readonly groupRowColumns = computed(() => this.displayedColumnIds().map((id) => `__group__${id}`));
 
   private readonly mobileActionsColumnId = '__mobile_actions__';
   protected readonly mobileActionRowColumns = computed(() => {
@@ -944,6 +1031,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   private readonly activeFilterTrigger = signal<MatMenuTrigger | null>(null);
 
   private readonly collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
+  private readonly numberFormat = new Intl.NumberFormat(undefined, {maximumFractionDigits: 2});
   private resizingState: { columnId: string; startX: number; startWidth: number } | null = null;
   /**
    * Labels effectifs : défauts de la librairie < labels injectés pour toute
@@ -1109,7 +1197,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       if (this.dataMode() !== 'local' || !this.pagingActive()) {
         return;
       }
-      this.filteredCountChange.emit(this.filteredSortedRows().length);
+      this.filteredCountChange.emit(this.pageableCount());
     });
 
     // Navigation cellule par cellule : après chaque rendu qui change les lignes ou les
@@ -1126,6 +1214,22 @@ export class NgTableComponent<T = any> implements OnDestroy {
       }
     });
 
+    // Changer de colonne de regroupement déplie tout et revient en page 0 (pas au
+    // premier passage : la page peut venir d'une URL ou d'une vue restaurée).
+    let previousGroupBy: string | null | undefined;
+    effect(() => {
+      const current = this.groupBy();
+      untracked(() => {
+        if (previousGroupBy !== undefined && current !== previousGroupBy) {
+          this.collapsedGroups.set(new Set());
+          if (this.pagingActive() && this.pageIndex() !== 0) {
+            this.pageIndex.set(0);
+          }
+        }
+        previousGroupBy = current;
+      });
+    });
+
     // Un seul point d'émission de `queryStateChange`, quelle que soit l'origine du
     // changement (clic, vue, paginateur, applyQueryState...). Émis une fois au démarrage.
     effect(() => {
@@ -1140,7 +1244,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
         return;
       }
       const size = this.pageSize();
-      const lastPage = size > 0 ? Math.max(0, Math.ceil(this.filteredSortedRows().length / size) - 1) : 0;
+      const lastPage = size > 0 ? Math.max(0, Math.ceil(this.pageableCount() / size) - 1) : 0;
       if (this.pageIndex() > lastPage) {
         this.pageIndex.set(lastPage);
       }
@@ -1401,6 +1505,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       columnWidths: {...this.columnWidths()},
       ...(this.globalSearchTerm() ? {search: this.globalSearchTerm()} : {}),
       ...(this.referenceColumn() !== undefined ? {referenceColumnId: this.referenceColumn()} : {}),
+      ...(this.groupBy() ? {groupBy: this.groupBy()} : {}),
       ...(this.pagingActive() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
     };
   }
@@ -2116,6 +2221,69 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.exportToPage.set(total);
   }
 
+  /** Déplie ou replie un groupe (clic ou Entrée / Espace sur son en-tête). */
+  protected toggleGroup(group: RowGroup<T>): void {
+    const next = new Set(this.collapsedGroups());
+    if (!next.delete(group.key)) {
+      next.add(group.key);
+    }
+    this.collapsedGroups.set(next);
+  }
+
+  /** Replie tous les groupes (regroupement actif). */
+  collapseAllGroups(): void {
+    this.collapsedGroups.set(new Set((this.groups() ?? []).map((group) => group.key)));
+  }
+
+  /** Déplie tous les groupes. */
+  expandAllGroups(): void {
+    this.collapsedGroups.set(new Set());
+  }
+
+  /** Libellé de la valeur d'un groupe : libellé d'option du filtre s'il existe, sinon la valeur. */
+  protected groupValueLabel(group: RowGroup<T>): string {
+    if (group.key === '') {
+      return this.effectiveLabels().groupEmpty;
+    }
+    const column = this.groupColumn();
+    const options = column?.filter ? this.resolvedFilterOptions(column.id, column.filter) : [];
+    return options.find((option) => option.value === group.key)?.label ?? group.key;
+  }
+
+  protected groupCountLabel(group: RowGroup<T>): string {
+    return this.effectiveLabels().groupCount.replace('{count}', `${group.rows.length}`);
+  }
+
+  protected groupAggregate(group: RowGroup<T>, columnId: string): string {
+    return this.groupAggregates().get(group)?.[columnId] ?? '';
+  }
+
+  private aggregateTexts(columns: NgTableColumn<T>[], rows: readonly T[]): Record<string, string> {
+    const labels = this.effectiveLabels();
+    const prefixes = {sum: labels.aggregateSum, avg: labels.aggregateAvg, min: labels.aggregateMin, max: labels.aggregateMax, count: labels.aggregateCount};
+    const texts: Record<string, string> = {};
+    for (const column of columns) {
+      const value = computeAggregate(column, rows);
+      if (value === null || value === undefined) {
+        continue;
+      }
+      const formatted = typeof value === 'number' ? this.numberFormat.format(value) : `${value}`;
+      const prefix = typeof column.aggregate === 'string' ? prefixes[column.aggregate] : '';
+      texts[column.id] = prefix ? `${prefix} ${formatted}` : formatted;
+    }
+    return texts;
+  }
+
+  /** Page courante d'une liste (lignes ou unités de regroupement), si la pagination est active. */
+  private currentPage<U>(items: U[]): U[] {
+    const size = this.pageSize();
+    if (!this.pagingActive() || !size || size <= 0) {
+      return items;
+    }
+    const start = this.pageIndex() * size;
+    return items.slice(start, start + size);
+  }
+
   /** Paginateur intégré : change de page ; en mode `remote`, relance la requête serveur. */
   protected onPage(event: PageEvent): void {
     this.pageSize.set(event.pageSize);
@@ -2411,12 +2579,15 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return defaultRowKey(row);
   };
 
-  protected resolvedTrackBy: TrackByFunction<T> = (index: number, row: T): unknown =>
-    this.trackByRow(index, row);
+  protected resolvedTrackBy: TrackByFunction<T | NgTableGroupRow<T>> = (index: number, row: T | NgTableGroupRow<T>): unknown =>
+    row instanceof NgTableGroupRow ? `__group__${row.group.key}` : this.trackByRow(index, row);
 
-  protected mobileActionsRowWhen = (_: number, _row: T): boolean => this.mobileActionRowColumns().length > 0;
+  protected mobileActionsRowWhen = (_: number, row: T | NgTableGroupRow<T>): boolean =>
+    !(row instanceof NgTableGroupRow) && this.mobileActionRowColumns().length > 0;
 
-  protected dataRowWhen = (_: number, _row: T): boolean => true;
+  protected groupRowWhen = (_: number, row: T | NgTableGroupRow<T>): boolean => row instanceof NgTableGroupRow;
+
+  protected dataRowWhen = (_: number, row: T | NgTableGroupRow<T>): boolean => !(row instanceof NgTableGroupRow);
 
   /**
    * The detail row is ALWAYS rendered when a template is provided.
@@ -2425,7 +2596,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * driven by `isDetailExpanded()` bindings instead, which are re-evaluated
    * on every change detection cycle.
    */
-  protected detailRowRenderWhen = (_index: number, _row: T): boolean => !!this.detailRowTemplate();
+  protected detailRowRenderWhen = (_index: number, row: T | NgTableGroupRow<T>): boolean =>
+    !!this.detailRowTemplate() && !(row instanceof NgTableGroupRow);
 
   protected isDetailExpanded(index: number, row: T): boolean {
     if (!this.detailRowTemplate()) {
@@ -2638,6 +2810,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.internalColumnVisibility.set({...state.columnVisibility});
     this.internalColumnOrder.set([...state.columnOrder]);
     this.referenceColumn.set(state.referenceColumnId);
+    this.groupBy.set(state.groupBy ?? null);
     const savedSorts = state.sorts?.length ? state.sorts : [state.sort];
     this.sortStates.set(savedSorts.filter((sort) => sort.columnId && sort.direction).map((sort) => ({...sort})));
     this.columnFilters.set({...state.filters});

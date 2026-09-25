@@ -24,6 +24,7 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - Recherche globale : `[globalSearchEnabled]`, mode contrôlé `[globalSearch]` / `(globalSearchChange)`, et `column.searchable` pour exclure une colonne ou fournir le texte cherché. Chaque mot doit apparaître dans la ligne ; casse et accents ignorés. La recherche est enregistrée dans les vues, et `NgTableRemoteQuery` gagne un champ `search`.
 - Labels `globalSearchPlaceholder`, `globalSearchLabel`, `clearGlobalSearch`.
 - Vue par défaut : une étoile dans le menu des vues choisit la vue appliquée à l'ouverture (`NgTableViewsStore.defaultViewId`, `toggleDefaultView()`, `isDefaultView()`).
+- Regroupement de lignes (mode local) : `[groupingEnabled]` (bouton « Grouper »), `[(groupBy)]`, groupes repliables, `expandAllGroups()` / `collapseAllGroups()`, enregistré dans les vues. Agrégats par colonne (`aggregate: 'sum' | 'avg' | 'min' | 'max' | 'count'` ou fonction) dans les en-têtes de groupe, et ligne de totaux (`[showTotals]`). `(filteredCountChange)` compte un groupe replié pour une ligne.
 - Colonne de référence choisie par l'utilisateur : `[referenceColumnSelectable]` ajoute une punaise dans le menu « Colonnes » pour fixer une colonne visible à gauche. `referenceColumn` (`model`) est enregistré dans les vues. Labels `setReferenceColumn`, `unsetReferenceColumn`.
 - État dans l'URL : directive `ngTableUrlState` dans le nouveau point d'entrée `@sbourahla/ng-table/router`. Seul ce point d'entrée importe `@angular/router`.
 - `getQueryState()`, `applyQueryState()`, `(queryStateChange)`, type `NgTableQueryState`.

@@ -103,6 +103,26 @@ export interface NgTableLabels {
   setReferenceColumn: string;
   /** Punaise de la colonne de référence actuelle : la libérer ; `{column}` = en-tête. */
   unsetReferenceColumn: string;
+  /** Bouton « Grouper » de la barre d'actions. */
+  groupButton: string;
+  /** Entrée « aucun regroupement » du menu « Grouper ». */
+  groupNone: string;
+  /** Nombre de lignes d'un groupe ; `{count}`. */
+  groupCount: string;
+  /** Libellé d'un groupe dont la valeur est vide. */
+  groupEmpty: string;
+  /** Menu « Grouper » : déplier tous les groupes. */
+  expandAllGroups: string;
+  /** Menu « Grouper » : replier tous les groupes. */
+  collapseAllGroups: string;
+  /** Préfixes des agrégats (`NgTableColumn.aggregate`). */
+  aggregateSum: string;
+  aggregateAvg: string;
+  aggregateMin: string;
+  aggregateMax: string;
+  aggregateCount: string;
+  /** Libellé de la ligne de totaux (`[showTotals]`). */
+  totalsLabel: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -165,6 +185,18 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   multiSortHint: 'Maj+clic : ajouter un niveau de tri',
   setReferenceColumn: 'Fixer « {column} » à gauche (colonne de référence)',
   unsetReferenceColumn: 'Ne plus fixer « {column} » à gauche',
+  groupButton: 'Grouper',
+  groupNone: 'Aucun regroupement',
+  groupCount: '{count} ligne(s)',
+  groupEmpty: '(vide)',
+  expandAllGroups: 'Tout déplier',
+  collapseAllGroups: 'Tout replier',
+  aggregateSum: 'Σ',
+  aggregateAvg: 'Moy.',
+  aggregateMin: 'Min',
+  aggregateMax: 'Max',
+  aggregateCount: 'Nb',
+  totalsLabel: 'Total',
 };
 
 /**
@@ -235,6 +267,18 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   multiSortHint: 'Shift+click: add a sort level',
   setReferenceColumn: 'Pin "{column}" to the left (reference column)',
   unsetReferenceColumn: 'Unpin "{column}"',
+  groupButton: 'Group',
+  groupNone: 'No grouping',
+  groupCount: '{count} row(s)',
+  groupEmpty: '(empty)',
+  expandAllGroups: 'Expand all',
+  collapseAllGroups: 'Collapse all',
+  aggregateSum: 'Σ',
+  aggregateAvg: 'Avg',
+  aggregateMin: 'Min',
+  aggregateMax: 'Max',
+  aggregateCount: 'Count',
+  totalsLabel: 'Total',
 };
 
 /**

@@ -612,6 +612,89 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('regroupement et totaux', () => {
+    function groupColumns(): NgTableColumn<Row>[] {
+      const cols = columns();
+      cols[1] = {...cols[1], aggregate: 'sum'};
+      return cols;
+    }
+    const groupRows = (fixture: ComponentFixture<NgTableComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.group-row')] as HTMLTableRowElement[];
+    const text = (el: Element) => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+    it('insère un en-tête par groupe, avec libellé d’option, nombre de lignes et agrégats', async () => {
+      const {component, fixture} = await createTable({columns: groupColumns(), groupBy: 'statut'});
+      await fixture.whenStable();
+
+      const headers = groupRows(fixture);
+      expect(headers).toHaveLength(2);
+      // Le libellé vient des options du filtre (« Brouillon »), pas du code brut.
+      expect(text(headers[0].cells[0])).toContain('Statut : Brouillon 1 ligne(s)');
+      expect(text(headers[1].cells[1])).toBe('Σ 500');
+      expect(ids(component.displayedRows())).toEqual(['2', '1', '3']);
+    });
+
+    it('replie un groupe au clic : ses lignes disparaissent, son en-tête reste', async () => {
+      const {component, fixture} = await createTable({columns: groupColumns(), groupBy: 'statut'});
+      await fixture.whenStable();
+
+      groupRows(fixture)[1].click(); // VALIDEE
+      await fixture.whenStable();
+
+      expect(ids(component.displayedRows())).toEqual(['2']);
+      expect(groupRows(fixture)[1].getAttribute('aria-expanded')).toBe('false');
+
+      component.expandAllGroups();
+      expect(ids(component.displayedRows())).toEqual(['2', '1', '3']);
+    });
+
+    it('pagine sur les lignes regroupées, un groupe replié comptant pour une ligne', async () => {
+      const {component} = await createTable({columns: groupColumns(), groupBy: 'statut', paginator: true, pageSize: 2});
+      expect(ids(component.displayedRows())).toEqual(['2', '1']);
+      expect(component['paginatorLength']()).toBe(3);
+
+      component.collapseAllGroups();
+      expect(component['paginatorLength']()).toBe(2);
+      expect(component.displayedRows()).toEqual([]);
+    });
+
+    it('ligne de totaux sur toutes les lignes filtrées', async () => {
+      const {component, fixture} = await createTable({columns: groupColumns(), showTotals: true});
+      await fixture.whenStable();
+      const footer = () => fixture.nativeElement.querySelector('tr.totals-row') as HTMLTableRowElement;
+
+      expect(text(footer().cells[0])).toBe('Total');
+      expect(text(footer().cells[1])).toBe('Σ 600');
+
+      component['onFilterValue']('statut', 'VALIDEE');
+      await fixture.whenStable();
+      expect(text(footer().cells[1])).toBe('Σ 500');
+    });
+
+    it('menu « Grouper », changement de colonne et vues', async () => {
+      const {component, fixture} = await createTable({columns: groupColumns(), groupingEnabled: true, viewsEnabled: true, viewsStorageKey: 'grp'});
+      const button = [...fixture.nativeElement.querySelectorAll('.list-actions button')].find((b: Element) => b.textContent?.includes('Grouper')) as HTMLButtonElement;
+      button.click();
+      await fixture.whenStable();
+      const items = [...document.querySelectorAll('.mat-mdc-menu-panel [role="menuitemradio"]')].map((el) => text(el));
+      expect(items).toEqual(['radio_button_checked Aucun regroupement', 'radio_button_unchecked Nom', 'radio_button_unchecked Montant',
+        'radio_button_unchecked Statut', 'radio_button_unchecked Actif']);
+
+      component.groupBy.set('actif');
+      component.saveCurrentAsView('Par activité');
+      component.groupBy.set(null);
+      component.activateView(component.viewsList()[0]);
+      expect(component.groupBy()).toBe('actif');
+    });
+
+    it('ignoré en mode remote (le serveur décide)', async () => {
+      const {component, fixture} = await createTable({columns: groupColumns(), groupBy: 'statut', dataMode: 'remote'});
+      await fixture.whenStable();
+      expect(groupRows(fixture)).toHaveLength(0);
+      expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
+    });
+  });
+
   describe('paginateur intégré', () => {
     const page = (pageIndex: number, pageSize: number) => ({pageIndex, pageSize, length: 3, previousPageIndex: 0});
 

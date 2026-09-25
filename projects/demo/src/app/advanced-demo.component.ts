@@ -105,6 +105,8 @@ function addDays(isoDay: string, days: number): string {
       [inlineFilters]="inlineFilters()"
       [multiSort]="multiSort()"
       [cellNavigation]="cellNavigation()"
+      [groupingEnabled]="true"
+      [showTotals]="totalsRow()"
       [paginator]="pagination() === 'integree'"
       [pageTrackingEnabled]="pagination() === 'personnalisee'"
       [(pageIndex)]="pageIndex"
@@ -165,6 +167,8 @@ function addDays(isoDay: string, days: number): string {
         <li>Ligne détail, menu contextuel (clic droit ou Maj+F10), sélection de lignes.</li>
         <li>Navigation clavier cellule par cellule (<code>cellNavigation</code>) : Tab entre dans la table, flèches,
           Début/Fin, Entrée ou F2 pour les boutons d'une cellule, Échap pour en sortir, Espace pour sélectionner.</li>
+        <li>Regroupement (bouton « Grouper », ex. par Statut ou Client), groupes repliables, agrégats par colonne
+          (<code>aggregate: 'sum'</code> sur les montants, agrégat personnalisé sur « Urgent ») et ligne de totaux.</li>
         <li>Vues sauvegardées, vue par défaut (étoile), export / import des vues.</li>
         <li>Pagination intégrée (<code>[paginator]</code>), ou paginateur personnalisé branché avec
           <code>[pageTrackingEnabled]</code>, <code>[(pageIndex)]</code>, <code>[(pageSize)]</code> et
@@ -226,6 +230,7 @@ export class AdvancedDemoComponent {
   protected readonly inlineFilters = signal(false);
   protected readonly multiSort = signal(true);
   protected readonly cellNavigation = signal(true);
+  protected readonly totalsRow = signal(true);
   protected readonly selection = signal(false);
   protected readonly detailRows = signal(true);
   protected readonly contextMenu = signal(true);
@@ -241,6 +246,7 @@ export class AdvancedDemoComponent {
     {label: 'Filtres inline', value: this.inlineFilters},
     {label: 'Tri multi-colonnes', value: this.multiSort},
     {label: 'Navigation clavier (grille)', value: this.cellNavigation},
+    {label: 'Ligne de totaux', value: this.totalsRow},
     {label: 'Sélection', value: this.selection},
     {label: 'Ligne détail', value: this.detailRows},
     {label: 'Menu contextuel', value: this.contextMenu},
@@ -313,6 +319,7 @@ filteredTotal = signal(0);   // total APRÈS filtres : seul ng-table le connaît
       valueAccessor: (c) => c.montant,
       sortable: true,
       filter: {type: 'number', placeholder: '>1000, 100..500'},
+      aggregate: 'sum',
     },
     {
       id: 'ttc',
@@ -320,6 +327,7 @@ filteredTotal = signal(0);   // total APRÈS filtres : seul ng-table le connaît
       valueAccessor: (c) => Math.round(c.montant * 120) / 100,
       sortable: true,
       filter: {type: 'numberRange'},
+      aggregate: 'sum',
     },
     {id: 'dateCommande', header: 'Commande', valueAccessor: (c) => c.dateCommande, sortable: true, filter: {type: 'range'}},
     {
@@ -334,6 +342,8 @@ filteredTotal = signal(0);   // total APRÈS filtres : seul ng-table le connaît
       id: 'urgent',
       header: 'Urgent',
       valueAccessor: (c) => (c.urgent ? 'Oui' : 'Non'),
+      // Nombre de commandes urgentes du groupe (agrégat personnalisé).
+      aggregate: (rows) => `${rows.filter((c) => c.urgent).length} urgente(s)`,
       exportValueAccessor: (c) => c.urgent,
       filter: {type: 'boolean'},
       filterPredicate: (c, value) => String(c.urgent) === value,

@@ -548,6 +548,29 @@ Les colonnes épinglées sont regroupées à leur bord, quel que soit l'ordre ch
 
 Le choix est enregistré dans les vues sauvegardées (`NgTableViewState.referenceColumnId`). Sans liaison, le composant le gère seul.
 
+### Étape 10ter — Regroupement et totaux
+
+Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`), avec un en-tête par groupe : libellé, nombre de lignes et agrégats.
+
+```html
+<ng-table [groupingEnabled]="true" [showTotals]="true" [(groupBy)]="regroupement" ... />
+```
+
+```ts
+{id: 'montant', header: 'Montant', valueAccessor: (c) => c.montant, aggregate: 'sum'},     // 'sum' | 'avg' | 'min' | 'max' | 'count'
+{id: 'urgent', header: 'Urgent', valueAccessor: (c) => c.urgent ? 'Oui' : 'Non',
+ aggregate: (rows) => `${rows.filter((c) => c.urgent).length} urgente(s)`},              // agrégat personnalisé
+{id: 'actions', header: '', valueAccessor: () => '', groupable: false},                   // absente du menu « Grouper »
+```
+
+- **Le bouton « Grouper »** propose les colonnes triables ou filtrables (`groupable` pour forcer l'un ou l'autre), plus « Tout déplier » / « Tout replier ». Le choix s'enregistre dans les vues ; `[(groupBy)]` permet de le piloter depuis le parent.
+- **Le libellé d'un groupe** reprend le libellé de l'option du filtre quand il y en a une (« Validée » plutôt que `VALIDEE`). Un groupe sans valeur s'appelle « (vide) » et vient en dernier.
+- **Ordre** : les groupes suivent l'ordre de leur valeur, décroissant si la table est triée à l'envers sur cette colonne. Dans un groupe, les lignes gardent le tri courant.
+- **Replier un groupe** : un clic sur son en-tête, ou Entrée / Espace au clavier. L'en-tête porte `aria-expanded`.
+- **Pagination** : elle porte sur les lignes, et un groupe replié compte pour une ligne. Un groupe coupé entre deux pages garde son en-tête sur chaque page. Ses agrégats portent toujours sur **tout** le groupe. `(filteredCountChange)` suit ce même compte, pour un paginateur externe.
+- **Ligne de totaux** : `[showTotals]` affiche en bas de la table les agrégats sur toutes les lignes filtrées, avec ou sans regroupement.
+- **En mode `remote`**, le regroupement est l'affaire du serveur : le bouton n'est pas affiché et `groupBy` est ignoré.
+
 ### Étape 11 — Visibilité des colonnes
 
 Un bouton "Colonnes" (menu à cases à cocher) est présent par défaut — rien à activer. Pour le masquer (par exemple si vous pilotez la visibilité autrement, ou ne voulez pas laisser l'utilisateur y toucher) :
@@ -1037,6 +1060,8 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 | `exportable?`                              | `boolean`                                                               | Exclut la colonne de l'export CSV si `false` (utile pour une colonne d'actions/boutons). `true` par défaut.                                    |
 | `exportValueAccessor?`                     | `(row: T) => string \| number \| boolean \| null \| undefined`         | Valeur exportée si différente de `valueAccessor` (ex. valeur brute plutôt que le rendu riche d'un `cellTemplate`).                              |
 | `searchable?`                              | `boolean \| (row: T) => string`                                        | Recherche globale : `false` exclut la colonne ; une fonction fournit le texte cherché. Défaut : la valeur de `valueAccessor`.                   |
+| `aggregate?`                               | `'sum' \| 'avg' \| 'min' \| 'max' \| 'count' \| (rows: T[]) => unknown` | Agrégat affiché dans les en-têtes de groupe et la ligne de totaux.                                                                             |
+| `groupable?`                               | `boolean`                                                              | Proposée dans le menu « Grouper ». Défaut : oui si la colonne est triable ou filtrable.                                                         |
 | `pinned?`                                  | `'left' \| 'right'`                                                    | Épingle la colonne au bord gauche/droit pendant le défilement horizontal. Les colonnes épinglées sont regroupées à leur bord, dans leur ordre courant. |
 
 ### `NgTableFilterConfig`
@@ -1089,6 +1114,9 @@ interface NgTableFilterConfig {
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
 | `cellNavigation`            | `boolean`                                                        | `false`   | Navigation clavier cellule par cellule (motif « grid » WAI-ARIA), voir « Accessibilité ».                            |
+| `groupingEnabled`           | `boolean`                                                        | `false`   | Bouton « Grouper » (mode local), voir Étape 10ter.                                                                   |
+| `groupBy`                   | `string \| null` (`model`)                                       | `null`    | Colonne de regroupement ; liable en `[(groupBy)]`, émet `(groupByChange)`.                                          |
+| `showTotals`                | `boolean`                                                        | `false`   | Ligne de totaux (colonnes avec `aggregate`, mode local).                                                             |
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
 | `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
 | `globalSearch`              | `string \| null`                                                 | `null`    | Mode contrôlé de la recherche globale.                                                                               |
@@ -1135,6 +1163,7 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `toggleDefaultView(view)`, `isDefaultView(view)` | Vue par défaut. |
 | `exportViews()`, `importViews(json, mode?)`, `downloadViews()` | Partager des vues. |
 | `openExportDialog()` | Lancer l'export, comme le bouton « Exporter ». |
+| `expandAllGroups()`, `collapseAllGroups()` | Déplier / replier tous les groupes. |
 | `getQueryState()`, `applyQueryState(partiel)` | Lire / appliquer tri, filtres, recherche et page (`NgTableQueryState`) en une fois. |
 
 ### Outputs
@@ -1286,6 +1315,18 @@ export interface NgTableLabels {
   multiSortHint: string;        // infobulle des en-têtes triables avec [multiSort]
   setReferenceColumn: string;   // punaise du menu Colonnes : fixer « {column} » à gauche
   unsetReferenceColumn: string; // punaise de la colonne de référence : la libérer
+  groupButton: string;          // bouton « Grouper »
+  groupNone: string;            // menu Grouper : aucun regroupement
+  groupCount: string;           // '{count} ligne(s)' dans l'en-tête de groupe
+  groupEmpty: string;           // libellé d'un groupe sans valeur
+  expandAllGroups: string;      // menu Grouper : tout déplier
+  collapseAllGroups: string;    // menu Grouper : tout replier
+  aggregateSum: string;         // préfixes des agrégats : 'Σ', 'Moy.', 'Min', 'Max', 'Nb'
+  aggregateAvg: string;
+  aggregateMin: string;
+  aggregateMax: string;
+  aggregateCount: string;
+  totalsLabel: string;          // libellé de la ligne de totaux
 }
 ```
 

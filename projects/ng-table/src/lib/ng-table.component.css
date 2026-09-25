@@ -206,7 +206,7 @@
    d'une voisine), et sans découpe le contenu se superposerait à la colonne suivante.
    Exclut la ligne de détail et la ligne d'actions mobile, qui occupent toute la
    largeur et doivent rester libres. */
-.ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell) {
+.ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell):not(.group-cell--lead) {
   overflow: hidden;
 }
 
@@ -1178,4 +1178,82 @@
 .ng-table[role='grid'] td.mat-mdc-cell:focus-visible {
   outline: 2px solid var(--app-primary, #3a7ca5);
   outline-offset: -2px;
+}
+
+/* --- Regroupement et totaux -------------------------------------------- */
+.ng-table tr.group-row {
+  cursor: pointer;
+  background: var(--app-surface-alt, #f1f5f9);
+}
+
+.ng-table tr.group-row:hover {
+  background: var(--app-hover-surface, #e8f0f8);
+}
+
+/* Les cellules épinglées ont un fond opaque (blanc) pour masquer ce qui défile dessous :
+   dans une ligne de groupe, elles prennent la couleur de la ligne. */
+.ng-table tr.group-row td.mat-mdc-table-sticky {
+  background: var(--app-surface-alt, #f1f5f9);
+}
+
+.ng-table tr.group-row:hover td.mat-mdc-table-sticky {
+  background: var(--app-hover-surface, #e8f0f8);
+}
+
+.ng-table tr.group-row:focus-visible {
+  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline-offset: -2px;
+}
+
+.ng-table td.group-cell {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--app-text, #0d1d26);
+  white-space: nowrap;
+}
+
+/* Le libellé du groupe peut déborder sur les colonnes voisines (vides dans cette ligne). */
+.ng-table td.group-cell--lead {
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+
+.group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.group-chevron {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--app-muted, #4f6573);
+}
+
+.group-name {
+  color: var(--app-muted, #4f6573);
+  font-weight: 500;
+}
+
+.group-count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+  color: var(--app-primary, #3a7ca5);
+  font-size: 0.75rem;
+}
+
+.ng-table tr.totals-row td.totals-cell {
+  font-weight: 700;
+  border-top: 2px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  background: var(--app-surface, #ffffff);
+}
+
+.totals-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+  color: var(--app-muted, #4f6573);
 }

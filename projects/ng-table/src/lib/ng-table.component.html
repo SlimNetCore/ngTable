@@ -86,6 +86,41 @@
       </mat-menu>
     }
 
+    @if (groupingEnabled() && dataMode() === 'local') {
+      <button [matMenuTriggerFor]="groupMenu" mat-stroked-button type="button">
+        <mat-icon aria-hidden="true">account_tree</mat-icon>
+        {{ effectiveLabels().groupButton }}
+        @if (groupColumn(); as grouped) {
+          <span class="active-view-chip">{{ grouped.header }}</span>
+        }
+      </button>
+
+      <mat-menu #groupMenu="matMenu">
+        <button (click)="groupBy.set(null)" [attr.aria-checked]="!groupColumn()" mat-menu-item role="menuitemradio" type="button">
+          <mat-icon aria-hidden="true">{{ groupColumn() ? 'radio_button_unchecked' : 'radio_button_checked' }}</mat-icon>
+          {{ effectiveLabels().groupNone }}
+        </button>
+        @for (column of groupableColumns(); track column.id) {
+          <button (click)="groupBy.set(column.id)" [attr.aria-checked]="groupBy() === column.id" mat-menu-item
+                  role="menuitemradio" type="button">
+            <mat-icon aria-hidden="true">{{ groupBy() === column.id ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+            {{ column.header }}
+          </button>
+        }
+        @if (groupColumn()) {
+          <div class="views-divider"></div>
+          <button (click)="expandAllGroups()" mat-menu-item type="button">
+            <mat-icon aria-hidden="true">unfold_more</mat-icon>
+            {{ effectiveLabels().expandAllGroups }}
+          </button>
+          <button (click)="collapseAllGroups()" mat-menu-item type="button">
+            <mat-icon aria-hidden="true">unfold_less</mat-icon>
+            {{ effectiveLabels().collapseAllGroups }}
+          </button>
+        }
+      </mat-menu>
+    }
+
     @if (viewsEnabled()) {
       <button (menuOpened)="viewsImportFeedback.set('')" [matMenuTriggerFor]="viewsMenu" mat-stroked-button type="button">
         <mat-icon aria-hidden="true">bookmark</mat-icon>
@@ -267,7 +302,7 @@
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
     <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event)"
            [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="cellNavigation() ? 'grid' : null"
-           [dataSource]="displayedRows()"
+           [dataSource]="tableRows()"
            [class.ngt-density-compact]="density() === 'compact'"
            [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
            [trackBy]="resolvedTrackBy"
@@ -282,6 +317,7 @@
               [indeterminate]="hasPartiallySelectedDisplayedRows()"
             />
           </th>
+          <td *matFooterCellDef class="totals-cell" mat-footer-cell></td>
           <td *matCellDef="let row; let rowIndex = dataIndex" class="selection-cell" mat-cell>
             <mat-checkbox
               (change)="onToggleRowSelection($event, row)"
@@ -457,6 +493,14 @@
             }
           </th>
 
+          <td *matFooterCellDef [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="columnWidthPx(column)"
+              class="totals-cell" mat-footer-cell>
+            @if (totals()?.[column.id]; as total) {
+              {{ total }}
+            } @else if (column.id === leadColumnId()) {
+              <span class="totals-label">{{ effectiveLabels().totalsLabel }}</span>
+            }
+          </td>
           <td *matCellDef="let row; let rowIndex = dataIndex" [style.max-width.px]="column.maxWidthPx ?? null"
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
             <div class="cell-content" [class.cell-content--wrap]="column.textOverflow === 'wrap'">
@@ -493,6 +537,30 @@
         </ng-container>
       }
 
+      <!-- En-têtes de groupe : une cellule par colonne affichée, pour aligner les agrégats. -->
+      <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__group____row_selection__">
+        <td *matCellDef="let item" class="group-cell" mat-cell></td>
+      </ng-container>
+      @for (column of columns(); track trackByColumn($index, column)) {
+        <ng-container [matColumnDef]="'__group__' + column.id" [sticky]="pinnedSide(column) === 'left'"
+                      [stickyEnd]="pinnedSide(column) === 'right'">
+          <td *matCellDef="let item" [class.group-cell--lead]="column.id === leadColumnId()" class="group-cell" mat-cell>
+            @if (column.id === leadColumnId()) {
+              <span class="group-label">
+                <mat-icon aria-hidden="true" class="group-chevron">{{ item.collapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                <!-- Espaces DANS les textes : Angular retire ceux entre les balises, et le nom lu
+                     par un lecteur d'écran deviendrait « Statut :Brouillon1 ligne(s) ». -->
+                <span class="group-name">{{ groupColumn()?.header }} : </span>
+                <span class="group-value">{{ groupValueLabel(item.group) }} </span>
+                <span class="group-count">{{ groupCountLabel(item.group) }}</span>
+              </span>
+            } @else {
+              {{ groupAggregate(item.group, column.id) }}
+            }
+          </td>
+        </ng-container>
+      }
+
       <ng-container matColumnDef="__mobile_actions__">
         <td *matCellDef="let row" [attr.colspan]="mobileActionsColspan()" class="mobile-actions-cell" mat-cell>
           @if (actionColumn()?.cellTemplate && mobileActionsCellContext(row); as context) {
@@ -511,6 +579,19 @@
       </ng-container>
 
       <tr *matHeaderRowDef="displayedColumnIds(); sticky: stickyHeader()" mat-header-row></tr>
+      <tr
+        (click)="toggleGroup(item.group)"
+        (keydown.enter)="toggleGroup(item.group)"
+        (keydown.space)="$event.preventDefault(); toggleGroup(item.group)"
+        *matRowDef="let item; columns: groupRowColumns(); when: groupRowWhen"
+        [attr.aria-expanded]="!item.collapsed"
+        class="group-row"
+        mat-row
+        tabindex="0"
+      ></tr>
+      @if (totals()) {
+        <tr *matFooterRowDef="displayedColumnIds(); sticky: stickyHeader()" class="totals-row" mat-footer-row></tr>
+      }
       <tr
         (click)="onRowClick(row)"
         (contextmenu)="onRowContextMenu($event, row)"
