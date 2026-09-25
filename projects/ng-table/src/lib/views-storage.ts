@@ -54,13 +54,33 @@ export function parseViewsStore(raw: string | null): NgTableViewsStore {
   }
 
   const views = (migrated['views'] as unknown[]).filter(isValidView);
+  const existingId = (id: unknown): id is string => typeof id === 'string' && views.some((view) => view.id === id);
   const activeViewId = migrated['activeViewId'];
+  const defaultViewId = migrated['defaultViewId'];
   return {
     views,
-    activeViewId: typeof activeViewId === 'string' && views.some((view) => view.id === activeViewId)
-      ? activeViewId
-      : null,
+    activeViewId: existingId(activeViewId) ? activeViewId : null,
+    ...(existingId(defaultViewId) ? {defaultViewId} : {}),
   };
+}
+
+/**
+ * Fusionne des vues importées dans le store courant. Une vue importée remplace la
+ * vue existante de même id OU de même nom (en gardant l'id existant, pour que la
+ * vue active et la vue par défaut restent valides) ; les autres sont ajoutées.
+ * La vue active et la vue par défaut du store courant sont conservées.
+ */
+export function mergeViewsStores(current: NgTableViewsStore, imported: NgTableViewsStore): NgTableViewsStore {
+  const views = [...current.views];
+  for (const incoming of imported.views) {
+    const index = views.findIndex((view) => view.id === incoming.id || view.name === incoming.name);
+    if (index === -1) {
+      views.push(incoming);
+    } else {
+      views[index] = {...incoming, id: views[index].id};
+    }
+  }
+  return {...current, views};
 }
 
 function isRecord(value: unknown): value is PersistedRecord {

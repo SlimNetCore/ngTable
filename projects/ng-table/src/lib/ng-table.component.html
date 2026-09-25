@@ -1,4 +1,6 @@
 <section class="list-panel">
+  <div aria-atomic="true" class="ngt-visually-hidden ngt-live-region" role="status">{{ liveAnnouncement() }}</div>
+
   @if (rowContextMenuEnabled() && rowContextMenuTemplate()) {
     <div
       #rowContextMenuTrigger="matMenuTrigger"
@@ -68,7 +70,7 @@
     }
 
     @if (viewsEnabled()) {
-      <button [matMenuTriggerFor]="viewsMenu" mat-stroked-button type="button">
+      <button (menuOpened)="viewsImportFeedback.set('')" [matMenuTriggerFor]="viewsMenu" mat-stroked-button type="button">
         <mat-icon aria-hidden="true">bookmark</mat-icon>
         {{ effectiveLabels().viewsButton }}
         @if (activeView(); as av) {
@@ -110,6 +112,16 @@
                   <mat-icon aria-hidden="true">{{ view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
                   <span>{{ view.name }}</span>
                 </button>
+                <button (click)="toggleDefaultView(view)"
+                        [attr.aria-label]="isDefaultView(view) ? effectiveLabels().unsetDefaultView : effectiveLabels().setDefaultView"
+                        [attr.aria-pressed]="isDefaultView(view)"
+                        [class.view-row-default--on]="isDefaultView(view)"
+                        [title]="isDefaultView(view) ? effectiveLabels().unsetDefaultView : effectiveLabels().setDefaultView"
+                        class="view-row-default"
+                        mat-icon-button
+                        type="button">
+                  <mat-icon aria-hidden="true">{{ isDefaultView(view) ? 'star' : 'star_outline' }}</mat-icon>
+                </button>
                 <button (click)="updateView(view)" [attr.aria-label]="effectiveLabels().updateView"
                         [title]="effectiveLabels().updateView" class="view-row-update"
                         [class.view-row-update--done]="viewUpdateIconName(view) === 'check'"
@@ -127,6 +139,25 @@
             }
           } @else {
             <p class="views-empty-note">{{ effectiveLabels().noSavedViews }}</p>
+          }
+
+          @if (viewsImportExportEnabled()) {
+            <div class="views-divider"></div>
+            <div class="views-transfer-row">
+              <button (click)="downloadViews()" [disabled]="viewsList().length === 0" mat-button type="button">
+                <mat-icon aria-hidden="true">file_download</mat-icon>
+                {{ effectiveLabels().exportViews }}
+              </button>
+              <button (click)="viewsFileInput.click()" mat-button type="button">
+                <mat-icon aria-hidden="true">file_upload</mat-icon>
+                {{ effectiveLabels().importViews }}
+              </button>
+              <input #viewsFileInput (change)="onViewsFileSelected(viewsFileInput)" accept="application/json,.json"
+                     hidden tabindex="-1" type="file"/>
+            </div>
+            @if (viewsImportFeedback()) {
+              <p class="views-import-feedback" role="status">{{ viewsImportFeedback() }}</p>
+            }
           }
         </div>
       </mat-menu>
@@ -218,7 +249,7 @@
   <div (scroll)="onTableWrapScroll()" [style.max-height]="maxHeight()" class="table-wrap">
     <table [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [dataSource]="displayedRows()"
            [class.ngt-density-compact]="density() === 'compact'"
-           [fixedLayout]="true" [style.min-width.px]="minTableWidthPx()"
+           [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
            [trackBy]="resolvedTrackBy"
            class="ng-table" mat-table multiTemplateDataRows>
       @if (rowSelectionEnabled()) {
@@ -269,8 +300,9 @@
                 <mat-icon aria-hidden="true">drag_indicator</mat-icon>
               </span>
               <button
-                (click)="onHeaderSort(column)"
+                (click)="onHeaderSort(column, $event)"
                 [attr.aria-label]="currentSortAriaLabel(column)"
+                [attr.title]="multiSort() && column.sortable ? effectiveLabels().multiSortHint : null"
                 [disabled]="!column.sortable"
                 class="header-button"
                 type="button"
@@ -278,6 +310,9 @@
                 <span [ngTableTruncateTooltip]="column.header" class="header-label">{{ column.header }}</span>
                 @if (column.sortable) {
                   <mat-icon aria-hidden="true" class="sort-icon">{{ currentSortIcon(column) }}</mat-icon>
+                  @if (sortPriority(column); as priority) {
+                    <span aria-hidden="true" class="sort-priority">{{ priority }}</span>
+                  }
                 }
               </button>
 

@@ -244,6 +244,74 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('tri multi-colonnes', () => {
+    function sortableColumns(): NgTableColumn<Row>[] {
+      const cols = columns();
+      cols[2] = {...cols[2], sortable: true};
+      return cols;
+    }
+    const shift = {shiftKey: true};
+
+    it('Maj+clic ajoute des niveaux de tri ; un clic simple revient à un tri unique', async () => {
+      const {component} = await createTable({columns: sortableColumns(), multiSort: true});
+      const [nom, montant, statut] = component.columns();
+      const allSorts: unknown[] = [];
+      component.sortsChange.subscribe((s) => allSorts.push(s));
+
+      component.onHeaderSort(statut);
+      component.onHeaderSort(montant, shift);
+      expect(ids(component.displayedRows())).toEqual(['2', '3', '1']); // BROUILLON, puis VALIDEE par montant croissant
+
+      component.onHeaderSort(montant, shift);
+      expect(ids(component.displayedRows())).toEqual(['2', '1', '3']); // montant décroissant
+      expect(component.sortPriority(statut)).toBe(1);
+      expect(component.sortPriority(montant)).toBe(2);
+      expect(component.currentSortAriaLabel(montant)).toBe('Trié décroissant, priorité 2');
+      expect(component.ariaSortValue(montant)).toBe('none'); // aria-sort : tri principal seulement
+
+      component.onHeaderSort(montant, shift); // 3e Maj+clic : retire ce niveau
+      expect(component.sortPriority(montant)).toBeNull();
+
+      component.onHeaderSort(nom);
+      expect(ids(component.displayedRows())).toEqual(['2', '3', '1']);
+      expect(allSorts.at(-1)).toEqual([{columnId: 'nom', direction: 'asc'}]);
+    });
+
+    it('sans [multiSort], Maj+clic se comporte comme un clic simple', async () => {
+      const {component} = await createTable({columns: sortableColumns()});
+      const [, montant, statut] = component.columns();
+
+      component.onHeaderSort(statut);
+      component.onHeaderSort(montant, shift);
+
+      expect(component.sortPriority(montant)).toBeNull();
+      expect(ids(component.displayedRows())).toEqual(['2', '3', '1']);
+    });
+
+    it('envoie tous les niveaux en remote et les enregistre dans les vues', async () => {
+      const queries: NgTableRemoteQuery[] = [];
+      const {component} = await createTable({
+        columns: sortableColumns(), multiSort: true, dataMode: 'remote', viewsEnabled: true, viewsStorageKey: 'ms',
+      });
+      component.remoteQueryChange.subscribe((q) => queries.push(q));
+      const [, montant, statut] = component.columns();
+
+      component.onHeaderSort(statut);
+      component.onHeaderSort(montant, shift);
+      expect(queries.at(-1)!.sort).toEqual({columnId: 'statut', direction: 'asc'});
+      expect(queries.at(-1)!.sorts).toEqual([
+        {columnId: 'statut', direction: 'asc'},
+        {columnId: 'montant', direction: 'asc'},
+      ]);
+
+      component.saveCurrentAsView('Deux tris');
+      const view = component.viewsList()[0];
+      component.onHeaderSort(statut); // clic simple : tri unique décroissant
+      component.activateView(view);
+      expect(component.sortPriority(montant)).toBe(2);
+    });
+  });
+
   describe('filtrage (mode local)', () => {
     it('filtre en "contient", insensible à la casse', async () => {
       const {component} = await createTable();
@@ -740,6 +808,78 @@ describe('NgTableComponent', () => {
   });
 
   describe('vues sauvegardées', () => {
+    function storedView(id: string, name: string, statut: string) {
+      return {
+        id, name, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+        state: {columnVisibility: {}, columnOrder: [], sort: {columnId: '', direction: ''}, filters: {statut}},
+      };
+    }
+
+    it('ouvre la liste sur la vue par défaut plutôt que sur la dernière vue active', async () => {
+      localStorage.setItem('ng-table.views.def', JSON.stringify({
+        views: [storedView('v1', 'Brouillons', 'BROUILLON'), storedView('v2', 'Validées', 'VALIDEE')],
+        activeViewId: 'v2',
+        defaultViewId: 'v1',
+      }));
+
+      const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'def'});
+
+      expect(component.activeViewId()).toBe('v1');
+      expect(ids(component.displayedRows())).toEqual(['2']);
+      expect(JSON.parse(localStorage.getItem('ng-table.views.def')!).activeViewId).toBe('v1');
+    });
+
+    it('définit / retire la vue par défaut ; supprimer la vue par défaut l’oublie', async () => {
+      const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'def'});
+      component.saveCurrentAsView('A');
+      component.saveCurrentAsView('B');
+      const [a, b] = component.viewsList();
+
+      component.toggleDefaultView(a);
+      expect(component.isDefaultView(a)).toBe(true);
+      component.saveCurrentAsView('B'); // une écriture ultérieure ne doit pas perdre la vue par défaut
+      expect(component.isDefaultView(a)).toBe(true);
+
+      component.activateView(b);
+      component.deleteView(b); // la vue active supprimée : on retombe sur la vue par défaut
+      expect(component.activeViewId()).toBe(a.id);
+
+      component.deleteView(a);
+      expect(JSON.parse(localStorage.getItem('ng-table.views.def')!).defaultViewId).toBeNull();
+    });
+
+    it('exporte puis réimporte les vues (fusion par nom, puis remplacement)', async () => {
+      const source = await createTable({viewsEnabled: true, viewsStorageKey: 'src'});
+      source.component.onFilterValue('statut', 'BROUILLON');
+      source.component.saveCurrentAsView('Brouillons');
+      const json = source.component.exportViews();
+
+      const target = await createTable({viewsEnabled: true, viewsStorageKey: 'dst'});
+      target.component.saveCurrentAsView('Tout');
+      target.component.saveCurrentAsView('Brouillons'); // même nom : sera remplacée, pas dupliquée
+      const events: unknown[] = [];
+      target.component.viewsImported.subscribe((e) => events.push(e));
+
+      expect(target.component.importViews(json)).toBe(1);
+      expect(target.component.viewsList().map((v) => v.name)).toEqual(['Tout', 'Brouillons']);
+      expect(target.component.viewsList()[1].state.filters['statut']).toBe('BROUILLON');
+      expect(ids(target.component.displayedRows())).toEqual(['1', '2', '3']); // la fusion ne change pas l'affichage
+
+      target.component.importViews(json, 'replace');
+      expect(target.component.viewsList().map((v) => v.name)).toEqual(['Brouillons']);
+      expect(ids(target.component.displayedRows())).toEqual(['2']); // le remplacement applique la vue active du fichier
+
+      expect(events).toEqual([{imported: 1, mode: 'merge'}, {imported: 1, mode: 'replace'}]);
+    });
+
+    it('ignore un fichier de vues invalide', async () => {
+      const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'bad'});
+      component.saveCurrentAsView('A');
+
+      expect(component.importViews('pas du json', 'replace')).toBe(0);
+      expect(component.viewsList().map((v) => v.name)).toEqual(['A']);
+    });
+
     it('enregistre l’état courant, l’active, et le persiste dans localStorage', async () => {
       const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
       component.onToggleColumnVisibility('montant', false);
@@ -809,7 +949,7 @@ describe('NgTableComponent', () => {
       component.activateView(view);
 
       expect(queries).toEqual([
-        {sort: {columnId: '', direction: ''}, filters: expect.any(Object), page: {index: 3, size: 5}, search: ''},
+        {sort: {columnId: '', direction: ''}, sorts: [], filters: expect.any(Object), page: {index: 3, size: 5}, search: ''},
       ]);
     });
 
@@ -1171,6 +1311,19 @@ describe('NgTableComponent', () => {
   });
 
   describe('redimensionnement des colonnes', () => {
+    it('ne laisse pas le tableau descendre sous la somme des largeurs mini des colonnes', async () => {
+      const cols = columns().map((column) => ({...column}));
+      cols[0].widthPx = 300;
+      const {component, fixture} = await createTable({columns: cols, minTableWidthPx: 400, rowSelectionEnabled: true});
+
+      // 300 (largeur fixée) + 3 colonnes × 120 (largeur mini par défaut) + 48 (cases à cocher)
+      expect(component.tableMinWidthPx()).toBe(708);
+      expect((fixture.nativeElement.querySelector('table.ng-table') as HTMLElement).style.minWidth).toBe('708px');
+
+      await fixture.componentRef.setInput('minTableWidthPx', 2000);
+      expect(component.tableMinWidthPx()).toBe(2000);
+    });
+
     function resizableColumns(): NgTableColumn<Row>[] {
       const cols = columns();
       cols[0] = {...cols[0], resizable: true, widthPx: 200, minWidthPx: 100, maxWidthPx: 300};
@@ -1285,6 +1438,38 @@ describe('NgTableComponent', () => {
   });
 
   describe('accessibilité', () => {
+    it('annonce le tri et le nombre de lignes dans une région aria-live', async () => {
+      const {component, fixture} = await createTable();
+      const region = () => (fixture.nativeElement.querySelector('.ngt-live-region') as HTMLElement);
+      expect(region().getAttribute('role')).toBe('status');
+
+      component.onHeaderSort(component.columns()[0]);
+      await fixture.whenStable();
+      expect(region().textContent!.trim()).toBe('Nom, tri croissant. 3 ligne(s) affichée(s)');
+
+      component.onFilterValue('statut', 'VALIDEE');
+      await fixture.whenStable();
+      expect(region().textContent!.trim()).toBe('2 ligne(s) affichée(s)');
+
+      component.onFilterValue('statut', 'ANNULEE');
+      expect(component['liveAnnouncement']()).toBe('Aucune ligne ne correspond');
+    });
+
+    it('réannonce un message identique (sinon le lecteur d’écran ne le relit pas)', async () => {
+      const {component} = await createTable();
+      component.onFilterValue('statut', 'VALIDEE');
+      const first = component['liveAnnouncement']();
+      component.onFilterValue('actif', 'true'); // même résultat : 2 lignes
+      expect(component['liveAnnouncement']()).not.toBe(first);
+      expect(component['liveAnnouncement']().trim()).toBe(first);
+    });
+
+    it('mode remote : n’annonce que le tri (le nombre de lignes n’est pas encore connu)', async () => {
+      const {component} = await createTable({dataMode: 'remote'});
+      component.onHeaderSort(component.columns()[0]);
+      expect(component['liveAnnouncement']()).toBe('Nom, tri croissant');
+    });
+
     it('expose aria-sort sur les colonnes triables, rien sur les autres', async () => {
       const {component} = await createTable();
       const sortable = component.columns()[0]; // `nom`, sortable: true

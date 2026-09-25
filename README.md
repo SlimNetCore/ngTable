@@ -204,6 +204,17 @@ Le tri compare directement la valeur de `valueAccessor` (nombres/chaînes/dates/
 
 Écoutez `(sortChange)` si vous avez besoin de connaître le tri courant en dehors du composant (ex. pour le renvoyer au serveur en mode `remote`, voir plus loin).
 
+**Tri multi-colonnes** : avec `[multiSort]="true"`, Maj+clic sur un en-tête (ou Maj+Entrée au clavier) ajoute la colonne comme niveau de tri supplémentaire. Répéter Maj+clic fait tourner sa direction, puis retire ce niveau. Un clic simple revient à un tri unique. Le rang de chaque niveau s'affiche à côté de la flèche, et il est inclus dans le libellé accessible du bouton (« Trié croissant, priorité 2 »).
+
+```html
+<ng-table [multiSort]="true" (sortsChange)="onSorts($event)" ... />
+```
+
+- `(sortChange)` continue d'émettre le **tri principal** seul. `(sortsChange)` émet tous les niveaux, par priorité.
+- En mode `remote`, `NgTableRemoteQuery.sorts` porte tous les niveaux. `sort` reste le tri principal, pour les backends qui n'en gèrent qu'un.
+- Les vues sauvegardées enregistrent tous les niveaux (`NgTableViewState.sorts`).
+- Les clés de tri sont calculées une fois par ligne, pas à chaque comparaison. Le tri est stable : à égalité, l'ordre d'origine est conservé.
+
 ### Étape 3 — Filtres par colonne
 
 Chaque type de filtre s'active via `filter: {type: ...}`.
@@ -837,7 +848,7 @@ onExportRequested(query: NgTableRemoteQuery): void {
 }
 ```
 
-`NgTableRemoteQuery` (`{sort, filters, page, search}`) reprend le tri/filtres/page/recherche globale courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
+`NgTableRemoteQuery` (`{sort, sorts, filters, page, search}`) reprend le tri/filtres/page/recherche globale courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
 
 ### Étape 18ter — Indicateur de chargement
 
@@ -1026,7 +1037,7 @@ interface NgTableFilterConfig {
 | `emptyLabel`                | `string \| null`                                                 | `null`    | Message si liste vide ; `null` = utilise `labels.noData`.                                                            |
 | `loading`                   | `boolean`                                                        | `false`   | Affiche un overlay de chargement centré sur la table (bloque l'interaction tant qu'il est visible). Piloté par le parent. |
 | `loadingTemplate`           | `TemplateRef<unknown> \| null`                                   | `null`    | Contenu custom de l'overlay de chargement ; `null` = spinner intégré.                                                 |
-| `minTableWidthPx`           | `number`                                                         | `760`     | Largeur mini avant scroll horizontal (desktop).                                                                      |
+| `minTableWidthPx`           | `number`                                                         | `760`     | Largeur mini avant scroll horizontal (desktop). Le tableau ne descend jamais sous la somme des largeurs mini de ses colonnes visibles (`widthPx`, sinon `minWidthPx`, sinon 120 px) : au-delà, il défile au lieu d'écraser les en-têtes. |
 | `rowClassFn`                | `(row) => string \| string[] \| Record<string, boolean> \| null` | `null`    | Classes CSS dynamiques par ligne.                                                                                    |
 | `rowTrackBy`                | `TrackByFunction<any> \| null`                                   | `null`    | `trackBy` de rendu (perf) uniquement — n'affecte jamais la clé de sélection/expansion, qui vient de `rowKeyAccessor`/`row.id`. |
 | `rowKeyAccessor`            | `(row) => unknown`                                               | `null`    | Clé métier stable (sélection, expansion, feedback copie, trackBy de rendu). Recommandé si `row.id` n'est pas fiable. |
@@ -1039,6 +1050,7 @@ interface NgTableFilterConfig {
 | `showResetFilters`          | `boolean`                                                        | `true`    | Affiche le bouton "réinitialiser les filtres".                                                                       |
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
+| `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
 | `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
 | `globalSearch`              | `string \| null`                                                 | `null`    | Mode contrôlé de la recherche globale.                                                                               |
 | `rowSelectionEnabled`       | `boolean`                                                        | `false`   | Ajoute une colonne checkbox de sélection.                                                                            |
@@ -1055,6 +1067,7 @@ interface NgTableFilterConfig {
 | `viewsEnabled`              | `boolean`                                                        | `false`   | Affiche/masque le bloc "Vues" (bouton + menu).                                                                       |
 | `viewsStorageKey`           | `string \| null`                                                 | `null`    | Mode non contrôlé : clé de persistance `localStorage` des vues.                                                      |
 | `viewsStore`                | `NgTableViewsStore \| null`                                      | `null`    | Mode contrôlé : le parent possède le store des vues.                                                                 |
+| `viewsImportExportEnabled`  | `boolean`                                                        | `false`   | Boutons « Exporter » / « Importer » dans le menu des vues (fichier JSON).                                            |
 | `exportEnabled`              | `boolean`                                                        | `false`   | Affiche le bouton d'export.                                                                                           |
 | `exportMode`                 | `'local' \| 'remote'`                                            | `'local'` | Voir "Export".                                                                                                        |
 | `exportFilename`             | `string`                                                         | `'export'`| Nom de fichier (sans extension) du fichier généré en mode `local`.                                                    |
@@ -1068,6 +1081,7 @@ interface NgTableFilterConfig {
 | Output                   | Payload                                                                       | Description                                                                                                                                                                |
 |--------------------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `rowClick`               | `any`                                                                         | Clic sur une ligne de données.                                                                                                                                             |
+| `sortsChange`            | `NgTableSortChange[]`                                                         | Tous les niveaux de tri, par priorité, à chaque clic de tri.                                                                                                               |
 | `filtersChange`          | `Record<string, string>`                                                      | Tout changement de filtre.                                                                                                                                                 |
 | `globalSearchChange`     | `string`                                                                      | Recherche globale appliquée (après debounce ; `''` quand elle est effacée).                                                                                                |
 | `sortChange`             | `NgTableSortChange` (`{columnId, direction}`)                                 | Changement de tri.                                                                                                                                                         |
@@ -1078,12 +1092,13 @@ interface NgTableFilterConfig {
 | `selectionChange`        | `NgTableSelectionChangeEvent` (`{row, selected, selectedKeys, selectedRows}`) | Sélection/désélection ou tout-sélectionner.                                                                                                                                |
 | `rowContextMenu`         | `NgTableContextMenuEvent` (`{row, position}`)                                 | Ouverture du menu contextuel.                                                                                                                                              |
 | `viewsStoreChange`       | `NgTableViewsStore`                                                           | Le store des vues a changé. En mode non contrôlé, miroir de ce qui vient d'être écrit en `localStorage` ; en mode contrôlé, **seul endroit** où le changement est notifié. |
+| `viewsImported`          | `NgTableViewsImportEvent` (`{imported, mode}`)                                | Après chaque import de vues (`imported: 0` = fichier invalide, rien n'a changé).                                                                                             |
 | `viewActivated`          | `NgTableView \| null`                                                         | Une vue devient active (changement manuel ou auto au chargement).                                                                                                          |
 | `viewPaginationRestore`  | `{pageIndex, pageSize}`                                                       | Émis quand la vue activée contient une pagination.                                                                                                                         |
-| `remoteQueryChange`      | `NgTableRemoteQuery` (`{sort, filters, page, search}`)                        | **Mode `remote`.** Émis à chaque changement de tri/filtre, état complet, prêt pour une requête serveur unique.                                                             |
+| `remoteQueryChange`      | `NgTableRemoteQuery` (`{sort, sorts, filters, page, search}`)                        | **Mode `remote`.** Émis à chaque changement de tri/filtre, état complet, prêt pour une requête serveur unique.                                                             |
 | `filteredCountChange`    | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Total après filtrage, pour `[length]` de votre paginator.                                                                   |
 | `pageIndexChange`        | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Émis avec `0` quand un filtre/tri doit remettre la page à zéro.                                                             |
-| `remoteExportRequested`  | `NgTableRemoteQuery` (`{sort, filters, page, search}`)                        | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
+| `remoteExportRequested`  | `NgTableRemoteQuery` (`{sort, sorts, filters, page, search}`)                        | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
 | `localExportCompleted`   | `NgTableLocalExportEvent` (`{fromPage, toPage, rowCount}`)                    | **`exportMode='local'`.** Émis après la génération et le téléchargement du CSV — informatif (toast, analytics...).                                                         |
 
 ## Personnaliser les textes (`NgTableLabels`)
@@ -1194,6 +1209,19 @@ export interface NgTableLabels {
   globalSearchPlaceholder: string; // placeholder du champ de recherche globale
   globalSearchLabel: string;    // nom accessible du champ, et libellé de sa pastille dans la barre des filtres actifs
   clearGlobalSearch: string;    // bouton d'effacement de la recherche
+  setDefaultView: string;       // étoile d'une vue : « ouvrir la liste sur cette vue »
+  unsetDefaultView: string;     // étoile de la vue par défaut : la retirer
+  exportViews: string;          // bouton « Exporter » du menu des vues
+  importViews: string;          // bouton « Importer » du menu des vues
+  viewsImported: string;        // message après import ; {count} = nombre de vues
+  viewsImportInvalid: string;   // message après import d'un fichier invalide
+  announceSortAsc: string;      // annonce lecteur d'écran : '{column}, tri croissant'
+  announceSortDesc: string;     // annonce lecteur d'écran : '{column}, tri décroissant'
+  announceSortCleared: string;  // annonce lecteur d'écran : tri retiré
+  announceRowCount: string;     // annonce lecteur d'écran : '{count} ligne(s) affichée(s)' (mode local)
+  announceNoRows: string;       // annonce lecteur d'écran : aucune ligne ne correspond (mode local)
+  sortPriority: string;         // 'priorité {priority}', ajouté au libellé du bouton de tri (tri multi-colonnes)
+  multiSortHint: string;        // infobulle des en-têtes triables avec [multiSort]
 }
 ```
 
@@ -1334,9 +1362,17 @@ interface NgTableViewState {
   columnOrder: string[];
   columnWidths?: Record<string, number>;  // largeurs (px) issues du resize, par id de colonne
   sort: NgTableSortChange;
+  sorts?: NgTableSortChange[];            // tous les niveaux, avec [multiSort]
   filters: Record<string, string>;
+  search?: string;                        // recherche globale
   pageIndex?: number;                     // seulement si pageTrackingEnabled=true
   pageSize?: number;
+}
+
+interface NgTableViewsStore {
+  views: NgTableView[];
+  activeViewId: string | null;
+  defaultViewId?: string | null;          // vue appliquée à l'ouverture
 }
 ```
 
@@ -1356,8 +1392,25 @@ Les largeurs sont capturées à l'enregistrement (bouton "enregistrer" ou "mettr
 - `[viewsEnabled]="false"` (défaut) masque entièrement le bouton "Vues" — aucune UI, aucun coût.
 - **Mode non contrôlé** (dès que `viewsStorageKey` est fourni) : persistance automatique dans `localStorage`, sous la clé namespacée `` `ng-table.views.${viewsStorageKey}` ``.
 - **Mode contrôlé** (`[viewsStore]` fourni) : le composant n'écrit plus dans `localStorage`, il émet seulement `(viewsStoreChange)` — à vous de décider où stocker.
-- Au chargement, la dernière vue active est automatiquement réappliquée si le store en contient une.
+- Au chargement, la **vue par défaut** est appliquée si l'utilisateur en a choisi une (étoile à côté de la vue). Sinon, c'est la dernière vue active. Un nouveau clic sur l'étoile retire la vue par défaut. Supprimer la vue active fait basculer sur la vue par défaut, ou à défaut sur la première vue restante. Appelable aussi en code : `toggleDefaultView(view)`, `isDefaultView(view)`.
 - Chaque vue de la liste a un bouton "mettre à jour" (icône `sync`, qui passe brièvement en coche verte après le clic) qui écrase son état sauvegardé avec l'affichage courant (colonnes, ordre, largeurs, tri, filtres, pagination), sans avoir à retaper son nom dans le champ de création — contrairement à `saveCurrentAsView`, qui ne met à jour que par correspondance de nom. Appelable aussi directement : `updateView(view: NgTableView): void`.
+
+### Partager des vues (export / import)
+
+`[viewsImportExportEnabled]="true"` ajoute deux boutons en bas du menu des vues :
+
+- **Exporter** télécharge toutes les vues dans un fichier `<viewsStorageKey>-vues.json`. C'est le même format versionné que le `localStorage`.
+- **Importer** lit un tel fichier et **fusionne** son contenu : les nouvelles vues sont ajoutées, et une vue du même nom est remplacée. La vue affichée ne change pas. Les vues malformées sont ignorées. Un fichier invalide ne modifie rien et affiche un message.
+
+Cela permet de transmettre ses vues à un collègue, ou de les retrouver sur un autre poste. Les mêmes opérations sont disponibles en code :
+
+```ts
+const json = this.table().exportViews();          // string JSON
+this.table().importViews(json);                    // fusion (défaut) ; renvoie le nombre de vues importées
+this.table().importViews(json, 'replace');         // remplace toutes les vues et applique la vue active du fichier
+```
+
+`(viewsImported)` émet `{imported, mode}` après chaque import. `imported` vaut 0 si le fichier était invalide.
 
 **Point d'attention** : si `columnVisibility` est **contrôlé** par le parent, l'activation d'une vue ne suffit pas à faire réapparaître les bonnes colonnes visuellement — il faut resynchroniser explicitement via `(viewActivated)` :
 
@@ -1468,6 +1521,15 @@ Une ligne ne devient un arrêt de tabulation (`tabindex="0"`) **que si elle fait
 
 - **Entrée / Espace** : équivalent clavier du clic (bascule le détail).
 - **Touche Menu, ou Maj+F10** : équivalent clavier standard du clic droit — ouvre le menu contextuel (`rowContextMenuEnabled`), ancré au coin de la ligne (pas de coordonnées souris disponibles au clavier).
+
+### Annonces des changements (`aria-live`)
+
+Trier ou filtrer modifie la liste sans déplacer le focus. Sans annonce, un utilisateur de lecteur d'écran ne sait pas que le contenu a changé (WCAG 4.1.3). La table contient donc une région `role="status"`, invisible à l'écran, qui annonce :
+
+- le tri : « Nom, tri croissant », « Nom, tri décroissant », « Tri retiré » ;
+- en mode `local`, le nombre de lignes après chaque tri, filtre ou recherche : « 12 ligne(s) affichée(s) », ou « Aucune ligne ne correspond ».
+
+En mode `remote`, seul le tri est annoncé. Le nombre de lignes n'est connu qu'à la réponse du serveur. Tous ces textes sont personnalisables (`announceSortAsc`, `announceSortDesc`, `announceSortCleared`, `announceRowCount`, `announceNoRows`).
 
 ### Chargement
 

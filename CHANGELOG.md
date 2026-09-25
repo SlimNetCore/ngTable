@@ -22,6 +22,10 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - `filter.operator` pour les filtres texte : `'contains'` (défaut), `'equals'`, `'startsWith'`, `'endsWith'`.
 - Recherche globale : `[globalSearchEnabled]`, mode contrôlé `[globalSearch]` / `(globalSearchChange)`, et `column.searchable` pour exclure une colonne ou fournir le texte cherché. Chaque mot doit apparaître dans la ligne ; casse et accents ignorés. La recherche est enregistrée dans les vues, et `NgTableRemoteQuery` gagne un champ `search`.
 - Labels `globalSearchPlaceholder`, `globalSearchLabel`, `clearGlobalSearch`.
+- Vue par défaut : une étoile dans le menu des vues choisit la vue appliquée à l'ouverture (`NgTableViewsStore.defaultViewId`, `toggleDefaultView()`, `isDefaultView()`).
+- Tri multi-colonnes : `[multiSort]`, Maj+clic sur un en-tête ; `(sortsChange)`, `NgTableRemoteQuery.sorts`, `NgTableViewState.sorts`. Labels `sortPriority`, `multiSortHint`.
+- Accessibilité : une région `aria-live` annonce le tri et, en mode local, le nombre de lignes après chaque tri, filtre ou recherche. Labels `announceSortAsc`, `announceSortDesc`, `announceSortCleared`, `announceRowCount`, `announceNoRows`.
+- Export / import des vues en JSON : `[viewsImportExportEnabled]`, `exportViews()`, `importViews(json, 'merge' | 'replace')`, `(viewsImported)`. Labels `setDefaultView`, `unsetDefaultView`, `exportViews`, `importViews`, `viewsImported`, `viewsImportInvalid`.
 - `[exportFormat]="'xlsx'"` : export Excel natif, sans dépendance ; nombres et booléens restent typés, en-tête en gras et figé.
 
 ### Corrigé
@@ -31,9 +35,13 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 ### Modifié
 - Les vues stockées en `localStorage` portent une version de schéma ; les vues malformées sont ignorées au lieu de casser l'affichage, et une vue active qui n'existe plus est oubliée. Les stores existants sont relus sans perte.
 - « Réinitialiser les filtres » efface aussi la recherche globale.
+- Supprimer la vue active fait basculer sur la vue par défaut (sinon la première vue restante, comme avant).
+- La largeur mini du tableau est au moins la somme des largeurs mini des colonnes visibles (120 px par défaut). Avec beaucoup de colonnes, le tableau défile horizontalement au lieu d'écraser les en-têtes, dont le libellé pouvait tomber à 0 px. La poignée de réordonnancement ne prend plus de place dans l'en-tête, et le bouton de filtre fait bien 28 px (Material lui imposait 40 px).
+- Écran de moins de 900 px : la recherche globale prend toute une ligne, et les boutons d'action se partagent la suivante.
 - Tous les filtres saisis au clavier (`number`, `search`...) sont debouncés comme `text`.
 
 ### Performance
+- Tri : clés de tri calculées une fois par ligne au lieu d'à chaque comparaison (n au lieu de ~n·log n appels aux accessors).
 - État de sélection mémoïsé : plus d'`Array.includes` par ligne en mode contrôlé, ni de `Set` recréé à chaque vérification.
 
 ## [0.4.4]

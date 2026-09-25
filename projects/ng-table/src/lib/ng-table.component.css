@@ -239,13 +239,18 @@
 }
 
 .drag-handle {
+  /* Placée dans la marge gauche de la cellule (16 px) plutôt que dans le flux :
+     invisible hors survol, elle y occupait 26 px pris au libellé, qui tombait à
+     0 px dans une colonne étroite. En absolu, pas de décalage du libellé au survol. */
+  position: absolute;
+  left: -15px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto;
-  width: 18px;
+  width: 14px;
   height: 18px;
-  margin-left: -4px;
   color: var(--app-muted, #4f6573);
   cursor: grab;
   opacity: 0;
@@ -253,9 +258,9 @@
 }
 
 .drag-handle mat-icon {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
 }
 
 .ng-table .mat-mdc-header-cell:hover .drag-handle,
@@ -301,6 +306,7 @@
 }
 
 .header-button {
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -334,6 +340,15 @@
   width: 18px;
   height: 18px;
   color: var(--app-primary, #3a7ca5);
+}
+
+/* Sans le jeton, Material impose sa taille par défaut (40 px) malgré `width` ci-dessous. */
+.ng-table .filter-button.mat-mdc-icon-button {
+  --mat-icon-button-state-layer-size: 28px;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
 }
 
 .filter-button {
@@ -694,6 +709,27 @@
   width: 18px;
   height: 18px;
   color: var(--app-primary, #3a7ca5);
+}
+
+.view-row-default {
+  flex: 0 0 auto;
+  color: var(--app-muted, #4f6573);
+}
+
+.view-row-default--on {
+  color: #c98a00;
+}
+
+.views-transfer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.views-import-feedback {
+  margin: 6px 4px 0;
+  font-size: 0.8rem;
+  color: var(--app-muted, #4f6573);
 }
 
 .view-row-update {
@@ -1068,11 +1104,28 @@
     padding: 12px;
   }
 
-  .list-actions button {
-    width: 100%;
+  /* Boutons d'action côte à côte, largeur partagée ; `>` pour ne pas étirer
+     le bouton d'effacement de la recherche globale. */
+  .list-actions > button {
+    flex: 1 1 0;
+  }
+
+  .global-search {
+    flex-basis: 100%;
+    max-width: none;
+    margin-right: 0;
   }
 
   .ng-table {
     min-width: 720px;
   }
+}
+
+/* Rang d'un niveau de tri (tri multi-colonnes). */
+.sort-priority {
+  margin-left: -2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--app-primary, #3a7ca5);
 }

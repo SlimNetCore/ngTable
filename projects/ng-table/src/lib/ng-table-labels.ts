@@ -73,6 +73,32 @@ export interface NgTableLabels {
   globalSearchLabel: string;
   /** Bouton d'effacement de la recherche globale. */
   clearGlobalSearch: string;
+  /** Bouton étoile d'une vue qui n'est pas la vue par défaut. */
+  setDefaultView: string;
+  /** Bouton étoile de la vue par défaut (la retirer). */
+  unsetDefaultView: string;
+  /** Bouton d'export des vues (fichier JSON). */
+  exportViews: string;
+  /** Bouton d'import des vues. */
+  importViews: string;
+  /** Message après un import réussi ; `{count}` = nombre de vues importées. */
+  viewsImported: string;
+  /** Message après l'import d'un fichier invalide. */
+  viewsImportInvalid: string;
+  /** Annonce lecteur d'écran après un tri croissant ; `{column}` = en-tête de la colonne. */
+  announceSortAsc: string;
+  /** Annonce lecteur d'écran après un tri décroissant. */
+  announceSortDesc: string;
+  /** Annonce lecteur d'écran quand le tri est retiré. */
+  announceSortCleared: string;
+  /** Annonce lecteur d'écran du nombre de lignes après un tri/filtre (mode local) ; `{count}`. */
+  announceRowCount: string;
+  /** Annonce lecteur d'écran quand plus aucune ligne ne correspond (mode local). */
+  announceNoRows: string;
+  /** Rang d'une colonne parmi plusieurs niveaux de tri, ajouté au libellé du bouton de tri ; `{priority}`. */
+  sortPriority: string;
+  /** Infobulle des en-têtes triables quand `[multiSort]` est actif. */
+  multiSortHint: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -120,6 +146,19 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   globalSearchPlaceholder: 'Rechercher…',
   globalSearchLabel: 'Recherche',
   clearGlobalSearch: 'Effacer la recherche',
+  setDefaultView: 'Ouvrir la liste sur cette vue',
+  unsetDefaultView: 'Ne plus ouvrir la liste sur cette vue',
+  exportViews: 'Exporter',
+  importViews: 'Importer',
+  viewsImported: '{count} vue(s) importée(s)',
+  viewsImportInvalid: 'Fichier invalide : aucune vue importée',
+  announceSortAsc: '{column}, tri croissant',
+  announceSortDesc: '{column}, tri décroissant',
+  announceSortCleared: 'Tri retiré',
+  announceRowCount: '{count} ligne(s) affichée(s)',
+  announceNoRows: 'Aucune ligne ne correspond',
+  sortPriority: 'priorité {priority}',
+  multiSortHint: 'Maj+clic : ajouter un niveau de tri',
 };
 
 /**
@@ -175,6 +214,19 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   globalSearchPlaceholder: 'Search…',
   globalSearchLabel: 'Search',
   clearGlobalSearch: 'Clear search',
+  setDefaultView: 'Open the list on this view',
+  unsetDefaultView: 'Stop opening the list on this view',
+  exportViews: 'Export',
+  importViews: 'Import',
+  viewsImported: '{count} view(s) imported',
+  viewsImportInvalid: 'Invalid file: no view imported',
+  announceSortAsc: '{column}, sorted ascending',
+  announceSortDesc: '{column}, sorted descending',
+  announceSortCleared: 'Sort cleared',
+  announceRowCount: '{count} row(s) shown',
+  announceNoRows: 'No matching rows',
+  sortPriority: 'priority {priority}',
+  multiSortHint: 'Shift+click: add a sort level',
 };
 
 /**

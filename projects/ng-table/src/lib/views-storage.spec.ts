@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {parseViewsStore, serializeViewsStore, VIEWS_SCHEMA_VERSION} from './views-storage';
+import {mergeViewsStores, parseViewsStore, serializeViewsStore, VIEWS_SCHEMA_VERSION} from './views-storage';
 
 const validView = {
   id: 'v1',
@@ -46,5 +46,33 @@ describe('views-storage', () => {
   it('oublie une vue active qui n’existe plus', () => {
     const raw = JSON.stringify({views: [validView], activeViewId: 'supprimée'});
     expect(parseViewsStore(raw).activeViewId).toBeNull();
+  });
+
+  it('garde la vue par défaut si elle existe, l’oublie sinon', () => {
+    const kept = parseViewsStore(JSON.stringify({views: [validView], activeViewId: null, defaultViewId: 'v1'}));
+    expect(kept.defaultViewId).toBe('v1');
+    const dropped = parseViewsStore(JSON.stringify({views: [validView], activeViewId: null, defaultViewId: 'absente'}));
+    expect(dropped.defaultViewId).toBeUndefined();
+  });
+
+  describe('mergeViewsStores', () => {
+    const other = {...validView, id: 'v2', name: 'Brouillons'};
+
+    it('ajoute les nouvelles vues et garde la vue active/par défaut courante', () => {
+      const current = {views: [validView], activeViewId: 'v1', defaultViewId: 'v1'} as never;
+      const merged = mergeViewsStores(current, {views: [other], activeViewId: 'v2'} as never);
+      expect(merged.views.map((v) => v.id)).toEqual(['v1', 'v2']);
+      expect(merged.activeViewId).toBe('v1');
+      expect(merged.defaultViewId).toBe('v1');
+    });
+
+    it('remplace une vue de même nom en gardant son id', () => {
+      const current = {views: [validView], activeViewId: 'v1'} as never;
+      const incoming = {...validView, id: 'autre-poste', state: {...validView.state, filters: {statut: 'ANNULEE'}}};
+      const merged = mergeViewsStores(current, {views: [incoming], activeViewId: null} as never);
+      expect(merged.views).toHaveLength(1);
+      expect(merged.views[0].id).toBe('v1');
+      expect(merged.views[0].state.filters).toEqual({statut: 'ANNULEE'});
+    });
   });
 });

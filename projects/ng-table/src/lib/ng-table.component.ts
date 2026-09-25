@@ -29,7 +29,7 @@ import {debounce, groupBy, mergeMap} from 'rxjs/operators';
 import {ColumnFilterRendererComponent, ColumnFilterType} from './column-filter-renderer.component';
 import {DynamicFilterHostComponent} from './dynamic-filter-host.component';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
-import {emptyViewsStore, parseViewsStore, serializeViewsStore} from './views-storage';
+import {emptyViewsStore, mergeViewsStores, parseViewsStore, serializeViewsStore} from './views-storage';
 import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
 import {
   formatRangeValue,
@@ -64,6 +64,14 @@ function toExportCell(value: unknown): ExportCell {
   return typeof value === 'number' || typeof value === 'boolean' ? value : String(value);
 }
 
+/** Largeur mini d'une colonne sans `minWidthPx` : redimensionnement, et largeur mini du tableau. */
+const DEFAULT_MIN_COLUMN_WIDTH_PX = 120;
+/** Largeur de la colonne de cases à cocher. */
+const SELECTION_COLUMN_WIDTH_PX = 48;
+
+/** Espace insécable (U+00A0), voir `announce`. */
+const NBSP = String.fromCharCode(160);
+
 /** Clé de la recherche globale dans le flux debouncé des saisies et dans la barre des filtres actifs. */
 const GLOBAL_SEARCH_KEY = '__global_search__';
 
@@ -86,7 +94,10 @@ export type NgTableDataMode = 'local' | 'remote';
 
 /** Etat complet à envoyer au serveur en mode `remote` (tri courant, tous les filtres, et la page). */
 export interface NgTableRemoteQuery {
+  /** Tri principal (premier niveau de `sorts`). */
   sort: NgTableSortChange;
+  /** Tous les niveaux de tri, par priorité (plusieurs seulement avec `[multiSort]`). Toujours renseigné par le composant. */
+  sorts?: NgTableSortChange[];
   filters: Record<string, string>;
   page: { index: number; size: number };
   /** Recherche globale saisie (`''` si aucune). Toujours renseignée par le composant. */
@@ -225,6 +236,8 @@ export interface NgTableViewState {
   columnVisibility: Record<string, boolean>;
   columnOrder: string[];
   sort: NgTableSortChange;
+  /** Tous les niveaux de tri, quand il y en a plusieurs (`[multiSort]`). Absent = seulement `sort`. */
+  sorts?: NgTableSortChange[];
   filters: Record<string, string>;
   /**
    * Largeurs de colonnes (px) issues du redimensionnement, par id de colonne.
@@ -256,6 +269,18 @@ export interface NgTableView {
 export interface NgTableViewsStore {
   views: NgTableView[];
   activeViewId: string | null;
+  /**
+   * Vue appliquée à l'ouverture de la liste, à la place de la dernière vue active.
+   * Absente ou `null` = on rouvre sur la dernière vue active.
+   */
+  defaultViewId?: string | null;
+}
+
+/** Résultat d'un import de vues (`importViews()` ou bouton « Importer »). */
+export interface NgTableViewsImportEvent {
+  /** Nombre de vues valides lues dans le fichier (0 si le fichier est invalide). */
+  imported: number;
+  mode: 'merge' | 'replace';
 }
 
 @Component({
@@ -349,6 +374,11 @@ export class NgTableComponent implements OnDestroy {
    * intégré ; sinon ce template remplace entièrement le rendu par défaut.
    */
   readonly loadingTemplate = input<TemplateRef<unknown> | null>(null);
+  /**
+   * Largeur mini du tableau avant défilement horizontal. Le tableau ne descend de
+   * toute façon jamais sous la somme des largeurs mini de ses colonnes visibles
+   * (voir `tableMinWidthPx`) : au-delà, il défile au lieu d'écraser les colonnes.
+   */
   readonly minTableWidthPx = input(760);
   readonly rowClassFn = input<((row: any) => string | string[] | Record<string, boolean> | null) | null>(null);
   /**
@@ -397,6 +427,8 @@ export class NgTableComponent implements OnDestroy {
    * (casse et accents ignorés). Voir `NgTableColumn.searchable`.
    */
   readonly globalSearchEnabled = input(false);
+  /** Tri sur plusieurs colonnes : Maj+clic sur un en-tête ajoute un niveau de tri. */
+  readonly multiSort = input(false);
   /** Mode contrôlé de la recherche globale ; `null` = non contrôlé. */
   readonly globalSearch = input<string | null>(null);
   /** Show a leading checkbox column to select one or many rows. */
@@ -471,13 +503,18 @@ export class NgTableComponent implements OnDestroy {
    * le défaut (séparateur `;`, UTF-8 avec BOM).
    */
   readonly exportFormat = input<NgTableExportFormat>('csv');
+  /** Boutons « Exporter » / « Importer » dans le menu des vues (partage de vues entre postes ou utilisateurs). */
+  readonly viewsImportExportEnabled = input(false);
 
   readonly rowClick = output<any>();
   /** Emitted whenever any filter value changes. */
   readonly filtersChange = output<Record<string, string>>();
   /** Recherche globale appliquée (après debounce). */
   readonly globalSearchChange = output<string>();
+  /** Tri principal modifié. */
   readonly sortChange = output<NgTableSortChange>();
+  /** Tous les niveaux de tri, par priorité ; émis à chaque clic de tri. */
+  readonly sortsChange = output<NgTableSortChange[]>();
   readonly cellCopied = output<NgTableCopyEvent>();
   readonly detailToggle = output<NgTableDetailToggleEvent>();
   /** Emitted when the internal column picker toggles a column visibility. */
@@ -495,6 +532,8 @@ export class NgTableComponent implements OnDestroy {
    * component does not persist anything itself. Wire this to save wherever you want.
    */
   readonly viewsStoreChange = output<NgTableViewsStore>();
+  /** Émis après chaque import de vues, réussi ou non (`imported: 0`). */
+  readonly viewsImported = output<NgTableViewsImportEvent>();
   /** Emitted whenever a view becomes active (user switch, or auto-activation on load). */
   readonly viewActivated = output<NgTableView | null>();
   /** Emitted when an activated view carries pagination — apply it to your own paginator. */
@@ -597,6 +636,20 @@ export class NgTableComponent implements OnDestroy {
     ];
   });
 
+  /**
+   * Largeur mini effective du tableau. Avec `table-layout: fixed`, les colonnes sans
+   * largeur se partagent `minTableWidthPx` sans plancher : avec beaucoup de colonnes,
+   * chacune tombait sous la place nécessaire à son en-tête (libellé réduit à 0 px).
+   */
+  readonly tableMinWidthPx = computed(() => {
+    const widths = this.columnWidths();
+    const columnsTotal = this.visibleColumns().reduce(
+      (total, column) => total + (widths[column.id] ?? column.widthPx ?? column.minWidthPx ?? DEFAULT_MIN_COLUMN_WIDTH_PX),
+      this.rowSelectionEnabled() ? SELECTION_COLUMN_WIDTH_PX : 0,
+    );
+    return Math.max(this.minTableWidthPx(), columnsTotal);
+  });
+
   /** La colonne de sélection suit les colonnes épinglées à gauche, sinon elles glisseraient dessous. */
   readonly hasLeftPinnedColumns = computed(() => this.visibleColumns().some((column) => column.pinned === 'left'));
   readonly actionColumn = computed(() =>
@@ -635,7 +688,10 @@ export class NgTableComponent implements OnDestroy {
     }
     return summaries;
   });
-  protected readonly sortState = signal<NgTableSortChange>({columnId: '', direction: ''});
+  /** Niveaux de tri actifs, par priorité (le premier est le tri principal). Jamais d'entrée sans direction. */
+  protected readonly sortStates = signal<NgTableSortChange[]>([]);
+  /** Tri principal : ce qu'exposent `sortChange` et `NgTableRemoteQuery.sort`. */
+  protected readonly sortState = computed<NgTableSortChange>(() => this.sortStates()[0] ?? {columnId: '', direction: ''});
   /** Native HTML5 drag-and-drop state for column reordering (id of the column being dragged / hovered). */
   protected readonly draggingColumnId = signal<string | null>(null);
   protected readonly dragOverColumnId = signal<string | null>(null);
@@ -653,6 +709,10 @@ export class NgTableComponent implements OnDestroy {
   protected readonly contextMenuPosition = signal<{ x: number; y: number }>({x: 0, y: 0});
   protected readonly contextMenuTriggerRef = viewChild<MatMenuTrigger>('rowContextMenuTrigger');
   protected readonly newViewName = signal('');
+  /** Contenu de la région `aria-live` (voir `announce`). */
+  protected readonly liveAnnouncement = signal('');
+  /** Message affiché dans le menu des vues après un import (succès ou fichier invalide). */
+  protected readonly viewsImportFeedback = signal('');
   protected readonly exportFromPage = signal(1);
   protected readonly exportToPage = signal(1);
   /**
@@ -682,7 +742,7 @@ export class NgTableComponent implements OnDestroy {
     const sourceRows = this.rows();
     const activeColumns = this.visibleColumnsUnordered();
     const filters = this.columnFilters();
-    const sort = this.sortState();
+    const sorts = this.sortStates();
     const terms = searchTerms(this.globalSearchTerm());
     const haystacks = terms.length > 0 ? this.searchHaystacks() : null;
 
@@ -691,21 +751,34 @@ export class NgTableComponent implements OnDestroy {
         this.matchesAllFilters(row, activeColumns, filters) &&
         (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms)),
     );
-    if (!sort.columnId || !sort.direction) {
+    const levels: { column: NgTableColumn<any>; factor: number }[] = [];
+    for (const sort of sorts) {
+      const column = activeColumns.find((candidate) => candidate.id === sort.columnId);
+      if (column) {
+        levels.push({column, factor: sort.direction === 'desc' ? -1 : 1});
+      }
+    }
+    if (levels.length === 0) {
       return nextRows;
     }
 
-    const sortColumn = activeColumns.find((column) => column.id === sort.columnId);
-    if (!sortColumn) {
-      return nextRows;
-    }
-
-    nextRows = [...nextRows].sort((left, right) => {
-      const leftValue = this.getSortValue(left, sortColumn);
-      const rightValue = this.getSortValue(right, sortColumn);
-      const compareResult = this.compareSortValues(leftValue, rightValue);
-      return sort.direction === 'asc' ? compareResult : -compareResult;
+    // Clés de tri calculées une fois par ligne (et non à chaque comparaison, soit
+    // ~n·log n appels aux accessors) ; l'index d'origine garde le tri stable.
+    const keyed = nextRows.map((row, index) => ({
+      row,
+      index,
+      keys: levels.map((level) => this.getSortValue(row, level.column)),
+    }));
+    keyed.sort((left, right) => {
+      for (let i = 0; i < levels.length; i++) {
+        const result = this.compareSortValues(left.keys[i], right.keys[i]);
+        if (result !== 0) {
+          return result * levels[i].factor;
+        }
+      }
+      return left.index - right.index;
     });
+    nextRows = keyed.map((entry) => entry.row);
 
     return nextRows;
   });
@@ -963,7 +1036,7 @@ export class NgTableComponent implements OnDestroy {
         this.internalViewsStore.set(external);
         if (!this.hasLoadedInitialViewsStore) {
           this.hasLoadedInitialViewsStore = true;
-          this.applyActiveView(external);
+          this.applyInitialView(external);
         }
         return;
       }
@@ -977,7 +1050,7 @@ export class NgTableComponent implements OnDestroy {
       this.hasLoadedInitialViewsStore = true;
       const loaded = this.loadViewsStoreFromLocalStorage(key);
       this.internalViewsStore.set(loaded);
-      this.applyActiveView(loaded);
+      this.applyInitialView(loaded);
     });
   }
 
@@ -989,28 +1062,52 @@ export class NgTableComponent implements OnDestroy {
     this.contextMenuAnchor = null;
   }
 
-  onHeaderSort(column: NgTableColumn<any>): void {
+  /**
+   * Clic sur un en-tête : croissant, puis décroissant, puis sans tri. Avec
+   * `[multiSort]`, Maj+clic ajoute la colonne comme niveau de tri supplémentaire
+   * (ou fait tourner sa direction si elle en est déjà un) ; un clic simple revient
+   * à un tri unique.
+   */
+  onHeaderSort(column: NgTableColumn<any>, event?: { shiftKey?: boolean }): void {
     if (!column.sortable) {
       return;
     }
 
-    const current = this.sortState();
-    const isSameColumn = current.columnId === column.id;
-
+    const current = this.sortStates();
+    const existing = current.find((sort) => sort.columnId === column.id);
     let nextDirection: SortDirection = 'asc';
-    if (isSameColumn && current.direction === 'asc') {
+    if (existing?.direction === 'asc') {
       nextDirection = 'desc';
-    } else if (isSameColumn && current.direction === 'desc') {
+    } else if (existing?.direction === 'desc') {
       nextDirection = '';
     }
 
-    const nextState: NgTableSortChange = {
-      columnId: nextDirection ? column.id : '',
-      direction: nextDirection,
-    };
-    this.sortState.set(nextState);
-    this.sortChange.emit(nextState);
-    this.onQueryStateChanged();
+    let next: NgTableSortChange[];
+    if (this.multiSort() && event?.shiftKey) {
+      const updated: NgTableSortChange = {columnId: column.id, direction: nextDirection};
+      if (!existing) {
+        next = [...current, updated];
+      } else if (nextDirection) {
+        next = current.map((sort) => (sort.columnId === column.id ? updated : sort));
+      } else {
+        next = current.filter((sort) => sort.columnId !== column.id);
+      }
+    } else {
+      next = nextDirection ? [{columnId: column.id, direction: nextDirection}] : [];
+    }
+
+    const previousPrimary = this.sortState();
+    this.sortStates.set(next);
+    const nextState = this.sortState();
+    if (previousPrimary.columnId !== nextState.columnId || previousPrimary.direction !== nextState.direction) {
+      this.sortChange.emit(nextState);
+    }
+    this.sortsChange.emit(next);
+    const labels = this.effectiveLabels();
+    const sortMessage = !nextDirection
+      ? labels.announceSortCleared
+      : (nextDirection === 'asc' ? labels.announceSortAsc : labels.announceSortDesc).replace('{column}', column.header);
+    this.onQueryStateChanged(sortMessage);
   }
 
   /**
@@ -1123,7 +1220,7 @@ export class NgTableComponent implements OnDestroy {
       nextViews = [...store.views, created];
     }
 
-    this.commitViewsStore({views: nextViews, activeViewId});
+    this.commitViewsStore({...store, views: nextViews, activeViewId});
     this.newViewName.set('');
   }
 
@@ -1137,7 +1234,7 @@ export class NgTableComponent implements OnDestroy {
     const store = this.effectiveViewsStore();
     const now = new Date().toISOString();
     const nextViews = store.views.map((v) => (v.id === view.id ? {...v, state, updatedAt: now} : v));
-    this.commitViewsStore({views: nextViews, activeViewId: view.id});
+    this.commitViewsStore({...store, views: nextViews, activeViewId: view.id});
 
     // Feedback transitoire (icône -> check) — même mécanisme que la copie de
     // cellule. Pas de notification/toast : la librairie n'a pas de dépendance
@@ -1160,6 +1257,7 @@ export class NgTableComponent implements OnDestroy {
       columnVisibility: {...this.effectiveColumnVisibility()},
       columnOrder: [...this.effectiveColumnOrder()],
       sort: {...this.sortState()},
+      ...(this.sortStates().length > 1 ? {sorts: this.sortStates().map((sort) => ({...sort}))} : {}),
       filters: {...this.columnFilters()},
       columnWidths: {...this.columnWidths()},
       ...(this.globalSearchTerm() ? {search: this.globalSearchTerm()} : {}),
@@ -1237,7 +1335,7 @@ export class NgTableComponent implements OnDestroy {
     const delta = event.key === 'ArrowLeft' ? -step : step;
     const widthMap = this.columnWidths();
     const currentWidth = widthMap[column.id] ?? column.widthPx ?? 180;
-    const minWidth = column.minWidthPx ?? 120;
+    const minWidth = column.minWidthPx ?? DEFAULT_MIN_COLUMN_WIDTH_PX;
     const maxWidth = column.maxWidthPx ?? 620;
     const nextWidth = Math.max(minWidth, Math.min(maxWidth, currentWidth + delta));
 
@@ -1277,7 +1375,7 @@ export class NgTableComponent implements OnDestroy {
       measured = Math.max(measured, Math.ceil(this.measureNaturalWidth(preferredNode) + padding + 14));
     }
 
-    const minWidth = column.minWidthPx ?? 120;
+    const minWidth = column.minWidthPx ?? DEFAULT_MIN_COLUMN_WIDTH_PX;
     const maxWidth = column.maxWidthPx ?? 620;
     const nextWidth = Math.max(minWidth, Math.min(maxWidth, measured));
 
@@ -1342,21 +1440,37 @@ export class NgTableComponent implements OnDestroy {
     return width && width > 0 ? width : null;
   }
 
+  private columnSort(column: NgTableColumn<any>): NgTableSortChange | undefined {
+    return this.sortStates().find((sort) => sort.columnId === column.id);
+  }
+
   currentSortIcon(column: NgTableColumn<any>): string {
-    const sort = this.sortState();
-    if (sort.columnId !== column.id || !sort.direction) {
+    const sort = this.columnSort(column);
+    if (!sort) {
       return 'swap_vert';
     }
     return sort.direction === 'asc' ? 'north' : 'south';
   }
 
+  /** Rang de la colonne parmi plusieurs niveaux de tri (1 = principal) ; `null` s'il n'y a qu'un niveau. */
+  sortPriority(column: NgTableColumn<any>): number | null {
+    const sorts = this.sortStates();
+    if (sorts.length < 2) {
+      return null;
+    }
+    const index = sorts.findIndex((sort) => sort.columnId === column.id);
+    return index === -1 ? null : index + 1;
+  }
+
   currentSortAriaLabel(column: NgTableColumn<any>): string {
-    const sort = this.sortState();
+    const sort = this.columnSort(column);
     const labels = this.effectiveLabels();
-    if (sort.columnId !== column.id || !sort.direction) {
+    if (!sort) {
       return labels.sort;
     }
-    return sort.direction === 'asc' ? labels.sortAsc : labels.sortDesc;
+    const label = sort.direction === 'asc' ? labels.sortAsc : labels.sortDesc;
+    const priority = this.sortPriority(column);
+    return priority ? `${label}, ${labels.sortPriority.replace('{priority}', `${priority}`)}` : label;
   }
 
   /**
@@ -1369,6 +1483,8 @@ export class NgTableComponent implements OnDestroy {
     if (!column.sortable) {
       return null;
     }
+    // ARIA : `aria-sort` sur un seul en-tête à la fois, celui du tri principal. Les
+    // niveaux secondaires sont décrits par le libellé du bouton (`currentSortAriaLabel`).
     const sort = this.sortState();
     if (sort.columnId !== column.id || !sort.direction) {
       return 'none';
@@ -1615,12 +1731,72 @@ export class NgTableComponent implements OnDestroy {
     this.applyViewState(view);
   }
 
-  /** Deletes a saved view. If it was the active one, the first remaining view (if any) becomes active. */
+  /**
+   * Deletes a saved view. If it was the active one, the default view (or else the
+   * first remaining view, if any) becomes active. Deleting the default view clears it.
+   */
   deleteView(view: NgTableView): void {
     const store = this.effectiveViewsStore();
     const nextViews = store.views.filter((v) => v.id !== view.id);
-    const nextActiveId = store.activeViewId === view.id ? (nextViews[0]?.id ?? null) : store.activeViewId;
-    this.commitViewsStore({views: nextViews, activeViewId: nextActiveId});
+    const defaultViewId = store.defaultViewId === view.id ? null : (store.defaultViewId ?? null);
+    const nextActiveId = store.activeViewId === view.id ? (defaultViewId ?? nextViews[0]?.id ?? null) : store.activeViewId;
+    this.commitViewsStore({...store, views: nextViews, activeViewId: nextActiveId, defaultViewId});
+  }
+
+  /** Définit la vue appliquée à l'ouverture de la liste ; la rappeler sur la vue par défaut la retire. */
+  toggleDefaultView(view: NgTableView): void {
+    const store = this.effectiveViewsStore();
+    this.commitViewsStore({...store, defaultViewId: store.defaultViewId === view.id ? null : view.id});
+  }
+
+  isDefaultView(view: NgTableView): boolean {
+    return this.effectiveViewsStore().defaultViewId === view.id;
+  }
+
+  /** Toutes les vues, au format JSON versionné (même format que le `localStorage`). */
+  exportViews(): string {
+    return serializeViewsStore(this.effectiveViewsStore());
+  }
+
+  /**
+   * Importe des vues exportées par `exportViews()` (ou le bouton « Exporter »).
+   * `merge` (défaut) : ajoute les vues, en remplaçant celles de même nom ; la vue
+   * affichée ne change pas. `replace` : remplace toutes les vues et applique la vue
+   * active du fichier. Les vues malformées sont ignorées ; un fichier invalide ne
+   * modifie rien. Renvoie le nombre de vues importées.
+   */
+  importViews(json: string, mode: 'merge' | 'replace' = 'merge'): number {
+    const imported = parseViewsStore(json);
+    const count = imported.views.length;
+    if (count > 0) {
+      if (mode === 'replace') {
+        this.commitViewsStore(imported);
+        this.applyActiveView(imported);
+      } else {
+        this.commitViewsStore(mergeViewsStores(this.effectiveViewsStore(), imported));
+      }
+    }
+    this.viewsImportFeedback.set(
+      count > 0 ? this.effectiveLabels().viewsImported.replace('{count}', `${count}`) : this.effectiveLabels().viewsImportInvalid,
+    );
+    this.viewsImported.emit({imported: count, mode});
+    return count;
+  }
+
+  /** Bouton « Exporter » du menu des vues : télécharge un fichier `.json`. */
+  downloadViews(): void {
+    const name = this.viewsStorageKey() ?? 'ng-table';
+    downloadFile(this.exportViews(), `${name}-vues.json`, 'application/json');
+  }
+
+  /** Fichier choisi via le bouton « Importer » du menu des vues (fusion). */
+  async onViewsFileSelected(input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    input.value = ''; // permet de réimporter le même fichier
+    if (!file) {
+      return;
+    }
+    this.importViews(await file.text(), 'merge');
   }
 
   /**
@@ -2058,20 +2234,39 @@ export class NgTableComponent implements OnDestroy {
    * Reports a sort/filter change: emits the full combined query in `remote` mode
    * (page reset to `0`), or requests a page reset in paginated `local` mode.
    */
-  private onQueryStateChanged(): void {
+  private onQueryStateChanged(sortMessage = ''): void {
     if (this.dataMode() === 'remote') {
+      // Nombre de lignes inconnu tant que le serveur n'a pas répondu : on n'annonce que le tri.
+      this.announce([sortMessage]);
       this.remoteQueryChange.emit(this.buildRemoteQuery(0, this.pageSize()));
       return;
     }
+    const count = this.filteredSortedRows().length;
+    const labels = this.effectiveLabels();
+    this.announce([sortMessage, count === 0 ? labels.announceNoRows : labels.announceRowCount.replace('{count}', `${count}`)]);
     if (this.pageTrackingEnabled() && this.pageIndex() !== 0) {
       this.pageIndexChange.emit(0);
     }
+  }
+
+  /**
+   * Met à jour la région `aria-live` (WCAG 4.1.3) : sans elle, un utilisateur de
+   * lecteur d'écran qui trie ou filtre ne sait pas que la liste a changé.
+   */
+  private announce(parts: string[]): void {
+    const text = parts.filter(Boolean).join('. ');
+    if (!text) {
+      return;
+    }
+    // Un texte identique ne modifie pas le DOM, donc n'est pas relu : on alterne un espace insécable.
+    this.liveAnnouncement.update((previous) => (previous === text ? text + NBSP : text));
   }
 
   /** `page.size` vaut `0` quand la pagination n'est pas suivie (= tout). */
   private buildRemoteQuery(pageIndex: number, pageSize: number): NgTableRemoteQuery {
     return {
       sort: this.sortState(),
+      sorts: this.sortStates(),
       filters: this.columnFilters(),
       page: {index: pageIndex, size: this.pageTrackingEnabled() ? pageSize : 0},
       search: this.globalSearchTerm(),
@@ -2124,6 +2319,22 @@ export class NgTableComponent implements OnDestroy {
     return this.viewsStore() ?? this.internalViewsStore();
   }
 
+  /**
+   * À l'ouverture : la vue par défaut si elle est définie, sinon la dernière vue active.
+   * Si la vue par défaut n'était pas la vue active, le store est mis à jour (et donc
+   * persisté / remonté au parent) pour que le menu reflète la vue réellement affichée.
+   */
+  private applyInitialView(store: NgTableViewsStore): void {
+    const defaultId = store.defaultViewId;
+    if (defaultId && defaultId !== store.activeViewId && store.views.some((v) => v.id === defaultId)) {
+      const next = {...store, activeViewId: defaultId};
+      this.commitViewsStore(next);
+      this.applyActiveView(next);
+      return;
+    }
+    this.applyActiveView(store);
+  }
+
   private applyActiveView(store: NgTableViewsStore): void {
     const active = store.views.find((v) => v.id === store.activeViewId);
     if (active) {
@@ -2135,7 +2346,8 @@ export class NgTableComponent implements OnDestroy {
     const state = view.state;
     this.internalColumnVisibility.set({...state.columnVisibility});
     this.internalColumnOrder.set([...state.columnOrder]);
-    this.sortState.set({...state.sort});
+    const savedSorts = state.sorts?.length ? state.sorts : [state.sort];
+    this.sortStates.set(savedSorts.filter((sort) => sort.columnId && sort.direction).map((sort) => ({...sort})));
     this.columnFilters.set({...state.filters});
     // Vue enregistrée avant l'ajout des largeurs : on laisse celles en cours
     // plutôt que de tout réinitialiser à l'activation.
@@ -2263,7 +2475,7 @@ export class NgTableComponent implements OnDestroy {
     }
 
     const delta = event.clientX - this.resizingState.startX;
-    const minWidth = column.minWidthPx ?? 120;
+    const minWidth = column.minWidthPx ?? DEFAULT_MIN_COLUMN_WIDTH_PX;
     const maxWidth = column.maxWidthPx ?? 620;
     const nextWidth = Math.max(minWidth, Math.min(maxWidth, this.resizingState.startWidth + delta));
 
