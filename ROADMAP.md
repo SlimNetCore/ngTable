@@ -27,11 +27,11 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 | O1 | Workspace Angular (lib + démo) | Vérifié | Migration faite |
 | O2 | Tests exécutables (Vitest via `@angular/build:unit-test`) | Vérifié | 130 tests OK ; `npm test` / `npm run test:ci` |
 | O3 | CI GitHub Actions | Fait (à vérifier) | Nécessite de committer `package-lock.json` |
-| O4 | ESLint (angular-eslint) | Vérifié | 0 erreur ; `no-explicit-any` en avertissement le temps de D1 |
+| O4 | ESLint (angular-eslint) | Vérifié | 0 erreur, 0 avertissement ; `no-explicit-any` en erreur |
 | O5 | Application de démo | Vérifié | `npm start` ; importe la lib depuis les sources (pas de rebuild) |
 | O6 | CHANGELOG, semver, guide de migration 1.0.0 | En cours | Rempli au fil des phases |
 | O7 | Ménage du repo | Fait (à vérifier) | `.gitignore` ; fichiers obsolètes supprimés par le script |
-| O8 | Harness de test CDK (`NgTableHarness`) | À faire | |
+| O8 | Harness de test CDK (`NgTableHarness`) | Vérifié | Point d'entrée `@sbourahla/ng-table/testing` (construit par ng-packagr, présent dans `exports`) ; lignes, en-têtes, tri, recherche, sélection, paginateur ; 4 tests |
 
 ## 2. Performance
 
@@ -46,7 +46,7 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 | ID | Amélioration | Statut | Notes |
 |----|--------------|--------|-------|
 | A1 | Découper le composant monolithique | En cours | Extraits : `views-storage.ts`, `filter-matching.ts` (fonctions pures testées) |
-| A2 | Mode non contrôlé pour `pageIndex`/`pageSize` | À faire | Changement cassant |
+| A2 | Mode non contrôlé pour `pageIndex`/`pageSize` | Vérifié | `model()` + paginateur intégré `[paginator]` (local et remote, `[totalCount]`), recul automatique sur la dernière page, pagination des vues réappliquée ; 4 tests ; démo simplifiée (plus de `<mat-paginator>` à relier) |
 | A3 | Versionner le schéma des vues stockées | Fait (à vérifier) | `views-storage.ts` : version, migrations, vues malformées écartées |
 | A4 | Protections SSR (`window`/`document`/`localStorage`) | Fait (à vérifier) | Le reste était déjà sûr (gestionnaires d'événements seulement). Limite connue : `isMobileView` vaut `false` côté serveur |
 
@@ -54,9 +54,9 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 
 | ID | Amélioration | Statut | Notes |
 |----|--------------|--------|-------|
-| D1 | Typage générique `NgTableComponent<T>` | À faire | Changement cassant |
+| D1 | Typage générique `NgTableComponent<T>` | Vérifié | Inférence de `T` vérifiée dans la démo (erreur volontaire détectée). 87 `any` → 0 ; `no-explicit-any` passe en erreur. Écart de type réel trouvé : `detailToggle.row` pouvait être `null` |
 | D2 | Exporter `ColumnFilterType` | Fait (à vérifier) | |
-| D3 | Méthodes internes en `protected` | À faire | Changement cassant |
+| D3 | Méthodes internes en `protected` | Vérifié | 75 membres passés en `protected`, API publique listée dans le README ; spec adaptée (156 accès par indexation) |
 | D4 | Pack de labels anglais | Fait (à vérifier) | `NG_TABLE_LABELS_EN` |
 
 ## 5. Fonctionnalités
@@ -74,7 +74,7 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 | F9 | Export xlsx | Vérifié (partiel) | `[exportFormat]="'xlsx'"` ; `export-writers.ts` sans dépendance ; zip/XML validés hors navigateur, câblage UI compilé |
 | F10 | Vue par défaut | Vérifié | Étoile dans le menu, `defaultViewId` dans le store (validé au chargement) ; 2 tests composant + 1 test pur ; testée dans la démo |
 | F11 | Import/export de vues | Vérifié | `[viewsImportExportEnabled]`, `exportViews()`/`importViews()` ; fusion par nom via `mergeViewsStores` (testée) ; 2 tests composant ; testée dans la démo |
-| F12 | Synchronisation de l'état dans l'URL | À faire | Router optionnel |
+| F12 | Synchronisation de l'état dans l'URL | Vérifié | `@sbourahla/ng-table/router` (`ngTableUrlState`, préfixe) ; bundle principal sans import du router (vérifié dans `dist`) ; API `getQueryState`/`applyQueryState`/`queryStateChange` ; 3 tests purs + 3 tests avec vrai router + 2 tests composant ; testé dans la démo |
 
 ## 5bis. Constaté en cours de route
 
@@ -102,3 +102,8 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 - **2026-09-25** — X2 fait et vérifié (140 tests OK, lint 0 erreur).
 - **2026-09-25** — F3 fait et vérifié (143 tests OK, lint 0 erreur, démo). Démo : `minTableWidthPx` passé à 1200 pour que la colonne épinglée ait un intérêt. Ajout de L1 (en-têtes étroits illisibles, problème préexistant).
 - **2026-09-25** — L1 corrigé et vérifié (144 tests, démo).
+- **2026-09-25** — D1 fait et vérifié (144 tests, lint 0/0, build lib + démo).
+- **2026-09-25** — D3 fait et vérifié (144 tests, lint 0/0, build lib + démo).
+- **2026-09-25** — A2 fait et vérifié (148 tests, lint 0/0, démo).
+- **2026-09-25** — O8 fait et vérifié (152 tests, lint 0/0, build). Note : l'option `include` du builder de tests est relative à `sourceRoot` (`src/`), d'où `../testing/**/*.spec.ts`.
+- **2026-09-25** — F12 fait et vérifié (160 tests, lint 0/0, build des 3 points d'entrée, démo).

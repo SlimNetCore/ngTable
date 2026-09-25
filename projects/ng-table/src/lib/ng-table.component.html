@@ -23,6 +23,7 @@
         <mat-icon aria-hidden="true" class="global-search__icon">search</mat-icon>
         <input
           (input)="onGlobalSearchInput($any($event.target).value)"
+          (keydown.enter)="applyGlobalSearchNow()"
           (keydown.escape)="clearGlobalSearch()"
           [attr.aria-label]="effectiveLabels().globalSearchLabel"
           [placeholder]="effectiveLabels().globalSearchPlaceholder"
@@ -511,7 +512,7 @@
       ></tr>
       <tr
         *matRowDef="let row; columns: mobileActionRowColumns(); when: mobileActionsRowWhen"
-        [attr.data-mobile-row-key]="row?.id ?? row?.ID ?? ''"
+        [attr.data-mobile-row-key]="mobileRowKey(row)"
         class="mobile-actions-row"
         mat-row
       ></tr>
@@ -537,5 +538,16 @@
     </div>
   }
   </div>
+
+  @if (paginator()) {
+    <mat-paginator
+      (page)="onPage($event)"
+      [length]="paginatorLength()"
+      [pageIndex]="pageIndex()"
+      [pageSizeOptions]="pageSizeOptions()"
+      [pageSize]="pageSize()"
+      class="ngt-paginator"
+    />
+  }
 
 </section>

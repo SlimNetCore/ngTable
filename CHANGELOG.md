@@ -23,6 +23,11 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - Recherche globale : `[globalSearchEnabled]`, mode contrôlé `[globalSearch]` / `(globalSearchChange)`, et `column.searchable` pour exclure une colonne ou fournir le texte cherché. Chaque mot doit apparaître dans la ligne ; casse et accents ignorés. La recherche est enregistrée dans les vues, et `NgTableRemoteQuery` gagne un champ `search`.
 - Labels `globalSearchPlaceholder`, `globalSearchLabel`, `clearGlobalSearch`.
 - Vue par défaut : une étoile dans le menu des vues choisit la vue appliquée à l'ouverture (`NgTableViewsStore.defaultViewId`, `toggleDefaultView()`, `isDefaultView()`).
+- État dans l'URL : directive `ngTableUrlState` dans le nouveau point d'entrée `@sbourahla/ng-table/router`. Seul ce point d'entrée importe `@angular/router`.
+- `getQueryState()`, `applyQueryState()`, `(queryStateChange)`, type `NgTableQueryState`.
+- `NgTableHarness` (CDK test harness) dans le nouveau point d'entrée `@sbourahla/ng-table/testing`, avec `NgTableRowHarness` et `NgTableHeaderCellHarness`.
+- Recherche globale : Entrée applique la saisie tout de suite, sans attendre le debounce.
+- Paginateur intégré : `[paginator]`, `[pageSizeOptions]`, `[totalCount]` (mode remote). Plus besoin de relier `filteredCountChange` / `pageIndexChange` / `viewPaginationRestore` à son propre `<mat-paginator>`.
 - Tri multi-colonnes : `[multiSort]`, Maj+clic sur un en-tête ; `(sortsChange)`, `NgTableRemoteQuery.sorts`, `NgTableViewState.sorts`. Labels `sortPriority`, `multiSortHint`.
 - Accessibilité : une région `aria-live` annonce le tri et, en mode local, le nombre de lignes après chaque tri, filtre ou recherche. Labels `announceSortAsc`, `announceSortDesc`, `announceSortCleared`, `announceRowCount`, `announceNoRows`.
 - Export / import des vues en JSON : `[viewsImportExportEnabled]`, `exportViews()`, `importViews(json, 'merge' | 'replace')`, `(viewsImported)`. Labels `setDefaultView`, `unsetDefaultView`, `exportViews`, `importViews`, `viewsImported`, `viewsImportInvalid`.
@@ -31,6 +36,12 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 ### Corrigé
 - Un filtre `enum` avec plusieurs valeurs cochées ne matchait plus aucune ligne.
 - Le libellé accessible des cases de sélection de ligne affichait « ligne NaN », et `detailRowWhen` recevait un index `undefined` (`index` n'existe pas avec `multiTemplateDataRows`).
+
+### Modifié (cassant)
+- `pageIndex` / `pageSize` sont des `model()`. Le composant met la page à jour lui-même (retour en page 0 après un filtre, restauration d'une vue) au lieu de seulement émettre `pageIndexChange` : un parent qui liait `[pageIndex]` sans écouter l'événement voit donc la page changer. `(pageIndexChange)` fonctionne comme avant ; `(pageSizeChange)` est nouveau. Côté TypeScript, `table.pageIndexChange.subscribe(...)` devient `table.pageIndex.subscribe(...)`.
+- `NgTableComponent<T>` est générique. `T` est inféré dans les templates depuis `[rows]`/`[columns]`, et les sorties sont typées (`rowClick: T`, `selectionChange: NgTableSelectionChangeEvent<T>`...). Du code qui passait des lignes incohérentes avec ses colonnes peut désormais être signalé à la compilation. Sans paramètre, `T = any` comme avant.
+- Les membres internes du composant (gestionnaires d'événements du template, helpers d'affichage) sont `protected`. L'API publique se limite aux entrées, aux sorties et aux méthodes listées dans le README (« Méthodes publiques »). Du code qui appelait par exemple `onHeaderSort()` ou `onFilterValue()` doit passer par les entrées contrôlées (`[filters]`...) ou par ces méthodes.
+- `NgTableDetailToggleEvent.row` est typé `T | null` : il valait déjà `null` après `collapseAllDetails()`.
 
 ### Modifié
 - Les vues stockées en `localStorage` portent une version de schéma ; les vues malformées sont ignorées au lieu de casser l'affichage, et une vue active qui n'existe plus est oubliée. Les stores existants sont relus sans perte.

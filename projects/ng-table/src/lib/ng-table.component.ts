@@ -1,6 +1,8 @@
 import {CommonModule} from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  model,
+  untracked,
   Component,
   ElementRef,
   HostListener,
@@ -22,6 +24,7 @@ import {MatButtonModule} from '@angular/material/button';
 import {MatCheckboxChange, MatCheckboxModule} from '@angular/material/checkbox';
 import {MatIconModule} from '@angular/material/icon';
 import {MatMenuModule, MatMenuTrigger} from '@angular/material/menu';
+import {MatPaginatorModule, PageEvent} from '@angular/material/paginator';
 import {MatTableModule} from '@angular/material/table';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {firstValueFrom, Observable, Subject, timer} from 'rxjs';
@@ -62,6 +65,15 @@ function toExportCell(value: unknown): ExportCell {
     return value.toISOString();
   }
   return typeof value === 'number' || typeof value === 'boolean' ? value : String(value);
+}
+
+/**
+ * Clé d'une ligne quand aucun `rowKeyAccessor` n'est fourni : `row.id`, sinon
+ * `row.ID`, sinon la ligne elle-même (référence d'objet).
+ */
+function defaultRowKey(row: unknown): unknown {
+  const record = typeof row === 'object' && row !== null ? (row as { id?: unknown; ID?: unknown }) : null;
+  return record?.id ?? record?.ID ?? row;
 }
 
 /** Largeur mini d'une colonne sans `minWidthPx` : redimensionnement, et largeur mini du tableau. */
@@ -207,18 +219,22 @@ export interface NgTableSortChange {
   direction: SortDirection;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- défaut historique, conservé pour les usages non typés
 export interface NgTableCopyEvent<T = any> {
   columnId: string;
   value: string;
   row: T;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- défaut historique, conservé pour les usages non typés
 export interface NgTableDetailToggleEvent<T = any> {
-  row: T;
+  /** `null` quand toutes les lignes sont repliées d'un coup (`collapseAllDetails()`). */
+  row: T | null;
   expanded: boolean;
   expandedKeys: unknown[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- défaut historique, conservé pour les usages non typés
 export interface NgTableSelectionChangeEvent<T = any> {
   row: T | null;
   selected: boolean;
@@ -226,6 +242,7 @@ export interface NgTableSelectionChangeEvent<T = any> {
   selectedRows: T[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- défaut historique, conservé pour les usages non typés
 export interface NgTableContextMenuEvent<T = any> {
   row: T;
   position: { x: number; y: number };
@@ -250,6 +267,21 @@ export interface NgTableViewState {
   /** Only populated when `pageTrackingEnabled=true` (reuses `[pageIndex]`/`[pageSize]`). */
   pageIndex?: number;
   pageSize?: number;
+}
+
+/**
+ * État « requête » de la table : ce qui détermine les lignes affichées (et ce
+ * qu'on met dans une URL partageable). Voir `getQueryState()` / `applyQueryState()`.
+ */
+export interface NgTableQueryState {
+  /** Niveaux de tri, par priorité (vide = pas de tri). */
+  sorts: NgTableSortChange[];
+  /** Filtres non vides, par id de colonne. */
+  filters: Record<string, string>;
+  /** Recherche globale (`''` si aucune). */
+  search: string;
+  pageIndex: number;
+  pageSize: number;
 }
 
 export interface NgTableView {
@@ -290,6 +322,7 @@ export interface NgTableViewsImportEvent {
     CommonModule,
     MatTableModule,
     MatMenuModule,
+    MatPaginatorModule,
     MatButtonModule,
     MatCheckboxModule,
     MatIconModule,
@@ -305,7 +338,10 @@ export interface NgTableViewsImportEvent {
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
 })
-export class NgTableComponent implements OnDestroy {
+// `any` par défaut : un `viewChild(NgTableComponent)` sans paramètre reste utilisable comme avant.
+// Dans un template, T est inféré depuis `[rows]` / `[columns]`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class NgTableComponent<T = any> implements OnDestroy {
   /**
    * Table Angular Material configurable, sans dépendance i18n ni métier.
    *
@@ -327,9 +363,9 @@ export class NgTableComponent implements OnDestroy {
    */
 
   /** Source des donnees (non filtrees/non triees), fournie par le parent. */
-  readonly rows = input<any[]>([]);
+  readonly rows = input<T[]>([]);
   /** Definition des colonnes (valeur, tri, filtre, templates, largeur...). */
-  readonly columns = input<NgTableColumn<any>[]>([]);
+  readonly columns = input<NgTableColumn<T>[]>([]);
   /** Mode controle: visibilite des colonnes pilotee par le parent. */
   readonly columnVisibility = input<Record<string, boolean> | null>(null);
   /** Mode controle: ordre des colonnes (ids) pilote par le parent. */
@@ -380,7 +416,7 @@ export class NgTableComponent implements OnDestroy {
    * (voir `tableMinWidthPx`) : au-delà, il défile au lieu d'écraser les colonnes.
    */
   readonly minTableWidthPx = input(760);
-  readonly rowClassFn = input<((row: any) => string | string[] | Record<string, boolean> | null) | null>(null);
+  readonly rowClassFn = input<((row: T) => string | string[] | Record<string, boolean> | null) | null>(null);
   /**
    * `trackBy` custom pour le rendu de la table (perf uniquement). N'est PAS
    * utilisé pour la clé métier de sélection/expansion/copie — celle-ci vient
@@ -389,14 +425,14 @@ export class NgTableComponent implements OnDestroy {
    * qui n'est pas stable au tri/filtre/pagination — inadaptée à une clé de
    * sélection, d'où cette séparation stricte.
    */
-  readonly rowTrackBy = input<TrackByFunction<any> | null>(null);
+  readonly rowTrackBy = input<TrackByFunction<T> | null>(null);
   /** Template de detail (master/detail). Quand null, pas de detail row. */
-  readonly detailRowTemplate = input<TemplateRef<{ $implicit: any; row: any }> | null>(null);
+  readonly detailRowTemplate = input<TemplateRef<{ $implicit: T; row: T }> | null>(null);
   /**
    * Controlled mode: external predicate deciding whether the detail is expanded.
    * When provided, internal expansion state is bypassed entirely.
    */
-  readonly detailRowWhen = input<((index: number, row: any) => boolean) | null>(null);
+  readonly detailRowWhen = input<((index: number, row: T) => boolean) | null>(null);
   /**
    * Controlled mode (key based): externally managed list of expanded row keys.
    * Keys are resolved with `rowKeyAccessor` / `rowTrackBy` / `row.id`.
@@ -407,9 +443,9 @@ export class NgTableComponent implements OnDestroy {
   /** Uncontrolled mode: only one detail row expanded at a time. */
   readonly detailRowAccordion = input(false);
   /** Optional guard: rows for which a detail can be expanded (e.g. has children). */
-  readonly detailRowCanExpand = input<((row: any) => boolean) | null>(null);
+  readonly detailRowCanExpand = input<((row: T) => boolean) | null>(null);
   /** Stable business key for a row (expansion state, copy feedback, trackBy fallback). */
-  readonly rowKeyAccessor = input<((row: any) => unknown) | null>(null);
+  readonly rowKeyAccessor = input<((row: T) => unknown) | null>(null);
   /** Show/hide the built-in "reset all filters" button. */
   readonly showResetFilters = input(true);
   /** Show/hide the built-in "Colonnes" button (column visibility picker). `true` par défaut. */
@@ -444,7 +480,7 @@ export class NgTableComponent implements OnDestroy {
   /** Enable right-click contextual menu on data rows. */
   readonly rowContextMenuEnabled = input(false);
   /** Context menu content provided by parent component. */
-  readonly rowContextMenuTemplate = input<TemplateRef<{ $implicit: any; row: any }> | null>(null);
+  readonly rowContextMenuTemplate = input<TemplateRef<{ $implicit: T; row: T }> | null>(null);
 
   /**
    * `local` (défaut): tri/filtres appliqués sur `rows()` côté client.
@@ -475,10 +511,26 @@ export class NgTableComponent implements OnDestroy {
    *   their own known page size instead of relying on this echoed value.
    */
   readonly pageTrackingEnabled = input(false);
-  /** Current page index (0-based). Only used when `pageTrackingEnabled=true`. */
-  readonly pageIndex = input(0);
-  /** Current page size. Only used when `pageTrackingEnabled=true`. */
-  readonly pageSize = input(10);
+  /**
+   * Page courante (0-based), utilisée quand la pagination est active
+   * (`pageTrackingEnabled` ou `paginator`). `model()` : liable en `[(pageIndex)]`,
+   * ou laissée au composant (mode non contrôlé) qui la tient à jour lui-même.
+   * Émet `(pageIndexChange)` à chaque changement fait par le composant (retour à la
+   * page 0 après un filtre, paginateur intégré, restauration d'une vue).
+   */
+  readonly pageIndex = model(0);
+  /** Taille de page ; mêmes règles que `pageIndex`, émet `(pageSizeChange)`. */
+  readonly pageSize = model(10);
+  /**
+   * Affiche un `<mat-paginator>` intégré sous la table, déjà branché : rien à relier
+   * côté parent. Active la pagination (inutile d'ajouter `pageTrackingEnabled`).
+   * En mode `remote`, fournir `[totalCount]` (nombre total de lignes côté serveur).
+   */
+  readonly paginator = input(false);
+  /** Tailles de page proposées par le paginateur intégré. */
+  readonly pageSizeOptions = input<readonly number[]>([10, 25, 50, 100]);
+  /** Mode `remote` + paginateur intégré : nombre total de lignes côté serveur. */
+  readonly totalCount = input<number | null>(null);
 
   /** Show/hide the whole "views" toolbar (save/switch/delete). Off by default. */
   readonly viewsEnabled = input(false);
@@ -506,7 +558,7 @@ export class NgTableComponent implements OnDestroy {
   /** Boutons « Exporter » / « Importer » dans le menu des vues (partage de vues entre postes ou utilisateurs). */
   readonly viewsImportExportEnabled = input(false);
 
-  readonly rowClick = output<any>();
+  readonly rowClick = output<T>();
   /** Emitted whenever any filter value changes. */
   readonly filtersChange = output<Record<string, string>>();
   /** Recherche globale appliquée (après debounce). */
@@ -515,16 +567,16 @@ export class NgTableComponent implements OnDestroy {
   readonly sortChange = output<NgTableSortChange>();
   /** Tous les niveaux de tri, par priorité ; émis à chaque clic de tri. */
   readonly sortsChange = output<NgTableSortChange[]>();
-  readonly cellCopied = output<NgTableCopyEvent>();
-  readonly detailToggle = output<NgTableDetailToggleEvent>();
+  readonly cellCopied = output<NgTableCopyEvent<T>>();
+  readonly detailToggle = output<NgTableDetailToggleEvent<T>>();
   /** Emitted when the internal column picker toggles a column visibility. */
   readonly columnVisibilityChange = output<Record<string, boolean>>();
   /** Emitted whenever the user drags a column header to a new position. */
   readonly columnOrderChange = output<string[]>();
   /** Emitted on row selection/unselection and select-all operations. */
-  readonly selectionChange = output<NgTableSelectionChangeEvent>();
+  readonly selectionChange = output<NgTableSelectionChangeEvent<T>>();
   /** Emitted when the contextual menu is requested on a row. */
-  readonly rowContextMenu = output<NgTableContextMenuEvent>();
+  readonly rowContextMenu = output<NgTableContextMenuEvent<T>>();
   /**
    * Emitted whenever the views store changes (saved, activated, deleted) — in
    * uncontrolled mode this mirrors what was just written to `localStorage`; in
@@ -532,6 +584,11 @@ export class NgTableComponent implements OnDestroy {
    * component does not persist anything itself. Wire this to save wherever you want.
    */
   readonly viewsStoreChange = output<NgTableViewsStore>();
+  /**
+   * Émis quand l'état « requête » change (tri, filtres, recherche, page), quelle
+   * qu'en soit l'origine. Sert à synchroniser un stockage externe (URL...).
+   */
+  readonly queryStateChange = output<NgTableQueryState>();
   /** Émis après chaque import de vues, réussi ou non (`imported: 0`). */
   readonly viewsImported = output<NgTableViewsImportEvent>();
   /** Emitted whenever a view becomes active (user switch, or auto-activation on load). */
@@ -555,9 +612,15 @@ export class NgTableComponent implements OnDestroy {
   readonly remoteQueryChange = output<NgTableRemoteQuery>();
   /** `dataMode='local'` + `pageTrackingEnabled=true` only: post-filter row count — bind to your paginator's `[length]`. */
   readonly filteredCountChange = output<number>();
-  /** `dataMode='local'` + `pageTrackingEnabled=true` only: emitted with `0` when a filter/sort change should reset the current page. */
-  readonly pageIndexChange = output<number>();
-  readonly displayedColumnIds = computed(
+  /** Pagination active : suivie par le parent (`pageTrackingEnabled`) ou paginateur intégré. */
+  protected readonly pagingActive = computed(() => this.pageTrackingEnabled() || this.paginator());
+
+  /** `[length]` du paginateur intégré. */
+  protected readonly paginatorLength = computed(() =>
+    this.dataMode() === 'remote' ? (this.totalCount() ?? this.rows().length) : this.filteredSortedRows().length,
+  );
+
+  protected readonly displayedColumnIds = computed(
     () => {
       // Colonne technique de selection injectee en tete quand activee.
       const ids = this.visibleColumns().map((column) => column.id);
@@ -579,7 +642,7 @@ export class NgTableComponent implements OnDestroy {
     {equal: (a, b) => a.length === b.length && a.every((id, index) => id === b[index])},
   );
 
-  readonly columnsMenuItems = computed(() =>
+  protected readonly columnsMenuItems = computed(() =>
     this.columns().filter((column) => column.id !== '__detail_row__' && column.id !== '__mobile_actions__'),
   );
 
@@ -641,7 +704,7 @@ export class NgTableComponent implements OnDestroy {
    * largeur se partagent `minTableWidthPx` sans plancher : avec beaucoup de colonnes,
    * chacune tombait sous la place nécessaire à son en-tête (libellé réduit à 0 px).
    */
-  readonly tableMinWidthPx = computed(() => {
+  protected readonly tableMinWidthPx = computed(() => {
     const widths = this.columnWidths();
     const columnsTotal = this.visibleColumns().reduce(
       (total, column) => total + (widths[column.id] ?? column.widthPx ?? column.minWidthPx ?? DEFAULT_MIN_COLUMN_WIDTH_PX),
@@ -651,17 +714,17 @@ export class NgTableComponent implements OnDestroy {
   });
 
   /** La colonne de sélection suit les colonnes épinglées à gauche, sinon elles glisseraient dessous. */
-  readonly hasLeftPinnedColumns = computed(() => this.visibleColumns().some((column) => column.pinned === 'left'));
-  readonly actionColumn = computed(() =>
+  protected readonly hasLeftPinnedColumns = computed(() => this.visibleColumns().some((column) => column.pinned === 'left'));
+  protected readonly actionColumn = computed(() =>
     this.visibleColumns().find((column) => column.mobileRowActions) ?? null,
   );
-  readonly detailRowColumns = ['__detail_row__'];
+  protected readonly detailRowColumns = ['__detail_row__'];
   protected readonly isMobileView = signal(
     typeof window !== 'undefined' ? window.innerWidth <= 760 : false,
   );
   /** Etat interne de selection quand `selectedRowKeys` n'est pas fourni. */
   protected readonly internalSelectedKeys = signal<ReadonlySet<unknown>>(new Set());
-  protected readonly contextMenuRow = signal<any | null>(null);
+  protected readonly contextMenuRow = signal<T | null>(null);
   protected readonly columnFilters = signal<Record<string, string>>({});
   /** Recherche globale appliquée (après debounce). */
   protected readonly globalSearchTerm = signal('');
@@ -721,8 +784,8 @@ export class NgTableComponent implements OnDestroy {
    * only one "page": everything), so the export dialog only asks for a page range
    * when it's actually meaningful.
    */
-  readonly exportTotalPages = computed(() => {
-    if (!this.pageTrackingEnabled()) {
+  protected readonly exportTotalPages = computed(() => {
+    if (!this.pagingActive()) {
       return 1;
     }
     const size = this.pageSize();
@@ -751,7 +814,7 @@ export class NgTableComponent implements OnDestroy {
         this.matchesAllFilters(row, activeColumns, filters) &&
         (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms)),
     );
-    const levels: { column: NgTableColumn<any>; factor: number }[] = [];
+    const levels: { column: NgTableColumn<T>; factor: number }[] = [];
     for (const sort of sorts) {
       const column = activeColumns.find((candidate) => candidate.id === sort.columnId);
       if (column) {
@@ -803,7 +866,7 @@ export class NgTableComponent implements OnDestroy {
     }
 
     const filteredSorted = this.filteredSortedRows();
-    if (!this.pageTrackingEnabled()) {
+    if (!this.pagingActive()) {
       return filteredSorted;
     }
 
@@ -817,7 +880,7 @@ export class NgTableComponent implements OnDestroy {
   });
 
   private readonly mobileActionsColumnId = '__mobile_actions__';
-  readonly mobileActionRowColumns = computed(() => {
+  protected readonly mobileActionRowColumns = computed(() => {
     if (!this.isMobileView()) {
       return [] as string[];
     }
@@ -832,7 +895,7 @@ export class NgTableComponent implements OnDestroy {
    * which in `remote` mode means one request instead of one per character.
    */
   private readonly filterInputSubject = new Subject<{ columnId: string; value: string; epoch: number }>();
-  readonly hasColumns = computed(() => this.displayedColumnIds().length > 0);
+  protected readonly hasColumns = computed(() => this.displayedColumnIds().length > 0);
   /** Labels applicatifs fournis via `provideNgTableLabels()` (optionnels). */
   private readonly injectedLabels = inject(NG_TABLE_LABELS, {optional: true});
   private readonly filterEpochByColumn = new Map<string, number>();
@@ -855,7 +918,7 @@ export class NgTableComponent implements OnDestroy {
    * précédente, donc les composants enfants (`OnPush`) ne sont pas invalidés
    * inutilement.
    */
-  readonly effectiveLabels = computed<NgTableLabels>(
+  protected readonly effectiveLabels = computed<NgTableLabels>(
     () => ({
       ...NG_TABLE_DEFAULT_LABELS,
       ...resolveNgTableLabelsSource(this.injectedLabels),
@@ -1002,10 +1065,30 @@ export class NgTableComponent implements OnDestroy {
     });
 
     effect(() => {
-      if (this.dataMode() !== 'local' || !this.pageTrackingEnabled()) {
+      if (this.dataMode() !== 'local' || !this.pagingActive()) {
         return;
       }
       this.filteredCountChange.emit(this.filteredSortedRows().length);
+    });
+
+    // Un seul point d'émission de `queryStateChange`, quelle que soit l'origine du
+    // changement (clic, vue, paginateur, applyQueryState...). Émis une fois au démarrage.
+    effect(() => {
+      const state = this.getQueryState();
+      untracked(() => this.queryStateChange.emit(state));
+    });
+
+    // Paginateur intégré, mode local : si les données rétrécissent (rechargement),
+    // ne pas rester sur une page devenue vide au-delà de la dernière.
+    effect(() => {
+      if (!this.paginator() || this.dataMode() !== 'local') {
+        return;
+      }
+      const size = this.pageSize();
+      const lastPage = size > 0 ? Math.max(0, Math.ceil(this.filteredSortedRows().length / size) - 1) : 0;
+      if (this.pageIndex() > lastPage) {
+        this.pageIndex.set(lastPage);
+      }
     });
 
     // Inline mode: lazy filter options must be loaded eagerly since there is no menu-open event.
@@ -1068,7 +1151,7 @@ export class NgTableComponent implements OnDestroy {
    * (ou fait tourner sa direction si elle en est déjà un) ; un clic simple revient
    * à un tri unique.
    */
-  onHeaderSort(column: NgTableColumn<any>, event?: { shiftKey?: boolean }): void {
+  protected onHeaderSort(column: NgTableColumn<T>, event?: { shiftKey?: boolean }): void {
     if (!column.sortable) {
       return;
     }
@@ -1116,7 +1199,7 @@ export class NgTableComponent implements OnDestroy {
    * debounced (see `filterInputSubject`); discrete selections (select/enum/boolean/
    * date pickers) commit immediately since they're single deliberate actions.
    */
-  onFilterValue(columnId: string, value: string): void {
+  protected onFilterValue(columnId: string, value: string): void {
     if (!this.isFreeTypedFilter(columnId)) {
       this.commitFilterValue(columnId, value);
       return;
@@ -1151,9 +1234,15 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Saisie dans le champ de recherche globale : debouncée comme un filtre texte. */
-  onGlobalSearchInput(value: string): void {
+  protected onGlobalSearchInput(value: string): void {
     this.globalSearchDraft.set(value);
     this.filterInputSubject.next({columnId: GLOBAL_SEARCH_KEY, value, epoch: this.filterEpoch(GLOBAL_SEARCH_KEY)});
+  }
+
+  /** Entrée dans le champ de recherche : applique tout de suite, sans attendre le debounce. */
+  protected applyGlobalSearchNow(): void {
+    this.bumpFilterEpoch(GLOBAL_SEARCH_KEY); // la frappe encore en attente devient caduque
+    this.commitGlobalSearch(this.globalSearchDraft());
   }
 
   clearGlobalSearch(): void {
@@ -1172,8 +1261,8 @@ export class NgTableComponent implements OnDestroy {
   }
 
   private searchHaystack(
-    row: any,
-    haystacks: { columns: NgTableColumn<any>[]; cache: WeakMap<object, string> },
+    row: T,
+    haystacks: { columns: NgTableColumn<T>[]; cache: WeakMap<object, string> },
   ): string {
     const cacheable = typeof row === 'object' && row !== null;
     const cached = cacheable ? haystacks.cache.get(row) : undefined;
@@ -1248,7 +1337,7 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Icône du bouton "mettre à jour" d'une vue — coche transitoire juste après l'action. */
-  viewUpdateIconName(view: NgTableView): string {
+  protected viewUpdateIconName(view: NgTableView): string {
     return this.updatedViewId() === view.id ? 'check' : 'sync';
   }
 
@@ -1261,29 +1350,29 @@ export class NgTableComponent implements OnDestroy {
       filters: {...this.columnFilters()},
       columnWidths: {...this.columnWidths()},
       ...(this.globalSearchTerm() ? {search: this.globalSearchTerm()} : {}),
-      ...(this.pageTrackingEnabled() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
+      ...(this.pagingActive() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
     };
   }
 
-  isFilterActive(columnId: string): boolean {
+  protected isFilterActive(columnId: string): boolean {
     return !!(this.columnFilters()[columnId] ?? '').trim();
   }
 
-  currentFilterValue(columnId: string): string {
+  protected currentFilterValue(columnId: string): string {
     return this.columnFilters()[columnId] ?? '';
   }
 
   /** Titre du menu de filtre (libellé de la colonne). */
-  filterMenuTitle(column: NgTableColumn<any>): string {
+  protected filterMenuTitle(column: NgTableColumn<T>): string {
     return column.filter?.label ?? column.header ?? '';
   }
 
   /** `effectiveLabels().filterBy` avec `{field}` remplacé par le libellé de la colonne. */
-  filterByAriaLabel(column: NgTableColumn<any>): string {
+  protected filterByAriaLabel(column: NgTableColumn<T>): string {
     return this.effectiveLabels().filterBy.replace('{field}', column.header ?? '');
   }
 
-  onResizeStart(event: MouseEvent, column: NgTableColumn<any>): void {
+  protected onResizeStart(event: MouseEvent, column: NgTableColumn<T>): void {
     if (!column.resizable) {
       return;
     }
@@ -1320,7 +1409,7 @@ export class NgTableComponent implements OnDestroy {
    * shrink/grow the column by a fixed step while the handle is focused. The mouse-only
    * drag otherwise has no keyboard equivalent at all (WCAG 2.1.1 Keyboard).
    */
-  onResizeHandleKeydown(event: KeyboardEvent, column: NgTableColumn<any>): void {
+  protected onResizeHandleKeydown(event: KeyboardEvent, column: NgTableColumn<T>): void {
     if (!column.resizable || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) {
       return;
     }
@@ -1343,7 +1432,7 @@ export class NgTableComponent implements OnDestroy {
     this.requestFilterPositionUpdate();
   }
 
-  onResizeAutoFit(event: MouseEvent, column: NgTableColumn<any>): void {
+  protected onResizeAutoFit(event: MouseEvent, column: NgTableColumn<T>): void {
     if (!column.resizable) {
       return;
     }
@@ -1391,7 +1480,7 @@ export class NgTableComponent implements OnDestroy {
     this.requestFilterPositionUpdate();
   }
 
-  onRowContextMenu(event: MouseEvent, row: any): void {
+  protected onRowContextMenu(event: MouseEvent, row: T): void {
     if (!this.rowContextMenuEnabled() || !this.rowContextMenuTemplate()) {
       return;
     }
@@ -1419,7 +1508,7 @@ export class NgTableComponent implements OnDestroy {
     requestAnimationFrame(() => trigger.openMenu());
   }
 
-  onFilterMenuOpened(columnId: string, trigger: MatMenuTrigger, filter: NgTableFilterConfig): void {
+  protected onFilterMenuOpened(columnId: string, trigger: MatMenuTrigger, filter: NgTableFilterConfig): void {
     this.activeFilterColumnId.set(columnId);
     this.activeFilterTrigger.set(trigger);
     this.startScrollTracking();
@@ -1427,7 +1516,7 @@ export class NgTableComponent implements OnDestroy {
     this.requestFilterPositionUpdate();
   }
 
-  onFilterMenuClosed(columnId: string): void {
+  protected onFilterMenuClosed(columnId: string): void {
     if (this.activeFilterColumnId() === columnId) {
       this.activeFilterColumnId.set(null);
       this.activeFilterTrigger.set(null);
@@ -1435,16 +1524,16 @@ export class NgTableComponent implements OnDestroy {
     }
   }
 
-  columnWidthPx(column: NgTableColumn<any>): number | null {
+  protected columnWidthPx(column: NgTableColumn<T>): number | null {
     const width = this.columnWidths()[column.id] ?? column.widthPx;
     return width && width > 0 ? width : null;
   }
 
-  private columnSort(column: NgTableColumn<any>): NgTableSortChange | undefined {
+  private columnSort(column: NgTableColumn<T>): NgTableSortChange | undefined {
     return this.sortStates().find((sort) => sort.columnId === column.id);
   }
 
-  currentSortIcon(column: NgTableColumn<any>): string {
+  protected currentSortIcon(column: NgTableColumn<T>): string {
     const sort = this.columnSort(column);
     if (!sort) {
       return 'swap_vert';
@@ -1453,7 +1542,7 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Rang de la colonne parmi plusieurs niveaux de tri (1 = principal) ; `null` s'il n'y a qu'un niveau. */
-  sortPriority(column: NgTableColumn<any>): number | null {
+  protected sortPriority(column: NgTableColumn<T>): number | null {
     const sorts = this.sortStates();
     if (sorts.length < 2) {
       return null;
@@ -1462,7 +1551,7 @@ export class NgTableComponent implements OnDestroy {
     return index === -1 ? null : index + 1;
   }
 
-  currentSortAriaLabel(column: NgTableColumn<any>): string {
+  protected currentSortAriaLabel(column: NgTableColumn<T>): string {
     const sort = this.columnSort(column);
     const labels = this.effectiveLabels();
     if (!sort) {
@@ -1479,7 +1568,7 @@ export class NgTableComponent implements OnDestroy {
    * posé du tout (un `aria-sort="none"` sur une colonne qu'on ne peut pas trier
    * induirait en erreur un lecteur d'écran en laissant croire que c'est possible).
    */
-  ariaSortValue(column: NgTableColumn<any>): 'ascending' | 'descending' | 'none' | null {
+  protected ariaSortValue(column: NgTableColumn<T>): 'ascending' | 'descending' | 'none' | null {
     if (!column.sortable) {
       return null;
     }
@@ -1492,17 +1581,17 @@ export class NgTableComponent implements OnDestroy {
     return sort.direction === 'asc' ? 'ascending' : 'descending';
   }
 
-  cellValue(row: any, column: NgTableColumn<any>): unknown {
+  protected cellValue(row: T, column: NgTableColumn<T>): unknown {
     return column.valueAccessor(row);
   }
 
   /** Texte de la tooltip de troncature — même valeur que la cellule, en `string`. */
-  cellText(row: any, column: NgTableColumn<any>): string {
+  protected cellText(row: T, column: NgTableColumn<T>): string {
     const value = this.cellValue(row, column);
     return value === null || value === undefined ? '' : String(value);
   }
 
-  onRowClick(row: any): void {
+  protected onRowClick(row: T): void {
     this.rowClick.emit(row);
     if (this.isUncontrolledDetailMode() && this.detailRowToggleOnRowClick()) {
       this.toggleDetail(row);
@@ -1510,12 +1599,12 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** `{index}` interpolé en 1-based — plus lisible qu'un index 0-based pour un utilisateur de lecteur d'écran. */
-  rowSelectAriaLabel(rowIndex: number): string {
+  protected rowSelectAriaLabel(rowIndex: number): string {
     return this.effectiveLabels().selectRow.replace('{index}', `${rowIndex + 1}`);
   }
 
   /** A row is a keyboard focus stop only when it actually does something — no needless tab stops otherwise. */
-  isRowInteractive(): boolean {
+  protected isRowInteractive(): boolean {
     return !!this.detailRowTemplate() || (this.rowContextMenuEnabled() && !!this.rowContextMenuTemplate());
   }
 
@@ -1525,7 +1614,7 @@ export class NgTableComponent implements OnDestroy {
    * right-click, per the WAI-ARIA APG. Without this, `rowContextMenuEnabled` would
    * only ever be reachable with a mouse.
    */
-  onRowKeydown(event: KeyboardEvent, row: any): void {
+  protected onRowKeydown(event: KeyboardEvent, row: T): void {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       this.onRowClick(row);
@@ -1538,7 +1627,7 @@ export class NgTableComponent implements OnDestroy {
     }
   }
 
-  private openRowContextMenuFromKeyboard(rowElement: HTMLElement | null, row: any): void {
+  private openRowContextMenuFromKeyboard(rowElement: HTMLElement | null, row: T): void {
     if (!this.rowContextMenuEnabled() || !this.rowContextMenuTemplate()) {
       return;
     }
@@ -1564,11 +1653,11 @@ export class NgTableComponent implements OnDestroy {
     requestAnimationFrame(() => trigger.openMenu());
   }
 
-  isFilterOptionsLoading(columnId: string): boolean {
+  protected isFilterOptionsLoading(columnId: string): boolean {
     return this.lazyFilterLoading()[columnId] ?? false;
   }
 
-  onRowContextMenuClosed(): void {
+  protected onRowContextMenuClosed(): void {
     this.contextMenuRow.set(null);
   }
 
@@ -1603,7 +1692,7 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Programmatic toggle of a row detail (uncontrolled mode only). */
-  toggleDetail(row: any): void {
+  toggleDetail(row: T): void {
     if (!this.detailRowTemplate() || !this.rowCanExpand(row)) {
       return;
     }
@@ -1639,12 +1728,12 @@ export class NgTableComponent implements OnDestroy {
     return this.internalExpandedKeys().size;
   }
 
-  rowCanExpand(row: any): boolean {
+  protected rowCanExpand(row: T): boolean {
     const guard = this.detailRowCanExpand();
     return guard ? guard(row) : true;
   }
 
-  isRowExpanded(row: any): boolean {
+  isRowExpanded(row: T): boolean {
     return this.isDetailExpanded(0, row);
   }
 
@@ -1659,7 +1748,7 @@ export class NgTableComponent implements OnDestroy {
     return external ? new Set(external) : this.internalSelectedKeys();
   });
 
-  isRowSelected(row: any): boolean {
+  isRowSelected(row: T): boolean {
     return this.rowSelectionEnabled() && this.selectedKeysSet().has(this.rowKey(row));
   }
 
@@ -1674,17 +1763,17 @@ export class NgTableComponent implements OnDestroy {
     return this.displayedRows().reduce((count, row) => count + (selected.has(this.rowKey(row)) ? 1 : 0), 0);
   });
 
-  readonly areAllDisplayedRowsSelected = computed(() => {
+  protected readonly areAllDisplayedRowsSelected = computed(() => {
     const total = this.displayedRows().length;
     return this.rowSelectionEnabled() && total > 0 && this.selectedDisplayedCount() === total;
   });
 
-  readonly hasPartiallySelectedDisplayedRows = computed(() => {
+  protected readonly hasPartiallySelectedDisplayedRows = computed(() => {
     const count = this.selectedDisplayedCount();
     return count > 0 && count < this.displayedRows().length;
   });
 
-  onToggleRowSelection(event: MatCheckboxChange, row: any): void {
+  protected onToggleRowSelection(event: MatCheckboxChange, row: T): void {
     const checked = !!event.checked;
     const key = this.rowKey(row);
     const selected = new Set(this.selectedKeysSet());
@@ -1696,7 +1785,7 @@ export class NgTableComponent implements OnDestroy {
     this.commitSelection(selected, row, checked);
   }
 
-  onToggleAllDisplayedRows(event: MatCheckboxChange): void {
+  protected onToggleAllDisplayedRows(event: MatCheckboxChange): void {
     const checked = !!event.checked;
     const selected = new Set(this.selectedKeysSet());
     const rows = this.displayedRows();
@@ -1711,11 +1800,11 @@ export class NgTableComponent implements OnDestroy {
     this.commitSelection(selected, null, checked);
   }
 
-  isColumnVisible(columnId: string): boolean {
+  protected isColumnVisible(columnId: string): boolean {
     return this.effectiveColumnVisibility()[columnId] ?? true;
   }
 
-  onToggleColumnVisibility(columnId: string, checked: boolean): void {
+  protected onToggleColumnVisibility(columnId: string, checked: boolean): void {
     const next = {
       ...this.effectiveColumnVisibility(),
       [columnId]: checked,
@@ -1751,6 +1840,71 @@ export class NgTableComponent implements OnDestroy {
 
   isDefaultView(view: NgTableView): boolean {
     return this.effectiveViewsStore().defaultViewId === view.id;
+  }
+
+  /** Tri, filtres non vides, recherche et page courants. */
+  getQueryState(): NgTableQueryState {
+    const filters: Record<string, string> = {};
+    for (const [columnId, value] of Object.entries(this.columnFilters())) {
+      if (value.trim()) {
+        filters[columnId] = value;
+      }
+    }
+    return {
+      sorts: this.sortStates().map((sort) => ({...sort})),
+      filters,
+      search: this.globalSearchTerm(),
+      pageIndex: this.pageIndex(),
+      pageSize: this.pageSize(),
+    };
+  }
+
+  /**
+   * Applique tout ou partie d'un état « requête » (lien partagé, bouton « réinitialiser »,
+   * état venu d'un store...). Les parties absentes ne changent pas. `filters`, s'il est
+   * fourni, remplace tous les filtres ; les colonnes inconnues sont ignorées. Sans
+   * `pageIndex`, un changement de tri/filtre/recherche revient en page 0, comme un clic.
+   * En mode `remote`, une seule `remoteQueryChange` est émise.
+   */
+  applyQueryState(state: Partial<NgTableQueryState>): void {
+    const previousPrimary = this.sortState();
+    if (state.sorts) {
+      const sorts = state.sorts.filter((sort) => sort.columnId && sort.direction).map((sort) => ({...sort}));
+      this.sortStates.set(this.multiSort() ? sorts : sorts.slice(0, 1));
+      const primary = this.sortState();
+      if (primary.columnId !== previousPrimary.columnId || primary.direction !== previousPrimary.direction) {
+        this.sortChange.emit(primary);
+      }
+      this.sortsChange.emit(this.sortStates());
+    }
+    if (state.filters) {
+      for (const column of this.columns()) {
+        this.bumpFilterEpoch(column.id);
+      }
+      const cleared = Object.fromEntries(Object.keys(this.columnFilters()).map((id) => [id, '']));
+      this.columnFilters.set(this.withDefaultFilterKeys({...cleared, ...state.filters}));
+      this.filtersChange.emit(this.columnFilters());
+    }
+    if (state.search !== undefined) {
+      this.bumpFilterEpoch(GLOBAL_SEARCH_KEY);
+      this.globalSearchDraft.set(state.search);
+      if (state.search !== this.globalSearchTerm()) {
+        this.globalSearchTerm.set(state.search);
+        this.globalSearchChange.emit(state.search);
+      }
+    }
+    if (state.pageSize !== undefined) {
+      this.pageSize.set(state.pageSize);
+    }
+    const queryChanged = !!state.sorts || !!state.filters || state.search !== undefined;
+    if (state.pageIndex !== undefined) {
+      this.pageIndex.set(state.pageIndex);
+    } else if (queryChanged && this.pagingActive()) {
+      this.pageIndex.set(0);
+    }
+    if (this.dataMode() === 'remote') {
+      this.remoteQueryChange.emit(this.buildRemoteQuery(this.pageIndex(), this.pageSize()));
+    }
   }
 
   /** Toutes les vues, au format JSON versionné (même format que le `localStorage`). */
@@ -1790,7 +1944,7 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Fichier choisi via le bouton « Importer » du menu des vues (fusion). */
-  async onViewsFileSelected(input: HTMLInputElement): Promise<void> {
+  protected async onViewsFileSelected(input: HTMLInputElement): Promise<void> {
     const file = input.files?.[0];
     input.value = ''; // permet de réimporter le même fichier
     if (!file) {
@@ -1820,8 +1974,17 @@ export class NgTableComponent implements OnDestroy {
     this.exportToPage.set(total);
   }
 
+  /** Paginateur intégré : change de page ; en mode `remote`, relance la requête serveur. */
+  protected onPage(event: PageEvent): void {
+    this.pageSize.set(event.pageSize);
+    this.pageIndex.set(event.pageIndex);
+    if (this.dataMode() === 'remote') {
+      this.remoteQueryChange.emit(this.buildRemoteQuery(event.pageIndex, event.pageSize));
+    }
+  }
+
   /** Confirms the page-range dialog and triggers the local CSV export. */
-  confirmExportDialog(): void {
+  protected confirmExportDialog(): void {
     const total = this.exportTotalPages();
     const from = Math.min(Math.max(1, Math.round(this.exportFromPage()) || 1), total);
     const to = Math.min(Math.max(from, Math.round(this.exportToPage()) || from), total);
@@ -1830,8 +1993,8 @@ export class NgTableComponent implements OnDestroy {
 
   private exportLocalRange(fromPage: number, toPage: number): void {
     const allRows = this.filteredSortedRows();
-    const size = this.pageTrackingEnabled() && this.pageSize() > 0 ? this.pageSize() : allRows.length || 1;
-    const rows = this.pageTrackingEnabled() ? allRows.slice((fromPage - 1) * size, toPage * size) : allRows;
+    const size = this.pagingActive() && this.pageSize() > 0 ? this.pageSize() : allRows.length || 1;
+    const rows = this.pagingActive() ? allRows.slice((fromPage - 1) * size, toPage * size) : allRows;
 
     const matrix = this.buildExportMatrix(rows);
     const filename = this.exportFilename();
@@ -1845,7 +2008,7 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** En-têtes puis une ligne par enregistrement ; valeurs typées (le CSV les convertit en texte). */
-  private buildExportMatrix(rows: readonly any[]): ExportCell[][] {
+  private buildExportMatrix(rows: readonly T[]): ExportCell[][] {
     const exportColumns = this.visibleColumns().filter((column) => column.exportable !== false);
     const matrix: ExportCell[][] = [exportColumns.map((column) => column.header)];
     for (const row of rows) {
@@ -1859,7 +2022,7 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Reorders columns after a header drag-and-drop. Disabled on mobile (columns are already collapsed there). */
-  onColumnDragStart(event: DragEvent, column: NgTableColumn<any>): void {
+  protected onColumnDragStart(event: DragEvent, column: NgTableColumn<T>): void {
     if (this.isMobileView()) {
       return;
     }
@@ -1870,7 +2033,7 @@ export class NgTableComponent implements OnDestroy {
     }
   }
 
-  onColumnDragOver(event: DragEvent, column: NgTableColumn<any>): void {
+  protected onColumnDragOver(event: DragEvent, column: NgTableColumn<T>): void {
     const draggingId = this.draggingColumnId();
     if (!draggingId || draggingId === column.id) {
       return;
@@ -1883,13 +2046,13 @@ export class NgTableComponent implements OnDestroy {
     this.dragOverColumnId.set(column.id);
   }
 
-  onColumnDragLeave(column: NgTableColumn<any>): void {
+  protected onColumnDragLeave(column: NgTableColumn<T>): void {
     if (this.dragOverColumnId() === column.id) {
       this.dragOverColumnId.set(null);
     }
   }
 
-  onColumnDrop(event: DragEvent, column: NgTableColumn<any>): void {
+  protected onColumnDrop(event: DragEvent, column: NgTableColumn<T>): void {
     event.preventDefault();
     const sourceId = this.draggingColumnId();
     this.draggingColumnId.set(null);
@@ -1900,7 +2063,7 @@ export class NgTableComponent implements OnDestroy {
     this.moveColumnNextTo(sourceId, column.id);
   }
 
-  onColumnDragEnd(): void {
+  protected onColumnDragEnd(): void {
     this.draggingColumnId.set(null);
     this.dragOverColumnId.set(null);
   }
@@ -1911,7 +2074,7 @@ export class NgTableComponent implements OnDestroy {
    * Native HTML5 drag-and-drop (used for the mouse path) has no keyboard equivalent
    * at all, so this is required for WCAG 2.1.1 (Keyboard) — not just a nicety.
    */
-  onColumnHandleKeydown(event: KeyboardEvent, column: NgTableColumn<any>): void {
+  protected onColumnHandleKeydown(event: KeyboardEvent, column: NgTableColumn<T>): void {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
       return;
     }
@@ -1955,7 +2118,7 @@ export class NgTableComponent implements OnDestroy {
     this.columnOrderChange.emit(next);
   }
 
-  shouldRenderInlineFilter(column: NgTableColumn<any>): boolean {
+  protected shouldRenderInlineFilter(column: NgTableColumn<T>): boolean {
     if (!this.inlineFilters() || !column.filter) {
       return false;
     }
@@ -1966,27 +2129,27 @@ export class NgTableComponent implements OnDestroy {
     return allowedColumns.includes(column.id);
   }
 
-  rowClasses(row: any): string | string[] | Record<string, boolean> {
+  protected rowClasses(row: T): string | string[] | Record<string, boolean> {
     return this.rowClassFn()?.(row) ?? '';
   }
 
-  hasCopyAction(column: NgTableColumn<any>, row: any): boolean {
+  protected hasCopyAction(column: NgTableColumn<T>, row: T): boolean {
     return !!this.resolveCopyValue(column, row);
   }
 
-  copyTooltip(column: NgTableColumn<any>): string {
+  protected copyTooltip(column: NgTableColumn<T>): string {
     if (typeof column.copy === 'object' && column.copy.tooltip) {
       return column.copy.tooltip;
     }
     return this.effectiveLabels().copy;
   }
 
-  copyIconName(column: NgTableColumn<any>, row: any, rowIndex: number): string {
+  protected copyIconName(column: NgTableColumn<T>, row: T, rowIndex: number): string {
     const key = this.copyCellKey(column, row, rowIndex);
     return this.copiedCellKey() === key ? 'check' : 'content_copy';
   }
 
-  onCopyCellValue(event: MouseEvent, column: NgTableColumn<any>, row: any, rowIndex: number): void {
+  protected onCopyCellValue(event: MouseEvent, column: NgTableColumn<T>, row: T, rowIndex: number): void {
     event.stopPropagation();
     const value = this.resolveCopyValue(column, row);
     if (!value) {
@@ -2008,7 +2171,7 @@ export class NgTableComponent implements OnDestroy {
     this.cellCopied.emit({columnId: column.id, value, row});
   }
 
-  closeFilterMenuOnEnter(event: Event, trigger: MatMenuTrigger): void {
+  protected closeFilterMenuOnEnter(event: Event, trigger: MatMenuTrigger): void {
     event.stopPropagation();
     queueMicrotask(() => trigger.closeMenu());
   }
@@ -2079,7 +2242,7 @@ export class NgTableComponent implements OnDestroy {
     this.scrollListener = () => window.removeEventListener('scroll', listener, {capture: true});
   }
 
-  onTableWrapScroll(): void {
+  protected onTableWrapScroll(): void {
     this.requestFilterPositionUpdate();
   }
 
@@ -2089,7 +2252,7 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Message d'erreur à afficher pour les options de filtre de cette colonne (vide = pas d'erreur). */
-  filterOptionsError(columnId: string): string {
+  protected filterOptionsError(columnId: string): string {
     const labels = this.effectiveLabels();
     if (this.lazyFilterLoadError()[columnId]) {
       return labels.refOptionsLoadError;
@@ -2100,7 +2263,7 @@ export class NgTableComponent implements OnDestroy {
     return '';
   }
 
-  resolvedFilterOptions(columnId: string, filter: NgTableFilterConfig): NgTableFilterOption[] {
+  protected resolvedFilterOptions(columnId: string, filter: NgTableFilterConfig): NgTableFilterOption[] {
     const lazyOptions = this.lazyFilterOptions()[columnId];
     if (lazyOptions) {
       return lazyOptions;
@@ -2109,14 +2272,14 @@ export class NgTableComponent implements OnDestroy {
   }
 
   @HostListener('window:resize')
-  onWindowResize(): void {
+  protected onWindowResize(): void {
     this.isMobileView.set(window.innerWidth <= 760);
     this.requestFilterPositionUpdate();
   }
 
-  trackByColumn = (_: number, column: NgTableColumn<any>): string => column.id;
+  protected trackByColumn = (_: number, column: NgTableColumn<T>): string => column.id;
 
-  trackByRow = (index: number, row: any): any => {
+  protected trackByRow = (index: number, row: T): unknown => {
     const keyAccessor = this.rowKeyAccessor();
     if (keyAccessor) {
       return keyAccessor(row);
@@ -2128,15 +2291,15 @@ export class NgTableComponent implements OnDestroy {
     // Jamais l'index en dernier recours : il change au tri/filtre/pagination,
     // ce qui ferait réutiliser la vue (et la case à cocher) d'une ligne pour
     // une autre — voir `rowKey()` pour la même règle côté sélection.
-    return row?.id ?? row?.ID ?? row;
+    return defaultRowKey(row);
   };
 
-  resolvedTrackBy: TrackByFunction<any> = (index: number, row: any): any =>
+  protected resolvedTrackBy: TrackByFunction<T> = (index: number, row: T): unknown =>
     this.trackByRow(index, row);
 
-  mobileActionsRowWhen = (_: number, _row: any): boolean => this.mobileActionRowColumns().length > 0;
+  protected mobileActionsRowWhen = (_: number, _row: T): boolean => this.mobileActionRowColumns().length > 0;
 
-  dataRowWhen = (_: number, _row: any): boolean => true;
+  protected dataRowWhen = (_: number, _row: T): boolean => true;
 
   /**
    * The detail row is ALWAYS rendered when a template is provided.
@@ -2145,9 +2308,9 @@ export class NgTableComponent implements OnDestroy {
    * driven by `isDetailExpanded()` bindings instead, which are re-evaluated
    * on every change detection cycle.
    */
-  detailRowRenderWhen = (_index: number, _row: any): boolean => !!this.detailRowTemplate();
+  protected detailRowRenderWhen = (_index: number, _row: T): boolean => !!this.detailRowTemplate();
 
-  isDetailExpanded(index: number, row: any): boolean {
+  protected isDetailExpanded(index: number, row: T): boolean {
     if (!this.detailRowTemplate()) {
       return false;
     }
@@ -2171,15 +2334,15 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Message affiché quand la liste est vide — `[emptyLabel]` si fourni, sinon le défaut de `[labels]`. */
-  resolvedEmptyLabel(): string {
+  protected resolvedEmptyLabel(): string {
     return this.emptyLabel() ?? this.effectiveLabels().noData;
   }
 
-  mobileActionsCellContext(row: any): {
-    $implicit: any;
-    row: any;
+  protected mobileActionsCellContext(row: T): {
+    $implicit: T;
+    row: T;
     value: unknown;
-    column: NgTableColumn<any>
+    column: NgTableColumn<T>
   } | null {
     const actionColumn = this.actionColumn();
     if (!actionColumn) {
@@ -2194,11 +2357,17 @@ export class NgTableComponent implements OnDestroy {
     };
   }
 
-  mobileActionsColspan(): number {
+  /** Attribut `data-mobile-row-key` de la ligne d'actions mobile. */
+  protected mobileRowKey(row: T): string {
+    const key = defaultRowKey(row);
+    return key === row ? '' : `${key}`;
+  }
+
+  protected mobileActionsColspan(): number {
     return Math.max(1, this.displayedColumnIds().length || 1);
   }
 
-  detailRowColspan(): number {
+  protected detailRowColspan(): number {
     return Math.max(1, this.displayedColumnIds().length || 1);
   }
 
@@ -2238,14 +2407,19 @@ export class NgTableComponent implements OnDestroy {
     if (this.dataMode() === 'remote') {
       // Nombre de lignes inconnu tant que le serveur n'a pas répondu : on n'annonce que le tri.
       this.announce([sortMessage]);
+      // Paginateur intégré : il doit refléter la page 0 demandée au serveur. Sans lui,
+      // la page reste l'affaire du parent (comportement historique, aucun événement).
+      if (this.paginator() && this.pageIndex() !== 0) {
+        this.pageIndex.set(0);
+      }
       this.remoteQueryChange.emit(this.buildRemoteQuery(0, this.pageSize()));
       return;
     }
     const count = this.filteredSortedRows().length;
     const labels = this.effectiveLabels();
     this.announce([sortMessage, count === 0 ? labels.announceNoRows : labels.announceRowCount.replace('{count}', `${count}`)]);
-    if (this.pageTrackingEnabled() && this.pageIndex() !== 0) {
-      this.pageIndexChange.emit(0);
+    if (this.pagingActive() && this.pageIndex() !== 0) {
+      this.pageIndex.set(0); // émet (pageIndexChange)
     }
   }
 
@@ -2268,7 +2442,7 @@ export class NgTableComponent implements OnDestroy {
       sort: this.sortState(),
       sorts: this.sortStates(),
       filters: this.columnFilters(),
-      page: {index: pageIndex, size: this.pageTrackingEnabled() ? pageSize : 0},
+      page: {index: pageIndex, size: this.pagingActive() ? pageSize : 0},
       search: this.globalSearchTerm(),
     };
   }
@@ -2382,6 +2556,10 @@ export class NgTableComponent implements OnDestroy {
     }
 
     if (hasSavedPagination) {
+      // Appliquée directement (mode non contrôlé, paginateur intégré) ET signalée,
+      // pour un parent qui tient la pagination dans ses propres signaux.
+      this.pageSize.set(state.pageSize!);
+      this.pageIndex.set(state.pageIndex!);
       this.viewPaginationRestore.emit({pageIndex: state.pageIndex!, pageSize: state.pageSize!});
     }
     this.viewActivated.emit(view);
@@ -2430,7 +2608,7 @@ export class NgTableComponent implements OnDestroy {
     return `view-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  private commitSelection(next: Set<unknown>, row: any | null, selected: boolean): void {
+  private commitSelection(next: Set<unknown>, row: T | null, selected: boolean): void {
     const external = this.selectedRowKeys();
     if (!external) {
       this.internalSelectedKeys.set(next);
@@ -2445,7 +2623,7 @@ export class NgTableComponent implements OnDestroy {
     });
   }
 
-  private rowKey(row: any): unknown {
+  private rowKey(row: T): unknown {
     // Cle metier stable: rowKeyAccessor > heuristique id > reference de la ligne.
     // Volontairement PAS `rowTrackBy` ici : c'est un trackBy de rendu (perf),
     // qui incorpore souvent l'index — un index n'est pas stable au tri/filtre/
@@ -2456,7 +2634,7 @@ export class NgTableComponent implements OnDestroy {
     if (accessor) {
       return accessor(row);
     }
-    return row?.id ?? row?.ID ?? row;
+    return defaultRowKey(row);
   }
 
   private readonly onMouseMoveBound = (event: MouseEvent) => this.onResizeMove(event);
@@ -2507,7 +2685,7 @@ export class NgTableComponent implements OnDestroy {
   }
 
   /** Human readable value for the active filters bar (resolves enum option labels). */
-  private formatFilterValueForDisplay(column: NgTableColumn<any>, rawValue: string): string {
+  private formatFilterValueForDisplay(column: NgTableColumn<T>, rawValue: string): string {
     const filter = column.filter;
     if (!filter) {
       return rawValue;
@@ -2530,7 +2708,7 @@ export class NgTableComponent implements OnDestroy {
       .join(', ');
   }
 
-  private resolveCopyValue(column: NgTableColumn<any>, row: any): string {
+  private resolveCopyValue(column: NgTableColumn<T>, row: T): string {
     if (!column.copy) {
       return '';
     }
@@ -2542,8 +2720,10 @@ export class NgTableComponent implements OnDestroy {
     return `${column.valueAccessor(row) ?? ''}`.trim();
   }
 
-  private copyCellKey(column: NgTableColumn<any>, row: any, rowIndex: number): string {
-    const rowId = row?.id ?? row?.ID ?? rowIndex;
+  private copyCellKey(column: NgTableColumn<T>, row: T, rowIndex: number): string {
+    const key = defaultRowKey(row);
+    // Pas d'id : l'index (la ligne elle-même donnerait "[object Object]" pour toutes).
+    const rowId = key === row ? rowIndex : key;
     return `${column.id}:${rowId}`;
   }
 
@@ -2617,8 +2797,8 @@ export class NgTableComponent implements OnDestroy {
   }
 
   private matchesAllFilters(
-    row: any,
-    columns: NgTableColumn<any>[],
+    row: T,
+    columns: NgTableColumn<T>[],
     activeFilters: Record<string, string>,
   ): boolean {
     for (const column of columns) {
@@ -2634,7 +2814,7 @@ export class NgTableComponent implements OnDestroy {
     return true;
   }
 
-  private matchesColumnFilter(row: any, column: NgTableColumn<any>, filterValue: string): boolean {
+  private matchesColumnFilter(row: T, column: NgTableColumn<T>, filterValue: string): boolean {
     if (column.filterPredicate) {
       return column.filterPredicate(row, filterValue);
     }
@@ -2670,7 +2850,7 @@ export class NgTableComponent implements OnDestroy {
     return matchesText(raw, filterValue, column.filter?.operator);
   }
 
-  private getSortValue(row: any, column: NgTableColumn<any>): string | number | Date | boolean | null {
+  private getSortValue(row: T, column: NgTableColumn<T>): string | number | Date | boolean | null {
     if (column.sortValueAccessor) {
       return column.sortValueAccessor(row) ?? null;
     }

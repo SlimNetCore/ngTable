@@ -7,7 +7,9 @@
     "types": []
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "testing/**/*.ts",
+    "router/**/*.ts"
   ],
   "exclude": [
     "**/*.spec.ts"

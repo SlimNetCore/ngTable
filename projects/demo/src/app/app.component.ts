@@ -1,8 +1,8 @@
 import {ChangeDetectionStrategy, Component, TemplateRef, computed, signal, viewChild} from '@angular/core';
 import {MatButtonToggleModule} from '@angular/material/button-toggle';
-import {MatPaginatorModule, PageEvent} from '@angular/material/paginator';
 import {MatSlideToggleModule} from '@angular/material/slide-toggle';
 import {NgTableColumn, NgTableComponent, NgTableExportFormat} from '@sbourahla/ng-table';
+import {NgTableUrlStateDirective} from '@sbourahla/ng-table/router';
 import {Commande, generateCommandes} from './demo-data';
 
 const STATUT_LABELS: Record<Commande['statut'], string> = {
@@ -21,7 +21,7 @@ const STATUT_LABELS: Record<Commande['statut'], string> = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [NgTableComponent, MatPaginatorModule, MatSlideToggleModule, MatButtonToggleModule],
+  imports: [NgTableComponent, NgTableUrlStateDirective, MatSlideToggleModule, MatButtonToggleModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host { display: block; max-width: 1400px; margin: 0 auto; padding: 24px 16px; }
@@ -68,6 +68,7 @@ const STATUT_LABELS: Record<Commande['statut'], string> = {
     </div>
 
     <ng-table
+      [ngTableUrlState]="'cmd'"
       [ariaLabel]="'Liste des commandes'"
       [columns]="columns()"
       [rows]="rows()"
@@ -90,24 +91,9 @@ const STATUT_LABELS: Record<Commande['statut'], string> = {
       [density]="compact() ? 'compact' : 'default'"
       [stickyHeader]="stickyHeader()"
       [maxHeight]="stickyHeader() ? '60vh' : null"
-      [pageTrackingEnabled]="paginated()"
-      [pageIndex]="pageIndex()"
-      [pageSize]="pageSize()"
-      (filteredCountChange)="filteredTotal.set($event)"
-      (pageIndexChange)="pageIndex.set($event)"
-      (viewPaginationRestore)="pageIndex.set($event.pageIndex); pageSize.set($event.pageSize)"
+      [paginator]="paginated()"
       (selectionChange)="selectedCount.set($event.selectedKeys.length)"
     />
-
-    @if (paginated()) {
-      <mat-paginator
-        [length]="filteredTotal()"
-        [pageIndex]="pageIndex()"
-        [pageSize]="pageSize()"
-        [pageSizeOptions]="[10, 25, 50, 100]"
-        (page)="onPage($event)"
-      />
-    }
 
     <p class="meta">
       {{ rows().length }} lignes au total@if (selection()) { · {{ selectedCount() }} sélectionnée(s)}
@@ -133,9 +119,6 @@ export class AppComponent {
   protected readonly compact = signal(false);
   protected readonly stickyHeader = signal(false);
   protected readonly exportFormat = signal<NgTableExportFormat>('csv');
-  protected readonly pageIndex = signal(0);
-  protected readonly pageSize = signal(10);
-  protected readonly filteredTotal = signal(0);
   protected readonly selectedCount = signal(0);
 
   protected readonly rowKey = (row: Commande): string => row.id;
@@ -216,11 +199,5 @@ export class AppComponent {
 
   protected setRowCount(count: number): void {
     this.rowCount.set(count);
-    this.pageIndex.set(0);
-  }
-
-  protected onPage(event: PageEvent): void {
-    this.pageIndex.set(event.pageIndex);
-    this.pageSize.set(event.pageSize);
   }
 }

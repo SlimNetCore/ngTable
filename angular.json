@@ -32,7 +32,12 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "tsConfig": "projects/ng-table/tsconfig.spec.json",
-            "runner": "vitest"
+            "runner": "vitest",
+            "include": [
+              "**/*.spec.ts",
+              "../testing/**/*.spec.ts",
+              "../router/**/*.spec.ts"
+            ]
           }
         },
         "lint": {

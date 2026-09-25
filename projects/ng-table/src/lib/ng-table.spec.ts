@@ -108,8 +108,8 @@ describe('NgTableComponent', () => {
       const {component} = await createTable();
 
       expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
-      expect(component.displayedColumnIds()).toEqual(['nom', 'montant', 'statut', 'actif']);
-      expect(component.hasColumns()).toBe(true);
+      expect(component['displayedColumnIds']()).toEqual(['nom', 'montant', 'statut', 'actif']);
+      expect(component['hasColumns']()).toBe(true);
     });
 
     it('masque les colonnes déclarées `visible: false`', async () => {
@@ -117,7 +117,7 @@ describe('NgTableComponent', () => {
       withHidden[1] = {...withHidden[1], visible: false};
       const {component} = await createTable({columns: withHidden});
 
-      expect(component.displayedColumnIds()).toEqual(['nom', 'statut', 'actif']);
+      expect(component['displayedColumnIds']()).toEqual(['nom', 'statut', 'actif']);
     });
 
     it('tronque le texte de cellule par défaut, et le fait retourner à la ligne avec textOverflow: "wrap"', async () => {
@@ -180,18 +180,18 @@ describe('NgTableComponent', () => {
     it('ajoute la colonne technique de sélection quand elle est activée', async () => {
       const {component} = await createTable({rowSelectionEnabled: true});
 
-      expect(component.displayedColumnIds()[0]).toBe('__row_selection__');
+      expect(component['displayedColumnIds']()[0]).toBe('__row_selection__');
     });
 
     it('garde la même référence de displayedColumnIds quand les ids sont identiques', async () => {
       const {component, setInput} = await createTable();
-      const first = component.displayedColumnIds();
+      const first = component['displayedColumnIds']();
 
       // nouveau tableau de colonnes (donc recalcul), mais mêmes ids dans le même ordre :
       // `equal` doit conserver la référence pour ne pas faire retravailler mat-table.
       await setInput('columns', columns());
 
-      expect(component.displayedColumnIds()).toBe(first);
+      expect(component['displayedColumnIds']()).toBe(first);
     });
   });
 
@@ -200,20 +200,20 @@ describe('NgTableComponent', () => {
       const {component} = await createTable();
       const col = component.columns()[0];
 
-      component.onHeaderSort(col);
+      component['onHeaderSort'](col);
       expect(ids(component.displayedRows())).toEqual(['2', '3', '1']); // alice, Bob, Charlie
 
-      component.onHeaderSort(col);
+      component['onHeaderSort'](col);
       expect(ids(component.displayedRows())).toEqual(['1', '3', '2']);
 
-      component.onHeaderSort(col);
+      component['onHeaderSort'](col);
       expect(ids(component.displayedRows())).toEqual(['1', '2', '3']); // ordre source
     });
 
     it('trie les nombres numériquement, pas alphabétiquement', async () => {
       const {component} = await createTable();
 
-      component.onHeaderSort(component.columns()[1]);
+      component['onHeaderSort'](component.columns()[1]);
 
       expect((component.displayedRows() as Row[]).map((r) => r.montant)).toEqual([100, 200, 300]);
     });
@@ -223,7 +223,7 @@ describe('NgTableComponent', () => {
       const emitted: NgTableSortChange[] = [];
       component.sortChange.subscribe((e) => emitted.push(e));
 
-      component.onHeaderSort(component.columns()[3]); // `actif` : sortable non défini
+      component['onHeaderSort'](component.columns()[3]); // `actif` : sortable non défini
 
       expect(emitted).toEqual([]);
       expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
@@ -238,7 +238,7 @@ describe('NgTableComponent', () => {
       };
       const {component} = await createTable({columns: cols});
 
-      component.onHeaderSort(component.columns()[0]);
+      component['onHeaderSort'](component.columns()[0]);
 
       expect(ids(component.displayedRows())).toEqual(['2', '3', '1']); // par date croissante
     });
@@ -258,21 +258,21 @@ describe('NgTableComponent', () => {
       const allSorts: unknown[] = [];
       component.sortsChange.subscribe((s) => allSorts.push(s));
 
-      component.onHeaderSort(statut);
-      component.onHeaderSort(montant, shift);
+      component['onHeaderSort'](statut);
+      component['onHeaderSort'](montant, shift);
       expect(ids(component.displayedRows())).toEqual(['2', '3', '1']); // BROUILLON, puis VALIDEE par montant croissant
 
-      component.onHeaderSort(montant, shift);
+      component['onHeaderSort'](montant, shift);
       expect(ids(component.displayedRows())).toEqual(['2', '1', '3']); // montant décroissant
-      expect(component.sortPriority(statut)).toBe(1);
-      expect(component.sortPriority(montant)).toBe(2);
-      expect(component.currentSortAriaLabel(montant)).toBe('Trié décroissant, priorité 2');
-      expect(component.ariaSortValue(montant)).toBe('none'); // aria-sort : tri principal seulement
+      expect(component['sortPriority'](statut)).toBe(1);
+      expect(component['sortPriority'](montant)).toBe(2);
+      expect(component['currentSortAriaLabel'](montant)).toBe('Trié décroissant, priorité 2');
+      expect(component['ariaSortValue'](montant)).toBe('none'); // aria-sort : tri principal seulement
 
-      component.onHeaderSort(montant, shift); // 3e Maj+clic : retire ce niveau
-      expect(component.sortPriority(montant)).toBeNull();
+      component['onHeaderSort'](montant, shift); // 3e Maj+clic : retire ce niveau
+      expect(component['sortPriority'](montant)).toBeNull();
 
-      component.onHeaderSort(nom);
+      component['onHeaderSort'](nom);
       expect(ids(component.displayedRows())).toEqual(['2', '3', '1']);
       expect(allSorts.at(-1)).toEqual([{columnId: 'nom', direction: 'asc'}]);
     });
@@ -281,10 +281,10 @@ describe('NgTableComponent', () => {
       const {component} = await createTable({columns: sortableColumns()});
       const [, montant, statut] = component.columns();
 
-      component.onHeaderSort(statut);
-      component.onHeaderSort(montant, shift);
+      component['onHeaderSort'](statut);
+      component['onHeaderSort'](montant, shift);
 
-      expect(component.sortPriority(montant)).toBeNull();
+      expect(component['sortPriority'](montant)).toBeNull();
       expect(ids(component.displayedRows())).toEqual(['2', '3', '1']);
     });
 
@@ -296,8 +296,8 @@ describe('NgTableComponent', () => {
       component.remoteQueryChange.subscribe((q) => queries.push(q));
       const [, montant, statut] = component.columns();
 
-      component.onHeaderSort(statut);
-      component.onHeaderSort(montant, shift);
+      component['onHeaderSort'](statut);
+      component['onHeaderSort'](montant, shift);
       expect(queries.at(-1)!.sort).toEqual({columnId: 'statut', direction: 'asc'});
       expect(queries.at(-1)!.sorts).toEqual([
         {columnId: 'statut', direction: 'asc'},
@@ -306,9 +306,9 @@ describe('NgTableComponent', () => {
 
       component.saveCurrentAsView('Deux tris');
       const view = component.viewsList()[0];
-      component.onHeaderSort(statut); // clic simple : tri unique décroissant
+      component['onHeaderSort'](statut); // clic simple : tri unique décroissant
       component.activateView(view);
-      expect(component.sortPriority(montant)).toBe(2);
+      expect(component['sortPriority'](montant)).toBe(2);
     });
   });
 
@@ -316,16 +316,16 @@ describe('NgTableComponent', () => {
     it('filtre en "contient", insensible à la casse', async () => {
       const {component} = await createTable();
 
-      component.onFilterValue('statut', 'VALIDEE'); // filtre enum : commit immédiat
+      component['onFilterValue']('statut', 'VALIDEE'); // filtre enum : commit immédiat
 
       expect(ids(component.displayedRows())).toEqual(['1', '3']);
-      expect(component.isFilterActive('statut')).toBe(true);
+      expect(component['isFilterActive']('statut')).toBe(true);
     });
 
     it('interprète les valeurs booléennes', async () => {
       const {component} = await createTable();
 
-      component.onFilterValue('actif', 'false');
+      component['onFilterValue']('actif', 'false');
 
       expect(ids(component.displayedRows())).toEqual(['2']);
     });
@@ -333,7 +333,7 @@ describe('NgTableComponent', () => {
     it('filtre enum à plusieurs valeurs cochées : une ligne passe si elle égale l’une d’elles', async () => {
       const {component} = await createTable();
 
-      component.onFilterValue('statut', 'BROUILLON,ANNULEE');
+      component['onFilterValue']('statut', 'BROUILLON,ANNULEE');
 
       expect(ids(component.displayedRows())).toEqual(['2']);
     });
@@ -366,7 +366,7 @@ describe('NgTableComponent', () => {
       cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, filter: {type: 'date'}});
       const {component} = await createTable({columns: cols});
 
-      component.onFilterValue('date', '2026-02-20');
+      component['onFilterValue']('date', '2026-02-20');
 
       expect(ids(component.displayedRows())).toEqual(['3']);
     });
@@ -376,7 +376,7 @@ describe('NgTableComponent', () => {
       cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, filter: {type: 'range'}});
       const {component} = await createTable({columns: cols});
 
-      component.onFilterValue('date', '2026-01-15..2026-02-20');
+      component['onFilterValue']('date', '2026-01-15..2026-02-20');
 
       expect(ids(component.displayedRows())).toEqual(['2', '3']);
     });
@@ -386,10 +386,10 @@ describe('NgTableComponent', () => {
       cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, filter: {type: 'range'}});
       const {component} = await createTable({columns: cols});
 
-      component.onFilterValue('date', '2026-02-01..');
+      component['onFilterValue']('date', '2026-02-01..');
       expect(ids(component.displayedRows())).toEqual(['1', '3']);
 
-      component.onFilterValue('date', '..2026-02-01');
+      component['onFilterValue']('date', '..2026-02-01');
       expect(ids(component.displayedRows())).toEqual(['2']);
     });
 
@@ -398,7 +398,7 @@ describe('NgTableComponent', () => {
       cols.push({id: 'date', header: 'Date', valueAccessor: (r) => new Date(r.date), filter: {type: 'date'}});
       const {component} = await createTable({columns: cols});
 
-      component.onFilterValue('date', '2026-03-02');
+      component['onFilterValue']('date', '2026-03-02');
 
       expect(ids(component.displayedRows())).toEqual(['1']);
     });
@@ -408,7 +408,7 @@ describe('NgTableComponent', () => {
       cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, filter: {type: 'range', label: 'Date'}});
       const {component} = await createTable({columns: cols});
 
-      component.onFilterValue('date', '2026-01-15..2026-02-20');
+      component['onFilterValue']('date', '2026-01-15..2026-02-20');
 
       const summary = component.activeFilterSummaries().find((s) => s.columnId === 'date');
       expect(summary?.value).toBe('2026-01-15 → 2026-02-20');
@@ -429,7 +429,7 @@ describe('NgTableComponent', () => {
       const {component} = await createTable();
       component.filtersChange.subscribe((f) => emitted.push(f));
 
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
 
       // une entrée par colonne filtrable (nom, statut, actif), montant n'a pas de filtre
       expect(Object.keys(emitted[0]).sort()).toEqual(['actif', 'nom', 'statut']);
@@ -437,7 +437,7 @@ describe('NgTableComponent', () => {
 
     it('réinitialise tous les filtres', async () => {
       const {component} = await createTable();
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
 
       component.clearAllFilters();
 
@@ -448,7 +448,7 @@ describe('NgTableComponent', () => {
     it('résout les libellés d’options dans la barre de filtres actifs', async () => {
       const {component} = await createTable();
 
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
 
       expect(component.activeFilterSummaries()).toEqual([
         {columnId: 'statut', label: 'Statut', value: 'Validée'},
@@ -459,14 +459,14 @@ describe('NgTableComponent', () => {
       const {component} = await createTable();
       vi.useFakeTimers();
 
-      component.onFilterValue('nom', 'a');
-      component.onFilterValue('nom', 'al');
-      component.onFilterValue('nom', 'ali');
-      expect(component.currentFilterValue('nom')).toBe(''); // rien de committé pendant la frappe
+      component['onFilterValue']('nom', 'a');
+      component['onFilterValue']('nom', 'al');
+      component['onFilterValue']('nom', 'ali');
+      expect(component['currentFilterValue']('nom')).toBe(''); // rien de committé pendant la frappe
 
       vi.advanceTimersByTime(400);
 
-      expect(component.currentFilterValue('nom')).toBe('ali');
+      expect(component['currentFilterValue']('nom')).toBe('ali');
       expect(ids(component.displayedRows())).toEqual(['2']);
     });
 
@@ -474,11 +474,11 @@ describe('NgTableComponent', () => {
       const {component} = await createTable();
       vi.useFakeTimers();
 
-      component.onFilterValue('nom', 'ali');
+      component['onFilterValue']('nom', 'ali');
       component.clearFilter('nom'); // action immédiate
       vi.advanceTimersByTime(400);
 
-      expect(component.currentFilterValue('nom')).toBe('');
+      expect(component['currentFilterValue']('nom')).toBe('');
       expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
     });
   });
@@ -504,7 +504,7 @@ describe('NgTableComponent', () => {
       const {component, fixture} = await createTable({pageTrackingEnabled: true, pageSize: 2});
       component.filteredCountChange.subscribe((c) => counts.push(c));
 
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
       await fixture.whenStable();
 
       expect(counts.at(-1)).toBe(2);
@@ -513,9 +513,9 @@ describe('NgTableComponent', () => {
     it('demande le retour à la première page quand un filtre change', async () => {
       const pages: number[] = [];
       const {component} = await createTable({pageTrackingEnabled: true, pageSize: 2, pageIndex: 1});
-      component.pageIndexChange.subscribe((p) => pages.push(p));
+      component.pageIndex.subscribe((p) => pages.push(p));
 
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
 
       expect(pages).toEqual([0]);
     });
@@ -548,7 +548,7 @@ describe('NgTableComponent', () => {
       const searches: string[] = [];
       component.globalSearchChange.subscribe((s) => searches.push(s));
 
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
       component['commitGlobalSearch']('charlie');
       expect(ids(component.displayedRows())).toEqual(['1']);
 
@@ -572,7 +572,7 @@ describe('NgTableComponent', () => {
       const {component} = await createTable({filterDebounceMs: 300});
       vi.useFakeTimers();
 
-      component.onGlobalSearchInput('bob');
+      component['onGlobalSearchInput']('bob');
       expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
 
       vi.advanceTimersByTime(300);
@@ -604,12 +604,103 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('paginateur intégré', () => {
+    const page = (pageIndex: number, pageSize: number) => ({pageIndex, pageSize, length: 3, previousPageIndex: 0});
+
+    it('pagine seul, sans rien à relier, et revient en page 0 après un filtre', async () => {
+      const {component, fixture} = await createTable({paginator: true, pageSize: 1});
+      expect(fixture.nativeElement.querySelector('mat-paginator')).toBeTruthy();
+      expect(ids(component.displayedRows())).toEqual(['1']);
+      expect(component['paginatorLength']()).toBe(3);
+
+      component['onPage'](page(2, 1));
+      expect(ids(component.displayedRows())).toEqual(['3']);
+
+      component['onFilterValue']('statut', 'VALIDEE');
+      expect(component.pageIndex()).toBe(0);
+      expect(component['paginatorLength']()).toBe(2);
+    });
+
+    it('recule sur la dernière page si les données rétrécissent', async () => {
+      const {component, setInput} = await createTable({paginator: true, pageSize: 1});
+      component['onPage'](page(2, 1));
+
+      await setInput('rows', ROWS.slice(0, 1));
+
+      expect(component.pageIndex()).toBe(0);
+      expect(ids(component.displayedRows())).toEqual(['1']);
+    });
+
+    it('restaure la pagination d’une vue sans intervention du parent', async () => {
+      const {component} = await createTable({paginator: true, pageSize: 1, viewsEnabled: true, viewsStorageKey: 'pg'});
+      component['onPage'](page(1, 1));
+      component.saveCurrentAsView('Page 2');
+      component['onPage'](page(0, 1));
+
+      component.activateView(component.viewsList()[0]);
+
+      expect(component.pageIndex()).toBe(1);
+      expect(ids(component.displayedRows())).toEqual(['2']);
+    });
+
+    it('mode remote : relance la requête au changement de page et affiche totalCount', async () => {
+      const queries: NgTableRemoteQuery[] = [];
+      const {component} = await createTable({dataMode: 'remote', paginator: true, pageSize: 25, totalCount: 480});
+      component.remoteQueryChange.subscribe((q) => queries.push(q));
+      expect(component['paginatorLength']()).toBe(480);
+
+      component['onPage'](page(3, 25));
+      expect(queries.at(-1)!.page).toEqual({index: 3, size: 25});
+
+      component['onFilterValue']('statut', 'VALIDEE');
+      expect(component.pageIndex()).toBe(0);
+      expect(queries.at(-1)!.page).toEqual({index: 0, size: 25});
+    });
+  });
+
+  describe('état « requête » (getQueryState / applyQueryState)', () => {
+    it('applique tri, filtres et recherche en une seule requête remote, en ignorant les colonnes inconnues', async () => {
+      const queries: NgTableRemoteQuery[] = [];
+      const {component} = await createTable({dataMode: 'remote', pageTrackingEnabled: true, pageSize: 5, pageIndex: 2});
+      component.remoteQueryChange.subscribe((q) => queries.push(q));
+
+      component.applyQueryState({
+        sorts: [{columnId: 'nom', direction: 'desc'}],
+        filters: {statut: 'VALIDEE', inconnue: 'x'},
+        search: 'bob',
+      });
+
+      expect(queries).toHaveLength(1);
+      expect(queries[0]).toMatchObject({sort: {columnId: 'nom', direction: 'desc'}, search: 'bob', page: {index: 0, size: 5}});
+      expect(component.getQueryState()).toEqual({
+        sorts: [{columnId: 'nom', direction: 'desc'}],
+        filters: {statut: 'VALIDEE'},
+        search: 'bob',
+        pageIndex: 0,
+        pageSize: 5,
+      });
+    });
+
+    it('remplace les filtres existants et émet queryStateChange', async () => {
+      const {component, fixture} = await createTable();
+      const states: unknown[] = [];
+      component.queryStateChange.subscribe((s) => states.push(s));
+      component['onFilterValue']('statut', 'VALIDEE');
+
+      component.applyQueryState({filters: {actif: 'false'}});
+      await fixture.whenStable();
+
+      expect(ids(component.displayedRows())).toEqual(['2']);
+      expect(states.at(-1)).toMatchObject({filters: {actif: 'false'}});
+    });
+  });
+
   describe('mode remote', () => {
     it('n’applique aucun filtrage ni tri local', async () => {
       const {component} = await createTable({dataMode: 'remote'});
 
-      component.onFilterValue('statut', 'VALIDEE');
-      component.onHeaderSort(component.columns()[1]);
+      component['onFilterValue']('statut', 'VALIDEE');
+      component['onHeaderSort'](component.columns()[1]);
 
       expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
     });
@@ -624,7 +715,7 @@ describe('NgTableComponent', () => {
       });
       component.remoteQueryChange.subscribe((q) => queries.push(q));
 
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
 
       expect(queries).toHaveLength(1);
       expect(queries[0].filters['statut']).toBe('VALIDEE');
@@ -638,7 +729,7 @@ describe('NgTableComponent', () => {
       const {component} = await createTable({dataMode: 'remote'});
       component.remoteQueryChange.subscribe((q) => queries.push(q));
 
-      component.onHeaderSort(component.columns()[0]);
+      component['onHeaderSort'](component.columns()[0]);
 
       expect(queries[0].sort).toEqual({columnId: 'nom', direction: 'asc'});
       expect(queries[0].page).toEqual({index: 0, size: 0});
@@ -648,9 +739,9 @@ describe('NgTableComponent', () => {
       const events: string[] = [];
       const {component, fixture} = await createTable({dataMode: 'remote', pageTrackingEnabled: true, pageIndex: 2});
       component.filteredCountChange.subscribe(() => events.push('count'));
-      component.pageIndexChange.subscribe(() => events.push('page'));
+      component.pageIndex.subscribe(() => events.push('page'));
 
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
       await fixture.whenStable();
 
       expect(events).toEqual([]);
@@ -663,9 +754,9 @@ describe('NgTableComponent', () => {
       const {component} = await createTable();
       component.columnVisibilityChange.subscribe((v) => emitted.push(v));
 
-      component.onToggleColumnVisibility('montant', false);
+      component['onToggleColumnVisibility']('montant', false);
 
-      expect(component.displayedColumnIds()).toEqual(['nom', 'statut', 'actif']);
+      expect(component['displayedColumnIds']()).toEqual(['nom', 'statut', 'actif']);
       expect(emitted.at(-1)?.['montant']).toBe(false);
     });
 
@@ -679,7 +770,7 @@ describe('NgTableComponent', () => {
         }
       });
 
-      expect(component.displayedColumnIds()).toEqual(['nom', 'statut']);
+      expect(component['displayedColumnIds']()).toEqual(['nom', 'statut']);
     });
 
     it('affiche le bouton "Colonnes" par défaut, et le masque via columnsMenuEnabled=false', async () => {
@@ -693,9 +784,9 @@ describe('NgTableComponent', () => {
     it('columnsMenuEnabled=false ne touche pas au fonctionnement sous-jacent de la visibilité', async () => {
       const {component} = await createTable({columnsMenuEnabled: false});
 
-      component.onToggleColumnVisibility('montant', false);
+      component['onToggleColumnVisibility']('montant', false);
 
-      expect(component.displayedColumnIds()).toEqual(['nom', 'statut', 'actif']);
+      expect(component['displayedColumnIds']()).toEqual(['nom', 'statut', 'actif']);
     });
 
     it('réordonne les colonnes au drop et notifie le nouvel ordre', async () => {
@@ -704,11 +795,11 @@ describe('NgTableComponent', () => {
       component.columnOrderChange.subscribe((o) => emitted.push(o));
       const dragEvent = {preventDefault: () => undefined, dataTransfer: null} as unknown as DragEvent;
 
-      component.onColumnDragStart(dragEvent, component.columns()[3]); // `actif`
-      component.onColumnDrop(dragEvent, component.columns()[0]); // déposé sur `nom`
+      component['onColumnDragStart'](dragEvent, component.columns()[3]); // `actif`
+      component['onColumnDrop'](dragEvent, component.columns()[0]); // déposé sur `nom`
 
       expect(emitted.at(-1)).toEqual(['actif', 'nom', 'montant', 'statut']);
-      expect(component.displayedColumnIds()).toEqual(['actif', 'nom', 'montant', 'statut']);
+      expect(component['displayedColumnIds']()).toEqual(['actif', 'nom', 'montant', 'statut']);
     });
 
     it('ignore un drop sur la colonne d’origine', async () => {
@@ -717,8 +808,8 @@ describe('NgTableComponent', () => {
       component.columnOrderChange.subscribe((o) => emitted.push(o));
       const dragEvent = {preventDefault: () => undefined, dataTransfer: null} as unknown as DragEvent;
 
-      component.onColumnDragStart(dragEvent, component.columns()[0]);
-      component.onColumnDrop(dragEvent, component.columns()[0]);
+      component['onColumnDragStart'](dragEvent, component.columns()[0]);
+      component['onColumnDrop'](dragEvent, component.columns()[0]);
 
       expect(emitted).toEqual([]);
     });
@@ -726,19 +817,19 @@ describe('NgTableComponent', () => {
     it("ne refiltre/retrie pas les lignes quand seul l'ordre des colonnes change (perf)", async () => {
       const {component} = await createTable();
       // Emprunte le pipeline filtre + tri de `filteredSortedRows` avant de réordonner.
-      component.onFilterValue('statut', 'VALIDEE');
-      component.onHeaderSort(component.columns()[0]);
+      component['onFilterValue']('statut', 'VALIDEE');
+      component['onHeaderSort'](component.columns()[0]);
       const before = component.displayedRows();
 
       const dragEvent = {preventDefault: () => undefined, dataTransfer: null} as unknown as DragEvent;
-      component.onColumnDragStart(dragEvent, component.columns()[3]); // `actif`
-      component.onColumnDrop(dragEvent, component.columns()[0]); // déposé sur `nom`
+      component['onColumnDragStart'](dragEvent, component.columns()[3]); // `actif`
+      component['onColumnDrop'](dragEvent, component.columns()[0]); // déposé sur `nom`
 
       // Même référence : `filteredSortedRows` (dépend de `visibleColumnsUnordered`,
       // pas `visibleColumns`) n'a pas été recalculé — seul l'ordre d'affichage
       // des colonnes doit changer, jamais le contenu/tri des lignes.
       expect(component.displayedRows()).toBe(before);
-      expect(component.displayedColumnIds()).toEqual(['actif', 'nom', 'montant', 'statut']);
+      expect(component['displayedColumnIds']()).toEqual(['actif', 'nom', 'montant', 'statut']);
     });
   });
 
@@ -748,7 +839,7 @@ describe('NgTableComponent', () => {
       const events: unknown[] = [];
       component.selectionChange.subscribe((e) => events.push(e));
 
-      component.onToggleRowSelection({checked: true} as MatCheckboxChange, ROWS[1]);
+      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, ROWS[1]);
 
       expect(component.isRowSelected(ROWS[1])).toBe(true);
       expect(component.selectedRowsCount()).toBe(1);
@@ -759,20 +850,20 @@ describe('NgTableComponent', () => {
     it('sélectionne / désélectionne toutes les lignes affichées', async () => {
       const {component} = await createTable({rowSelectionEnabled: true, rowKeyAccessor: (r: Row) => r.id});
 
-      component.onToggleAllDisplayedRows({checked: true} as MatCheckboxChange);
-      expect(component.areAllDisplayedRowsSelected()).toBe(true);
+      component['onToggleAllDisplayedRows']({checked: true} as MatCheckboxChange);
+      expect(component['areAllDisplayedRowsSelected']()).toBe(true);
 
-      component.onToggleAllDisplayedRows({checked: false} as MatCheckboxChange);
+      component['onToggleAllDisplayedRows']({checked: false} as MatCheckboxChange);
       expect(component.selectedRowsCount()).toBe(0);
     });
 
     it('signale une sélection partielle', async () => {
       const {component} = await createTable({rowSelectionEnabled: true, rowKeyAccessor: (r: Row) => r.id});
 
-      component.onToggleRowSelection({checked: true} as MatCheckboxChange, ROWS[0]);
+      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, ROWS[0]);
 
-      expect(component.hasPartiallySelectedDisplayedRows()).toBe(true);
-      expect(component.areAllDisplayedRowsSelected()).toBe(false);
+      expect(component['hasPartiallySelectedDisplayedRows']()).toBe(true);
+      expect(component['areAllDisplayedRowsSelected']()).toBe(false);
     });
 
     it('conserve la sélection correcte après un changement de pageSize, sans id ni rowKeyAccessor', async () => {
@@ -785,7 +876,7 @@ describe('NgTableComponent', () => {
       });
 
       const targetRow = rowsWithoutId[1]; // 'alice'
-      component.onToggleRowSelection({checked: true} as MatCheckboxChange, targetRow);
+      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, targetRow);
       expect(component.isRowSelected(targetRow)).toBe(true);
 
       await setInput('pageSize', 2); // ex. l'utilisateur change la taille de page
@@ -800,7 +891,7 @@ describe('NgTableComponent', () => {
       const degenerateTrackBy: TrackByFunction<Row> = () => 'same-for-every-row';
       const {component} = await createTable({rowSelectionEnabled: true, rowTrackBy: degenerateTrackBy});
 
-      component.onToggleRowSelection({checked: true} as MatCheckboxChange, ROWS[0]);
+      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, ROWS[0]);
 
       expect(component.isRowSelected(ROWS[0])).toBe(true);
       expect(component.isRowSelected(ROWS[1])).toBe(false);
@@ -850,7 +941,7 @@ describe('NgTableComponent', () => {
 
     it('exporte puis réimporte les vues (fusion par nom, puis remplacement)', async () => {
       const source = await createTable({viewsEnabled: true, viewsStorageKey: 'src'});
-      source.component.onFilterValue('statut', 'BROUILLON');
+      source.component['onFilterValue']('statut', 'BROUILLON');
       source.component.saveCurrentAsView('Brouillons');
       const json = source.component.exportViews();
 
@@ -882,8 +973,8 @@ describe('NgTableComponent', () => {
 
     it('enregistre l’état courant, l’active, et le persiste dans localStorage', async () => {
       const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
-      component.onToggleColumnVisibility('montant', false);
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onToggleColumnVisibility']('montant', false);
+      component['onFilterValue']('statut', 'VALIDEE');
 
       component.saveCurrentAsView('Ma vue');
 
@@ -901,7 +992,7 @@ describe('NgTableComponent', () => {
       const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
 
       component.saveCurrentAsView('Ma vue');
-      component.onFilterValue('statut', 'BROUILLON');
+      component['onFilterValue']('statut', 'BROUILLON');
       component.saveCurrentAsView('Ma vue');
 
       expect(component.viewsList()).toHaveLength(1);
@@ -922,7 +1013,7 @@ describe('NgTableComponent', () => {
       const restores: unknown[] = [];
       const pageIndexEmits: number[] = [];
       component.viewPaginationRestore.subscribe((e) => restores.push(e));
-      component.pageIndexChange.subscribe((p) => pageIndexEmits.push(p));
+      component.pageIndex.subscribe((p) => pageIndexEmits.push(p));
 
       component.activateView(view);
 
@@ -968,11 +1059,11 @@ describe('NgTableComponent', () => {
 
     it('met à jour une vue existante avec l’affichage courant sans changer son nom ni son id', async () => {
       const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
       component.saveCurrentAsView('Ma vue');
       const view = component.viewsList()[0];
 
-      component.onFilterValue('statut', 'BROUILLON');
+      component['onFilterValue']('statut', 'BROUILLON');
       component.updateView(view);
 
       expect(component.viewsList()).toHaveLength(1);
@@ -988,18 +1079,18 @@ describe('NgTableComponent', () => {
       component.saveCurrentAsView('Ma vue');
       const view = component.viewsList()[0];
 
-      expect(component.viewUpdateIconName(view)).toBe('sync');
+      expect(component['viewUpdateIconName'](view)).toBe('sync');
 
       component.updateView(view);
-      expect(component.viewUpdateIconName(view)).toBe('check');
+      expect(component['viewUpdateIconName'](view)).toBe('check');
 
       vi.advanceTimersByTime(1400);
-      expect(component.viewUpdateIconName(view)).toBe('sync');
+      expect(component['viewUpdateIconName'](view)).toBe('sync');
     });
 
     it('réapplique l’état complet à l’activation d’une vue', async () => {
       const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
       component.saveCurrentAsView('Validées');
       const view = component.viewsList()[0];
       component.clearAllFilters();
@@ -1024,24 +1115,24 @@ describe('NgTableComponent', () => {
         stopPropagation: () => undefined,
       } as unknown as MouseEvent;
 
-      component.onResizeStart(resizeEvent, column);
+      component['onResizeStart'](resizeEvent, column);
       component['onResizeMove']({clientX: 60} as MouseEvent);
       component['stopResize']();
-      expect(component.columnWidthPx(column)).toBe(260);
+      expect(component['columnWidthPx'](column)).toBe(260);
 
       component.saveCurrentAsView('Large');
       const view = component.viewsList()[0];
       expect(view.state.columnWidths?.[column.id]).toBe(260);
 
       // L'utilisateur remet la colonne à une autre largeur, puis réactive la vue.
-      component.onResizeStart(resizeEvent, column);
+      component['onResizeStart'](resizeEvent, column);
       component['onResizeMove']({clientX: -60} as MouseEvent);
       component['stopResize']();
-      expect(component.columnWidthPx(column)).toBe(200);
+      expect(component['columnWidthPx'](column)).toBe(200);
 
       component.activateView(view);
 
-      expect(component.columnWidthPx(column)).toBe(260);
+      expect(component['columnWidthPx'](column)).toBe(260);
     });
 
     it('active sans erreur une vue enregistrée avant l’ajout des largeurs (columnWidths absent)', async () => {
@@ -1198,7 +1289,7 @@ describe('NgTableComponent', () => {
     it('exige une confirmation de plage quand plusieurs pages sont exportables', async () => {
       const {component} = await createTable({exportEnabled: true, pageTrackingEnabled: true, pageSize: 1});
 
-      expect(component.exportTotalPages()).toBe(3);
+      expect(component['exportTotalPages']()).toBe(3);
 
       const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
       vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
@@ -1211,7 +1302,7 @@ describe('NgTableComponent', () => {
 
       component['exportFromPage'].set(2);
       component['exportToPage'].set(3);
-      component.confirmExportDialog();
+      component['confirmExportDialog']();
       expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
 
       createObjectURLSpy.mockRestore();
@@ -1222,30 +1313,30 @@ describe('NgTableComponent', () => {
     it('utilise les textes par défaut de la librairie', async () => {
       const {component} = await createTable();
 
-      expect(component.effectiveLabels().columnsButton).toBe(NG_TABLE_DEFAULT_LABELS.columnsButton);
-      expect(component.resolvedEmptyLabel()).toBe(NG_TABLE_DEFAULT_LABELS.noData);
+      expect(component['effectiveLabels']().columnsButton).toBe(NG_TABLE_DEFAULT_LABELS.columnsButton);
+      expect(component['resolvedEmptyLabel']()).toBe(NG_TABLE_DEFAULT_LABELS.noData);
     });
 
     it('surcharge partiellement via [labels]', async () => {
       const {component} = await createTable({labels: {columnsButton: 'Columns'}});
 
-      expect(component.effectiveLabels().columnsButton).toBe('Columns');
-      expect(component.effectiveLabels().viewsButton).toBe(NG_TABLE_DEFAULT_LABELS.viewsButton);
+      expect(component['effectiveLabels']().columnsButton).toBe('Columns');
+      expect(component['effectiveLabels']().viewsButton).toBe(NG_TABLE_DEFAULT_LABELS.viewsButton);
     });
 
     it('interpole {field} dans filterBy', async () => {
       const {component} = await createTable({labels: {filterBy: 'Filter by {field}'}});
 
-      expect(component.filterByAriaLabel(component.columns()[0])).toBe('Filter by Nom');
+      expect(component['filterByAriaLabel'](component.columns()[0])).toBe('Filter by Nom');
     });
 
     it('garde la même référence de labels quand l’objet est recréé à l’identique', async () => {
       const {component, setInput} = await createTable({labels: {columnsButton: 'Columns'}});
-      const first = component.effectiveLabels();
+      const first = component['effectiveLabels']();
 
       await setInput('labels', {columnsButton: 'Columns'}); // nouvel objet, mêmes valeurs
 
-      expect(component.effectiveLabels()).toBe(first);
+      expect(component['effectiveLabels']()).toBe(first);
     });
 
     it('donne la priorité à [labels] sur les labels injectés', async () => {
@@ -1258,9 +1349,9 @@ describe('NgTableComponent', () => {
       });
       const {component} = await createTable({labels: {columnsButton: 'Local'}});
 
-      expect(component.effectiveLabels().columnsButton).toBe('Local');
-      expect(component.effectiveLabels().viewsButton).toBe('Vues globales');
-      expect(component.effectiveLabels().ok).toBe(NG_TABLE_DEFAULT_LABELS.ok);
+      expect(component['effectiveLabels']().columnsButton).toBe('Local');
+      expect(component['effectiveLabels']().viewsButton).toBe('Vues globales');
+      expect(component['effectiveLabels']().ok).toBe(NG_TABLE_DEFAULT_LABELS.ok);
     });
 
     it('suit un Signal de labels injecté (changement de langue)', async () => {
@@ -1275,11 +1366,11 @@ describe('NgTableComponent', () => {
         ],
       });
       const {component} = await createTable();
-      expect(component.effectiveLabels().columnsButton).toBe('Colonnes');
+      expect(component['effectiveLabels']().columnsButton).toBe('Colonnes');
 
       lang.set('en');
 
-      expect(component.effectiveLabels().columnsButton).toBe('Columns');
+      expect(component['effectiveLabels']().columnsButton).toBe('Columns');
     });
   });
 
@@ -1291,7 +1382,7 @@ describe('NgTableComponent', () => {
       const copied: unknown[] = [];
       component.cellCopied.subscribe((e) => copied.push(e));
 
-      component.onCopyCellValue(
+      component['onCopyCellValue'](
         {stopPropagation: () => undefined} as MouseEvent,
         component.columns()[0],
         ROWS[0],
@@ -1305,8 +1396,8 @@ describe('NgTableComponent', () => {
     it('n’affiche pas l’action de copie sur une colonne sans `copy`', async () => {
       const {component} = await createTable();
 
-      expect(component.hasCopyAction(component.columns()[0], ROWS[0])).toBe(true);
-      expect(component.hasCopyAction(component.columns()[1], ROWS[0])).toBe(false);
+      expect(component['hasCopyAction'](component.columns()[0], ROWS[0])).toBe(true);
+      expect(component['hasCopyAction'](component.columns()[1], ROWS[0])).toBe(false);
     });
   });
 
@@ -1317,11 +1408,11 @@ describe('NgTableComponent', () => {
       const {component, fixture} = await createTable({columns: cols, minTableWidthPx: 400, rowSelectionEnabled: true});
 
       // 300 (largeur fixée) + 3 colonnes × 120 (largeur mini par défaut) + 48 (cases à cocher)
-      expect(component.tableMinWidthPx()).toBe(708);
+      expect(component['tableMinWidthPx']()).toBe(708);
       expect((fixture.nativeElement.querySelector('table.ng-table') as HTMLElement).style.minWidth).toBe('708px');
 
       await fixture.componentRef.setInput('minTableWidthPx', 2000);
-      expect(component.tableMinWidthPx()).toBe(2000);
+      expect(component['tableMinWidthPx']()).toBe(2000);
     });
 
     function resizableColumns(): NgTableColumn<Row>[] {
@@ -1345,13 +1436,13 @@ describe('NgTableComponent', () => {
       const {component} = await createTable({columns: resizableColumns()});
       const column = component.columns()[0];
 
-      component.onResizeStart(mouseEvent(), column);
+      component['onResizeStart'](mouseEvent(), column);
 
       component['onResizeMove']({clientX: 500} as MouseEvent);
-      expect(component.columnWidthPx(column)).toBe(300);
+      expect(component['columnWidthPx'](column)).toBe(300);
 
       component['onResizeMove']({clientX: -500} as MouseEvent);
-      expect(component.columnWidthPx(column)).toBe(100);
+      expect(component['columnWidthPx'](column)).toBe(100);
 
       component['stopResize']();
     });
@@ -1360,29 +1451,29 @@ describe('NgTableComponent', () => {
       const {component} = await createTable({columns: resizableColumns()});
       const column = component.columns()[0];
 
-      component.onResizeStart(mouseEvent({detail: 2}), column);
+      component['onResizeStart'](mouseEvent({detail: 2}), column);
       component['onResizeMove']({clientX: 500} as MouseEvent);
 
-      expect(component.columnWidthPx(column)).toBe(200); // largeur d'origine inchangée
+      expect(component['columnWidthPx'](column)).toBe(200); // largeur d'origine inchangée
     });
 
     it('ne redimensionne pas une colonne non redimensionnable', async () => {
       const {component} = await createTable();
       const column = component.columns()[0]; // `resizable` non défini
 
-      component.onResizeStart(mouseEvent(), column);
+      component['onResizeStart'](mouseEvent(), column);
       component['onResizeMove']({clientX: 500} as MouseEvent);
 
-      expect(component.columnWidthPx(column)).toBeNull();
+      expect(component['columnWidthPx'](column)).toBeNull();
     });
 
     it('ne descend jamais sous minWidthPx en auto-fit', async () => {
       const {component} = await createTable({columns: resizableColumns()});
       const column = component.columns()[0];
 
-      component.onResizeAutoFit(mouseEvent(), column);
+      component['onResizeAutoFit'](mouseEvent(), column);
 
-      expect(component.columnWidthPx(column)).toBe(100);
+      expect(component['columnWidthPx'](column)).toBe(100);
     });
 
     it('restaure les styles inline après la mesure d’auto-fit', async () => {
@@ -1391,7 +1482,7 @@ describe('NgTableComponent', () => {
       const measured = fixture.nativeElement.querySelector('.mat-column-nom .header-button') as HTMLElement | null;
       expect(measured).not.toBeNull();
 
-      component.onResizeAutoFit(mouseEvent(), component.columns()[0]);
+      component['onResizeAutoFit'](mouseEvent(), component.columns()[0]);
 
       // la mesure dé-contraint temporairement le nœud : rien ne doit rester appliqué
       expect(measured?.style.width ?? '').toBe('');
@@ -1404,21 +1495,21 @@ describe('NgTableComponent', () => {
       const column = component.columns()[0];
       const handle = fixture.nativeElement.querySelector('.resize-handle') as HTMLElement;
 
-      component.onResizeHandleKeydown(
+      component['onResizeHandleKeydown'](
         {key: 'ArrowRight', target: handle, preventDefault: () => undefined} as unknown as KeyboardEvent,
         column,
       );
-      expect(component.columnWidthPx(column)).toBe(216); // 200 + le pas de 16px
+      expect(component['columnWidthPx'](column)).toBe(216); // 200 + le pas de 16px
 
-      component.onResizeHandleKeydown(
+      component['onResizeHandleKeydown'](
         {key: 'ArrowLeft', target: handle, preventDefault: () => undefined} as unknown as KeyboardEvent,
         column,
       );
-      component.onResizeHandleKeydown(
+      component['onResizeHandleKeydown'](
         {key: 'ArrowLeft', target: handle, preventDefault: () => undefined} as unknown as KeyboardEvent,
         column,
       );
-      expect(component.columnWidthPx(column)).toBe(200 - 16);
+      expect(component['columnWidthPx'](column)).toBe(200 - 16);
     });
 
     it('ignore les touches autres que les flèches, et une colonne non redimensionnable', async () => {
@@ -1426,14 +1517,14 @@ describe('NgTableComponent', () => {
       const column = component.columns()[0];
       const nonResizable = columns()[1];
 
-      component.onResizeHandleKeydown({key: 'Enter', target: null} as unknown as KeyboardEvent, column);
-      expect(component.columnWidthPx(column)).toBe(200);
+      component['onResizeHandleKeydown']({key: 'Enter', target: null} as unknown as KeyboardEvent, column);
+      expect(component['columnWidthPx'](column)).toBe(200);
 
-      component.onResizeHandleKeydown(
+      component['onResizeHandleKeydown'](
         {key: 'ArrowRight', target: null, preventDefault: () => undefined} as unknown as KeyboardEvent,
         nonResizable,
       );
-      expect(component.columnWidthPx(nonResizable)).toBeNull();
+      expect(component['columnWidthPx'](nonResizable)).toBeNull();
     });
   });
 
@@ -1443,30 +1534,30 @@ describe('NgTableComponent', () => {
       const region = () => (fixture.nativeElement.querySelector('.ngt-live-region') as HTMLElement);
       expect(region().getAttribute('role')).toBe('status');
 
-      component.onHeaderSort(component.columns()[0]);
+      component['onHeaderSort'](component.columns()[0]);
       await fixture.whenStable();
       expect(region().textContent!.trim()).toBe('Nom, tri croissant. 3 ligne(s) affichée(s)');
 
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
       await fixture.whenStable();
       expect(region().textContent!.trim()).toBe('2 ligne(s) affichée(s)');
 
-      component.onFilterValue('statut', 'ANNULEE');
+      component['onFilterValue']('statut', 'ANNULEE');
       expect(component['liveAnnouncement']()).toBe('Aucune ligne ne correspond');
     });
 
     it('réannonce un message identique (sinon le lecteur d’écran ne le relit pas)', async () => {
       const {component} = await createTable();
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
       const first = component['liveAnnouncement']();
-      component.onFilterValue('actif', 'true'); // même résultat : 2 lignes
+      component['onFilterValue']('actif', 'true'); // même résultat : 2 lignes
       expect(component['liveAnnouncement']()).not.toBe(first);
       expect(component['liveAnnouncement']().trim()).toBe(first);
     });
 
     it('mode remote : n’annonce que le tri (le nombre de lignes n’est pas encore connu)', async () => {
       const {component} = await createTable({dataMode: 'remote'});
-      component.onHeaderSort(component.columns()[0]);
+      component['onHeaderSort'](component.columns()[0]);
       expect(component['liveAnnouncement']()).toBe('Nom, tri croissant');
     });
 
@@ -1475,14 +1566,14 @@ describe('NgTableComponent', () => {
       const sortable = component.columns()[0]; // `nom`, sortable: true
       const nonSortableColumn = component.columns()[3]; // `actif`, sortable non défini
 
-      expect(component.ariaSortValue(sortable)).toBe('none');
-      expect(component.ariaSortValue(nonSortableColumn)).toBeNull();
+      expect(component['ariaSortValue'](sortable)).toBe('none');
+      expect(component['ariaSortValue'](nonSortableColumn)).toBeNull();
 
-      component.onHeaderSort(sortable);
-      expect(component.ariaSortValue(sortable)).toBe('ascending');
+      component['onHeaderSort'](sortable);
+      expect(component['ariaSortValue'](sortable)).toBe('ascending');
 
-      component.onHeaderSort(sortable);
-      expect(component.ariaSortValue(sortable)).toBe('descending');
+      component['onHeaderSort'](sortable);
+      expect(component['ariaSortValue'](sortable)).toBe('descending');
     });
 
     it('donne un aria-label à la case "tout sélectionner" et à chaque case de ligne', async () => {
@@ -1523,10 +1614,10 @@ describe('NgTableComponent', () => {
       const {component} = await createTable({detailRowTemplate: hostFixture.componentInstance.tpl()});
       const row = ROWS[0];
 
-      component.onRowKeydown({key: 'Enter', preventDefault: () => undefined} as unknown as KeyboardEvent, row);
+      component['onRowKeydown']({key: 'Enter', preventDefault: () => undefined} as unknown as KeyboardEvent, row);
       expect(component.isRowExpanded(row)).toBe(true);
 
-      component.onRowKeydown({key: ' ', preventDefault: () => undefined} as unknown as KeyboardEvent, row);
+      component['onRowKeydown']({key: ' ', preventDefault: () => undefined} as unknown as KeyboardEvent, row);
       expect(component.isRowExpanded(row)).toBe(false);
     });
 
@@ -1536,7 +1627,7 @@ describe('NgTableComponent', () => {
       component.columnOrderChange.subscribe((order) => emitted.push(order));
       const nomColumn = component.columns()[0];
 
-      component.onColumnHandleKeydown(
+      component['onColumnHandleKeydown'](
         {key: 'ArrowRight', preventDefault: () => undefined} as unknown as KeyboardEvent,
         nomColumn,
       );
@@ -1544,7 +1635,7 @@ describe('NgTableComponent', () => {
       expect(emitted).toHaveLength(1);
       expect(emitted[0].indexOf('nom')).toBe(1); // décalée d'un cran vers la droite
 
-      component.onColumnHandleKeydown(
+      component['onColumnHandleKeydown'](
         {key: 'ArrowLeft', preventDefault: () => undefined} as unknown as KeyboardEvent,
         nomColumn,
       );
@@ -1558,11 +1649,11 @@ describe('NgTableComponent', () => {
       const firstColumn = component.columns()[0];
       const lastColumn = component.columns()[component.columns().length - 1];
 
-      component.onColumnHandleKeydown(
+      component['onColumnHandleKeydown'](
         {key: 'ArrowLeft', preventDefault: () => undefined} as unknown as KeyboardEvent,
         firstColumn,
       );
-      component.onColumnHandleKeydown(
+      component['onColumnHandleKeydown'](
         {key: 'ArrowRight', preventDefault: () => undefined} as unknown as KeyboardEvent,
         lastColumn,
       );
@@ -1605,7 +1696,7 @@ describe('NgTableComponent', () => {
       cols[0] = {...cols[0], valueAccessor: (r) => (r.nom === '' ? null : r.nom)};
       const {component} = await createTable({columns: cols, rows});
 
-      component.onHeaderSort(component.columns()[0]);
+      component['onHeaderSort'](component.columns()[0]);
 
       expect(ids(component.displayedRows())).toEqual(['b', 'a']);
     });
@@ -1619,11 +1710,11 @@ describe('NgTableComponent', () => {
 
     it('nettoie les filtres des colonnes retirées', async () => {
       const {component, setInput} = await createTable();
-      component.onFilterValue('statut', 'VALIDEE');
+      component['onFilterValue']('statut', 'VALIDEE');
 
       await setInput('columns', columns().filter((c) => c.id !== 'statut'));
 
-      expect(component.currentFilterValue('statut')).toBe('');
+      expect(component['currentFilterValue']('statut')).toBe('');
       expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
     });
   });

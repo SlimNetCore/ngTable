@@ -21,8 +21,9 @@ export default tseslint.config(
       // casserait tous les consommateurs.
       '@angular-eslint/component-selector': ['error', {type: 'element', prefix: ['ng', 'app'], style: 'kebab-case'}],
       '@angular-eslint/directive-selector': ['error', {type: 'attribute', prefix: ['ngTable', 'app'], style: 'camelCase'}],
-      // En avertissement le temps du passage au typage générique (ROADMAP D1).
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // Typage générique en place (ROADMAP D1) : tout `any` restant doit être justifié
+      // par un `eslint-disable` commenté.
+      '@typescript-eslint/no-explicit-any': 'error',
       // Un paramètre préfixé `_` est volontairement ignoré (signature imposée par Material).
       '@typescript-eslint/no-unused-vars': ['error', {argsIgnorePattern: '^_', varsIgnorePattern: '^_'}],
     },

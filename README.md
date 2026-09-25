@@ -104,6 +104,17 @@ Le composant ne fait **aucun appel réseau** : `rows()` est fourni par le parent
 
 ![Vue d'ensemble : sélection de lignes, filtres inline, colonne d'actions](https://raw.githubusercontent.com/SlimNetCore/ngTable/main/captures/img_1.png)
 
+## Typage
+
+`NgTableComponent<T>` est générique. Dans un template, Angular infère `T` depuis `[rows]` et `[columns]`, sans rien à écrire. Les événements et les templates sont alors typés avec votre modèle :
+
+```html
+<ng-table [rows]="commandes()" [columns]="columns" (rowClick)="ouvrir($event)" />
+<!-- $event est une Commande : une faute de propriété est signalée à la compilation -->
+```
+
+Pour que l'inférence fonctionne, typez vos colonnes avec votre modèle (`NgTableColumn<Commande>[]`). Côté TypeScript, `viewChild(NgTableComponent)` sans paramètre reste utilisable (`T = any`). Précisez le type pour bénéficier du typage : `viewChild.required<NgTableComponent<Commande>>(NgTableComponent)`.
+
 ## Pattern contrôlé / non-contrôlé
 
 Convention utilisée pour plusieurs features (visibilité colonnes, ordre colonnes, filtres, sélection, expansion détail, vues) :
@@ -385,7 +396,7 @@ Un champ « Rechercher… » en haut à gauche de la table, qui cherche dans tou
 
 - Chaque mot saisi doit apparaître dans la ligne, pas forcément dans la même colonne. Par exemple, `dupont validée` trouve le client Dupont au statut Validée.
 - La casse et les accents sont ignorés : `elodie` trouve `Élodie`.
-- La saisie est debouncée comme les filtres texte (`[filterDebounceMs]`). Échap efface le champ.
+- La saisie est debouncée comme les filtres texte (`[filterDebounceMs]`). Entrée applique la recherche tout de suite ; Échap efface le champ.
 - La recherche se combine aux filtres de colonnes. Elle apparaît dans la barre des filtres actifs, et « Réinitialiser les filtres » l'efface aussi.
 - Elle est enregistrée dans les vues sauvegardées.
 
@@ -650,7 +661,17 @@ Le même `cellTemplate` sert pour la cellule desktop (dans sa colonne normale) e
 
 ### Étape 16 — Mode local complet, avec pagination interne
 
-Toutes les commandes sont chargées une fois ; filtre/tri/pagination se font en mémoire, aucune requête ensuite :
+Toutes les commandes sont chargées une fois ; filtre/tri/pagination se font en mémoire, aucune requête ensuite.
+
+**Le plus simple : le paginateur intégré.** Il n'y a rien à relier : le composant tient la page courante, revient en page 1 après un filtre, recule si les données rétrécissent, et restaure la pagination des vues.
+
+```html
+<ng-table [paginator]="true" [pageSize]="25" [pageSizeOptions]="[25, 50, 100]" [columns]="columns" [rows]="allCommandes()" />
+```
+
+Pour lire ou piloter la page depuis le parent : `[(pageIndex)]="page"` et `[(pageSize)]="taille"` (liaison bidirectionnelle).
+
+**Avec votre propre `<mat-paginator>`** (placé ailleurs dans la page, par exemple) :
 
 ```html
 <ng-table
@@ -791,7 +812,9 @@ onViewActivated(view: NgTableView | null): void {
 }
 ```
 
-⚠️ **Piège fréquent** : `[pageIndex]`/`[pageSize]` sont **entièrement contrôlés** — comme `column­Visibility`, `sort`, `filters`... sauf qu'ici il n'y a pas de mode "non contrôlé" de secours (contrairement à `columnVisibility` qui gère un état interne si vous ne le bindez pas). Sans le binding `(viewPaginationRestore)` ci-dessus, la page/taille de page sauvegardées dans une vue ne sont **jamais réappliquées** à l'activation : ng-table les calcule et les émet, mais ne peut pas écrire lui-même dans vos propres signaux `pageIndex`/`pageSize`. C'est la cause la plus courante d'un "la taille de page ne se restaure pas en changeant de vue".
+ℹ️ Avec le paginateur intégré (`[paginator]="true"`), ce qui suit ne vous concerne pas : la pagination d'une vue est réappliquée automatiquement.
+
+⚠️ **Piège fréquent** (paginateur externe) : `[pageIndex]`/`[pageSize]` sont **entièrement contrôlés** — comme `column­Visibility`, `sort`, `filters`... sauf qu'ici il n'y a pas de mode "non contrôlé" de secours (contrairement à `columnVisibility` qui gère un état interne si vous ne le bindez pas). Sans le binding `(viewPaginationRestore)` ci-dessus, la page/taille de page sauvegardées dans une vue ne sont **jamais réappliquées** à l'activation : ng-table les calcule et les émet, mais ne peut pas écrire lui-même dans vos propres signaux `pageIndex`/`pageSize`. C'est la cause la plus courante d'un "la taille de page ne se restaure pas en changeant de vue".
 
 Pour persister ailleurs qu'en `localStorage` (backend, fichier...), passez en mode contrôlé :
 
@@ -1027,8 +1050,8 @@ interface NgTableFilterConfig {
 
 | Input                       | Type                                                             | Défaut    | Description                                                                                                          |
 |-----------------------------|--------------------------------------------------------------------|-----------|----------------------------------------------------------------------------------------------------------------------|
-| `rows`                      | `any[]`                                                          | `[]`      | Données source.                                                                                                      |
-| `columns`                   | `NgTableColumn<any>[]`                                           | `[]`      | Définition des colonnes.                                                                                             |
+| `rows`                      | `T[]`                                                            | `[]`      | Données source. `T` est inféré depuis `[rows]` / `[columns]` (voir « Typage »).                                    |
+| `columns`                   | `NgTableColumn<T>[]`                                             | `[]`      | Définition des colonnes.                                                                                             |
 | `columnVisibility`          | `Record<string, boolean> \| null`                                | `null`    | Mode contrôlé de la visibilité.                                                                                      |
 | `columnOrder`               | `ReadonlyArray<string> \| null`                                  | `null`    | Mode contrôlé de l'ordre des colonnes.                                                                               |
 | `filters`                   | `Record<string, string> \| null`                                 | `null`    | Mode contrôlé des filtres.                                                                                           |
@@ -1062,8 +1085,11 @@ interface NgTableFilterConfig {
 | `rowContextMenuTemplate`    | `TemplateRef<{$implicit: row, row}>`                             | `null`    | Contenu du menu contextuel.                                                                                          |
 | `dataMode`                  | `'local' \| 'remote'`                                            | `'local'` | Voir "Mode local / distant".                                                                                         |
 | `pageTrackingEnabled`       | `boolean`                                                        | `false`   | Voir "Pagination".                                                                                                   |
-| `pageIndex`                 | `number`                                                         | `0`       | Page courante (0-based). Utilisé si `pageTrackingEnabled=true`.                                                      |
-| `pageSize`                  | `number`                                                         | `10`      | Taille de page. Utilisé si `pageTrackingEnabled=true`.                                                               |
+| `pageIndex`                 | `number` (`model`)                                               | `0`       | Page courante (0-based), liable en `[(pageIndex)]`. Utilisée si la pagination est active.                            |
+| `pageSize`                  | `number` (`model`)                                               | `10`      | Taille de page, liable en `[(pageSize)]`.                                                                            |
+| `paginator`                 | `boolean`                                                        | `false`   | Paginateur intégré, déjà branché (active la pagination).                                                             |
+| `pageSizeOptions`           | `readonly number[]`                                              | `[10, 25, 50, 100]` | Tailles proposées par le paginateur intégré.                                                               |
+| `totalCount`                | `number \| null`                                                 | `null`    | Mode `remote` + paginateur intégré : total de lignes côté serveur.                                                   |
 | `viewsEnabled`              | `boolean`                                                        | `false`   | Affiche/masque le bloc "Vues" (bouton + menu).                                                                       |
 | `viewsStorageKey`           | `string \| null`                                                 | `null`    | Mode non contrôlé : clé de persistance `localStorage` des vues.                                                      |
 | `viewsStore`                | `NgTableViewsStore \| null`                                      | `null`    | Mode contrôlé : le parent possède le store des vues.                                                                 |
@@ -1076,17 +1102,37 @@ interface NgTableFilterConfig {
 | `maxHeight`                  | `string \| null`                                                 | `null`    | Hauteur maximale de la zone de la table (ex. `'480px'`, `'60vh'`) ; au-delà, défilement vertical.                    |
 | `stickyHeader`               | `boolean`                                                        | `false`   | Garde l'en-tête visible pendant le défilement (à combiner avec `maxHeight`).                                         |
 
+### Méthodes publiques
+
+Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent)`. Les autres membres sont `protected` : ils servent au template et peuvent changer sans préavis.
+
+| Méthode / signal | Rôle |
+|------------------|------|
+| `displayedRows()` | Lignes affichées (filtrées, triées, paginées en mode local). |
+| `visibleColumns()` | Colonnes visibles, dans l'ordre d'affichage. |
+| `selectedRowsCount()`, `isRowSelected(row)` | État de la sélection. |
+| `clearFilter(columnId)`, `clearAllFilters()`, `clearGlobalSearch()` | Effacer un filtre, tous les filtres et la recherche, ou la recherche seule. |
+| `activeFilterSummaries()` | Filtres actifs (`{columnId, label, value}`), comme dans la barre des filtres. |
+| `toggleDetail(row)`, `collapseAllDetails()`, `isRowExpanded(row)`, `expandedDetailCount()` | Lignes détail (mode non contrôlé). |
+| `viewsList()`, `activeView()`, `activeViewId()` | Vues sauvegardées. |
+| `saveCurrentAsView(name)`, `updateView(view)`, `activateView(view)`, `deleteView(view)` | Gérer les vues. |
+| `toggleDefaultView(view)`, `isDefaultView(view)` | Vue par défaut. |
+| `exportViews()`, `importViews(json, mode?)`, `downloadViews()` | Partager des vues. |
+| `openExportDialog()` | Lancer l'export, comme le bouton « Exporter ». |
+| `getQueryState()`, `applyQueryState(partiel)` | Lire / appliquer tri, filtres, recherche et page (`NgTableQueryState`) en une fois. |
+
 ### Outputs
 
 | Output                   | Payload                                                                       | Description                                                                                                                                                                |
 |--------------------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `rowClick`               | `any`                                                                         | Clic sur une ligne de données.                                                                                                                                             |
+| `rowClick`               | `T`                                                                           | Clic sur une ligne de données.                                                                                                                                             |
 | `sortsChange`            | `NgTableSortChange[]`                                                         | Tous les niveaux de tri, par priorité, à chaque clic de tri.                                                                                                               |
+| `queryStateChange`       | `NgTableQueryState` (`{sorts, filters, search, pageIndex, pageSize}`)           | Tri, filtres, recherche ou page ont changé, quelle qu'en soit l'origine. Émis aussi une fois au démarrage.                                                                 |
 | `filtersChange`          | `Record<string, string>`                                                      | Tout changement de filtre.                                                                                                                                                 |
 | `globalSearchChange`     | `string`                                                                      | Recherche globale appliquée (après debounce ; `''` quand elle est effacée).                                                                                                |
 | `sortChange`             | `NgTableSortChange` (`{columnId, direction}`)                                 | Changement de tri.                                                                                                                                                         |
 | `cellCopied`             | `NgTableCopyEvent` (`{columnId, value, row}`)                                 | Après un clic sur le bouton copier.                                                                                                                                        |
-| `detailToggle`           | `NgTableDetailToggleEvent` (`{row, expanded, expandedKeys}`)                  | Ouverture/fermeture d'une ligne détail.                                                                                                                                    |
+| `detailToggle`           | `NgTableDetailToggleEvent<T>` (`{row, expanded, expandedKeys}`)               | Ouverture/fermeture d'une ligne détail (`row` vaut `null` après `collapseAllDetails()`).                                                                                                                                 |
 | `columnVisibilityChange` | `Record<string, boolean>`                                                     | Changement via le menu "Colonnes".                                                                                                                                         |
 | `columnOrderChange`      | `string[]`                                                                    | Nouvel ordre des ids après un drag-and-drop d'en-tête.                                                                                                                     |
 | `selectionChange`        | `NgTableSelectionChangeEvent` (`{row, selected, selectedKeys, selectedRows}`) | Sélection/désélection ou tout-sélectionner.                                                                                                                                |
@@ -1347,6 +1393,13 @@ onPageChange(event: PageEvent): void {
 
 ## Pagination
 
+Deux façons de paginer :
+
+- **`[paginator]="true"`** : un `<mat-paginator>` intégré, déjà branché. En mode `remote`, fournissez `[totalCount]` (le total côté serveur). Chaque changement de page émet alors `remoteQueryChange` avec la nouvelle page.
+- **`pageTrackingEnabled`** avec votre propre paginateur, comme ci-dessous.
+
+`pageIndex` et `pageSize` sont des `model()` : ils acceptent `[(pageIndex)]`, et le composant les met à jour lui-même (retour en page 0 après un filtre, restauration d'une vue). Chaque changement émet `(pageIndexChange)` / `(pageSizeChange)`.
+
 `pageTrackingEnabled` déclare que `[pageIndex]`/`[pageSize]` sont réellement pris en compte :
 
 - **Mode `local`** : c'est là qu'il agit vraiment. `displayedRows()` est tronqué à la page courante, et `(filteredCountChange)` donne le total post-filtre pour votre paginator.
@@ -1548,6 +1601,60 @@ Le menu "Colonnes" imbriquait un `<mat-checkbox>` (lui-même interactif) dans un
 - **Contraste des couleurs** : les variables `--app-*` (voir "Personnaliser le style") sont sous votre contrôle — vérifiez le contraste de votre charte (WCAG 1.4.3, ratio 4.5:1 pour le texte standard).
 - **`cellTemplate` / `rowContextMenuTemplate` / `loadingTemplate`** : leur contenu est libre — à vous de leur donner des noms accessibles (boutons, liens, contrôles de formulaire) et de respecter la même rigueur clavier.
 - **`ariaLabel`** : pensez à le renseigner avec un intitulé propre à votre écran (ex. "Liste des commandes") plutôt que de garder le défaut générique.
+
+## État dans l'URL (`ngTableUrlState`)
+
+Le tri, les filtres, la recherche et la page peuvent vivre dans l'URL. Un lien copié rouvre alors la liste dans le même état, et un rechargement de page ne perd rien. La directive est dans un point d'entrée séparé, `@sbourahla/ng-table/router` : seul ce point d'entrée dépend de `@angular/router`, qui reste une dépendance optionnelle.
+
+```ts
+import {NgTableUrlStateDirective} from '@sbourahla/ng-table/router';
+
+@Component({imports: [NgTableComponent, NgTableUrlStateDirective], ...})
+```
+
+```html
+<ng-table [ngTableUrlState]="'cmd'" ... />
+```
+
+L'URL obtenue est lisible : `?cmd.s=montant:desc,client:asc&cmd.q=dupont&cmd.p=2&cmd.f.statut=VALIDEE`.
+
+- `s` porte le tri (plusieurs niveaux avec `[multiSort]`), `q` la recherche, `p` la page (**à partir de 1**, comme à l'écran), `ps` la taille de page si elle a changé, et `f.<colonne>` chaque filtre. Les valeurs par défaut sont omises.
+- Le **préfixe** (`'cmd'`) permet plusieurs tables sur une même page, et évite les conflits avec vos propres paramètres. Sans préfixe (`<ng-table ngTableUrlState>`), les noms sont `s`, `q`, `p`...
+- Au chargement, l'URL l'emporte sur la vue par défaut. Une URL sans paramètre de table ne l'efface pas : c'est la vue restaurée qui est alors écrite dans l'URL.
+- Les changements remplacent l'entrée d'historique courante (`replaceUrl`), pour ne pas créer une entrée par frappe. Une navigation vers la même page avec d'autres paramètres est appliquée à la table (lien interne, Précédent / Suivant entre deux pages).
+
+Sans la directive, les mêmes briques restent disponibles pour synchroniser ailleurs (store, `sessionStorage`...). `getQueryState()` et `applyQueryState(partiel)` lisent et appliquent l'état. `(queryStateChange)` émet à chaque changement.
+
+## Tester votre table (`NgTableHarness`)
+
+Le paquet fournit un [harness de test Angular CDK](https://material.angular.dev/cdk/test-harnesses/overview) dans `@sbourahla/ng-table/testing`. Vos tests passent par ce que voit l'utilisateur (libellés d'en-tête, textes des cellules, attributs ARIA) plutôt que par le DOM interne du composant. Ils ne cassent donc pas quand ce DOM évolue.
+
+```ts
+import {TestbedHarnessEnvironment} from '@angular/cdk/testing/testbed';
+import {NgTableHarness} from '@sbourahla/ng-table/testing';
+
+const loader = TestbedHarnessEnvironment.loader(fixture);
+const table = await loader.getHarness(NgTableHarness.with({ariaLabel: 'Liste des commandes'}));
+
+await table.sortBy('Montant');                       // Maj+clic : sortBy('Client', {additive: true})
+expect(await table.getColumnTexts('Client')).toEqual(['Martin', 'Dupont']);
+
+await table.search('dupont');                        // appliquée tout de suite, sans attendre le debounce
+expect(await table.getRowCount()).toBe(1);
+
+const [row] = await table.getRows();
+await row.toggleSelection();
+await (await table.getPaginator())?.goToNextPage();  // MatPaginatorHarness du paginateur intégré
+```
+
+| Méthode | Rôle |
+|---------|------|
+| `getRowCount()`, `getRows()` | Lignes affichées ; chaque `NgTableRowHarness` offre `getCellTexts()`, `click()`, `toggleSelection()`, `isSelected()`. |
+| `getHeaderTexts()`, `getCellTexts()`, `getColumnTexts(header)` | Contenu, colonne identifiée par son libellé. Le texte des boutons (copier...) est exclu. |
+| `sortBy(header, {additive?})`, `getSortDirection(header)` | Tri. |
+| `search(text)`, `getSearchValue()` | Recherche globale. |
+| `getPaginator()` | `MatPaginatorHarness` du paginateur intégré, ou `null`. |
+| `getEmptyText()`, `isLoading()`, `getLiveAnnouncement()`, `getAriaLabel()` | États affichés et accessibilité. |
 
 ## Points d'attention
 

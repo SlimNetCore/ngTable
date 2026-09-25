@@ -20,6 +20,12 @@
     "paths": {
       "@sbourahla/ng-table": [
         "./projects/ng-table/src/public-api.ts"
+      ],
+      "@sbourahla/ng-table/testing": [
+        "./projects/ng-table/testing/public-api.ts"
+      ],
+      "@sbourahla/ng-table/router": [
+        "./projects/ng-table/router/public-api.ts"
       ]
     }
   },
