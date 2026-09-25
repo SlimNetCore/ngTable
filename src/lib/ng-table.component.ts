@@ -312,6 +312,8 @@ export class NgTableComponent implements OnDestroy {
   readonly rowKeyAccessor = input<((row: any) => unknown) | null>(null);
   /** Show/hide the built-in "reset all filters" button. */
   readonly showResetFilters = input(true);
+  /** Show/hide the built-in "Colonnes" button (column visibility picker). `true` par défaut. */
+  readonly columnsMenuEnabled = input(true);
   /**
    * Délai (ms) avant qu'une saisie dans un filtre texte ne soit prise en compte.
    * Evite de refiltrer (mode `local`) ou de lancer une requête (mode `remote`) à chaque

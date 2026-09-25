@@ -489,6 +489,22 @@ describe('NgTableComponent', () => {
       expect(component.displayedColumnIds()).toEqual(['nom', 'statut']);
     });
 
+    it('affiche le bouton "Colonnes" par défaut, et le masque via columnsMenuEnabled=false', async () => {
+      const {fixture: withDefault} = await createTable();
+      expect(withDefault.nativeElement.textContent).toContain('Colonnes');
+
+      const {fixture: withoutButton} = await createTable({columnsMenuEnabled: false});
+      expect(withoutButton.nativeElement.textContent).not.toContain('Colonnes');
+    });
+
+    it('columnsMenuEnabled=false ne touche pas au fonctionnement sous-jacent de la visibilité', async () => {
+      const {component} = await createTable({columnsMenuEnabled: false});
+
+      component.onToggleColumnVisibility('montant', false);
+
+      expect(component.displayedColumnIds()).toEqual(['nom', 'statut', 'actif']);
+    });
+
     it('réordonne les colonnes au drop et notifie le nouvel ordre', async () => {
       const emitted: string[][] = [];
       const {component} = await createTable();

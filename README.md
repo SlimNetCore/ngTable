@@ -448,7 +448,15 @@ readonly columnOrder = signal<string[]>(['reference', 'client', 'statut', 'monta
 
 ### Étape 11 — Visibilité des colonnes
 
-Un bouton "Colonnes" (menu à cases à cocher) est toujours présent — rien à activer. En mode non contrôlé, l'état de visibilité est géré en interne (toutes visibles par défaut, sauf `visible: false` explicite sur une colonne). Pour le piloter depuis le parent (ex. sauvegarder la préférence utilisateur) :
+Un bouton "Colonnes" (menu à cases à cocher) est présent par défaut — rien à activer. Pour le masquer (par exemple si vous pilotez la visibilité autrement, ou ne voulez pas laisser l'utilisateur y toucher) :
+
+```html
+<ng-table [columnsMenuEnabled]="false" ... />
+```
+
+Ça ne masque QUE le bouton/menu : le mécanisme de visibilité lui-même (`visible: false` sur une colonne, ou `[columnVisibility]`/`(columnVisibilityChange)` en mode contrôlé, voir ci-dessous) continue de fonctionner normalement — utile si vous pilotez la visibilité depuis votre propre UI.
+
+En mode non contrôlé, l'état de visibilité est géré en interne (toutes visibles par défaut, sauf `visible: false` explicite sur une colonne). Pour le piloter depuis le parent (ex. sauvegarder la préférence utilisateur) :
 
 ```html
 <ng-table [columnVisibility]="visibleColumns()" (columnVisibilityChange)="visibleColumns.set($event)" ... />
@@ -954,6 +962,7 @@ interface NgTableFilterConfig {
 | `detailRowAccordion`        | `boolean`                                                        | `false`   | Mode non contrôlé : une seule ligne dépliée à la fois.                                                               |
 | `detailRowCanExpand`        | `(row) => boolean`                                               | `null`    | Garde optionnelle.                                                                                                   |
 | `showResetFilters`          | `boolean`                                                        | `true`    | Affiche le bouton "réinitialiser les filtres".                                                                       |
+| `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie dans un filtre **texte** (`0` = immédiat). Les filtres à choix fixe (select/enum/booléen/date) ne sont jamais debouncés. |
 | `rowSelectionEnabled`       | `boolean`                                                        | `false`   | Ajoute une colonne checkbox de sélection.                                                                            |
 | `selectedRowKeys`           | `ReadonlyArray<unknown> \| null`                                 | `null`    | Mode contrôlé de la sélection.                                                                                       |

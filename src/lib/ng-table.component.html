@@ -16,26 +16,28 @@
   }
 
   <div class="list-actions">
-    <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" mat-stroked-button type="button">
-      <mat-icon aria-hidden="true">view_column</mat-icon>
-      {{ effectiveLabels().columnsButton }}
-    </button>
+    @if (columnsMenuEnabled()) {
+      <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" mat-stroked-button type="button">
+        <mat-icon aria-hidden="true">view_column</mat-icon>
+        {{ effectiveLabels().columnsButton }}
+      </button>
 
-    <mat-menu #columnsMenu="matMenu">
-      @for (column of columnsMenuItems(); track column.id) {
-        <!-- `<div mat-menu-item>` et non `<button>` : un `<mat-checkbox>` est lui-même
-             un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
-             et perturbe la navigation clavier/lecteur d'écran (contrôle dans contrôle). -->
-        <div (click)="$event.stopPropagation()" mat-menu-item>
-          <mat-checkbox
-            (change)="onToggleColumnVisibility(column.id, $event.checked)"
-            [checked]="isColumnVisible(column.id)"
-          >
-            {{ column.header }}
-          </mat-checkbox>
-        </div>
-      }
-    </mat-menu>
+      <mat-menu #columnsMenu="matMenu">
+        @for (column of columnsMenuItems(); track column.id) {
+          <!-- `<div mat-menu-item>` et non `<button>` : un `<mat-checkbox>` est lui-même
+               un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
+               et perturbe la navigation clavier/lecteur d'écran (contrôle dans contrôle). -->
+          <div (click)="$event.stopPropagation()" mat-menu-item>
+            <mat-checkbox
+              (change)="onToggleColumnVisibility(column.id, $event.checked)"
+              [checked]="isColumnVisible(column.id)"
+            >
+              {{ column.header }}
+            </mat-checkbox>
+          </div>
+        }
+      </mat-menu>
+    }
 
     @if (viewsEnabled()) {
       <button [matMenuTriggerFor]="viewsMenu" mat-stroked-button type="button">
