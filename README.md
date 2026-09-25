@@ -3024,6 +3024,24 @@ La démo présente la lib en trois modes, un par page :
 
 Suivi des évolutions : `CHANGELOG.md` ; feuille de route : `ROADMAP.md`.
 
+### Publier une version
+
+La publication sur npm est automatique : le workflow `.github/workflows/release.yml` se déclenche quand un tag de version est poussé.
+
+1. **Une seule fois**, créez un token sur npmjs.com (**Access Tokens → Generate New Token**, type *Granular* avec le droit de publier `@sbourahla/ng-table`, ou *Automation*). Enregistrez-le dans le dépôt GitHub sous le nom `NPM_TOKEN` (**Settings → Secrets and variables → Actions → New repository secret**).
+2. Mettez à jour `version` dans `projects/ng-table/package.json` et la section du `CHANGELOG.md` (`## [x.y.z] — date`), puis fusionnez dans `main`.
+3. Poussez le tag, identique à la version :
+
+   ```bash
+   git checkout main && git pull
+   git tag 1.0.0
+   git push origin 1.0.0
+   ```
+
+Le workflow vérifie d'abord que le tag correspond à la version du paquet, puis il relance le lint, les tests et le build. Il publie ensuite sur npm, avec une provenance qui atteste que le paquet vient de ce dépôt et de ce commit. Enfin, il crée la Release GitHub, avec pour notes la section du CHANGELOG.
+
+Une préversion (`1.1.0-beta.1`) est publiée sous le dist-tag `next` : `npm install @sbourahla/ng-table` ne la prend pas, `npm install @sbourahla/ng-table@next` oui.
+
 ## Licence
 
 MIT

@@ -1,0 +1,77 @@
+name: Release
+
+# Publie @sbourahla/ng-table sur npm quand un tag de version est poussé :
+#   git tag 1.0.0 && git push origin 1.0.0
+# Le tag doit être égal à la version de projects/ng-table/package.json.
+# Prérequis : un token npm (type « Automation » ou « Granular », droit de publication
+# sur le paquet) dans le secret NPM_TOKEN du dépôt.
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: write # créer la Release GitHub
+  id-token: write # provenance npm (attestation que le paquet vient de ce dépôt)
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Vérifier que le tag correspond à la version du paquet
+        run: |
+          VERSION=$(node -p "require('./projects/ng-table/package.json').version")
+          if [ "$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME, mais projects/ng-table/package.json est en $VERSION"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:ci
+      - run: npm run build
+
+      - name: Publier sur npm
+        working-directory: dist/ng-table
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::Secret NPM_TOKEN absent (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+          # Une préversion (1.1.0-beta.1) va sous le dist-tag « next » : `npm install` ne la prend pas par défaut.
+          case "$GITHUB_REF_NAME" in
+            *-*) npm publish --provenance --access public --tag next ;;
+            *) npm publish --provenance --access public ;;
+          esac
+
+      - name: Créer la Release GitHub (notes du CHANGELOG)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Section « ## [x.y.z] » du CHANGELOG, jusqu'à la version précédente.
+          awk -v v="$GITHUB_REF_NAME" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Voir CHANGELOG.md" > release-notes.md
+          fi
+          PRERELEASE=""
+          case "$GITHUB_REF_NAME" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md $PRERELEASE
