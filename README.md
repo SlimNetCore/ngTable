@@ -1673,6 +1673,14 @@ Le repo est un workspace Angular : la lib est dans `projects/ng-table`, une appl
 | `npm run lint` | Lint (angular-eslint). |
 | `npm run build` | Construit le paquet publiable dans `dist/ng-table` (README et LICENSE inclus). |
 
+La démo présente la lib en trois modes, un par page :
+
+| Mode | URL | Contenu |
+|------|-----|---------|
+| Simple | `/simple` | Le minimum : colonnes, recherche, paginateur intégré. Le code de la page est affiché. |
+| Avancé | `/avance` | Toutes les options d'affichage et d'interaction en mode local, activables depuis un panneau de réglages : types de filtres, épinglage, détail, menu contextuel, vues, export, 50 000 lignes... |
+| Expert | `/expert` | Faux serveur (mode `remote`), état contrôlé par le parent, filtre personnalisé, `applyQueryState()`, export serveur, journal des événements. |
+
 Suivi des évolutions : `CHANGELOG.md` ; feuille de route : `ROADMAP.md`.
 
 ## Licence

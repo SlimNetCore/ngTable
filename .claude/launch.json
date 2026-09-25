@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 4200
+    },
+    {
+      "name": "demo-4300",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["ng", "serve", "demo", "--port", "4300"],
+      "port": 4300
     }
   ]
 }

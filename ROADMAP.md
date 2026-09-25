@@ -28,7 +28,7 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 | O2 | Tests exécutables (Vitest via `@angular/build:unit-test`) | Vérifié | 130 tests OK ; `npm test` / `npm run test:ci` |
 | O3 | CI GitHub Actions | Fait (à vérifier) | Nécessite de committer `package-lock.json` |
 | O4 | ESLint (angular-eslint) | Vérifié | 0 erreur, 0 avertissement ; `no-explicit-any` en erreur |
-| O5 | Application de démo | Vérifié | `npm start` ; importe la lib depuis les sources (pas de rebuild) |
+| O5 | Application de démo | Vérifié | Trois modes routés : simple (code affiché), avancé (toutes les options en local, panneau de réglages), expert (faux serveur, mode contrôlé, filtre personnalisé, API, journal d'événements) |
 | O6 | CHANGELOG, semver, guide de migration 1.0.0 | En cours | Rempli au fil des phases |
 | O7 | Ménage du repo | Fait (à vérifier) | `.gitignore` ; fichiers obsolètes supprimés par le script |
 | O8 | Harness de test CDK (`NgTableHarness`) | Vérifié | Point d'entrée `@sbourahla/ng-table/testing` (construit par ng-packagr, présent dans `exports`) ; lignes, en-têtes, tri, recherche, sélection, paginateur ; 4 tests |
@@ -107,3 +107,4 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 - **2026-09-25** — A2 fait et vérifié (148 tests, lint 0/0, démo).
 - **2026-09-25** — O8 fait et vérifié (152 tests, lint 0/0, build). Note : l'option `include` du builder de tests est relative à `sourceRoot` (`src/`), d'où `../testing/**/*.spec.ts`.
 - **2026-09-25** — F12 fait et vérifié (160 tests, lint 0/0, build des 3 points d'entrée, démo).
+- **2026-09-25** — Retour utilisateur : filtres inline qui débordent de leur colonne. Mesuré dans la démo, colonne par colonne : +48 px pour les champs texte/nombre (`box-sizing` manquant sur `.field-shell`), libellé des dates sous l'icône du calendrier. Corrigé, 0 px de débordement mesuré ensuite. Démo refaite en trois modes. Trouvé en la construisant : un filtre booléen s'affichait « true » dans la barre des filtres actifs (corrigé). 161 tests OK.

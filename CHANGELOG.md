@@ -7,6 +7,7 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 Voir aussi `ROADMAP.md` pour le suivi détaillé.
 
 ### Outillage
+- Démo en trois modes (simple, avancé, expert), un par route.
 - Repo restructuré en workspace Angular : la lib est dans `projects/ng-table`, une application de démo dans `projects/demo` (`npm start`).
 - Tests exécutables avec Vitest (`npm test`, `npm run test:ci`), lint avec angular-eslint (`npm run lint`), CI GitHub Actions.
 
@@ -34,6 +35,9 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - `[exportFormat]="'xlsx'"` : export Excel natif, sans dépendance ; nombres et booléens restent typés, en-tête en gras et figé.
 
 ### Corrigé
+- Filtres inline : les champs texte et nombre débordaient de 48 px sur la colonne voisine (`box-sizing` manquant). La place du bouton d'effacement n'est plus réservée que lorsqu'il est affiché, et seulement sous lui : le champ « Min » d'une plage garde toute sa largeur.
+- Champs date : dans un champ étroit, le libellé passait sous l'icône du calendrier. Il est maintenant tronqué avant l'icône.
+- Barre des filtres actifs : un filtre booléen affiche « Oui » / « Non » (labels `yes` / `no`) au lieu de « true » / « false ».
 - Un filtre `enum` avec plusieurs valeurs cochées ne matchait plus aucune ligne.
 - Le libellé accessible des cases de sélection de ligne affichait « ligne NaN », et `detailRowWhen` recevait un index `undefined` (`index` n'existe pas avec `multiTemplateDataRows`).
 

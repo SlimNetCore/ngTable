@@ -11,8 +11,18 @@ export interface Commande {
   description: string;
 }
 
-const CLIENTS = ['Dupont SA', 'Martin SARL', 'Bernard & Fils', 'Petit Commerce', 'Leroy Industries', 'Moreau Logistique'];
-const STATUTS: CommandeStatut[] = ['BROUILLON', 'VALIDEE', 'EXPEDIEE', 'ANNULEE'];
+export const CLIENTS = ['Dupont SA', 'Martin SARL', 'Bernard & Fils', 'Petit Commerce', 'Leroy Industries', 'Moreau Logistique'];
+
+export const STATUT_LABELS: Record<CommandeStatut, string> = {
+  BROUILLON: 'Brouillon',
+  VALIDEE: 'Validée',
+  EXPEDIEE: 'Expédiée',
+  ANNULEE: 'Annulée',
+};
+
+export const STATUT_OPTIONS = Object.entries(STATUT_LABELS).map(([value, label]) => ({value, label}));
+
+const STATUTS = Object.keys(STATUT_LABELS) as CommandeStatut[];
 const DESCRIPTIONS = [
   'Livraison standard',
   'Commande groupée pour plusieurs entrepôts, avec une remise négociée sur les volumes du trimestre et une livraison fractionnée',

@@ -7,4 +7,91 @@ body {
   margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
   background: #f5f7fa;
+  color: #0d1d26;
+}
+
+/* --- Blocs communs aux trois modes de la démo ------------------------------ */
+
+.demo-intro {
+  margin: 0 0 16px;
+  color: #4f6573;
+  line-height: 1.5;
+}
+
+.demo-card {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.13);
+  border-radius: 12px;
+}
+
+.demo-card h2 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.demo-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  align-items: center;
+}
+
+.demo-settings .setting-label {
+  margin-right: 8px;
+  font-size: 0.85rem;
+  color: #4f6573;
+}
+
+.demo-features {
+  margin: 0;
+  padding-left: 18px;
+  columns: 2 320px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #4f6573;
+}
+
+.demo-features code,
+.demo-intro code {
+  font-size: 0.8rem;
+  color: #1d4f91;
+}
+
+.demo-code {
+  margin: 8px 0 0;
+  padding: 12px;
+  overflow-x: auto;
+  background: #0d1d26;
+  color: #e3eefb;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.demo-meta {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #4f6573;
+}
+
+/* Pastilles de statut (cellTemplate) */
+.statut {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.statut--BROUILLON { background: #eef2f6; color: #4f6573; }
+.statut--VALIDEE { background: #e3f4ea; color: #1b6b3a; }
+.statut--EXPEDIEE { background: #e3eefb; color: #1d4f91; }
+.statut--ANNULEE { background: #fdeaea; color: #a3261e; }
+
+/* Ligne mise en avant par rowClassFn */
+.row-urgent td.mat-mdc-cell:first-child {
+  box-shadow: inset 3px 0 0 #c98a00;
 }

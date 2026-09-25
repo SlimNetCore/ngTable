@@ -322,6 +322,14 @@ describe('NgTableComponent', () => {
       expect(component['isFilterActive']('statut')).toBe(true);
     });
 
+    it('affiche un filtre booléen actif avec son libellé (Oui / Non), pas « true »', async () => {
+      const {component} = await createTable();
+
+      component['onFilterValue']('actif', 'false');
+
+      expect(component.activeFilterSummaries()).toEqual([{columnId: 'actif', label: 'Actif', value: 'Non'}]);
+    });
+
     it('interprète les valeurs booléennes', async () => {
       const {component} = await createTable();
 

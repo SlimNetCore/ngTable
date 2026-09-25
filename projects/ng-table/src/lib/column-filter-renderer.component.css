@@ -155,6 +155,9 @@
 .field-shell {
   position: relative;
   display: flex;
+  /* Sans `border-box`, `width: 100%` + padding + bordure débordait de la colonne
+     (de 48 px en filtre inline, avec la place réservée au bouton d'effacement). */
+  box-sizing: border-box;
   align-items: center;
   flex: 1 1 auto;
   width: 100%;
@@ -328,8 +331,28 @@
   z-index: 2;
 }
 
-:host-context(.inline-filter) .field-shell {
+/* Place pour le bouton d'effacement (positionné en absolu à droite), seulement quand
+   il est affiché, et seulement sous lui : dans une plage min/max, le champ de gauche
+   garde toute sa largeur. */
+:host-context(.inline-filter) .field-shell.active,
+:host-context(.inline-filter) .number-range.active .field-shell:last-child {
   padding-right: 34px;
+}
+
+:host-context(.inline-filter) .number-range {
+  gap: 4px;
+}
+
+:host-context(.inline-filter) .number-range .field-shell {
+  padding-inline: 8px;
+}
+
+/* Material fixe la largeur interne d'un champ à 180 px : dans une colonne plus étroite,
+   le texte passait sous l'icône du calendrier au lieu d'être tronqué. */
+:host-context(.inline-filter) ::ng-deep .date-field .mat-mdc-form-field-infix,
+:host-context(.inline-filter) ::ng-deep .select-filter-field .mat-mdc-form-field-infix {
+  width: auto;
+  min-width: 0;
 }
 
 :host-context(.inline-filter) .date-range-field,
@@ -349,4 +372,18 @@
   width: 15px;
   height: 15px;
   margin: 0;
+}
+
+/* Le libellé d'un champ date (« Filtrer par Date ») est placé par Material dans
+   l'encoche du contour, qui couvre toute la largeur du champ, icône du calendrier
+   comprise : dans un champ étroit, le texte passait sous l'icône. On borne l'encoche à
+   la zone de saisie (largeur moins l'icône et les marges), le libellé s'y tronque. */
+:host ::ng-deep .date-field .mdc-notched-outline__notch,
+:host ::ng-deep .date-range-field .mdc-notched-outline__notch {
+  max-width: calc(100% - 72px) !important;
+}
+
+:host ::ng-deep .date-field .mdc-floating-label,
+:host ::ng-deep .date-range-field .mdc-floating-label {
+  text-overflow: ellipsis;
 }

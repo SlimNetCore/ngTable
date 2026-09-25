@@ -2695,6 +2695,17 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return formatRangeValue(rawValue);
     }
 
+    // Même libellé que dans la liste du filtre, et non la valeur technique « true ».
+    if (filter.type === 'boolean' && !filter.options?.length) {
+      const labels = this.effectiveLabels();
+      if (rawValue === 'true') {
+        return labels.yes;
+      }
+      if (rawValue === 'false') {
+        return labels.no;
+      }
+    }
+
     const options = this.resolvedFilterOptions(column.id, filter);
     if (options.length === 0) {
       return rawValue;
