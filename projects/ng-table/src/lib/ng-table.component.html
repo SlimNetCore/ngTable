@@ -298,7 +298,7 @@
   }
 
   <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--loading]="loading()" class="table-viewport">
-  <div (scroll)="onTableWrapScroll()" [style.max-height]="maxHeight()" class="table-wrap">
+  <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" class="table-wrap">
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
     <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event)"
            [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="cellNavigation() ? 'grid' : null"
@@ -569,6 +569,12 @@
         </td>
       </ng-container>
 
+      <!-- Défilement virtuel : espacement pour les lignes non rendues au-dessus / au-dessous. -->
+      <ng-container matColumnDef="__spacer__">
+        <td *matCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="item.height" class="spacer-cell"
+            mat-cell></td>
+      </ng-container>
+
       <ng-container matColumnDef="__detail_row__">
         <td *matCellDef="let row; let rowIndex = dataIndex" [attr.colspan]="detailRowColspan()" class="detail-row"
             mat-cell>
@@ -578,7 +584,9 @@
         </td>
       </ng-container>
 
-      <tr *matHeaderRowDef="displayedColumnIds(); sticky: stickyHeader()" mat-header-row></tr>
+      <tr *matHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualScroll()" mat-header-row></tr>
+      <tr *matRowDef="let item; columns: spacerColumns; when: spacerRowWhen" aria-hidden="true" class="spacer-row"
+          mat-row></tr>
       <tr
         (click)="toggleGroup(item.group)"
         (keydown.enter)="toggleGroup(item.group)"

@@ -60,6 +60,7 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - Tous les filtres saisis au clavier (`number`, `search`...) sont debouncés comme `text`.
 
 ### Performance
+- Défilement virtuel (`[virtualScroll]`) : sur 50 000 lignes sans pagination, 22 à 30 lignes rendues au lieu de 50 000. Hauteur de ligne mesurée, en-tête fixe, compatible filtres / tri / regroupement / sélection / navigation clavier.
 - Tri : clés de tri calculées une fois par ligne au lieu d'à chaque comparaison (n au lieu de ~n·log n appels aux accessors).
 - État de sélection mémoïsé : plus d'`Array.includes` par ligne en mode contrôlé, ni de `Set` recréé à chaque vérification.
 

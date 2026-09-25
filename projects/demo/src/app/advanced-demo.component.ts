@@ -73,6 +73,7 @@ function addDays(isoDay: string, days: number): string {
           <mat-button-toggle-group [value]="pagination()" (change)="pagination.set($event.value)">
             <mat-button-toggle value="integree">Intégrée</mat-button-toggle>
             <mat-button-toggle value="personnalisee">Personnalisée</mat-button-toggle>
+            <mat-button-toggle value="virtuelle">Défilement virtuel</mat-button-toggle>
             <mat-button-toggle value="aucune">Aucune</mat-button-toggle>
           </mat-button-toggle-group>
         </span>
@@ -109,6 +110,7 @@ function addDays(isoDay: string, days: number): string {
       [showTotals]="totalsRow()"
       [paginator]="pagination() === 'integree'"
       [pageTrackingEnabled]="pagination() === 'personnalisee'"
+      [virtualScroll]="pagination() === 'virtuelle'"
       [(pageIndex)]="pageIndex"
       [(pageSize)]="pageSize"
       [pageSizeOptions]="[10, 25, 100]"
@@ -170,6 +172,8 @@ function addDays(isoDay: string, days: number): string {
         <li>Regroupement (bouton « Grouper », ex. par Statut ou Client), groupes repliables, agrégats par colonne
           (<code>aggregate: 'sum'</code> sur les montants, agrégat personnalisé sur « Urgent ») et ligne de totaux.</li>
         <li>Vues sauvegardées, vue par défaut (étoile), export / import des vues.</li>
+        <li>Défilement virtuel (<code>[virtualScroll]</code>) : 50 000 lignes sans pagination, seules les lignes
+          visibles sont rendues.</li>
         <li>Pagination intégrée (<code>[paginator]</code>), ou paginateur personnalisé branché avec
           <code>[pageTrackingEnabled]</code>, <code>[(pageIndex)]</code>, <code>[(pageSize)]</code> et
           <code>(filteredCountChange)</code>.</li>
@@ -222,7 +226,7 @@ export class AdvancedDemoComponent {
   protected readonly rows = computed(() => generateCommandes(this.rowCount()));
   protected readonly exportFormat = signal<NgTableExportFormat>('csv');
 
-  protected readonly pagination = signal<'integree' | 'personnalisee' | 'aucune'>('integree');
+  protected readonly pagination = signal<'integree' | 'personnalisee' | 'virtuelle' | 'aucune'>('integree');
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(25);
   /** Total après filtres, fourni par ng-table : c'est lui que doit afficher un paginateur externe. */

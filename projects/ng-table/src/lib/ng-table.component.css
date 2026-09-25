@@ -1257,3 +1257,12 @@
   font-size: 0.75rem;
   color: var(--app-muted, #4f6573);
 }
+
+/* --- Défilement virtuel ----------------------------------------------- */
+.ng-table tr.spacer-row,
+.ng-table tr.spacer-row td.spacer-cell {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}

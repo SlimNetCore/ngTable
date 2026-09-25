@@ -695,6 +695,63 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('défilement virtuel', () => {
+    const manyRows: Row[] = Array.from({length: 1000}, (_, i) => ({
+      id: `${i + 1}`, nom: `Client ${i + 1}`, montant: i, statut: i % 2 ? 'VALIDEE' : 'BROUILLON', actif: i % 3 === 0, date: '2026-01-01',
+    }));
+    const dataRows = (fixture: ComponentFixture<NgTableComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLTableRowElement>('tr.data-row')];
+    const spacers = (fixture: ComponentFixture<NgTableComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLTableCellElement>('td.spacer-cell')].map((td) => td.style.height);
+
+    async function scrollTo(fixture: ComponentFixture<NgTableComponent>, top: number) {
+      const wrap = fixture.nativeElement.querySelector('.table-wrap') as HTMLElement;
+      Object.defineProperty(wrap, 'scrollTop', {value: top, configurable: true});
+      wrap.dispatchEvent(new Event('scroll'));
+      await fixture.whenStable();
+    }
+
+    it('ne rend que les lignes visibles, entre deux espacements de la hauteur des autres', async () => {
+      const {component, fixture} = await createTable({rows: manyRows, virtualScroll: true});
+
+      // jsdom ne mesure rien : zone de 800 px par défaut, lignes de 48 px → 17 lignes + 8 de marge.
+      expect(dataRows(fixture)).toHaveLength(25);
+      expect(spacers(fixture)).toEqual(['0px', `${(1000 - 25) * 48}px`]);
+      // Les lignes « affichées » restent toutes les lignes : sélection, export, compteurs inchangés.
+      expect(component.displayedRows()).toHaveLength(1000);
+      expect((fixture.nativeElement.querySelector('.table-wrap') as HTMLElement).style.maxHeight).toBe('70vh');
+    });
+
+    it('suit le défilement', async () => {
+      const {fixture} = await createTable({rows: manyRows, virtualScroll: true});
+
+      await scrollTo(fixture, 100 * 48);
+
+      const first = dataRows(fixture)[0];
+      expect(first.textContent).toContain('Client 93'); // ligne 100 visible, 8 lignes de marge au-dessus
+      expect(spacers(fixture)[0]).toBe(`${92 * 48}px`);
+    });
+
+    it('navigation clavier : Entrée active la bonne ligne après défilement', async () => {
+      const {component, fixture} = await createTable({rows: manyRows, virtualScroll: true, cellNavigation: true});
+      const clicked: Row[] = [];
+      component.rowClick.subscribe((row) => clicked.push(row));
+      await scrollTo(fixture, 100 * 48);
+
+      const cell = dataRows(fixture)[0].cells[1]; // colonne « montant », sans bouton
+      cell.focus();
+      cell.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+
+      expect(clicked[0]?.nom).toBe('Client 93');
+    });
+
+    it('sans l’option, toutes les lignes sont rendues', async () => {
+      const {fixture} = await createTable({rows: manyRows.slice(0, 60)});
+      expect(dataRows(fixture)).toHaveLength(60);
+      expect(spacers(fixture)).toEqual([]);
+    });
+  });
+
   describe('paginateur intégré', () => {
     const page = (pageIndex: number, pageSize: number) => ({pageIndex, pageSize, length: 3, previousPageIndex: 0});
 

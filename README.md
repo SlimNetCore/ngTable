@@ -548,6 +548,19 @@ Les colonnes épinglées sont regroupées à leur bord, quel que soit l'ordre ch
 
 Le choix est enregistré dans les vues sauvegardées (`NgTableViewState.referenceColumnId`). Sans liaison, le composant le gère seul.
 
+### Étape 10quater — Défilement virtuel (très longues listes)
+
+Sans pagination, une table de 50 000 lignes crée 50 000 lignes dans le DOM : l'affichage et chaque changement deviennent lents. Avec `[virtualScroll]="true"`, seules les lignes visibles sont rendues, plus une marge de 8 lignes de chaque côté (une vingtaine en tout). La barre de défilement garde la hauteur de la liste complète.
+
+```html
+<ng-table [virtualScroll]="true" [maxHeight]="'70vh'" [rows]="cinquanteMilleLignes" ... />
+```
+
+- **Hauteur** : la zone a une hauteur fixe, `[maxHeight]` (70vh par défaut). L'en-tête y est toujours fixe.
+- **Hauteur de ligne** : elle est **mesurée** sur la première ligne rendue, ce qui suit la densité compacte ou votre thème. Les lignes doivent avoir une **hauteur uniforme** : une ligne détail dépliée ou du texte sur plusieurs lignes (`textOverflow: 'wrap'`) décalent un peu la position.
+- **Compatibilité** : filtres, tri, recherche, regroupement, sélection (« tout sélectionner » porte sur toutes les lignes), export et navigation clavier (`cellNavigation`) fonctionnent comme sans défilement virtuel. `displayedRows()` renvoie toujours toutes les lignes.
+- **Limite des navigateurs** : un élément ne peut guère dépasser 30 millions de pixels de haut, soit environ 600 000 lignes de 52 px. Au-delà, préférez `dataMode='remote'` paginé.
+
 ### Étape 10ter — Regroupement et totaux
 
 Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`), avec un en-tête par groupe : libellé, nombre de lignes et agrégats.
@@ -1114,6 +1127,7 @@ interface NgTableFilterConfig {
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
 | `cellNavigation`            | `boolean`                                                        | `false`   | Navigation clavier cellule par cellule (motif « grid » WAI-ARIA), voir « Accessibilité ».                            |
+| `virtualScroll`             | `boolean`                                                        | `false`   | Défilement virtuel : seules les lignes visibles sont rendues (voir Étape 10quater).                                   |
 | `groupingEnabled`           | `boolean`                                                        | `false`   | Bouton « Grouper » (mode local), voir Étape 10ter.                                                                   |
 | `groupBy`                   | `string \| null` (`model`)                                       | `null`    | Colonne de regroupement ; liable en `[(groupBy)]`, émet `(groupByChange)`.                                          |
 | `showTotals`                | `boolean`                                                        | `false`   | Ligne de totaux (colonnes avec `aggregate`, mode local).                                                             |

@@ -37,7 +37,7 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 
 | ID | Amélioration | Statut | Notes |
 |----|--------------|--------|-------|
-| P1 | Scroll virtuel | À faire | Après C1 (refonte risquée) |
+| P1 | Scroll virtuel | Vérifié | Fenêtrage maison (le CDK virtual scroll gère mal `mat-table`, l'en-tête fixe et les lignes multiples) : lignes d'espacement + tranche visible, hauteur mesurée, bornes seules recalculées ; `virtual-window.ts` testé ; 4 tests composant ; vérifié sur 50 000 lignes dans la démo (22 à 30 lignes rendues, position exacte au milieu et en fin de liste) |
 | P2 | Modèle de vue précalculé par ligne | À faire | Après C1 |
 | P3 | Sélection en O(1) (`Set` mémoïsé) | Fait (à vérifier) | `selectedKeysSet` ; case « tout sélectionner » en `computed` |
 
@@ -114,3 +114,4 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 - **2026-09-25** — X1 fait et vérifié (174 tests, lint 0/0, démo au clavier). Piège rencontré : `#ref` sur `<table mat-table>` désigne l'instance `MatTable`, d'où `viewChild(..., {read: ElementRef})`.
 - **2026-09-25** — A1 : extraction de `row-pipeline.ts` (filtres par colonne, recherche, tri multi-niveaux) et de `dom-utils.ts`, lecture/écriture `localStorage` déplacée dans `views-storage.ts`. 10 tests dédiés au pipeline. Trouvé en les écrivant : en tri décroissant, les cellules vides remontaient en tête ; elles restent maintenant en fin de liste. 184 tests OK.
 - **2026-09-25** — F8 fait et vérifié (194 tests, lint 0/0, démo). Corrigé en le testant : libellé de groupe lu « Statut :Brouillon1 ligne(s) » par les lecteurs d'écran (espaces retirés par Angular entre les balises), libellé coupé dans une colonne épinglée, fond blanc de la cellule épinglée dans une ligne de groupe.
+- **2026-09-25** — P1 fait et vérifié (201 tests, lint 0/0, démo 50 000 lignes). Ajusté en testant : une liste qui rétrécit sous un filtre, alors qu'on est défilé loin, affiche la dernière page de lignes au lieu d'une zone vide. Note de test : dans le panneau navigateur masqué, les événements `scroll` ne sont pas émis (pas d'étape de rendu) ; vérification faite en les déclenchant.

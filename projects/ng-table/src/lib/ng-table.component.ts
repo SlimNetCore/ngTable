@@ -46,6 +46,10 @@ import {
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
 import {matchesAllFilters, searchText, SortLevel, sortRows} from './row-pipeline';
 import {buildGroups, computeAggregate, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
+import {computeVirtualRange, NgTableSpacerRow, VirtualRange} from './virtual-window';
+
+/** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
+type TableItem<T> = T | NgTableGroupRow<T> | NgTableSpacerRow;
 import {escapeCssToken, measureNaturalWidth} from './dom-utils';
 import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
 import {formatRangeValue, matchesSearchTerms, NgTableTextOperator, searchTerms} from './filter-matching';
@@ -85,6 +89,11 @@ const SELECTION_COLUMN_WIDTH_PX = 48;
 
 /** Espace insécable (U+00A0), voir `announce`. */
 const NBSP = String.fromCharCode(160);
+
+/** Ligne de l'application (ni en-tête de groupe, ni espacement du défilement virtuel). */
+function isDataItem<T>(item: TableItem<T>): item is T {
+  return !(item instanceof NgTableGroupRow) && !(item instanceof NgTableSpacerRow);
+}
 
 /** Clé de la recherche globale dans le flux debouncé des saisies et dans la barre des filtres actifs. */
 const GLOBAL_SEARCH_KEY = '__global_search__';
@@ -517,6 +526,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * ou laissée au composant. Mode local uniquement ; enregistrée dans les vues.
    */
   readonly groupBy = model<string | null>(null);
+  /**
+   * Défilement virtuel : seules les lignes visibles (plus une marge) sont rendues, ce
+   * qui garde une liste de 50 000 lignes fluide sans pagination. Demande une hauteur
+   * fixe (`[maxHeight]`, 70vh par défaut) et des lignes de hauteur uniforme (mesurée).
+   */
+  readonly virtualScroll = input(false);
   /** Ligne de totaux en bas de la table, pour les colonnes qui déclarent un `aggregate` (mode local). */
   readonly showTotals = input(false);
   /** Tri sur plusieurs colonnes : Maj+clic sur un en-tête ajoute un niveau de tri. */
@@ -973,10 +988,61 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return this.currentPage(this.filteredSortedRows());
   });
 
-  /** Source de données de la table : les lignes affichées, avec les en-têtes de groupe intercalés. */
-  protected readonly tableRows = computed<(T | NgTableGroupRow<T>)[]>(() => {
+  /** Éléments de la page : les lignes affichées, avec les en-têtes de groupe intercalés. */
+  private readonly pageItems = computed<(T | NgTableGroupRow<T>)[]>(() => {
     const units = this.groupUnits();
     return units ? withGroupHeaders(this.currentPage(units)) : this.displayedRows();
+  });
+
+  /** Hauteur max. de la zone de défilement : `[maxHeight]`, ou 70vh en défilement virtuel. */
+  protected readonly effectiveMaxHeight = computed(() => this.maxHeight() ?? (this.virtualScroll() ? '70vh' : null));
+
+  private readonly scrollTop = signal(0);
+  private readonly viewportHeight = signal(0);
+  /** Hauteur d'une ligne, mesurée sur la première ligne rendue (densité, thème...). */
+  private readonly rowHeight = signal(48);
+
+  /**
+   * Tranche rendue en défilement virtuel. Ne change que lorsque ses bornes changent :
+   * défiler de quelques pixels ne recrée pas la source de données de la table.
+   */
+  private readonly virtualRange = computed<VirtualRange | null>(
+    () =>
+      this.virtualScroll()
+        ? computeVirtualRange(this.pageItems().length, this.scrollTop(), this.viewportHeight(), this.rowHeight())
+        : null,
+    {equal: (a, b) => a === b || (!!a && !!b && a.start === b.start && a.end === b.end)},
+  );
+
+  /** Source de données de la table : éléments de la page, fenêtrés en défilement virtuel. */
+  protected readonly tableRows = computed<TableItem<T>[]>(() => {
+    const items = this.pageItems();
+    const range = this.virtualRange();
+    if (!range) {
+      return items;
+    }
+    const height = this.rowHeight();
+    return [
+      new NgTableSpacerRow('top', range.start * height),
+      ...items.slice(range.start, range.end),
+      new NgTableSpacerRow('bottom', (items.length - range.end) * height),
+    ];
+  });
+
+  /** Nombre de lignes de données avant la tranche rendue : position DOM → index dans `displayedRows()`. */
+  private readonly renderedRowOffset = computed(() => {
+    const range = this.virtualRange();
+    if (!range) {
+      return 0;
+    }
+    const items = this.pageItems();
+    let count = 0;
+    for (let i = 0; i < range.start; i++) {
+      if (!(items[i] instanceof NgTableGroupRow)) {
+        count++;
+      }
+    }
+    return count;
   });
 
   /** Agrégats de chaque groupe, par colonne (texte prêt à afficher), calculés une fois par changement. */
@@ -1054,6 +1120,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
   // `read` obligatoire : sur `<table mat-table>`, la référence désignerait l'instance MatTable.
   private readonly tableElement = viewChild('gridTable', {read: ElementRef<HTMLTableElement>});
+  private readonly tableWrapElement = viewChild('tableWrap', {read: ElementRef<HTMLElement>});
   /** Cellule active de la navigation clavier (index de ligne affichée, index de cellule). */
   private readonly activeGridCell = signal<GridPosition>({row: 0, col: 0});
   /** Ancre du menu contextuel, une fois déplacée dans `document.body` (voir `onRowContextMenu`). */
@@ -1201,17 +1268,40 @@ export class NgTableComponent<T = any> implements OnDestroy {
     });
 
     // Navigation cellule par cellule : après chaque rendu qui change les lignes ou les
-    // colonnes, une seule cellule reste atteignable par Tab (tabindex itinérant).
+    // colonnes, une seule cellule reste atteignable par Tab (tabindex itinérant). La
+    // cellule qui a le focus le garde (en défilement virtuel, les lignes rendues changent).
     afterRenderEffect(() => {
       if (!this.cellNavigation()) {
         return;
       }
-      this.displayedRows();
+      this.tableRows();
       this.displayedColumnIds();
       const table = this.tableElement()?.nativeElement;
       if (table) {
-        syncGridTabStops(table, untracked(() => this.activeGridCell()));
+        const focused = document.activeElement ? locateGridCell(table, document.activeElement) : null;
+        syncGridTabStops(table, focused?.position ?? untracked(() => this.activeGridCell()));
       }
+    });
+
+    // Défilement virtuel : mesure la zone visible et la hauteur réelle d'une ligne.
+    afterRenderEffect(() => {
+      if (!this.virtualScroll()) {
+        return;
+      }
+      this.tableRows();
+      const wrap = this.tableWrapElement()?.nativeElement;
+      if (!wrap) {
+        return;
+      }
+      untracked(() => {
+        if (wrap.clientHeight !== this.viewportHeight()) {
+          this.viewportHeight.set(wrap.clientHeight);
+        }
+        const height = wrap.querySelector('tr.data-row')?.getBoundingClientRect().height ?? 0;
+        if (height > 0 && Math.abs(height - this.rowHeight()) > 0.5) {
+          this.rowHeight.set(height);
+        }
+      });
     });
 
     // Changer de colonne de regroupement déplie tout et revient en page 0 (pas au
@@ -1802,7 +1892,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return;
     }
 
-    const row = this.displayedRows()[position.row];
+    const row = this.displayedRows()[this.renderedRowOffset() + position.row];
     if (row === undefined) {
       return;
     }
@@ -2527,8 +2617,11 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.scrollListener = () => window.removeEventListener('scroll', listener, {capture: true});
   }
 
-  protected onTableWrapScroll(): void {
+  protected onTableWrapScroll(event: Event): void {
     this.requestFilterPositionUpdate();
+    if (this.virtualScroll()) {
+      this.scrollTop.set((event.target as HTMLElement).scrollTop);
+    }
   }
 
   private stopScrollTracking(): void {
@@ -2579,15 +2672,26 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return defaultRowKey(row);
   };
 
-  protected resolvedTrackBy: TrackByFunction<T | NgTableGroupRow<T>> = (index: number, row: T | NgTableGroupRow<T>): unknown =>
-    row instanceof NgTableGroupRow ? `__group__${row.group.key}` : this.trackByRow(index, row);
+  protected resolvedTrackBy: TrackByFunction<TableItem<T>> = (index: number, row: TableItem<T>): unknown => {
+    if (row instanceof NgTableGroupRow) {
+      return `__group__${row.group.key}`;
+    }
+    if (row instanceof NgTableSpacerRow) {
+      return `__spacer__${row.position}`;
+    }
+    return this.trackByRow(index, row);
+  };
 
-  protected mobileActionsRowWhen = (_: number, row: T | NgTableGroupRow<T>): boolean =>
-    !(row instanceof NgTableGroupRow) && this.mobileActionRowColumns().length > 0;
+  protected mobileActionsRowWhen = (_: number, row: TableItem<T>): boolean =>
+    isDataItem(row) && this.mobileActionRowColumns().length > 0;
 
-  protected groupRowWhen = (_: number, row: T | NgTableGroupRow<T>): boolean => row instanceof NgTableGroupRow;
+  protected groupRowWhen = (_: number, row: TableItem<T>): boolean => row instanceof NgTableGroupRow;
 
-  protected dataRowWhen = (_: number, row: T | NgTableGroupRow<T>): boolean => !(row instanceof NgTableGroupRow);
+  protected spacerRowWhen = (_: number, row: TableItem<T>): boolean => row instanceof NgTableSpacerRow;
+
+  protected readonly spacerColumns = ['__spacer__'];
+
+  protected dataRowWhen = (_: number, row: TableItem<T>): boolean => isDataItem(row);
 
   /**
    * The detail row is ALWAYS rendered when a template is provided.
@@ -2596,8 +2700,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * driven by `isDetailExpanded()` bindings instead, which are re-evaluated
    * on every change detection cycle.
    */
-  protected detailRowRenderWhen = (_index: number, row: T | NgTableGroupRow<T>): boolean =>
-    !!this.detailRowTemplate() && !(row instanceof NgTableGroupRow);
+  protected detailRowRenderWhen = (_index: number, row: TableItem<T>): boolean =>
+    !!this.detailRowTemplate() && isDataItem(row);
 
   protected isDetailExpanded(index: number, row: T): boolean {
     if (!this.detailRowTemplate()) {
