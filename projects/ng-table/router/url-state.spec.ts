@@ -7,7 +7,7 @@ import {NgTableColumn, NgTableComponent, NgTableQueryState} from '../src/public-
 import {NgTableUrlStateDirective} from './ng-table-url-state.directive';
 import {fromUrlParams, toUrlParams} from './url-state';
 
-const EMPTY: NgTableQueryState = {sorts: [], filters: {}, search: '', pageIndex: 0, pageSize: 10};
+const EMPTY: NgTableQueryState = {sorts: [], filters: {}, search: '', pageIndex: 0, pageSize: 10, groupBy: null, collapsedGroups: []};
 
 describe('url-state', () => {
   it('écrit des paramètres lisibles, sans les valeurs par défaut', () => {
@@ -18,11 +18,14 @@ describe('url-state', () => {
         search: 'dupont',
         pageIndex: 2,
         pageSize: 10,
+        groupBy: 'statut',
+        collapsedGroups: ['VALIDEE'],
       },
       '',
       10,
     );
-    expect(params).toEqual({s: 'montant:desc,client:asc', q: 'dupont', p: '3', 'f.statut': 'VALIDEE'});
+    // Les groupes repliés ne vont pas dans l'URL.
+    expect(params).toEqual({s: 'montant:desc,client:asc', q: 'dupont', p: '3', g: 'statut', 'f.statut': 'VALIDEE'});
     expect(toUrlParams(EMPTY, '', 10)).toEqual({});
   });
 
@@ -38,6 +41,8 @@ describe('url-state', () => {
       search: 'dupont',
       pageIndex: 4,
       pageSize: 50,
+      groupBy: 'client',
+      collapsedGroups: [],
     };
     const params = toUrlParams(state, 'cmd', 10) as Record<string, string>;
     expect(fromUrlParams(params, 'cmd', 10)).toEqual(state);

@@ -157,3 +157,66 @@ export function computeAggregate<T>(column: NgTableColumn<T>, rows: readonly T[]
       return numbers.reduce((max, value) => Math.max(max, value));
   }
 }
+
+/** Résumé serveur d'un groupe, réduit à ce que le placement utilise. */
+export interface RemoteGroupSummaryLike {
+  key: string;
+  count?: number;
+}
+
+/**
+ * Mode `remote` avec groupes repliables : éléments d'une page renvoyée par le serveur.
+ *
+ * Contrat : le serveur exclut de la pagination les lignes des groupes repliés (un groupe
+ * replié n'occupe aucune ligne), et fournit la liste ORDONNÉE de tous les groupes avec
+ * leur nombre de lignes. La position d'un groupe replié dans la liste complète est donc
+ * connue : le nombre de lignes des groupes dépliés qui le précèdent. Il est affiché sur
+ * la page qui contient cette position (la dernière page s'il est en fin de liste).
+ *
+ * `pageStart` / `pageEnd` : bornes de la page en lignes (`pageEnd` = Infinity sans pagination).
+ */
+export function remoteGroupedPage<T>(
+  rows: T[],
+  column: NgTableColumn<T>,
+  summaries: readonly RemoteGroupSummaryLike[],
+  collapsedKeys: ReadonlySet<string>,
+  pageStart: number,
+  pageEnd: number,
+): (T | NgTableGroupRow<T>)[] {
+  const totalExpanded = summaries.reduce((total, summary) => total + (collapsedKeys.has(summary.key) ? 0 : (summary.count ?? 0)), 0);
+
+  // Groupes repliés de cette page, avec l'index (dans la page) de la ligne qu'ils précèdent.
+  const placements: { index: number; group: RowGroup<T> }[] = [];
+  let position = 0;
+  for (const summary of summaries) {
+    if (!collapsedKeys.has(summary.key)) {
+      position += summary.count ?? 0;
+      continue;
+    }
+    const onThisPage = position >= pageStart && (position < pageEnd || position === totalExpanded);
+    if (onThisPage) {
+      placements.push({index: position - pageStart, group: {key: summary.key, value: summary.key, rows: []}});
+    }
+  }
+
+  const items: (T | NgTableGroupRow<T>)[] = [];
+  let next = 0;
+  const flushCollapsedBefore = (index: number) => {
+    while (next < placements.length && placements[next].index <= index) {
+      items.push(new NgTableGroupRow(placements[next].group, true));
+      next++;
+    }
+  };
+
+  let rowIndex = 0;
+  for (const group of buildConsecutiveGroups(rows, column)) {
+    flushCollapsedBefore(rowIndex);
+    items.push(new NgTableGroupRow(group, false));
+    for (const row of group.rows) {
+      items.push(row);
+      rowIndex++;
+    }
+  }
+  flushCollapsedBefore(Number.POSITIVE_INFINITY);
+  return items;
+}

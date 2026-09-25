@@ -87,7 +87,7 @@ export class NgTableUrlStateDirective {
 
   private hasOwnParams(params: ParamMap): boolean {
     const own = toUrlParams(
-      {sorts: [], filters: {}, search: '', pageIndex: 0, pageSize: this.defaultPageSize},
+      {sorts: [], filters: {}, search: '', pageIndex: 0, pageSize: this.defaultPageSize, groupBy: null, collapsedGroups: []},
       this.ngTableUrlState(),
       this.defaultPageSize,
       Object.fromEntries(params.keys.map((key) => [key, true])),

@@ -621,6 +621,9 @@ describe('NgTableComponent', () => {
     const groupRows = (fixture: ComponentFixture<NgTableComponent>) =>
       [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.group-row')] as HTMLTableRowElement[];
     const text = (el: Element) => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    /** Libellé d'un en-tête de groupe, sans le texte de l'icône (masquée aux lecteurs d'écran). */
+    const groupLabel = (row: HTMLTableRowElement) =>
+      text(row.cells[0]).replace(/^(expand_more|chevron_right)/, '').trim();
 
     it('insère un en-tête par groupe, avec libellé d’option, nombre de lignes et agrégats', async () => {
       const {component, fixture} = await createTable({columns: groupColumns(), groupBy: 'statut'});
@@ -710,17 +713,39 @@ describe('NgTableComponent', () => {
       it('affiche le compte et les agrégats fournis par le serveur, pas ceux de la page', async () => {
         const {fixture} = await createTable({
           columns: groupColumns(), dataMode: 'remote', rows: serverPage, groupBy: 'statut',
-          groupSummaries: {VALIDEE: {count: 480, aggregates: {montant: 125000}}, BROUILLON: {count: 12}},
+          groupSummaries: [{key: 'VALIDEE', count: 480, aggregates: {montant: 125000}}, {key: 'BROUILLON', count: 12}],
         });
         await fixture.whenStable();
 
         const [validee, brouillon] = groupRows(fixture);
-        expect(text(validee.cells[0])).toBe('Statut : Validée 480 ligne(s)');
+        expect(groupLabel(validee)).toBe('Statut : Validée 480 ligne(s)');
         expect(text(validee.cells[1])).toMatch(/^Σ 125\s000$/);
-        expect(text(brouillon.cells[0])).toBe('Statut : Brouillon 12 ligne(s)');
+        expect(groupLabel(brouillon)).toBe('Statut : Brouillon 12 ligne(s)');
       });
 
-      it('groupes non repliables : pas de chevron, pas d’arrêt de tabulation, le clic ne masque rien', async () => {
+      it('replier un groupe demande au serveur d’exclure ses lignes, et garde son en-tête à sa place', async () => {
+        const summaries = [{key: 'VALIDEE', count: 2}, {key: 'BROUILLON', count: 1}];
+        const queries: NgTableRemoteQuery[] = [];
+        const {component, fixture, setInput} = await createTable({
+          columns: groupColumns(), dataMode: 'remote', rows: serverPage, groupBy: 'statut', groupSummaries: summaries,
+          paginator: true, pageSize: 10, totalCount: 3,
+        });
+        component.remoteQueryChange.subscribe((q) => queries.push(q));
+        await fixture.whenStable();
+
+        groupRows(fixture)[0].click(); // replie VALIDEE
+        expect(queries.at(-1)?.collapsedGroups).toEqual(['VALIDEE']);
+        expect(queries.at(-1)?.page.index).toBe(0); // même page
+
+        // Réponse du serveur : les lignes de VALIDEE ne sont plus renvoyées.
+        await setInput('rows', [ROWS[1]]);
+        const headers = groupRows(fixture);
+        expect(headers.map(groupLabel)).toEqual(['Statut : Validée 2 ligne(s)', 'Statut : Brouillon 1 ligne(s)']);
+        expect(headers.map((row) => row.getAttribute('aria-expanded'))).toEqual(['false', 'true']);
+        expect(component.getQueryState()).toMatchObject({groupBy: 'statut', collapsedGroups: ['VALIDEE']});
+      });
+
+      it('sans résumés serveur : groupes non repliables (pas de chevron, pas d’arrêt de tabulation)', async () => {
         const {component, fixture} = await createTable({columns: groupColumns(), dataMode: 'remote', rows: serverPage, groupBy: 'statut'});
         await fixture.whenStable();
 
@@ -865,6 +890,8 @@ describe('NgTableComponent', () => {
         search: 'bob',
         pageIndex: 0,
         pageSize: 5,
+        groupBy: null,
+        collapsedGroups: [],
       });
     });
 
@@ -1287,7 +1314,7 @@ describe('NgTableComponent', () => {
       component.activateView(view);
 
       expect(queries).toEqual([
-        {sort: {columnId: '', direction: ''}, sorts: [], filters: expect.any(Object), page: {index: 3, size: 5}, search: '', groupBy: null},
+        {sort: {columnId: '', direction: ''}, sorts: [], filters: expect.any(Object), page: {index: 3, size: 5}, search: '', groupBy: null, collapsedGroups: []},
       ]);
     });
 

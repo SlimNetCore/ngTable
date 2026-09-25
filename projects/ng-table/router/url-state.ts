@@ -9,12 +9,13 @@ export type NgTableUrlParams = Record<string, string | null>;
  */
 export function urlParamNames(prefix: string) {
   const p = prefix ? `${prefix}.` : '';
-  return {sort: `${p}s`, search: `${p}q`, page: `${p}p`, pageSize: `${p}ps`, filterPrefix: `${p}f.`};
+  return {sort: `${p}s`, search: `${p}q`, page: `${p}p`, pageSize: `${p}ps`, groupBy: `${p}g`, filterPrefix: `${p}f.`};
 }
 
 /**
  * État → paramètres d'URL lisibles : `s=montant:desc,client:asc`, `q=dupont`,
- * `p=3` (page **1-based**, comme à l'écran), `ps=50`, `f.statut=VALIDEE`.
+ * `p=3` (page **1-based**, comme à l'écran), `ps=50`, `g=statut` (regroupement), `f.statut=VALIDEE`.
+ * Les groupes repliés ne vont pas dans l'URL (état d'affichage passager).
  * Les valeurs par défaut sont omises (pas de tri, page 1, taille `defaultPageSize`).
  * Chaque clé déjà présente dans `current` mais plus utile vaut `null` (à retirer).
  */
@@ -42,6 +43,9 @@ export function toUrlParams(
   }
   if (state.pageSize !== defaultPageSize) {
     params[names.pageSize] = `${state.pageSize}`;
+  }
+  if (state.groupBy) {
+    params[names.groupBy] = state.groupBy;
   }
   for (const [columnId, value] of Object.entries(state.filters)) {
     if (value) {
@@ -82,6 +86,8 @@ export function fromUrlParams(
     search: params[names.search] ?? '',
     pageIndex: page > 0 ? page - 1 : 0,
     pageSize: pageSize > 0 ? pageSize : defaultPageSize,
+    groupBy: params[names.groupBy] || null,
+    collapsedGroups: [],
   };
 }
 
@@ -92,7 +98,7 @@ export function sameUrlState(a: NgTableQueryState, b: NgTableQueryState, prefix:
 }
 
 function isOwnKey(key: string, names: ReturnType<typeof urlParamNames>): boolean {
-  return [names.sort, names.search, names.page, names.pageSize].includes(key) || key.startsWith(names.filterPrefix);
+  return [names.sort, names.search, names.page, names.pageSize, names.groupBy].includes(key) || key.startsWith(names.filterPrefix);
 }
 
 function sortKeys(params: NgTableUrlParams): [string, string | null][] {

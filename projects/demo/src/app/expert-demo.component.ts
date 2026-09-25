@@ -1,5 +1,6 @@
 import {JsonPipe} from '@angular/common';
-import {ChangeDetectionStrategy, Component, computed, signal, TemplateRef, viewChild} from '@angular/core';
+import {afterNextRender, ChangeDetectionStrategy, Component, computed, inject, Injector, signal, TemplateRef, viewChild} from '@angular/core';
+import {MatButtonToggleModule} from '@angular/material/button-toggle';
 import {MatButtonModule} from '@angular/material/button';
 import {MatIconModule} from '@angular/material/icon';
 import {MatSlideToggleModule} from '@angular/material/slide-toggle';
@@ -33,7 +34,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
 @Component({
   selector: 'app-expert-demo',
   standalone: true,
-  imports: [NgTableComponent, JsonPipe, MatButtonModule, MatIconModule, MatSlideToggleModule],
+  imports: [NgTableComponent, JsonPipe, MatButtonModule, MatButtonToggleModule, MatIconModule, MatSlideToggleModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
@@ -46,13 +47,35 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
     .log .detail { display: block; color: #4f6573; word-break: break-all; }
     .state { margin: 0; font-size: .72rem; max-height: 220px; overflow: auto; background: #f5f7fa; padding: 8px; border-radius: 8px; }
     .server { font-size: .8rem; color: #4f6573; }
+    .perf { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+    .perf div { padding: 8px 10px; background: #f5f7fa; border-radius: 8px; }
+    .perf strong { display: block; font-size: 1.1rem; color: #0d1d26; }
+    .perf span { font-size: .75rem; color: #4f6573; }
   `,
   template: `
     <p class="demo-intro">
-      Les données viennent d'un faux serveur (2 000 commandes, 450 ms de latence) : ng-table n'affiche que la page reçue et
+      Les données viennent d'un faux serveur (jusqu'à 1 000 000 de commandes, 150 ms de latence) : ng-table n'affiche que la page reçue et
       émet <code>(remoteQueryChange)</code> à chaque tri, filtre, recherche ou page. L'état (filtres, colonnes, ordre,
       sélection, page, vues) est tenu par le parent (mode contrôlé), et chaque événement est journalisé à droite.
     </p>
+
+    <div class="demo-card">
+      <h2>Performance (données serveur)</h2>
+      <div class="actions-row">
+        <span class="setting-label">Commandes côté serveur</span>
+        <mat-button-toggle-group [value]="datasetSize()" (change)="setDatasetSize($event.value)">
+          <mat-button-toggle [value]="2000">2 000</mat-button-toggle>
+          <mat-button-toggle [value]="100000">100 000</mat-button-toggle>
+          <mat-button-toggle [value]="1000000">1 000 000</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+      <div class="perf">
+        <div><strong>{{ total().toLocaleString('fr-FR') }}</strong><span>lignes correspondantes côté serveur</span></div>
+        <div><strong>{{ renderedRows() }}</strong><span>lignes rendues dans la table</span></div>
+        <div><strong>{{ lastServerMs() }} ms</strong><span>calcul serveur (filtre, tri, résumés)</span></div>
+        <div><strong>{{ lastRenderMs() }} ms</strong><span>rendu de la table (réponse → écran)</span></div>
+      </div>
+    </div>
 
     <div class="demo-card">
       <h2>API programmatique</h2>
@@ -171,7 +194,13 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
 })
 export class ExpertDemoComponent {
   protected readonly table = viewChild.required<NgTableComponent<Commande>>(NgTableComponent);
-  private readonly api = new FakeCommandesApi();
+  private api = new FakeCommandesApi(2000);
+  private readonly injector = inject(Injector);
+  private lastQuery: NgTableRemoteQuery = {sort: {columnId: '', direction: ''}, sorts: [], filters: {}, search: '', page: {index: 0, size: 20}};
+  protected readonly datasetSize = signal(2000);
+  protected readonly lastServerMs = signal(0);
+  protected readonly lastRenderMs = signal(0);
+  protected readonly renderedRows = computed(() => this.rows().length);
   private requestId = 0;
   private logId = 0;
 
@@ -183,7 +212,7 @@ export class ExpertDemoComponent {
   protected readonly labelsEn = NG_TABLE_LABELS_EN;
   protected readonly grouping = signal(false);
   protected readonly groupBy = signal<string | null>(null);
-  protected readonly groupSummaries = signal<Record<string, NgTableGroupSummary> | null>(null);
+  protected readonly groupSummaries = signal<NgTableGroupSummary[] | null>(null);
 
   // État tenu par le parent (mode contrôlé).
   protected readonly pageIndex = signal(0);
@@ -238,22 +267,35 @@ export class ExpertDemoComponent {
 
   constructor() {
     // Premier chargement : ng-table n'émet `remoteQueryChange` qu'au premier changement.
-    void this.load({sort: {columnId: '', direction: ''}, sorts: [], filters: {}, search: '', page: {index: 0, size: 20}});
+    void this.load(this.lastQuery);
+  }
+
+  /** Change la taille de la « base » du serveur et recharge la même requête. */
+  protected setDatasetSize(size: number): void {
+    this.datasetSize.set(size);
+    this.api = new FakeCommandesApi(size);
+    void this.load({...this.lastQuery, page: {...this.lastQuery.page, index: 0}});
+    this.table().applyQueryState({pageIndex: 0});
   }
 
   protected async load(query: NgTableRemoteQuery): Promise<void> {
     this.log('remoteQueryChange', query);
+    this.lastQuery = query;
     const id = ++this.requestId;
     this.loading.set(true);
     const page = await this.api.query(query);
     if (id !== this.requestId) {
       return; // une requête plus récente est partie entre-temps : réponse obsolète
     }
+    // Temps de rendu de la table : de la réception de la page à l'écran mis à jour.
+    const received = performance.now();
     this.rows.set(page.rows);
     this.total.set(page.total);
     this.groupSummaries.set(page.groupSummaries);
     this.loading.set(false);
-    this.serverStatus.set(`Serveur : ${page.total} commande(s) correspondent, page ${query.page.index + 1} reçue.`);
+    afterNextRender(() => this.lastRenderMs.set(Math.round(performance.now() - received)), {injector: this.injector});
+    this.lastServerMs.set(Math.round(page.serverMs));
+    this.serverStatus.set(`Serveur : ${page.total.toLocaleString('fr-FR')} commande(s) correspondent, page ${query.page.index + 1} reçue.`);
   }
 
   protected exportOnServer(query: NgTableRemoteQuery): void {
