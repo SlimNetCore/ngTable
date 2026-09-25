@@ -6,6 +6,9 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 Voir aussi `ROADMAP.md` pour le suivi détaillé.
 
+### Documentation
+- README, Étape 17ter : backend Spring Boot complet pour le mode `remote` (contrat JSON requête / réponse, format des filtres par type, tri avec regroupement, groupes repliés, résumés de groupes), en JPA Criteria, testé avec Spring Boot 3.5 et 4.1.
+
 ### Outillage
 - Démo en trois modes (simple, avancé, expert), un par route.
 - Repo restructuré en workspace Angular : la lib est dans `projects/ng-table`, une application de démo dans `projects/demo` (`npm start`).

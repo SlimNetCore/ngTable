@@ -815,6 +815,829 @@ fetch(query: NgTableRemoteQuery): void {
 
 Point important : `ng-table` n'applique **plus aucun** filtrage/tri local dans ce mode — `serverRows()` doit déjà être exactement la page voulue, sinon la table affichera des résultats incohérents avec les filtres visibles.
 
+### Étape 17ter — Backend Spring Boot (JPA)
+
+Un backend complet pour le mode `remote` : filtres, recherche globale, tri multi-colonnes, regroupement avec groupes repliés, pagination et résumés de groupes. JPA Criteria uniquement (pas de SQL écrit à la main, pas d'API Spring Data propre à une version) : testé avec **Spring Boot 3.5 et 4.1**, sur H2.
+
+#### Ce que le serveur reçoit
+
+Branchez le serveur sur **`(remoteQueryChange)`**, pas sur `(queryStateChange)`. Les deux portent le même état, mais `remoteQueryChange` est fait pour une requête HTTP : il est émis quand il faut recharger (y compris quand on replie un groupe), et la page y est un objet.
+
+| | `(queryStateChange)` | `(remoteQueryChange)` → serveur |
+|---|---|---|
+| Page | `pageIndex`, `pageSize` | `page: {index, size}` |
+| Tri | `sorts` | `sorts` (+ `sort`, le premier niveau) |
+| Usage | Afficher ou sauvegarder l'état (URL, store...) | Charger les données |
+
+Exemple de corps envoyé (regroupement par statut, deux groupes repliés, trois niveaux de tri) :
+
+```json
+{
+  "sort": {"columnId": "statut", "direction": "asc"},
+  "sorts": [
+    {"columnId": "statut", "direction": "asc"},
+    {"columnId": "montant", "direction": "asc"},
+    {"columnId": "dateCommande", "direction": "asc"}
+  ],
+  "filters": {"client": "Dupont SA,Martin SARL", "montant": ">=100", "dateCommande": "2026-01-01..2026-03-31"},
+  "search": "",
+  "page": {"index": 0, "size": 50},
+  "groupBy": "statut",
+  "collapsedGroups": ["ANNULEE", "BROUILLON"]
+}
+```
+
+#### Ce que le serveur doit faire
+
+1. **Filtrer** : `filters` associe un id de colonne à une valeur texte, dont le format dépend du `filter.type` de la colonne :
+
+   | `filter.type` | Valeur reçue | Signification |
+   |---|---|---|
+   | `text`, `search`... | `dupont` | contient (ou `filter.operator` : `equals`, `startsWith`, `endsWith`), sans tenir compte de la casse |
+   | `enum` / `select` | `VALIDEE,EXPEDIEE` | une des valeurs (séparées par des virgules) |
+   | `boolean` | `true` / `false` | égalité |
+   | `number` | `42`, `>100`, `<=50`, `!=0`, `10..50` | comparaison ou plage (bornes incluses, virgule décimale acceptée) |
+   | `numberRange` | `10..50`, `10..`, `..50` | plage, une borne peut être vide |
+   | `date` | `2026-03-15` | ce jour-là |
+   | `range` | `2026-01-01..2026-03-31` | période, bornes incluses, une borne peut être vide |
+
+2. **Chercher** : `search` est découpé en mots. Chaque mot doit apparaître dans au moins une colonne cherchable.
+3. **Trier** : d'abord par `groupBy` (dans le sens de son niveau de tri s'il est trié, croissant sinon), puis par les autres niveaux de `sorts`, puis par un identifiant unique. Sans ce dernier critère, deux lignes à égalité peuvent changer de page d'une requête à l'autre.
+4. **Exclure les groupes repliés** (`collapsedGroups`) de la page **et** du total : un groupe replié n'occupe aucune ligne de la pagination.
+5. **Paginer** : `page.index` (à partir de 0) et `page.size`.
+6. **Résumer les groupes** (si `groupBy`) : **tous** les groupes, repliés compris, **dans l'ordre des lignes**, avec leur nombre de lignes et leurs agrégats. C'est ce qui permet à la table de placer l'en-tête d'un groupe replié à sa place et d'afficher son compte.
+
+Réponse attendue :
+
+```json
+{
+  "rows": [{"id": 12, "reference": "CMD-0012", "statut": "EXPEDIEE", "montant": 42.5, "dateCommande": "2026-01-12", ...}],
+  "total": 1500,
+  "groupSummaries": [
+    {"key": "ANNULEE", "count": 500, "aggregates": {"montant": 2498450}},
+    {"key": "BROUILLON", "count": 500, "aggregates": {"montant": 2500600}},
+    {"key": "EXPEDIEE", "count": 500, "aggregates": {"montant": 2492500}},
+    {"key": "VALIDEE", "count": 500, "aggregates": {"montant": 2496550}}
+  ]
+}
+```
+
+`total` ne compte que les lignes des groupes dépliés. `count` est le nombre total de lignes du groupe, affiché dans son en-tête même replié.
+
+> **La clé d'un groupe doit être celle que calcule la table.** La table regroupe les lignes reçues d'après la valeur renvoyée par le `valueAccessor` de la colonne, et la cherche dans `groupSummaries[].key`. Il s'agit du nom de l'enum pour un enum, de `YYYY-MM-DD` pour un `LocalDate`, de `true` / `false` pour un booléen, et de `""` pour une valeur vide (NULL). Pour une colonne regroupable, le `valueAccessor` doit donc renvoyer la valeur brute du JSON (`c => c.statut`), pas un libellé (`c => c.urgent ? 'Oui' : 'Non'`). Le libellé affiché dans l'en-tête vient des `filter.options` de la colonne.
+
+#### Côté Angular
+
+```ts
+readonly rows = signal<Commande[]>([]);
+readonly total = signal(0);
+readonly groupSummaries = signal<NgTableGroupSummary[] | null>(null);
+readonly loading = signal(false);
+
+private readonly http = inject(HttpClient);
+private readonly queries = new Subject<NgTableRemoteQuery>();
+
+constructor() {
+  this.queries
+    .pipe(
+      tap(() => this.loading.set(true)),
+      switchMap((query) => this.http.post<CommandesPage>('/api/commandes/search', query)), // réponse obsolète annulée
+      takeUntilDestroyed(),
+    )
+    .subscribe((page) => {
+      this.rows.set(page.rows);
+      this.total.set(page.total);
+      this.groupSummaries.set(page.groupSummaries);
+      this.loading.set(false);
+    });
+
+  // La table n'émet remoteQueryChange qu'au premier changement : premier chargement ici.
+  this.load({sort: {columnId: '', direction: ''}, sorts: [], filters: {}, search: '', page: {index: 0, size: 50}});
+}
+
+load(query: NgTableRemoteQuery): void {
+  this.queries.next(query);
+}
+```
+
+```ts
+interface CommandesPage {
+  rows: Commande[];
+  total: number;
+  groupSummaries: NgTableGroupSummary[] | null;
+}
+```
+
+```html
+<ng-table
+  [dataMode]="'remote'"
+  [columns]="columns"
+  [rows]="rows()"
+  [loading]="loading()"
+  [multiSort]="true"
+  [globalSearchEnabled]="true"
+  [groupingEnabled]="true"
+  [groupSummaries]="groupSummaries()"
+  [paginator]="true"
+  [pageSize]="50"
+  [totalCount]="total()"
+  (remoteQueryChange)="load($event)"
+/>
+```
+
+#### Côté Spring Boot
+
+Trois classes génériques, réutilisables pour toutes vos tables (paquet `com.example.ngtable`), puis quelques lignes par écran.
+
+<details>
+<summary><code>NgTable.java</code> : le contrat JSON (requête, réponse)</summary>
+
+```java
+package com.example.ngtable;
+
+import java.util.List;
+import java.util.Map;
+
+/** Contrat JSON de @sbourahla/ng-table en mode remote. */
+public final class NgTable {
+
+  private NgTable() {
+  }
+
+  /** Corps de la requête : exactement ce qu'émet {@code (remoteQueryChange)}. */
+  public record Query(
+      Sort sort,
+      List<Sort> sorts,
+      Map<String, String> filters,
+      Page page,
+      String search,
+      String groupBy,
+      List<String> collapsedGroups) {
+
+    public Query {
+      // `sorts` porte tous les niveaux ; `sort` seul vient d'une ancienne version du client.
+      List<Sort> levels = sorts != null ? sorts : sort != null ? List.of(sort) : List.of();
+      sorts = levels.stream().filter(Sort::isActive).toList();
+      filters = filters != null ? filters : Map.of();
+      page = page != null ? page : new Page(0, 0);
+      search = search != null ? search.trim() : "";
+      groupBy = groupBy != null && !groupBy.isBlank() ? groupBy : null;
+      collapsedGroups = collapsedGroups != null ? collapsedGroups : List.of();
+    }
+  }
+
+  /** Un niveau de tri. {@code direction} vaut {@code "asc"}, {@code "desc"} ou {@code ""} (aucun tri). */
+  public record Sort(String columnId, String direction) {
+
+    boolean isActive() {
+      return columnId != null && !columnId.isEmpty() && direction != null && !direction.isEmpty();
+    }
+
+    public boolean descending() {
+      return "desc".equalsIgnoreCase(direction);
+    }
+  }
+
+  /** {@code size = 0} : pagination désactivée côté client (toutes les lignes). */
+  public record Page(int index, int size) {
+  }
+
+  /** Résumé d'un groupe, calculé sur tout le groupe (repliés compris). */
+  public record GroupSummary(String key, long count, Map<String, Object> aggregates) {
+  }
+
+  /**
+   * Réponse : la page de lignes, le total (groupes repliés exclus) et, si un regroupement
+   * est demandé, TOUS les groupes dans l'ordre d'affichage.
+   */
+  public record Result<T>(List<T> rows, long total, List<GroupSummary> groupSummaries) {
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>NgTableColumn.java</code> : ce que le serveur autorise, colonne par colonne</summary>
+
+```java
+package com.example.ngtable;
+
+/**
+ * Ce que le serveur autorise pour une colonne de la table. Seules les colonnes déclarées
+ * peuvent être triées, filtrées, cherchées ou regroupées : les identifiants envoyés par
+ * le navigateur ne sont jamais utilisés tels quels dans une requête.
+ */
+public final class NgTableColumn {
+
+  /** Doit correspondre au {@code filter.type} de la colonne côté Angular. */
+  public enum Filter {
+    NONE,
+    /** {@code text}, {@code search}, {@code email}... : comparaison insensible à la casse. */
+    TEXT,
+    /** {@code enum} (valeurs séparées par des virgules) ou {@code select} (une valeur). */
+    ENUM,
+    /** {@code boolean} : {@code "true"} / {@code "false"}. */
+    BOOLEAN,
+    /** {@code number} ({@code 42}, {@code >100}, {@code <=50}, {@code !=0}, {@code 10..50}) ou {@code numberRange} ({@code min..max}). */
+    NUMBER,
+    /** {@code date} ({@code YYYY-MM-DD}) ou {@code range} ({@code YYYY-MM-DD..YYYY-MM-DD}, une borne peut être vide). */
+    DATE
+  }
+
+  /** Doit correspondre au {@code filter.operator} de la colonne côté Angular (défaut : CONTAINS). */
+  public enum TextOperator { CONTAINS, EQUALS, STARTS_WITH, ENDS_WITH }
+
+  /** Agrégat affiché dans les en-têtes de groupe (même valeur que {@code aggregate} côté Angular). */
+  public enum Aggregate { SUM, AVG, MIN, MAX, COUNT }
+
+  final String id;
+  final String attribute;
+  Filter filter = Filter.NONE;
+  TextOperator textOperator = TextOperator.CONTAINS;
+  boolean sortable;
+  boolean searchable;
+  boolean groupable;
+  Aggregate aggregate;
+
+  private NgTableColumn(String id, String attribute) {
+    this.id = id;
+    this.attribute = attribute;
+  }
+
+  /** Colonne dont l'id Angular est aussi le nom de l'attribut JPA. */
+  public static NgTableColumn of(String id) {
+    return new NgTableColumn(id, id);
+  }
+
+  /** Colonne mappée sur un autre attribut, éventuellement imbriqué ({@code "client.nom"}). */
+  public static NgTableColumn of(String id, String attribute) {
+    return new NgTableColumn(id, attribute);
+  }
+
+  public NgTableColumn filter(Filter filter) {
+    this.filter = filter;
+    return this;
+  }
+
+  public NgTableColumn text(TextOperator operator) {
+    this.filter = Filter.TEXT;
+    this.textOperator = operator;
+    return this;
+  }
+
+  public NgTableColumn sortable() {
+    this.sortable = true;
+    return this;
+  }
+
+  /** Incluse dans la recherche globale ({@code column.searchable} côté Angular). */
+  public NgTableColumn searchable() {
+    this.searchable = true;
+    return this;
+  }
+
+  /** Proposée dans le menu « Grouper ». Réservez-le aux enums, textes, booléens et {@code LocalDate}. */
+  public NgTableColumn groupable() {
+    this.groupable = true;
+    return this;
+  }
+
+  public NgTableColumn aggregate(Aggregate aggregate) {
+    this.aggregate = aggregate;
+    return this;
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>NgTableJpaSearch.java</code> : filtres, recherche, tri, groupes repliés, pagination et résumés en JPA Criteria</summary>
+
+```java
+package com.example.ngtable;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
+import jakarta.persistence.TypedQuery;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Order;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Selection;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Exécute une {@link NgTable.Query} sur une entité JPA : filtres, recherche globale, tri,
+ * regroupement (groupes repliés exclus), pagination et résumés de groupes. JPA Criteria
+ * uniquement : fonctionne avec Spring Boot 3 et 4, quelle que soit la base.
+ *
+ * @param <E> entité
+ */
+public class NgTableJpaSearch<E> {
+
+  private static final Pattern NUMBER_COMPARISON = Pattern.compile("^(>=|<=|!=|>|<|=)?\\s*(.+)$");
+
+  private final EntityManager em;
+  private final Class<E> entity;
+  private final String idAttribute;
+  private final Map<String, NgTableColumn> columns = new LinkedHashMap<>();
+  private int maxPageSize = 500;
+
+  /**
+   * @param idAttribute attribut unique ajouté en dernier critère de tri : sans lui, deux
+   *                    lignes à égalité peuvent changer de page d'une requête à l'autre
+   */
+  public NgTableJpaSearch(EntityManager em, Class<E> entity, String idAttribute, List<NgTableColumn> columns) {
+    this.em = em;
+    this.entity = entity;
+    this.idAttribute = idAttribute;
+    columns.forEach(column -> this.columns.put(column.id, column));
+  }
+
+  /** Taille de page maximale acceptée (500 par défaut). */
+  public NgTableJpaSearch<E> maxPageSize(int maxPageSize) {
+    this.maxPageSize = maxPageSize;
+    return this;
+  }
+
+  public NgTable.Result<E> search(NgTable.Query query) {
+    NgTable.Page page = query.page();
+    if (page.size() <= 0 || page.size() > maxPageSize || page.index() < 0) {
+      throw new IllegalArgumentException(
+          "Taille de page attendue entre 1 et " + maxPageSize + " (activez la pagination côté Angular)");
+    }
+    NgTableColumn group = query.groupBy() == null ? null : column(query.groupBy(), c -> c.groupable, "regroupable");
+    NgTable.Sort groupSort = group == null ? null : query.sorts().stream()
+        .filter(sort -> sort.columnId().equals(group.id))
+        .findFirst()
+        .orElse(new NgTable.Sort(group.id, "asc"));
+
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+
+    // 1. La page : triée d'abord par la colonne de regroupement, sans les groupes repliés.
+    CriteriaQuery<E> rowsQuery = cb.createQuery(entity);
+    Root<E> root = rowsQuery.from(entity);
+    rowsQuery.where(where(query, group, true, cb, root));
+    List<Order> orders = new ArrayList<>();
+    if (group != null) {
+      orders.add(order(cb, path(root, group.attribute), groupSort.descending()));
+    }
+    for (NgTable.Sort sort : query.sorts()) {
+      if (group == null || !sort.columnId().equals(group.id)) {
+        NgTableColumn column = column(sort.columnId(), c -> c.sortable, "triable");
+        orders.add(order(cb, path(root, column.attribute), sort.descending()));
+      }
+    }
+    orders.add(cb.asc(root.get(idAttribute)));
+    rowsQuery.orderBy(orders);
+    TypedQuery<E> typed = em.createQuery(rowsQuery)
+        .setFirstResult(page.index() * page.size())
+        .setMaxResults(page.size());
+    List<E> rows = typed.getResultList();
+
+    // 2. Le total : lignes des groupes dépliés seulement (c'est ce que pagine la table).
+    CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
+    Root<E> countRoot = countQuery.from(entity);
+    countQuery.select(cb.count(countRoot)).where(where(query, group, true, cb, countRoot));
+    long total = em.createQuery(countQuery).getSingleResult();
+
+    // 3. Les résumés : TOUS les groupes (repliés compris), dans le même ordre que les lignes.
+    List<NgTable.GroupSummary> summaries = group == null ? null : summaries(query, group, groupSort.descending());
+    return new NgTable.Result<>(rows, total, summaries);
+  }
+
+  private List<NgTable.GroupSummary> summaries(NgTable.Query query, NgTableColumn group, boolean descending) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Tuple> cq = cb.createTupleQuery();
+    Root<E> root = cq.from(entity);
+    Path<Object> key = path(root, group.attribute);
+    List<NgTableColumn> aggregated = columns.values().stream().filter(c -> c.aggregate != null).toList();
+    List<Selection<?>> selections = new ArrayList<>(List.of(key, cb.count(root)));
+    for (NgTableColumn column : aggregated) {
+      selections.add(aggregate(cb, path(root, column.attribute), column.aggregate));
+    }
+    cq.multiselect(selections)
+        .where(where(query, group, false, cb, root))
+        .groupBy(key)
+        .orderBy(order(cb, key, descending));
+
+    List<NgTable.GroupSummary> summaries = new ArrayList<>();
+    for (Tuple tuple : em.createQuery(cq).getResultList()) {
+      Map<String, Object> aggregates = new LinkedHashMap<>();
+      for (int i = 0; i < aggregated.size(); i++) {
+        aggregates.put(aggregated.get(i).id, tuple.get(i + 2));
+      }
+      summaries.add(new NgTable.GroupSummary(groupKey(tuple.get(0)), tuple.get(1, Long.class), aggregates));
+    }
+    return summaries;
+  }
+
+  private Predicate where(NgTable.Query query, NgTableColumn group, boolean excludeCollapsed, CriteriaBuilder cb, Root<E> root) {
+    List<Predicate> predicates = new ArrayList<>();
+    query.filters().forEach((columnId, value) -> {
+      if (value != null && !value.isBlank()) {
+        NgTableColumn column = column(columnId, c -> c.filter != NgTableColumn.Filter.NONE, "filtrable");
+        predicates.add(filter(column, value.trim(), cb, path(root, column.attribute)));
+      }
+    });
+
+    // Recherche globale : chaque mot doit apparaître dans au moins une colonne cherchable.
+    List<NgTableColumn> searchable = columns.values().stream().filter(c -> c.searchable).toList();
+    for (String term : query.search().toLowerCase(Locale.ROOT).split("\\s+")) {
+      if (!term.isEmpty() && !searchable.isEmpty()) {
+        String pattern = "%" + escapeLike(term) + "%";
+        predicates.add(cb.or(searchable.stream()
+            .map(c -> cb.like(cb.lower(path(root, c.attribute).as(String.class)), pattern, '\\'))
+            .toArray(Predicate[]::new)));
+      }
+    }
+
+    if (excludeCollapsed && group != null && !query.collapsedGroups().isEmpty()) {
+      predicates.add(notCollapsed(query.collapsedGroups(), cb, path(root, group.attribute)));
+    }
+    return cb.and(predicates.toArray(Predicate[]::new));
+  }
+
+  /** Exclut les groupes repliés. La clé {@code ""} désigne le groupe des valeurs vides (NULL). */
+  private Predicate notCollapsed(List<String> keys, CriteriaBuilder cb, Path<Object> path) {
+    boolean emptyCollapsed = keys.contains("");
+    List<Object> values = keys.stream().filter(key -> !key.isEmpty()).map(key -> convert(path.getJavaType(), key)).toList();
+    // `NOT IN` écarterait aussi les NULL : on les garde ou on les écarte explicitement.
+    Predicate notIn = values.isEmpty() ? cb.conjunction() : cb.not(path.in(values));
+    return emptyCollapsed ? cb.and(cb.isNotNull(path), notIn) : cb.or(cb.isNull(path), notIn);
+  }
+
+  @SuppressWarnings("unchecked")
+  private Predicate filter(NgTableColumn column, String value, CriteriaBuilder cb, Path<Object> path) {
+    return switch (column.filter) {
+      case TEXT -> {
+        String escaped = escapeLike(value.toLowerCase(Locale.ROOT));
+        String pattern = switch (column.textOperator) {
+          case EQUALS -> escaped;
+          case STARTS_WITH -> escaped + "%";
+          case ENDS_WITH -> "%" + escaped;
+          case CONTAINS -> "%" + escaped + "%";
+        };
+        yield cb.like(cb.lower(path.as(String.class)), pattern, '\\');
+      }
+      case ENUM -> path.in(Arrays.stream(value.split(","))
+          .map(String::trim)
+          .filter(part -> !part.isEmpty())
+          .map(part -> convert(path.getJavaType(), part))
+          .toList());
+      case BOOLEAN -> cb.equal(path, "true".equalsIgnoreCase(value) || "1".equals(value));
+      case NUMBER -> numberFilter(value, cb, (Expression<? extends Number>) (Expression<?>) path, path);
+      case DATE -> dateFilter(value, cb, path);
+      case NONE -> cb.conjunction();
+    };
+  }
+
+  /** {@code 42}, {@code =42}, {@code !=42}, {@code >42}, {@code >=42}, {@code <42}, {@code <=42}, {@code 10..50}. */
+  private Predicate numberFilter(String value, CriteriaBuilder cb, Expression<? extends Number> number, Path<Object> path) {
+    if (value.contains("..")) {
+      String[] bounds = value.split("\\.\\.", 2);
+      BigDecimal min = parseNumber(bounds[0]);
+      BigDecimal max = bounds.length > 1 ? parseNumber(bounds[1]) : null;
+      List<Predicate> predicates = new ArrayList<>();
+      if (min != null) {
+        predicates.add(cb.ge(number, min));
+      }
+      if (max != null) {
+        predicates.add(cb.le(number, max));
+      }
+      return cb.and(predicates.toArray(Predicate[]::new));
+    }
+    Matcher matcher = NUMBER_COMPARISON.matcher(value);
+    BigDecimal expected = matcher.matches() ? parseNumber(matcher.group(2)) : null;
+    if (expected == null) {
+      // Saisie qui n'est pas un nombre : recherche textuelle, comme la table en mode local.
+      return cb.like(cb.lower(path.as(String.class)), "%" + escapeLike(value.toLowerCase(Locale.ROOT)) + "%", '\\');
+    }
+    String operator = matcher.group(1) == null ? "=" : matcher.group(1);
+    return switch (operator) {
+      case ">" -> cb.gt(number, expected);
+      case ">=" -> cb.ge(number, expected);
+      case "<" -> cb.lt(number, expected);
+      case "<=" -> cb.le(number, expected);
+      case "!=" -> cb.or(cb.lt(number, expected), cb.gt(number, expected));
+      default -> cb.and(cb.ge(number, expected), cb.le(number, expected));
+    };
+  }
+
+  /** {@code YYYY-MM-DD} (un jour) ou {@code YYYY-MM-DD..YYYY-MM-DD} (bornes incluses, une borne peut être vide). */
+  @SuppressWarnings("unchecked")
+  private Predicate dateFilter(String value, CriteriaBuilder cb, Path<Object> path) {
+    String[] bounds = value.contains("..") ? value.split("\\.\\.", 2) : new String[] {value, value};
+    LocalDate from = bounds[0].isBlank() ? null : LocalDate.parse(bounds[0].trim());
+    LocalDate to = bounds.length < 2 || bounds[1].isBlank() ? null : LocalDate.parse(bounds[1].trim());
+    List<Predicate> predicates = new ArrayList<>();
+    if (LocalDateTime.class.equals(path.getJavaType())) {
+      // Colonne date-heure : toute la journée de chaque borne.
+      Expression<LocalDateTime> dateTime = (Expression<LocalDateTime>) (Expression<?>) path;
+      if (from != null) {
+        predicates.add(cb.greaterThanOrEqualTo(dateTime, from.atStartOfDay()));
+      }
+      if (to != null) {
+        predicates.add(cb.lessThan(dateTime, to.plusDays(1).atStartOfDay()));
+      }
+    } else {
+      Expression<LocalDate> date = (Expression<LocalDate>) (Expression<?>) path;
+      if (from != null) {
+        predicates.add(cb.greaterThanOrEqualTo(date, from));
+      }
+      if (to != null) {
+        predicates.add(cb.lessThanOrEqualTo(date, to));
+      }
+    }
+    return cb.and(predicates.toArray(Predicate[]::new));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Expression<?> aggregate(CriteriaBuilder cb, Path<Object> path, NgTableColumn.Aggregate aggregate) {
+    Expression<Number> number = (Expression<Number>) (Expression<?>) path;
+    return switch (aggregate) {
+      case SUM -> cb.sum(number);
+      case AVG -> cb.avg(number);
+      case MIN -> cb.min(number);
+      case MAX -> cb.max(number);
+      case COUNT -> cb.count(path);
+    };
+  }
+
+  /**
+   * Clé d'un groupe, identique à celle que calcule la table depuis le JSON de la ligne :
+   * nom de l'enum, {@code YYYY-MM-DD} pour une date, {@code ""} pour une valeur vide.
+   */
+  static String groupKey(Object value) {
+    if (value == null) {
+      return "";
+    }
+    if (value instanceof Enum<?> e) {
+      return e.name();
+    }
+    if (value instanceof BigDecimal number) {
+      return number.stripTrailingZeros().toPlainString(); // 12.50 -> "12.5", comme en JavaScript
+    }
+    return value.toString();
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  private static Object convert(Class<?> type, String value) {
+    if (type == String.class) {
+      return value;
+    }
+    if (type.isEnum()) {
+      return Enum.valueOf((Class<? extends Enum>) type, value);
+    }
+    if (type == Boolean.class || type == boolean.class) {
+      return Boolean.valueOf(value);
+    }
+    if (type == LocalDate.class) {
+      return LocalDate.parse(value);
+    }
+    if (type == Integer.class || type == int.class) {
+      return Integer.valueOf(value);
+    }
+    if (type == Long.class || type == long.class) {
+      return Long.valueOf(value);
+    }
+    if (type == BigDecimal.class) {
+      return new BigDecimal(value);
+    }
+    if (type == UUID.class) {
+      return UUID.fromString(value);
+    }
+    throw new IllegalArgumentException("Type non géré pour une valeur de filtre ou de groupe : " + type.getSimpleName());
+  }
+
+  private static BigDecimal parseNumber(String text) {
+    String normalized = text.trim().replace(',', '.');
+    if (normalized.isEmpty()) {
+      return null;
+    }
+    try {
+      return new BigDecimal(normalized);
+    } catch (NumberFormatException e) {
+      return null;
+    }
+  }
+
+  private static String escapeLike(String text) {
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+  }
+
+  private static Order order(CriteriaBuilder cb, Expression<?> expression, boolean descending) {
+    return descending ? cb.desc(expression) : cb.asc(expression);
+  }
+
+  /** Attribut, éventuellement imbriqué ({@code "client.nom"} : jointure implicite, donc interne). */
+  private static Path<Object> path(Root<?> root, String attribute) {
+    Path<Object> path = null;
+    for (String part : attribute.split("\\.")) {
+      path = path == null ? root.get(part) : path.get(part);
+    }
+    return path;
+  }
+
+  private NgTableColumn column(String id, java.util.function.Predicate<NgTableColumn> allowed, String what) {
+    NgTableColumn column = columns.get(id);
+    if (column == null || !allowed.test(column)) {
+      throw new IllegalArgumentException("Colonne non " + what + " : " + id);
+    }
+    return column;
+  }
+}
+```
+
+</details>
+
+Pour un écran, on déclare les colonnes (mêmes ids qu'en Angular, même type de filtre), puis on expose un `POST` :
+
+```java
+package com.example.commandes;
+
+import static com.example.ngtable.NgTableColumn.Aggregate.SUM;
+import static com.example.ngtable.NgTableColumn.Filter.BOOLEAN;
+import static com.example.ngtable.NgTableColumn.Filter.DATE;
+import static com.example.ngtable.NgTableColumn.Filter.ENUM;
+import static com.example.ngtable.NgTableColumn.Filter.NUMBER;
+import static com.example.ngtable.NgTableColumn.Filter.TEXT;
+
+import com.example.ngtable.NgTable;
+import com.example.ngtable.NgTableColumn;
+import com.example.ngtable.NgTableJpaSearch;
+import jakarta.persistence.EntityManager;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class CommandeSearchService {
+
+  private final NgTableJpaSearch<Commande> search;
+
+  public CommandeSearchService(EntityManager em) {
+    // Une entrée par colonne Angular : même id, et même type de filtre que `filter.type`.
+    this.search = new NgTableJpaSearch<>(em, Commande.class, "id", List.of(
+        NgTableColumn.of("reference").filter(TEXT).sortable().searchable(),
+        NgTableColumn.of("client").filter(ENUM).sortable().searchable().groupable(),
+        NgTableColumn.of("statut").filter(ENUM).sortable().groupable(),
+        NgTableColumn.of("montant").filter(NUMBER).sortable().aggregate(SUM),
+        NgTableColumn.of("dateCommande").filter(DATE).sortable().groupable(),
+        NgTableColumn.of("urgent").filter(BOOLEAN).sortable().groupable(),
+        NgTableColumn.of("description").searchable()));
+  }
+
+  @Transactional(readOnly = true)
+  public NgTable.Result<CommandeDto> search(NgTable.Query query) {
+    NgTable.Result<Commande> result = search.search(query);
+    return new NgTable.Result<>(
+        result.rows().stream().map(CommandeDto::from).toList(), result.total(), result.groupSummaries());
+  }
+}
+```
+
+```java
+package com.example.commandes;
+
+import com.example.ngtable.NgTable;
+import java.time.format.DateTimeParseException;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/commandes")
+public class CommandeController {
+
+  private final CommandeSearchService service;
+
+  public CommandeController(CommandeSearchService service) {
+    this.service = service;
+  }
+
+  /** POST plutôt que GET : les filtres (un objet) passent mal en paramètres d'URL. */
+  @PostMapping("/search")
+  public NgTable.Result<CommandeDto> search(@RequestBody NgTable.Query query) {
+    return service.search(query);
+  }
+
+  /** Colonne inconnue, valeur de filtre invalide, page trop grande : 400 plutôt que 500. */
+  @ExceptionHandler({IllegalArgumentException.class, DateTimeParseException.class})
+  public ResponseEntity<String> badRequest(RuntimeException e) {
+    return ResponseEntity.badRequest().body(e.getMessage());
+  }
+}
+```
+
+<details>
+<summary>L'entité et le DTO de l'exemple</summary>
+
+```java
+package com.example.commandes;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Entity
+public class Commande {
+
+  @Id
+  @GeneratedValue
+  private Long id;
+  private String reference;
+  private String client;
+  @Enumerated(EnumType.STRING)
+  private CommandeStatut statut;
+  private BigDecimal montant;
+  private LocalDate dateCommande;
+  private boolean urgent;
+  private String description;
+
+  protected Commande() {
+  }
+
+  public Commande(String reference, String client, CommandeStatut statut, BigDecimal montant,
+                  LocalDate dateCommande, boolean urgent, String description) {
+    this.reference = reference;
+    this.client = client;
+    this.statut = statut;
+    this.montant = montant;
+    this.dateCommande = dateCommande;
+    this.urgent = urgent;
+    this.description = description;
+  }
+
+  public Long getId() { return id; }
+  public String getReference() { return reference; }
+  public String getClient() { return client; }
+  public CommandeStatut getStatut() { return statut; }
+  public BigDecimal getMontant() { return montant; }
+  public LocalDate getDateCommande() { return dateCommande; }
+  public boolean isUrgent() { return urgent; }
+  public String getDescription() { return description; }
+}
+```
+
+```java
+package com.example.commandes;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+/** Une ligne de la table : les noms des champs sont ceux lus par les `valueAccessor` Angular. */
+public record CommandeDto(Long id, String reference, String client, CommandeStatut statut, BigDecimal montant,
+                          LocalDate dateCommande, boolean urgent, String description) {
+
+  static CommandeDto from(Commande c) {
+    return new CommandeDto(c.getId(), c.getReference(), c.getClient(), c.getStatut(), c.getMontant(),
+        c.getDateCommande(), c.isUrgent(), c.getDescription());
+  }
+}
+```
+
+```java
+package com.example.commandes;
+
+public enum CommandeStatut { BROUILLON, VALIDEE, EXPEDIEE, ANNULEE }
+```
+
+</details>
+
+#### Points d'attention
+
+- **Sécurité** : seules les colonnes déclarées dans `NgTableColumn` peuvent être triées, filtrées, cherchées ou regroupées. Un id inconnu donne une erreur 400, et ne sert jamais à construire la requête. La taille de page est plafonnée (`maxPageSize`, 500 par défaut).
+- **Pagination obligatoire** : `page.size = 0` (pagination désactivée côté Angular) est refusé, pour ne jamais renvoyer une table entière. Activez `[paginator]` ou `[pageTrackingEnabled]`.
+- **Groupe vide (NULL)** : sa place suit la base (en fin de liste en croissant sous PostgreSQL, en tête sous H2 ou MySQL). La table suit l'ordre reçu, et lignes et résumés utilisent le même `ORDER BY` : l'affichage reste cohérent.
+- **Colonnes regroupables** : réservez `groupable()` aux enums, textes, booléens et `LocalDate`. Pour un `LocalDateTime`, la clé du serveur (`2026-01-12T08:30`) ne correspondrait pas toujours au JSON (`2026-01-12T08:30:00`). Regroupez plutôt sur une colonne `LocalDate`.
+- **Accents** : la recherche ignore la casse, pas les accents. Sous PostgreSQL, l'extension `unaccent` (via `cb.function("unaccent", ...)`) fait comme la table en mode local.
+- **Performances** : trois requêtes par chargement (page, total, résumés). Indexez les colonnes filtrées, triées et regroupées. Une recherche `LIKE '%mot%'` n'utilise pas d'index B-tree : sur de gros volumes, préférez un index trigramme (`pg_trgm`) ou une recherche plein texte.
+- **Associations** : un attribut imbriqué (`NgTableColumn.of("client", "client.nom")`) passe par une jointure implicite, donc interne. Les lignes sans client disparaissent : déclarez une jointure externe si besoin.
+
 ### Étape 17bis — Traduire votre `<mat-paginator>`
 
 `ng-table` ne rend pas de pagination lui-même (voir les Étapes 16/17) — vous branchez votre propre `<mat-paginator>`. Son i18n est un mécanisme **entièrement séparé** de `labels`/`provideNgTableLabels()` : sans rien faire, ses textes ("Items per page", "of"...) restent en anglais même si le reste de la table est traduit. `NgTablePaginatorIntl` fournit une traduction française prête à l'emploi :
@@ -1481,6 +2304,8 @@ onPageChange(event: PageEvent): void {
   this.fetchRows({sort: this.currentSort(), filters: this.currentFilters(), page: {index: event.pageIndex, size: event.pageSize}});
 }
 ```
+
+Un backend Spring Boot complet (filtres, recherche, tri, regroupement, groupes repliés) est décrit à l'Étape 17ter.
 
 ⚠️ Basculer `[dataMode]` **à la volée sur une instance déjà affichée** change radicalement la sémantique de `rows()` — c'est un choix fixé au démarrage d'un écran, pas un état à faire varier dynamiquement pendant l'usage.
 
