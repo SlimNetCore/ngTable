@@ -1937,9 +1937,27 @@ export class NgTableComponent implements OnDestroy {
       this.columnWidths.set({...state.columnWidths});
     }
     this.filtersChange.emit(this.columnFilters());
-    this.onQueryStateChanged();
-    if (state.pageIndex !== undefined && state.pageSize !== undefined) {
-      this.viewPaginationRestore.emit({pageIndex: state.pageIndex, pageSize: state.pageSize});
+
+    // `onQueryStateChanged()` remettrait la page à 0 (comportement normal pour un
+    // simple changement de filtre) — mais ici la vue a potentiellement sa PROPRE
+    // page à restaurer. L'appeler quand même, puis corriger juste après avec
+    // `viewPaginationRestore`, marchait "par chance" en mode local (le dernier
+    // événement gagne) mais PAS en mode remote : `remoteQueryChange` partait avec
+    // `page.index: 0` et rien ne le rattrapait ensuite, donc la taille/page
+    // sauvegardées de la vue n'atteignaient jamais le serveur.
+    const hasSavedPagination = state.pageIndex !== undefined && state.pageSize !== undefined;
+    if (!hasSavedPagination) {
+      this.onQueryStateChanged();
+    } else if (this.dataMode() === 'remote') {
+      this.remoteQueryChange.emit({
+        sort: this.sortState(),
+        filters: this.columnFilters(),
+        page: {index: state.pageIndex!, size: state.pageSize!},
+      });
+    }
+
+    if (hasSavedPagination) {
+      this.viewPaginationRestore.emit({pageIndex: state.pageIndex!, pageSize: state.pageSize!});
     }
     this.viewActivated.emit(view);
   }

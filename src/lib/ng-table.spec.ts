@@ -609,6 +609,64 @@ describe('NgTableComponent', () => {
       expect(component.activeView()?.state.filters['statut']).toBe('BROUILLON');
     });
 
+    it('émet viewPaginationRestore avec la pagination sauvegardée à l’activation (mode local)', async () => {
+      const {component} = await createTable({
+        viewsEnabled: true,
+        viewsStorageKey: 'test-list',
+        pageTrackingEnabled: true,
+        pageSize: 2,
+        pageIndex: 1,
+      });
+      component.saveCurrentAsView('Page 2, taille 2');
+      const view = component.viewsList()[0];
+
+      const restores: unknown[] = [];
+      const pageIndexEmits: number[] = [];
+      component.viewPaginationRestore.subscribe((e) => restores.push(e));
+      component.pageIndexChange.subscribe((p) => pageIndexEmits.push(p));
+
+      component.activateView(view);
+
+      expect(restores).toEqual([{pageIndex: 1, pageSize: 2}]);
+      // Ne doit PAS avoir été écrasé par une remise à 0 déclenchée par ailleurs.
+      expect(pageIndexEmits).not.toContain(0);
+    });
+
+    it('restaure la pagination sauvegardée dans remoteQueryChange en mode remote (pas une page 0)', async () => {
+      const {component} = await createTable({
+        dataMode: 'remote',
+        viewsEnabled: true,
+        viewsStorageKey: 'test-list',
+        pageTrackingEnabled: true,
+        pageSize: 5,
+        pageIndex: 3,
+      });
+      component.saveCurrentAsView('Page 3, taille 5');
+      const view = component.viewsList()[0];
+
+      const queries: unknown[] = [];
+      component.remoteQueryChange.subscribe((q) => queries.push(q));
+
+      component.activateView(view);
+
+      expect(queries).toEqual([
+        {sort: {columnId: '', direction: ''}, filters: expect.any(Object), page: {index: 3, size: 5}},
+      ]);
+    });
+
+    it('n’émet pas viewPaginationRestore pour une vue sans pagination sauvegardée', async () => {
+      const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
+      component.saveCurrentAsView('Sans pagination'); // pageTrackingEnabled=false : pas de pageIndex/pageSize sauvegardés
+      const view = component.viewsList()[0];
+
+      const restores: unknown[] = [];
+      component.viewPaginationRestore.subscribe((e) => restores.push(e));
+
+      component.activateView(view);
+
+      expect(restores).toEqual([]);
+    });
+
     it('met à jour une vue existante avec l’affichage courant sans changer son nom ni son id', async () => {
       const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
       component.onFilterValue('statut', 'VALIDEE');

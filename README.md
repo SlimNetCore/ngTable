@@ -687,6 +687,11 @@ Ajoutez un système "vues nommées" (colonnes/ordre/largeurs/tri/filtres/paginat
   [columnVisibility]="visibleColumns()"
   (columnVisibilityChange)="visibleColumns.set($event)"
   (viewActivated)="onViewActivated($event)"
+  [pageTrackingEnabled]="true"
+  [pageIndex]="pageIndex()"
+  [pageSize]="pageSize()"
+  (pageIndexChange)="pageIndex.set($event)"
+  (viewPaginationRestore)="pageIndex.set($event.pageIndex); pageSize.set($event.pageSize)"
   ...
 />
 ```
@@ -699,6 +704,8 @@ onViewActivated(view: NgTableView | null): void {
   this.visibleColumns.set({...view.state.columnVisibility});
 }
 ```
+
+⚠️ **Piège fréquent** : `[pageIndex]`/`[pageSize]` sont **entièrement contrôlés** — comme `column­Visibility`, `sort`, `filters`... sauf qu'ici il n'y a pas de mode "non contrôlé" de secours (contrairement à `columnVisibility` qui gère un état interne si vous ne le bindez pas). Sans le binding `(viewPaginationRestore)` ci-dessus, la page/taille de page sauvegardées dans une vue ne sont **jamais réappliquées** à l'activation : ng-table les calcule et les émet, mais ne peut pas écrire lui-même dans vos propres signaux `pageIndex`/`pageSize`. C'est la cause la plus courante d'un "la taille de page ne se restaure pas en changeant de vue".
 
 Pour persister ailleurs qu'en `localStorage` (backend, fichier...), passez en mode contrôlé :
 
