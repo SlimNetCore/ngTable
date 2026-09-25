@@ -1266,3 +1266,8 @@
   padding: 0;
   border: 0;
 }
+
+/* Mode remote : en-têtes de groupe non repliables. */
+.ng-table tr.group-row.group-row--static {
+  cursor: default;
+}

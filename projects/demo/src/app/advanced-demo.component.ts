@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, signal, TemplateRef, viewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, signal, TemplateRef, viewChild} from '@angular/core';
 import {MatButtonModule} from '@angular/material/button';
 import {MatButtonToggleModule} from '@angular/material/button-toggle';
 import {MatIconModule} from '@angular/material/icon';
@@ -106,7 +106,8 @@ function addDays(isoDay: string, days: number): string {
       [inlineFilters]="inlineFilters()"
       [multiSort]="multiSort()"
       [cellNavigation]="cellNavigation()"
-      [groupingEnabled]="true"
+      [groupingEnabled]="grouping()"
+      [(groupBy)]="groupBy"
       [showTotals]="totalsRow()"
       [paginator]="pagination() === 'integree'"
       [pageTrackingEnabled]="pagination() === 'personnalisee'"
@@ -235,6 +236,8 @@ export class AdvancedDemoComponent {
   protected readonly multiSort = signal(true);
   protected readonly cellNavigation = signal(true);
   protected readonly totalsRow = signal(true);
+  protected readonly grouping = signal(true);
+  protected readonly groupBy = signal<string | null>(null);
   protected readonly selection = signal(false);
   protected readonly detailRows = signal(true);
   protected readonly contextMenu = signal(true);
@@ -250,6 +253,7 @@ export class AdvancedDemoComponent {
     {label: 'Filtres inline', value: this.inlineFilters},
     {label: 'Tri multi-colonnes', value: this.multiSort},
     {label: 'Navigation clavier (grille)', value: this.cellNavigation},
+    {label: 'Regroupement', value: this.grouping},
     {label: 'Ligne de totaux', value: this.totalsRow},
     {label: 'Sélection', value: this.selection},
     {label: 'Ligne détail', value: this.detailRows},
@@ -372,6 +376,15 @@ filteredTotal = signal(0);   // total APRÈS filtres : seul ng-table le connaît
       mobileRowActions: true,
     },
   ]);
+
+  constructor() {
+    // Désactiver le regroupement retire aussi le regroupement en cours (le bouton disparaît).
+    effect(() => {
+      if (!this.grouping()) {
+        this.groupBy.set(null);
+      }
+    });
+  }
 
   protected statutLabel(statut: CommandeStatut): string {
     return STATUT_LABELS[statut];

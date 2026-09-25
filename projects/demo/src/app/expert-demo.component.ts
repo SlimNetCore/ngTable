@@ -7,6 +7,7 @@ import {
   NG_TABLE_LABELS_EN,
   NgTableColumn,
   NgTableComponent,
+  NgTableGroupSummary,
   NgTableQueryState,
   NgTableRemoteQuery,
   NgTableViewsStore,
@@ -69,6 +70,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           <mat-icon>deselect</mat-icon> Vider la sélection ({{ selectedKeys().length }})
         </button>
         <mat-slide-toggle [checked]="english()" (change)="english.set($event.checked)">Textes en anglais</mat-slide-toggle>
+        <mat-slide-toggle [checked]="grouping()" (change)="setGrouping($event.checked)">Regroupement (côté serveur)</mat-slide-toggle>
       </div>
     </div>
 
@@ -84,6 +86,9 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           [labels]="english() ? labelsEn : {}"
           [globalSearchEnabled]="true"
           [multiSort]="true"
+          [groupingEnabled]="grouping()"
+          [(groupBy)]="groupBy"
+          [groupSummaries]="groupSummaries()"
           [showActiveFiltersBar]="true"
           [paginator]="true"
           [totalCount]="total()"
@@ -146,6 +151,8 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           <code>[selectedRowKeys]</code>, <code>[viewsStore]</code> (vues « enregistrées côté serveur »).</li>
         <li>Filtre 100 % personnalisé sur « Montant » (<code>filter.component</code>).</li>
         <li><code>applyQueryState()</code> / <code>getQueryState()</code> pilotés par des boutons.</li>
+        <li>Regroupement côté serveur : <code>groupBy</code> part dans la requête, le serveur trie par groupe et renvoie le
+          compte et la somme de chaque groupe (<code>[groupSummaries]</code>), calculés sur tout le groupe et pas sur la page.</li>
         <li>Export généré côté serveur (<code>exportMode='remote'</code>).</li>
         <li>Textes traduits via <code>[labels]</code> (<code>NG_TABLE_LABELS_EN</code>).</li>
         <li>En test : <code>NgTableHarness</code> (<code>&#64;sbourahla/ng-table/testing</code>) pilote cette table comme
@@ -174,6 +181,9 @@ export class ExpertDemoComponent {
   protected readonly serverStatus = signal('');
   protected readonly english = signal(false);
   protected readonly labelsEn = NG_TABLE_LABELS_EN;
+  protected readonly grouping = signal(false);
+  protected readonly groupBy = signal<string | null>(null);
+  protected readonly groupSummaries = signal<Record<string, NgTableGroupSummary> | null>(null);
 
   // État tenu par le parent (mode contrôlé).
   protected readonly pageIndex = signal(0);
@@ -213,6 +223,7 @@ export class ExpertDemoComponent {
       header: 'Montant (€)',
       valueAccessor: (c) => c.montant,
       sortable: true,
+      aggregate: 'sum', // somme calculée par le serveur (groupSummaries)
       filter: {type: 'numberRange', label: 'Tranche de montant', component: MontantPresetFilterComponent},
     },
     {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, filter: {type: 'range'}},
@@ -240,6 +251,7 @@ export class ExpertDemoComponent {
     }
     this.rows.set(page.rows);
     this.total.set(page.total);
+    this.groupSummaries.set(page.groupSummaries);
     this.loading.set(false);
     this.serverStatus.set(`Serveur : ${page.total} commande(s) correspondent, page ${query.page.index + 1} reçue.`);
   }
@@ -252,6 +264,11 @@ export class ExpertDemoComponent {
   protected saveViews(store: NgTableViewsStore): void {
     this.viewsStore.set(store);
     this.log('viewsStoreChange', `${store.views.length} vue(s), active : ${store.activeViewId ?? 'aucune'}`);
+  }
+
+  protected setGrouping(enabled: boolean): void {
+    this.grouping.set(enabled);
+    this.groupBy.set(enabled ? 'statut' : null); // un regroupement par défaut pour voir tout de suite l'effet
   }
 
   protected applyPreset(): void {

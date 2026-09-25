@@ -86,7 +86,7 @@
       </mat-menu>
     }
 
-    @if (groupingEnabled() && dataMode() === 'local') {
+    @if (groupingEnabled()) {
       <button [matMenuTriggerFor]="groupMenu" mat-stroked-button type="button">
         <mat-icon aria-hidden="true">account_tree</mat-icon>
         {{ effectiveLabels().groupButton }}
@@ -107,7 +107,7 @@
             {{ column.header }}
           </button>
         }
-        @if (groupColumn()) {
+        @if (groupColumn() && groupsCollapsible()) {
           <div class="views-divider"></div>
           <button (click)="expandAllGroups()" mat-menu-item type="button">
             <mat-icon aria-hidden="true">unfold_more</mat-icon>
@@ -547,12 +547,16 @@
           <td *matCellDef="let item" [class.group-cell--lead]="column.id === leadColumnId()" class="group-cell" mat-cell>
             @if (column.id === leadColumnId()) {
               <span class="group-label">
-                <mat-icon aria-hidden="true" class="group-chevron">{{ item.collapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                @if (groupsCollapsible()) {
+                  <mat-icon aria-hidden="true" class="group-chevron">{{ item.collapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                }
                 <!-- Espaces DANS les textes : Angular retire ceux entre les balises, et le nom lu
                      par un lecteur d'écran deviendrait « Statut :Brouillon1 ligne(s) ». -->
                 <span class="group-name">{{ groupColumn()?.header }} : </span>
                 <span class="group-value">{{ groupValueLabel(item.group) }} </span>
-                <span class="group-count">{{ groupCountLabel(item.group) }}</span>
+                @if (groupCountLabel(item.group); as count) {
+                  <span class="group-count">{{ count }}</span>
+                }
               </span>
             } @else {
               {{ groupAggregate(item.group, column.id) }}
@@ -592,10 +596,11 @@
         (keydown.enter)="toggleGroup(item.group)"
         (keydown.space)="$event.preventDefault(); toggleGroup(item.group)"
         *matRowDef="let item; columns: groupRowColumns(); when: groupRowWhen"
-        [attr.aria-expanded]="!item.collapsed"
+        [attr.aria-expanded]="groupsCollapsible() ? !item.collapsed : null"
+        [attr.tabindex]="groupsCollapsible() ? 0 : null"
+        [class.group-row--static]="!groupsCollapsible()"
         class="group-row"
         mat-row
-        tabindex="0"
       ></tr>
       @if (totals()) {
         <tr *matFooterRowDef="displayedColumnIds(); sticky: stickyHeader()" class="totals-row" mat-footer-row></tr>

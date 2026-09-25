@@ -45,7 +45,7 @@ import {
 } from './grid-navigation';
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
 import {matchesAllFilters, searchText, SortLevel, sortRows} from './row-pipeline';
-import {buildGroups, computeAggregate, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
+import {buildConsecutiveGroups, buildGroups, computeAggregate, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
 import {computeVirtualRange, NgTableSpacerRow, VirtualRange} from './virtual-window';
 
 /** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
@@ -116,6 +116,18 @@ const DISCRETE_FILTER_TYPES: ReadonlySet<ColumnFilterType> = new Set<ColumnFilte
 export type NgTableDataMode = 'local' | 'remote';
 
 /** Etat complet à envoyer au serveur en mode `remote` (tri courant, tous les filtres, et la page). */
+/**
+ * Mode `remote` + regroupement : résumé d'un groupe calculé par le serveur sur TOUTES
+ * les lignes du groupe (la table n'en a qu'une page). Clé = valeur de la colonne de
+ * regroupement en texte (jour `YYYY-MM-DD` pour une date, `''` pour une valeur vide).
+ */
+export interface NgTableGroupSummary {
+  /** Nombre de lignes du groupe. */
+  count?: number;
+  /** Agrégats par id de colonne (nombre formaté par la table, ou texte affiché tel quel). */
+  aggregates?: Record<string, unknown>;
+}
+
 export interface NgTableRemoteQuery {
   /** Tri principal (premier niveau de `sorts`). */
   sort: NgTableSortChange;
@@ -125,6 +137,11 @@ export interface NgTableRemoteQuery {
   page: { index: number; size: number };
   /** Recherche globale saisie (`''` si aucune). Toujours renseignée par le composant. */
   search?: string;
+  /**
+   * Colonne de regroupement (`null` si aucun). Le serveur doit renvoyer les lignes
+   * triées d'abord par cette colonne, puis par `sorts`.
+   */
+  groupBy?: string | null;
 }
 
 /**
@@ -518,12 +535,13 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly cellNavigation = input(false);
   /**
    * Bouton « Grouper » dans la barre d'actions : regroupe les lignes par la valeur
-   * d'une colonne (mode local). Voir `groupBy`, `NgTableColumn.aggregate`.
+   * d'une colonne. Voir `groupBy`, `NgTableColumn.aggregate`, `groupSummaries`.
    */
   readonly groupingEnabled = input(false);
   /**
    * Colonne de regroupement (`null` = aucun). `model()` : liable en `[(groupBy)]`,
-   * ou laissée au composant. Mode local uniquement ; enregistrée dans les vues.
+   * ou laissée au composant ; enregistrée dans les vues. En mode `remote`, elle part dans
+   * `NgTableRemoteQuery.groupBy` et les résumés viennent de `[groupSummaries]`.
    */
   readonly groupBy = model<string | null>(null);
   /**
@@ -532,6 +550,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * fixe (`[maxHeight]`, 70vh par défaut) et des lignes de hauteur uniforme (mesurée).
    */
   readonly virtualScroll = input(false);
+  /**
+   * Mode `remote` + regroupement : nombre de lignes et agrégats de chaque groupe,
+   * calculés par le serveur (voir `NgTableGroupSummary`). Sans cela, l'en-tête d'un
+   * groupe n'affiche que son libellé : un compte limité à la page serait trompeur.
+   */
+  readonly groupSummaries = input<Record<string, NgTableGroupSummary> | null>(null);
   /** Ligne de totaux en bas de la table, pour les colonnes qui déclarent un `aggregate` (mode local). */
   readonly showTotals = input(false);
   /** Tri sur plusieurs colonnes : Maj+clic sur un en-tête ajoute un niveau de tri. */
@@ -943,11 +967,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
   /** Colonne de regroupement effective (mode local, colonne existante), sinon `null`. */
   protected readonly groupColumn = computed(() => {
     const id = this.groupBy();
-    if (!id || this.dataMode() !== 'local') {
-      return null;
-    }
-    return this.columns().find((column) => column.id === id) ?? null;
+    return id ? (this.columns().find((column) => column.id === id) ?? null) : null;
   });
+
+  /**
+   * Les groupes ne se replient qu'en mode local : en `remote`, replier raccourcirait la
+   * page renvoyée par le serveur et fausserait la pagination.
+   */
+  protected readonly groupsCollapsible = computed(() => this.dataMode() === 'local');
 
   /** Colonnes proposées dans le menu « Grouper ». */
   protected readonly groupableColumns = computed(() =>
@@ -962,6 +989,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (!column) {
       return null;
     }
+    if (this.dataMode() === 'remote') {
+      return buildConsecutiveGroups(this.rows(), column);
+    }
     const sort = this.sortState();
     const descending = sort.columnId === column.id && sort.direction === 'desc';
     return buildGroups(this.filteredSortedRows(), column, descending, this.collator);
@@ -970,7 +1000,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
   /** Unités paginées avec regroupement : lignes des groupes dépliés, un élément par groupe replié. */
   private readonly groupUnits = computed(() => {
     const groups = this.groups();
-    return groups ? groupedUnits(groups, this.collapsedGroups()) : null;
+    if (!groups) {
+      return null;
+    }
+    return groupedUnits(groups, this.groupsCollapsible() ? this.collapsedGroups() : new Set<string>());
   });
 
   /** Nombre d'éléments paginés : lignes filtrées, ou unités quand les lignes sont regroupées. */
@@ -978,6 +1011,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   readonly displayedRows = computed(() => {
     if (this.dataMode() === 'remote') {
+      // Regroupées ou non, les lignes restent dans l'ordre renvoyé par le serveur.
       // Le serveur a déjà filtré/trié/paginé — on affiche tel quel.
       return this.rows();
     }
@@ -991,7 +1025,11 @@ export class NgTableComponent<T = any> implements OnDestroy {
   /** Éléments de la page : les lignes affichées, avec les en-têtes de groupe intercalés. */
   private readonly pageItems = computed<(T | NgTableGroupRow<T>)[]>(() => {
     const units = this.groupUnits();
-    return units ? withGroupHeaders(this.currentPage(units)) : this.displayedRows();
+    if (!units) {
+      return this.displayedRows();
+    }
+    // En remote, `rows()` EST déjà la page : pas de second découpage.
+    return withGroupHeaders(this.dataMode() === 'remote' ? units : this.currentPage(units));
   });
 
   /** Hauteur max. de la zone de défilement : `[maxHeight]`, ou 70vh en défilement virtuel. */
@@ -1049,8 +1087,13 @@ export class NgTableComponent<T = any> implements OnDestroy {
   private readonly groupAggregates = computed(() => {
     const result = new Map<RowGroup<T>, Record<string, string>>();
     const columns = this.columns().filter((column) => column.aggregate);
+    const remote = this.dataMode() === 'remote';
+    const summaries = this.groupSummaries();
     for (const group of this.groups() ?? []) {
-      result.set(group, this.aggregateTexts(columns, group.rows));
+      result.set(
+        group,
+        remote ? this.formatAggregates(columns, summaries?.[group.key]?.aggregates ?? {}) : this.aggregateTexts(columns, group.rows),
+      );
     }
     return result;
   });
@@ -1312,7 +1355,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
       untracked(() => {
         if (previousGroupBy !== undefined && current !== previousGroupBy) {
           this.collapsedGroups.set(new Set());
-          if (this.pagingActive() && this.pageIndex() !== 0) {
+          if (this.dataMode() === 'remote') {
+            this.onQueryStateChanged(); // le serveur doit renvoyer les lignes triées par groupe
+          } else if (this.pagingActive() && this.pageIndex() !== 0) {
             this.pageIndex.set(0);
           }
         }
@@ -2313,6 +2358,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   /** Déplie ou replie un groupe (clic ou Entrée / Espace sur son en-tête). */
   protected toggleGroup(group: RowGroup<T>): void {
+    if (!this.groupsCollapsible()) {
+      return;
+    }
     const next = new Set(this.collapsedGroups());
     if (!next.delete(group.key)) {
       next.add(group.key);
@@ -2340,8 +2388,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return options.find((option) => option.value === group.key)?.label ?? group.key;
   }
 
+  /** Nombre de lignes du groupe ; `''` en remote sans résumé serveur (un compte de page tromperait). */
   protected groupCountLabel(group: RowGroup<T>): string {
-    return this.effectiveLabels().groupCount.replace('{count}', `${group.rows.length}`);
+    const count = this.dataMode() === 'remote' ? this.groupSummaries()?.[group.key]?.count : group.rows.length;
+    return count === undefined ? '' : this.effectiveLabels().groupCount.replace('{count}', `${count}`);
   }
 
   protected groupAggregate(group: RowGroup<T>, columnId: string): string {
@@ -2349,11 +2399,16 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   private aggregateTexts(columns: NgTableColumn<T>[], rows: readonly T[]): Record<string, string> {
+    return this.formatAggregates(columns, Object.fromEntries(columns.map((column) => [column.id, computeAggregate(column, rows)])));
+  }
+
+  /** Texte affiché d'agrégats (calculés ici ou fournis par le serveur) : préfixe du type + nombre formaté. */
+  private formatAggregates(columns: NgTableColumn<T>[], values: Record<string, unknown>): Record<string, string> {
     const labels = this.effectiveLabels();
     const prefixes = {sum: labels.aggregateSum, avg: labels.aggregateAvg, min: labels.aggregateMin, max: labels.aggregateMax, count: labels.aggregateCount};
     const texts: Record<string, string> = {};
     for (const column of columns) {
-      const value = computeAggregate(column, rows);
+      const value = values[column.id];
       if (value === null || value === undefined) {
         continue;
       }
@@ -2837,6 +2892,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       filters: this.columnFilters(),
       page: {index: pageIndex, size: this.pagingActive() ? pageSize : 0},
       search: this.globalSearchTerm(),
+      groupBy: this.groupColumn()?.id ?? null,
     };
   }
 

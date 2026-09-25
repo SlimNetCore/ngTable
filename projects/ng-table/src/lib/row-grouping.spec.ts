@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {NgTableColumn} from './ng-table.component';
-import {buildGroups, computeAggregate, groupedUnits, NgTableGroupRow, withGroupHeaders} from './row-grouping';
+import {buildConsecutiveGroups, buildGroups, computeAggregate, groupedUnits, NgTableGroupRow, withGroupHeaders} from './row-grouping';
 
 interface Row {
   id: number;
@@ -30,6 +30,11 @@ describe('row-grouping', () => {
     expect(groups[1].rows.map((r) => r.id)).toEqual([1, 4]);
 
     expect(buildGroups(rows, statut, true, collator).map((g) => g.key)).toEqual(['VALIDEE', 'BROUILLON', '']);
+  });
+
+  it('mode remote : groupes par lignes consécutives, dans l’ordre reçu', () => {
+    const page: Row[] = [rows[0], rows[3], rows[1], rows[2]]; // VALIDEE, VALIDEE, BROUILLON, vide
+    expect(buildConsecutiveGroups(page, statut).map((g) => `${g.key}:${g.rows.length}`)).toEqual(['VALIDEE:2', 'BROUILLON:1', ':1']);
   });
 
   it('un groupe replié compte pour une seule unité de pagination', () => {

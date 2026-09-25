@@ -65,6 +65,26 @@ export function buildGroups<T>(rows: T[], column: NgTableColumn<T>, descending: 
   });
 }
 
+/**
+ * Mode `remote` : groupes formés par les lignes CONSÉCUTIVES de même valeur, dans
+ * l'ordre reçu. Le serveur trie d'abord par la colonne de regroupement ; un groupe
+ * coupé entre deux pages apparaît ainsi sur chacune.
+ */
+export function buildConsecutiveGroups<T>(rows: T[], column: NgTableColumn<T>): RowGroup<T>[] {
+  const groups: RowGroup<T>[] = [];
+  let current: RowGroup<T> | null = null;
+  for (const row of rows) {
+    const value = column.valueAccessor(row);
+    const key = groupKeyOf(value);
+    if (!current || current.key !== key) {
+      current = {key, value, rows: []};
+      groups.push(current);
+    }
+    current.rows.push(row);
+  }
+  return groups;
+}
+
 /** Unités paginables : les lignes des groupes dépliés, et une unité par groupe replié. */
 export function groupedUnits<T>(groups: RowGroup<T>[], collapsedKeys: ReadonlySet<string>): GroupedUnit<T>[] {
   const units: GroupedUnit<T>[] = [];

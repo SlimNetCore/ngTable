@@ -687,11 +687,50 @@ describe('NgTableComponent', () => {
       expect(component.groupBy()).toBe('actif');
     });
 
-    it('ignoré en mode remote (le serveur décide)', async () => {
-      const {component, fixture} = await createTable({columns: groupColumns(), groupBy: 'statut', dataMode: 'remote'});
-      await fixture.whenStable();
-      expect(groupRows(fixture)).toHaveLength(0);
-      expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
+    describe('mode remote', () => {
+      // Page renvoyée par le serveur, déjà triée par statut : VALIDEE, VALIDEE, BROUILLON.
+      const serverPage: Row[] = [ROWS[0], ROWS[2], ROWS[1]];
+
+      it('demande le regroupement au serveur et dessine un en-tête à chaque changement de valeur', async () => {
+        const queries: NgTableRemoteQuery[] = [];
+        const {component, fixture, setInput} = await createTable({columns: groupColumns(), dataMode: 'remote', rows: []});
+        component.remoteQueryChange.subscribe((q) => queries.push(q));
+
+        component.groupBy.set('statut');
+        await fixture.whenStable();
+        expect(queries.at(-1)?.groupBy).toBe('statut');
+
+        await setInput('rows', serverPage);
+        const headers = groupRows(fixture);
+        expect(headers.map((row) => text(row.cells[0]))).toEqual(['Statut : Validée', 'Statut : Brouillon']);
+        // L'ordre du serveur est conservé, sans second découpage ni tri local.
+        expect(ids(component.displayedRows())).toEqual(['1', '3', '2']);
+      });
+
+      it('affiche le compte et les agrégats fournis par le serveur, pas ceux de la page', async () => {
+        const {fixture} = await createTable({
+          columns: groupColumns(), dataMode: 'remote', rows: serverPage, groupBy: 'statut',
+          groupSummaries: {VALIDEE: {count: 480, aggregates: {montant: 125000}}, BROUILLON: {count: 12}},
+        });
+        await fixture.whenStable();
+
+        const [validee, brouillon] = groupRows(fixture);
+        expect(text(validee.cells[0])).toBe('Statut : Validée 480 ligne(s)');
+        expect(text(validee.cells[1])).toMatch(/^Σ 125\s000$/);
+        expect(text(brouillon.cells[0])).toBe('Statut : Brouillon 12 ligne(s)');
+      });
+
+      it('groupes non repliables : pas de chevron, pas d’arrêt de tabulation, le clic ne masque rien', async () => {
+        const {component, fixture} = await createTable({columns: groupColumns(), dataMode: 'remote', rows: serverPage, groupBy: 'statut'});
+        await fixture.whenStable();
+
+        const header = groupRows(fixture)[0];
+        expect(header.querySelector('.group-chevron')).toBeNull();
+        expect(header.getAttribute('tabindex')).toBeNull();
+        expect(header.getAttribute('aria-expanded')).toBeNull();
+        header.click();
+        expect(component.displayedRows()).toHaveLength(3);
+      });
     });
   });
 
@@ -1248,7 +1287,7 @@ describe('NgTableComponent', () => {
       component.activateView(view);
 
       expect(queries).toEqual([
-        {sort: {columnId: '', direction: ''}, sorts: [], filters: expect.any(Object), page: {index: 3, size: 5}, search: ''},
+        {sort: {columnId: '', direction: ''}, sorts: [], filters: expect.any(Object), page: {index: 3, size: 5}, search: '', groupBy: null},
       ]);
     });
 

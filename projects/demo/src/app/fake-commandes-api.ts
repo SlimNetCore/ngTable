@@ -1,9 +1,11 @@
-import {NgTableRemoteQuery} from '@sbourahla/ng-table';
+import {NgTableGroupSummary, NgTableRemoteQuery} from '@sbourahla/ng-table';
 import {Commande, generateCommandes, STATUT_LABELS} from './demo-data';
 
 export interface CommandesPage {
   rows: Commande[];
   total: number;
+  /** Regroupement demandé : compte et somme des montants de chaque groupe, sur toutes ses lignes. */
+  groupSummaries: Record<string, NgTableGroupSummary> | null;
 }
 
 const normalize = (value: unknown) => `${value ?? ''}`.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -33,7 +35,13 @@ export class FakeCommandesApi {
 
   private run(query: NgTableRemoteQuery): CommandesPage {
     const filtered = this.filter(query);
-    const sorts = query.sorts?.length ? query.sorts : query.sort.columnId ? [query.sort] : [];
+    const requested = query.sorts?.length ? query.sorts : query.sort.columnId ? [query.sort] : [];
+    // Regroupement : d'abord par la colonne de regroupement (sens du tri demandé sur elle, s'il y en a un).
+    const groupBy = query.groupBy as keyof Commande | null | undefined;
+    const sorts = groupBy
+      ? [requested.find((sort) => sort.columnId === groupBy) ?? {columnId: groupBy, direction: 'asc' as const},
+        ...requested.filter((sort) => sort.columnId !== groupBy)]
+      : requested;
     const sorted = [...filtered].sort((a, b) => {
       for (const sort of sorts) {
         const left = a[sort.columnId as keyof Commande];
@@ -46,7 +54,23 @@ export class FakeCommandesApi {
       return 0;
     });
     const {index, size} = query.page;
-    return {rows: size > 0 ? sorted.slice(index * size, (index + 1) * size) : sorted, total: filtered.length};
+    return {
+      rows: size > 0 ? sorted.slice(index * size, (index + 1) * size) : sorted,
+      total: filtered.length,
+      groupSummaries: groupBy ? this.summarize(filtered, groupBy) : null,
+    };
+  }
+
+  /** Ce que calculerait une requête `GROUP BY` : nombre de lignes et somme des montants par groupe. */
+  private summarize(rows: Commande[], groupBy: keyof Commande): Record<string, NgTableGroupSummary> {
+    const summaries: Record<string, {count: number; aggregates: {montant: number}}> = {};
+    for (const row of rows) {
+      const key = String(row[groupBy]);
+      const summary = (summaries[key] ??= {count: 0, aggregates: {montant: 0}});
+      summary.count++;
+      summary.aggregates.montant += row.montant;
+    }
+    return summaries;
   }
 
   private filter(query: NgTableRemoteQuery): Commande[] {
