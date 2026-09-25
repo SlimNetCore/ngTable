@@ -175,7 +175,8 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
         <li>Filtre 100 % personnalisé sur « Montant » (<code>filter.component</code>).</li>
         <li><code>applyQueryState()</code> / <code>getQueryState()</code> pilotés par des boutons.</li>
         <li>Regroupement côté serveur : <code>groupBy</code> part dans la requête, le serveur trie par groupe et renvoie le
-          compte et la somme de chaque groupe (<code>[groupSummaries]</code>), calculés sur tout le groupe et pas sur la page.</li>
+          compte et la somme de chaque groupe (<code>[groupSummaries]</code>), calculés sur tout le groupe et pas sur la page.
+          Les groupes se replient : <code>collapsedGroups</code> part dans la requête et le serveur exclut leurs lignes.</li>
         <li>Export généré côté serveur (<code>exportMode='remote'</code>).</li>
         <li>Textes traduits via <code>[labels]</code> (<code>NG_TABLE_LABELS_EN</code>).</li>
         <li>En test : <code>NgTableHarness</code> (<code>&#64;sbourahla/ng-table/testing</code>) pilote cette table comme

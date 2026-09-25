@@ -585,15 +585,15 @@ Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`),
 - **En mode `remote`**, la table n'a qu'une page de lignes. Regrouper cette page seule donnerait des groupes coupés et des totaux faux. Le travail est donc partagé avec le serveur :
   1. `groupBy` part dans `NgTableRemoteQuery.groupBy`. Le serveur renvoie les lignes triées **d'abord** par cette colonne, puis par `sorts`.
   2. La table dessine un en-tête à chaque changement de valeur dans la page reçue. Un groupe à cheval sur deux pages a son en-tête sur chacune.
-  3. Le nombre de lignes et les agrégats de chaque groupe, calculés sur **tout** le groupe, viennent de `[groupSummaries]`. La clé est la valeur de la colonne en texte (jour `YYYY-MM-DD` pour une date, `''` si vide). Sans ce résumé, l'en-tête n'affiche que le libellé, car un compte limité à la page serait trompeur.
-  4. Les groupes ne se replient pas : replier raccourcirait la page renvoyée par le serveur et fausserait la pagination.
+  3. `[groupSummaries]` donne **tous** les groupes, dans leur ordre, avec le nombre de lignes et les agrégats calculés sur tout le groupe. `key` est la valeur de la colonne en texte (jour `YYYY-MM-DD` pour une date, `''` si vide). Sans cette liste, l'en-tête n'affiche que le libellé (un compte limité à la page serait trompeur) et les groupes ne se replient pas.
+  4. Avec `[groupSummaries]`, les groupes se replient. Replier ou déplier relance `remoteQueryChange` sur la même page, avec `collapsedGroups` (les clés repliées). Le serveur **exclut** les lignes de ces groupes : un groupe replié n'occupe aucune ligne de la pagination, et `totalCount` ne compte que les lignes des groupes dépliés. La table place l'en-tête d'un groupe replié à sa position dans la liste complète, grâce à l'ordre et aux comptes de `[groupSummaries]` (sur la dernière page s'il est en fin de liste). `count` reste le nombre total de lignes du groupe, affiché dans son en-tête.
 
   ```ts
   load(query: NgTableRemoteQuery) {
     this.api.commandes(query).subscribe((page) => {
-      this.rows.set(page.rows);                     // triées par query.groupBy, puis par query.sorts
-      this.total.set(page.total);
-      this.groupSummaries.set(page.groupSummaries); // {VALIDEE: {count: 480, aggregates: {montant: 125000}}, ...}
+      this.rows.set(page.rows);                     // triées par query.groupBy, puis par query.sorts, sans les groupes query.collapsedGroups
+      this.total.set(page.total);                   // lignes des groupes dépliés seulement
+      this.groupSummaries.set(page.groupSummaries); // [{key: 'VALIDEE', count: 480, aggregates: {montant: 125000}}, ...] : tous les groupes, dans l'ordre
     });
   }
   ```
@@ -937,7 +937,7 @@ onExportRequested(query: NgTableRemoteQuery): void {
 }
 ```
 
-`NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy}`) reprend le tri/filtres/page/recherche globale courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
+`NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy, collapsedGroups}`) reprend le tri/filtres/page/recherche globale courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
 
 ### Étape 18ter — Indicateur de chargement
 
@@ -1147,7 +1147,7 @@ interface NgTableFilterConfig {
 | `virtualScroll`             | `boolean`                                                        | `false`   | Défilement virtuel : seules les lignes visibles sont rendues (voir Étape 10quater).                                   |
 | `groupingEnabled`           | `boolean`                                                        | `false`   | Bouton « Grouper » (local et remote), voir Étape 10ter.                                                              |
 | `groupBy`                   | `string \| null` (`model`)                                       | `null`    | Colonne de regroupement ; liable en `[(groupBy)]`, émet `(groupByChange)`.                                          |
-| `groupSummaries`            | `Record<string, NgTableGroupSummary> \| null`                    | `null`    | Mode `remote` + regroupement : compte et agrégats de chaque groupe, calculés par le serveur.                         |
+| `groupSummaries`            | `readonly NgTableGroupSummary[] \| null`                         | `null`    | Mode `remote` + regroupement : tous les groupes, dans l'ordre, avec compte et agrégats calculés par le serveur. Rend les groupes repliables. |
 | `showTotals`                | `boolean`                                                        | `false`   | Ligne de totaux (colonnes avec `aggregate`, mode local).                                                             |
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
 | `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
@@ -1196,7 +1196,7 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `exportViews()`, `importViews(json, mode?)`, `downloadViews()` | Partager des vues. |
 | `openExportDialog()` | Lancer l'export, comme le bouton « Exporter ». |
 | `expandAllGroups()`, `collapseAllGroups()` | Déplier / replier tous les groupes. |
-| `getQueryState()`, `applyQueryState(partiel)` | Lire / appliquer tri, filtres, recherche et page (`NgTableQueryState`) en une fois. |
+| `getQueryState()`, `applyQueryState(partiel)` | Lire / appliquer tri, filtres, recherche, page et regroupement (`NgTableQueryState`) en une fois. |
 
 ### Outputs
 
@@ -1204,7 +1204,7 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 |--------------------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `rowClick`               | `T`                                                                           | Clic sur une ligne de données.                                                                                                                                             |
 | `sortsChange`            | `NgTableSortChange[]`                                                         | Tous les niveaux de tri, par priorité, à chaque clic de tri.                                                                                                               |
-| `queryStateChange`       | `NgTableQueryState` (`{sorts, filters, search, pageIndex, pageSize}`)           | Tri, filtres, recherche ou page ont changé, quelle qu'en soit l'origine. Émis aussi une fois au démarrage.                                                                 |
+| `queryStateChange`       | `NgTableQueryState` (`{sorts, filters, search, pageIndex, pageSize, groupBy, collapsedGroups}`) | Tri, filtres, recherche ou page ont changé, quelle qu'en soit l'origine. Émis aussi une fois au démarrage.                                                                 |
 | `filtersChange`          | `Record<string, string>`                                                      | Tout changement de filtre.                                                                                                                                                 |
 | `globalSearchChange`     | `string`                                                                      | Recherche globale appliquée (après debounce ; `''` quand elle est effacée).                                                                                                |
 | `sortChange`             | `NgTableSortChange` (`{columnId, direction}`)                                 | Changement de tri.                                                                                                                                                         |
@@ -1218,10 +1218,10 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `viewsImported`          | `NgTableViewsImportEvent` (`{imported, mode}`)                                | Après chaque import de vues (`imported: 0` = fichier invalide, rien n'a changé).                                                                                             |
 | `viewActivated`          | `NgTableView \| null`                                                         | Une vue devient active (changement manuel ou auto au chargement).                                                                                                          |
 | `viewPaginationRestore`  | `{pageIndex, pageSize}`                                                       | Émis quand la vue activée contient une pagination.                                                                                                                         |
-| `remoteQueryChange`      | `NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy}`)                        | **Mode `remote`.** Émis à chaque changement de tri/filtre, état complet, prêt pour une requête serveur unique.                                                             |
+| `remoteQueryChange`      | `NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy, collapsedGroups}`)       | **Mode `remote`.** Émis à chaque changement de tri/filtre, état complet, prêt pour une requête serveur unique.                                                             |
 | `filteredCountChange`    | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Total après filtrage, pour `[length]` de votre paginator.                                                                   |
 | `pageIndexChange`        | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Émis avec `0` quand un filtre/tri doit remettre la page à zéro.                                                             |
-| `remoteExportRequested`  | `NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy}`)                        | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
+| `remoteExportRequested`  | `NgTableRemoteQuery` (`{sort, sorts, filters, page, search, groupBy, collapsedGroups}`)       | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
 | `localExportCompleted`   | `NgTableLocalExportEvent` (`{fromPage, toPage, rowCount}`)                    | **`exportMode='local'`.** Émis après la génération et le téléchargement du CSV — informatif (toast, analytics...).                                                         |
 
 ## Personnaliser les textes (`NgTableLabels`)
@@ -1726,7 +1726,7 @@ import {NgTableUrlStateDirective} from '@sbourahla/ng-table/router';
 
 L'URL obtenue est lisible : `?cmd.s=montant:desc,client:asc&cmd.q=dupont&cmd.p=2&cmd.f.statut=VALIDEE`.
 
-- `s` porte le tri (plusieurs niveaux avec `[multiSort]`), `q` la recherche, `p` la page (**à partir de 1**, comme à l'écran), `ps` la taille de page si elle a changé, et `f.<colonne>` chaque filtre. Les valeurs par défaut sont omises.
+- `s` porte le tri (plusieurs niveaux avec `[multiSort]`), `q` la recherche, `p` la page (**à partir de 1**, comme à l'écran), `ps` la taille de page si elle a changé, `g` la colonne de regroupement, et `f.<colonne>` chaque filtre. Les valeurs par défaut sont omises. Les groupes repliés ne vont pas dans l'URL (état d'affichage passager).
 - Le **préfixe** (`'cmd'`) permet plusieurs tables sur une même page, et évite les conflits avec vos propres paramètres. Sans préfixe (`<ng-table ngTableUrlState>`), les noms sont `s`, `q`, `p`...
 - Au chargement, l'URL l'emporte sur la vue par défaut. Une URL sans paramètre de table ne l'efface pas : c'est la vue restaurée qui est alors écrite dans l'URL.
 - Les changements remplacent l'entrée d'historique courante (`replaceUrl`), pour ne pas créer une entrée par frappe. Une navigation vers la même page avec d'autres paramètres est appliquée à la table (lien interne, Précédent / Suivant entre deux pages).

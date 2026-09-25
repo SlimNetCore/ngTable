@@ -2428,12 +2428,28 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.setCollapsedGroups(new Set());
   }
 
-  /** En remote, replier / déplier change les lignes à charger : nouvelle requête, même page. */
+  /**
+   * En remote, replier / déplier change les lignes à charger : nouvelle requête, même page,
+   * ramenée à la nouvelle dernière page si le repli l'a fait disparaître (le nouveau total
+   * se déduit des comptes de `[groupSummaries]`).
+   */
   private setCollapsedGroups(keys: ReadonlySet<string>): void {
     this.collapsedGroups.set(keys);
-    if (this.dataMode() === 'remote' && this.groupsCollapsible()) {
-      this.remoteQueryChange.emit(this.buildRemoteQuery(this.pageIndex(), this.pageSize()));
+    if (this.dataMode() !== 'remote' || !this.groupsCollapsible()) {
+      return;
     }
+    const size = this.pageSize();
+    if (this.pagingActive() && size > 0) {
+      const expandedRows = (this.groupSummaries() ?? []).reduce(
+        (total, summary) => total + (keys.has(summary.key) ? 0 : (summary.count ?? 0)),
+        0,
+      );
+      const lastPage = Math.max(0, Math.ceil(expandedRows / size) - 1);
+      if (this.pageIndex() > lastPage) {
+        this.pageIndex.set(lastPage);
+      }
+    }
+    this.remoteQueryChange.emit(this.buildRemoteQuery(this.pageIndex(), size));
   }
 
   /** Libellé de la valeur d'un groupe : libellé d'option du filtre s'il existe, sinon la valeur. */

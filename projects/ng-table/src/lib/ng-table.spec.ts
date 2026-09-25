@@ -719,7 +719,8 @@ describe('NgTableComponent', () => {
 
         const [validee, brouillon] = groupRows(fixture);
         expect(groupLabel(validee)).toBe('Statut : Validée 480 ligne(s)');
-        expect(text(validee.cells[1])).toMatch(/^Σ 125\s000$/);
+        // Formaté selon la locale du navigateur (`125 000` en français, `125,000` en anglais).
+        expect(text(validee.cells[1])).toBe(`Σ ${new Intl.NumberFormat(undefined).format(125000)}`.replace(/\s+/g, ' '));
         expect(groupLabel(brouillon)).toBe('Statut : Brouillon 12 ligne(s)');
       });
 
@@ -743,6 +744,25 @@ describe('NgTableComponent', () => {
         expect(headers.map(groupLabel)).toEqual(['Statut : Validée 2 ligne(s)', 'Statut : Brouillon 1 ligne(s)']);
         expect(headers.map((row) => row.getAttribute('aria-expanded'))).toEqual(['false', 'true']);
         expect(component.getQueryState()).toMatchObject({groupBy: 'statut', collapsedGroups: ['VALIDEE']});
+      });
+
+      it('tout replier depuis une page lointaine revient sur la dernière page qui existe encore', async () => {
+        const summaries = [{key: 'VALIDEE', count: 30}, {key: 'BROUILLON', count: 12}];
+        const queries: NgTableRemoteQuery[] = [];
+        const {component, fixture} = await createTable({
+          columns: groupColumns(), dataMode: 'remote', rows: [ROWS[1]], groupBy: 'statut', groupSummaries: summaries,
+          paginator: true, pageSize: 10, pageIndex: 4, totalCount: 42,
+        });
+        component.remoteQueryChange.subscribe((q) => queries.push(q));
+        await fixture.whenStable();
+
+        // Page 5 = lignes 40-41, du groupe BROUILLON. Le replier laisse 30 lignes, soit 3 pages.
+        groupRows(fixture)[0].click();
+        expect(queries.at(-1)).toMatchObject({page: {index: 2}, collapsedGroups: ['BROUILLON']});
+        expect(component.pageIndex()).toBe(2);
+
+        component.collapseAllGroups();
+        expect(queries.at(-1)).toMatchObject({page: {index: 0}, collapsedGroups: ['VALIDEE', 'BROUILLON']});
       });
 
       it('sans résumés serveur : groupes non repliables (pas de chevron, pas d’arrêt de tabulation)', async () => {
