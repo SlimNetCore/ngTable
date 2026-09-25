@@ -306,10 +306,13 @@ export class ExpertDemoComponent {
     this.switchApi(backend === 'spring' ? new SpringCommandesApi() : new FakeCommandesApi(this.datasetSize()));
   }
 
-  /** Recharge la même requête (page 1) sur un autre serveur. */
+  /**
+   * Recharge la même requête (page 1) sur un autre serveur. `applyQueryState` émet
+   * lui-même `(remoteQueryChange)`, donc `load()` : ne pas appeler `load()` en plus,
+   * sinon deux requêtes partent.
+   */
   private switchApi(api: CommandesBackend): void {
     this.api = api;
-    void this.load({...this.lastQuery, page: {...this.lastQuery.page, index: 0}});
     this.table().applyQueryState({pageIndex: 0});
   }
 
