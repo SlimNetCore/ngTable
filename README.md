@@ -3028,7 +3028,9 @@ Suivi des évolutions : `CHANGELOG.md` ; feuille de route : `ROADMAP.md`.
 
 La publication sur npm est automatique : le workflow `.github/workflows/release.yml` se déclenche quand un tag de version est poussé.
 
-1. **Une seule fois**, créez un token sur npmjs.com (**Access Tokens → Generate New Token**, type *Granular* avec le droit de publier `@sbourahla/ng-table`, ou *Automation*). Enregistrez-le dans le dépôt GitHub sous le nom `NPM_TOKEN` (**Settings → Secrets and variables → Actions → New repository secret**).
+1. **Une seule fois**, configurez la publication npm :
+   - soit en activant le **trusted publishing** entre npm et GitHub Actions pour `@sbourahla/ng-table` (recommandé) ;
+   - soit en créant un token sur npmjs.com (**Access Tokens → Generate New Token**, type *Granular* avec le droit de publier `@sbourahla/ng-table`, ou *Automation*) et en l'enregistrant dans le dépôt GitHub sous le nom `NPM_TOKEN` (**Settings → Secrets and variables → Actions → New repository secret**).
 2. Mettez à jour `version` dans `projects/ng-table/package.json` et la section du `CHANGELOG.md` (`## [x.y.z] — date`), puis fusionnez dans `main`.
 3. Poussez le tag, identique à la version :
 
