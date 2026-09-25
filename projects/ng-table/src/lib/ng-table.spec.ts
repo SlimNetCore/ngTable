@@ -757,6 +757,66 @@ describe('NgTableComponent', () => {
   });
 
   describe('visibilité et ordre des colonnes', () => {
+    it('colonne de référence : la choisir la fixe à gauche en premier, à la place des pinned déclarés', async () => {
+      const cols = columns();
+      cols[0] = {...cols[0], pinned: 'left'}; // "nom" fixée par défaut
+      const {component} = await createTable({columns: cols, referenceColumnSelectable: true});
+      const emitted: unknown[] = [];
+      component.referenceColumn.subscribe((id) => emitted.push(id));
+      const [nom, montant] = component.columns();
+      expect(component['isReferenceColumn'](nom)).toBe(true);
+
+      component['toggleReferenceColumn'](montant);
+
+      expect(component.visibleColumns().map((c) => c.id)[0]).toBe('montant');
+      expect(component['pinnedSide'](montant)).toBe('left');
+      expect(component['pinnedSide'](nom)).toBeUndefined();
+      expect(emitted).toEqual(['montant']);
+
+      component['toggleReferenceColumn'](montant); // la libérer : plus aucune colonne fixée à gauche
+      expect(component.referenceColumn()).toBeNull();
+      expect(component['pinnedSide'](nom)).toBeUndefined();
+      expect(component['hasLeftPinnedColumns']()).toBe(false);
+    });
+
+    it('colonne de référence : punaise dans le menu « Colonnes », désactivée pour une colonne masquée', async () => {
+      const cols = columns();
+      cols[3] = {...cols[3], visible: false};
+      const {fixture} = await createTable({columns: cols, referenceColumnSelectable: true});
+
+      (fixture.nativeElement.querySelector('.list-actions button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+
+      const pins = [...document.querySelectorAll<HTMLButtonElement>('.ngt-columns-menu-panel .reference-pin')];
+      expect(pins).toHaveLength(4);
+      expect(pins.map((pin) => pin.disabled)).toEqual([false, false, false, true]);
+      expect(pins[0].getAttribute('aria-label')).toBe('Fixer « Nom » à gauche (colonne de référence)');
+
+      pins[1].click();
+      await fixture.whenStable();
+      expect(fixture.componentInstance.referenceColumn()).toBe('montant');
+      expect(pins[1].getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('colonne de référence : sans l’option, pas de punaise dans le menu', async () => {
+      const {fixture} = await createTable();
+      (fixture.nativeElement.querySelector('.list-actions button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(document.querySelectorAll('.ngt-columns-menu-panel .reference-pin')).toHaveLength(0);
+    });
+
+    it('colonne de référence : enregistrée dans les vues et restaurée', async () => {
+      const {component} = await createTable({referenceColumnSelectable: true, viewsEnabled: true, viewsStorageKey: 'ref'});
+      component.referenceColumn.set('statut');
+      component.saveCurrentAsView('Statut fixé');
+      component.referenceColumn.set(null);
+
+      component.activateView(component.viewsList()[0]);
+
+      expect(component.viewsList()[0].state.referenceColumnId).toBe('statut');
+      expect(component.referenceColumn()).toBe('statut');
+    });
+
     it('masque une colonne via le menu et notifie le parent', async () => {
       const emitted: Record<string, boolean>[] = [];
       const {component} = await createTable();

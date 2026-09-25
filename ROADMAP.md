@@ -74,6 +74,7 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 | F9 | Export xlsx | Vérifié (partiel) | `[exportFormat]="'xlsx'"` ; `export-writers.ts` sans dépendance ; zip/XML validés hors navigateur, câblage UI compilé |
 | F10 | Vue par défaut | Vérifié | Étoile dans le menu, `defaultViewId` dans le store (validé au chargement) ; 2 tests composant + 1 test pur ; testée dans la démo |
 | F11 | Import/export de vues | Vérifié | `[viewsImportExportEnabled]`, `exportViews()`/`importViews()` ; fusion par nom via `mergeViewsStores` (testée) ; 2 tests composant ; testée dans la démo |
+| F13 | Colonne de référence choisie dans le menu « Colonnes » | Vérifié | Demande utilisateur. Punaise par colonne (désactivée si masquée), `referenceColumn` en `model()` (`undefined` / id / `null`), remplace les `pinned: 'left'` déclarés, enregistrée dans les vues ; 4 tests ; testée dans la démo (mode avancé) |
 | F12 | Synchronisation de l'état dans l'URL | Vérifié | `@sbourahla/ng-table/router` (`ngTableUrlState`, préfixe) ; bundle principal sans import du router (vérifié dans `dist`) ; API `getQueryState`/`applyQueryState`/`queryStateChange` ; 3 tests purs + 3 tests avec vrai router + 2 tests composant ; testé dans la démo |
 
 ## 5bis. Constaté en cours de route
@@ -108,3 +109,4 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 - **2026-09-25** — O8 fait et vérifié (152 tests, lint 0/0, build). Note : l'option `include` du builder de tests est relative à `sourceRoot` (`src/`), d'où `../testing/**/*.spec.ts`.
 - **2026-09-25** — F12 fait et vérifié (160 tests, lint 0/0, build des 3 points d'entrée, démo).
 - **2026-09-25** — Retour utilisateur : filtres inline qui débordent de leur colonne. Mesuré dans la démo, colonne par colonne : +48 px pour les champs texte/nombre (`box-sizing` manquant sur `.field-shell`), libellé des dates sous l'icône du calendrier. Corrigé, 0 px de débordement mesuré ensuite. Démo refaite en trois modes. Trouvé en la construisant : un filtre booléen s'affichait « true » dans la barre des filtres actifs (corrigé). 161 tests OK.
+- **2026-09-25** — F13 (colonne de référence dynamique) fait et vérifié (165 tests, lint 0/0, démo).

@@ -262,6 +262,8 @@ export interface NgTableViewState {
    * elles restaurent alors simplement les largeurs par défaut des colonnes.
    */
   columnWidths?: Record<string, number>;
+  /** Colonne de référence choisie (voir `referenceColumn`). Absente = `pinned` déclarés des colonnes. */
+  referenceColumnId?: string | null;
   /** Recherche globale. Absente des vues enregistrées avant son ajout (= pas de recherche). */
   search?: string;
   /** Only populated when `pageTrackingEnabled=true` (reuses `[pageIndex]`/`[pageSize]`). */
@@ -450,6 +452,22 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly showResetFilters = input(true);
   /** Show/hide the built-in "Colonnes" button (column visibility picker). `true` par défaut. */
   readonly columnsMenuEnabled = input(true);
+  /**
+   * Affiche, dans le menu « Colonnes », une punaise à côté de chaque colonne visible :
+   * l'utilisateur choisit la **colonne de référence**, fixée à gauche pendant le
+   * défilement horizontal. Voir `referenceColumn`.
+   */
+  readonly referenceColumnSelectable = input(false);
+  /**
+   * Colonne de référence (fixée à gauche). `model()` : liable en `[(referenceColumn)]`,
+   * ou laissée au composant.
+   * - `undefined` (défaut) : les `pinned: 'left'` des colonnes s'appliquent ;
+   * - un id de colonne : cette colonne seule est fixée à gauche, à la place des
+   *   `pinned: 'left'` déclarés (les colonnes `pinned: 'right'` restent à droite) ;
+   * - `null` : aucune colonne fixée à gauche.
+   * Enregistrée dans les vues.
+   */
+  readonly referenceColumn = model<string | null | undefined>(undefined);
   /**
    * Délai (ms) avant qu'une saisie dans un filtre texte ne soit prise en compte.
    * Evite de refiltrer (mode `local`) ou de lancer une requête (mode `remote`) à chaque
@@ -689,13 +707,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
     // décalage d'une colonne `sticky` en cumulant les largeurs des colonnes
     // `sticky` qui la PRÉCÈDENT — une colonne libre intercalée la ferait coller
     // à la mauvaise position.
-    if (!ordered.some((column) => column.pinned)) {
+    const sides = this.pinnedSides();
+    if (sides.size === 0) {
       return ordered;
     }
     return [
-      ...ordered.filter((column) => column.pinned === 'left'),
-      ...ordered.filter((column) => !column.pinned),
-      ...ordered.filter((column) => column.pinned === 'right'),
+      ...ordered.filter((column) => sides.get(column.id) === 'left'),
+      ...ordered.filter((column) => !sides.has(column.id)),
+      ...ordered.filter((column) => sides.get(column.id) === 'right'),
     ];
   });
 
@@ -713,8 +732,39 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return Math.max(this.minTableWidthPx(), columnsTotal);
   });
 
+  /** Côté d'épinglage effectif de chaque colonne : `pinned` déclaré, ou colonne de référence choisie. */
+  private readonly pinnedSides = computed(() => {
+    const reference = this.referenceColumn();
+    const sides = new Map<string, 'left' | 'right'>();
+    for (const column of this.columns()) {
+      if (column.pinned === 'right' && column.id !== reference) {
+        sides.set(column.id, 'right');
+      } else if (column.pinned === 'left' && reference === undefined) {
+        sides.set(column.id, 'left');
+      }
+    }
+    if (reference) {
+      sides.set(reference, 'left');
+    }
+    return sides;
+  });
+
+  protected pinnedSide(column: NgTableColumn<T>): 'left' | 'right' | undefined {
+    return this.pinnedSides().get(column.id);
+  }
+
+  /** Colonne actuellement fixée à gauche comme référence (choisie, ou déclarée `pinned: 'left'`). */
+  protected isReferenceColumn(column: NgTableColumn<T>): boolean {
+    return this.pinnedSide(column) === 'left';
+  }
+
+  /** Punaise du menu « Colonnes » : fixe cette colonne à gauche, ou la libère si elle l'est déjà. */
+  protected toggleReferenceColumn(column: NgTableColumn<T>): void {
+    this.referenceColumn.set(this.isReferenceColumn(column) ? null : column.id);
+  }
+
   /** La colonne de sélection suit les colonnes épinglées à gauche, sinon elles glisseraient dessous. */
-  protected readonly hasLeftPinnedColumns = computed(() => this.visibleColumns().some((column) => column.pinned === 'left'));
+  protected readonly hasLeftPinnedColumns = computed(() => this.visibleColumns().some((column) => this.pinnedSide(column) === 'left'));
   protected readonly actionColumn = computed(() =>
     this.visibleColumns().find((column) => column.mobileRowActions) ?? null,
   );
@@ -1350,6 +1400,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       filters: {...this.columnFilters()},
       columnWidths: {...this.columnWidths()},
       ...(this.globalSearchTerm() ? {search: this.globalSearchTerm()} : {}),
+      ...(this.referenceColumn() !== undefined ? {referenceColumnId: this.referenceColumn()} : {}),
       ...(this.pagingActive() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
     };
   }
@@ -2520,6 +2571,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const state = view.state;
     this.internalColumnVisibility.set({...state.columnVisibility});
     this.internalColumnOrder.set([...state.columnOrder]);
+    this.referenceColumn.set(state.referenceColumnId);
     const savedSorts = state.sorts?.length ? state.sorts : [state.sort];
     this.sortStates.set(savedSorts.filter((sort) => sort.columnId && sort.direction).map((sort) => ({...sort})));
     this.columnFilters.set({...state.filters});

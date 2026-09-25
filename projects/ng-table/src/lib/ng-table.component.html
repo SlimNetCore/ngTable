@@ -52,7 +52,7 @@
         {{ effectiveLabels().columnsButton }}
       </button>
 
-      <mat-menu #columnsMenu="matMenu">
+      <mat-menu #columnsMenu="matMenu" class="ngt-columns-menu-panel">
         @for (column of columnsMenuItems(); track column.id) {
           <!-- `<div mat-menu-item>` et non `<button>` : un `<mat-checkbox>` est lui-même
                un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
@@ -62,9 +62,25 @@
             <mat-checkbox
               (change)="onToggleColumnVisibility(column.id, $event.checked)"
               [checked]="isColumnVisible(column.id)"
+              class="columns-menu-checkbox"
             >
               {{ column.header }}
             </mat-checkbox>
+            @if (referenceColumnSelectable()) {
+              <button
+                (click)="toggleReferenceColumn(column)"
+                [attr.aria-label]="(isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn : effectiveLabels().setReferenceColumn).replace('{column}', column.header)"
+                [attr.aria-pressed]="isReferenceColumn(column)"
+                [class.reference-pin--on]="isReferenceColumn(column)"
+                [disabled]="!isColumnVisible(column.id)"
+                [title]="isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn.replace('{column}', column.header) : effectiveLabels().setReferenceColumn.replace('{column}', column.header)"
+                class="reference-pin"
+                mat-icon-button
+                type="button"
+              >
+                <mat-icon aria-hidden="true">push_pin</mat-icon>
+              </button>
+            }
           </div>
         }
       </mat-menu>
@@ -275,8 +291,8 @@
       }
 
       @for (column of columns(); track trackByColumn($index, column)) {
-        <ng-container [matColumnDef]="column.id" [sticky]="column.pinned === 'left'"
-                      [stickyEnd]="column.pinned === 'right'">
+        <ng-container [matColumnDef]="column.id" [sticky]="pinnedSide(column) === 'left'"
+                      [stickyEnd]="pinnedSide(column) === 'right'">
           <th (dragleave)="onColumnDragLeave(column)"
               (dragover)="onColumnDragOver($event, column)"
               (drop)="onColumnDrop($event, column)"

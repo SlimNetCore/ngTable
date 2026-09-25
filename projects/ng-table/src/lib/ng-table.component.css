@@ -1129,3 +1129,47 @@
   line-height: 1;
   color: var(--app-primary, #3a7ca5);
 }
+
+/* Menu « Colonnes » : case à cocher + punaise de la colonne de référence. */
+.ngt-columns-menu-panel .mat-mdc-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ngt-columns-menu-panel .mat-mdc-menu-item .mat-mdc-menu-item-text {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.ngt-columns-menu-panel .reference-pin.mat-mdc-icon-button {
+  --mat-icon-button-state-layer-size: 32px;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  color: var(--app-muted, #4f6573);
+}
+
+.ngt-columns-menu-panel .reference-pin mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  transform: rotate(45deg);
+  opacity: 0.55;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.ngt-columns-menu-panel .reference-pin--on.mat-mdc-icon-button {
+  color: var(--app-primary, #3a7ca5);
+}
+
+.ngt-columns-menu-panel .reference-pin--on mat-icon {
+  transform: none;
+  opacity: 1;
+}

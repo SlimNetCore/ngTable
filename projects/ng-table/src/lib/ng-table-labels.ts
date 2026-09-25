@@ -99,6 +99,10 @@ export interface NgTableLabels {
   sortPriority: string;
   /** Infobulle des en-têtes triables quand `[multiSort]` est actif. */
   multiSortHint: string;
+  /** Punaise du menu « Colonnes » : fixer la colonne à gauche ; `{column}` = en-tête. */
+  setReferenceColumn: string;
+  /** Punaise de la colonne de référence actuelle : la libérer ; `{column}` = en-tête. */
+  unsetReferenceColumn: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -159,6 +163,8 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   announceNoRows: 'Aucune ligne ne correspond',
   sortPriority: 'priorité {priority}',
   multiSortHint: 'Maj+clic : ajouter un niveau de tri',
+  setReferenceColumn: 'Fixer « {column} » à gauche (colonne de référence)',
+  unsetReferenceColumn: 'Ne plus fixer « {column} » à gauche',
 };
 
 /**
@@ -227,6 +233,8 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   announceNoRows: 'No matching rows',
   sortPriority: 'priority {priority}',
   multiSortHint: 'Shift+click: add a sort level',
+  setReferenceColumn: 'Pin "{column}" to the left (reference column)',
+  unsetReferenceColumn: 'Unpin "{column}"',
 };
 
 /**

@@ -535,6 +535,19 @@ Pour une table large, épinglez les colonnes clés : elles restent visibles pend
 
 Les colonnes épinglées sont regroupées à leur bord, quel que soit l'ordre choisi par l'utilisateur. Leur ordre relatif reste respecté. Si une colonne est épinglée à gauche, la case de sélection l'est aussi.
 
+**Colonne de référence choisie par l'utilisateur** : avec `[referenceColumnSelectable]="true"`, le menu « Colonnes » affiche une punaise à côté de chaque colonne. Un clic fixe cette colonne à gauche, en première position ; un second clic la libère. La punaise est désactivée pour une colonne masquée.
+
+```html
+<ng-table [referenceColumnSelectable]="true" [(referenceColumn)]="colonneFixe" ... />
+```
+
+`referenceColumn` vaut :
+- `undefined` (défaut) : les `pinned: 'left'` déclarés sur les colonnes s'appliquent ;
+- un id de colonne : cette colonne **seule** est fixée à gauche, à la place des `pinned: 'left'` déclarés. Les colonnes `pinned: 'right'` restent à droite ;
+- `null` : aucune colonne fixée à gauche.
+
+Le choix est enregistré dans les vues sauvegardées (`NgTableViewState.referenceColumnId`). Sans liaison, le composant le gère seul.
+
 ### Étape 11 — Visibilité des colonnes
 
 Un bouton "Colonnes" (menu à cases à cocher) est présent par défaut — rien à activer. Pour le masquer (par exemple si vous pilotez la visibilité autrement, ou ne voulez pas laisser l'utilisateur y toucher) :
@@ -1071,6 +1084,8 @@ interface NgTableFilterConfig {
 | `detailRowAccordion`        | `boolean`                                                        | `false`   | Mode non contrôlé : une seule ligne dépliée à la fois.                                                               |
 | `detailRowCanExpand`        | `(row) => boolean`                                               | `null`    | Garde optionnelle.                                                                                                   |
 | `showResetFilters`          | `boolean`                                                        | `true`    | Affiche le bouton "réinitialiser les filtres".                                                                       |
+| `referenceColumnSelectable` | `boolean`                                                        | `false`   | Punaise « colonne de référence » dans le menu « Colonnes » (voir Étape 10bis).                                       |
+| `referenceColumn`           | `string \| null \| undefined` (`model`)                           | `undefined` | Colonne fixée à gauche ; liable en `[(referenceColumn)]`, émet `(referenceColumnChange)`.                        |
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
@@ -1268,6 +1283,8 @@ export interface NgTableLabels {
   announceNoRows: string;       // annonce lecteur d'écran : aucune ligne ne correspond (mode local)
   sortPriority: string;         // 'priorité {priority}', ajouté au libellé du bouton de tri (tri multi-colonnes)
   multiSortHint: string;        // infobulle des en-têtes triables avec [multiSort]
+  setReferenceColumn: string;   // punaise du menu Colonnes : fixer « {column} » à gauche
+  unsetReferenceColumn: string; // punaise de la colonne de référence : la libérer
 }
 ```
 
