@@ -47,6 +47,7 @@ import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveV
 import {matchesAllFilters, searchText, SortLevel, sortRows} from './row-pipeline';
 import {buildConsecutiveGroups, buildGroups, computeAggregate, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
 import {computeVirtualRange, NgTableSpacerRow, VirtualRange} from './virtual-window';
+import {buildCellView, buildRowViews, copyText, NgTableCellView, NgTableRowClasses} from './row-view';
 
 /** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
 type TableItem<T> = T | NgTableGroupRow<T> | NgTableSpacerRow;
@@ -1117,6 +1118,19 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return count;
   });
 
+  /**
+   * Valeurs, textes et classes des lignes rendues (page ou tranche virtuelle), pour les
+   * colonnes visibles, calculés une fois par changement : une détection de changements
+   * sans rapport avec les données ne rappelle ni `valueAccessor` ni `rowClassFn`.
+   */
+  private readonly rowViews = computed(() =>
+    buildRowViews(
+      this.tableRows().filter((item): item is T => !(item instanceof NgTableGroupRow) && !(item instanceof NgTableSpacerRow)),
+      this.visibleColumns(),
+      this.rowClassFn(),
+    ),
+  );
+
   /** Agrégats de chaque groupe, par colonne (texte prêt à afficher), calculés une fois par changement. */
   /** Agrégats de chaque groupe (texte prêt à afficher), par clé de groupe. */
   private readonly groupAggregates = computed(() => {
@@ -1912,10 +1926,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return column.valueAccessor(row);
   }
 
-  /** Texte de la tooltip de troncature — même valeur que la cellule, en `string`. */
-  protected cellText(row: T, column: NgTableColumn<T>): string {
-    const value = this.cellValue(row, column);
-    return value === null || value === undefined ? '' : String(value);
+  /** Valeur, texte, texte copié et contexte de template d'une cellule (mis en cache). */
+  protected cellView(row: T, column: NgTableColumn<T>): NgTableCellView<T> {
+    return this.rowViews().get(row)?.cells.get(column.id) ?? buildCellView(row, column);
   }
 
   protected onRowClick(row: T): void {
@@ -2658,12 +2671,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return allowedColumns.includes(column.id);
   }
 
-  protected rowClasses(row: T): string | string[] | Record<string, boolean> {
-    return this.rowClassFn()?.(row) ?? '';
-  }
-
-  protected hasCopyAction(column: NgTableColumn<T>, row: T): boolean {
-    return !!this.resolveCopyValue(column, row);
+  protected rowClasses(row: T): NgTableRowClasses {
+    return this.rowViews().get(row)?.classes ?? this.rowClassFn()?.(row) ?? '';
   }
 
   protected copyTooltip(column: NgTableColumn<T>): string {
@@ -2680,7 +2689,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   protected onCopyCellValue(event: MouseEvent, column: NgTableColumn<T>, row: T, rowIndex: number): void {
     event.stopPropagation();
-    const value = this.resolveCopyValue(column, row);
+    const value = copyText(column, row);
     if (!value) {
       return;
     }
@@ -3210,18 +3219,6 @@ export class NgTableComponent<T = any> implements OnDestroy {
       .filter((part) => !!part)
       .map((part) => options.find((option) => option.value === part)?.label ?? part)
       .join(', ');
-  }
-
-  private resolveCopyValue(column: NgTableColumn<T>, row: T): string {
-    if (!column.copy) {
-      return '';
-    }
-
-    if (typeof column.copy === 'object' && column.copy.valueAccessor) {
-      return `${column.copy.valueAccessor(row) ?? ''}`.trim();
-    }
-
-    return `${column.valueAccessor(row) ?? ''}`.trim();
   }
 
   private copyCellKey(column: NgTableColumn<T>, row: T, rowIndex: number): string {

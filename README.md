@@ -188,6 +188,8 @@ export class CommandeListComponent {
 
 À ce stade : un tableau statique, sans tri ni filtre — `valueAccessor` fournit la valeur brute de chaque cellule, affichée telle quelle (`{{ cellValue }}` par défaut).
 
+> **Mettre à jour les données** : passez un nouveau tableau (`this.commandes.set([...])`), avec un nouvel objet pour chaque ligne modifiée. La table calcule filtres, tri, recherche et valeurs affichées une fois par changement de `rows` : une ligne modifiée sur place (même objet, même tableau) n'est pas relue. Les signaux lus dans un `valueAccessor` (langue, format...) sont en revanche suivis.
+
 ### Étape 2 — Tri
 
 Ajoutez `sortable: true` sur les colonnes triables. Le clic sur l'en-tête bascule asc → desc → aucun tri, un `mat-icon` indique l'état.
@@ -1129,7 +1131,7 @@ interface NgTableFilterConfig {
 | `loading`                   | `boolean`                                                        | `false`   | Affiche un overlay de chargement centré sur la table (bloque l'interaction tant qu'il est visible). Piloté par le parent. |
 | `loadingTemplate`           | `TemplateRef<unknown> \| null`                                   | `null`    | Contenu custom de l'overlay de chargement ; `null` = spinner intégré.                                                 |
 | `minTableWidthPx`           | `number`                                                         | `760`     | Largeur mini avant scroll horizontal (desktop). Le tableau ne descend jamais sous la somme des largeurs mini de ses colonnes visibles (`widthPx`, sinon `minWidthPx`, sinon 120 px) : au-delà, il défile au lieu d'écraser les en-têtes. |
-| `rowClassFn`                | `(row) => string \| string[] \| Record<string, boolean> \| null` | `null`    | Classes CSS dynamiques par ligne.                                                                                    |
+| `rowClassFn`                | `(row) => string \| string[] \| Record<string, boolean> \| null` | `null`    | Classes CSS dynamiques par ligne. Calculées une fois par ligne rendue ; les signaux lus dans la fonction sont suivis. |
 | `rowTrackBy`                | `TrackByFunction<any> \| null`                                   | `null`    | `trackBy` de rendu (perf) uniquement — n'affecte jamais la clé de sélection/expansion, qui vient de `rowKeyAccessor`/`row.id`. |
 | `rowKeyAccessor`            | `(row) => unknown`                                               | `null`    | Clé métier stable (sélection, expansion, feedback copie, trackBy de rendu). Recommandé si `row.id` n'est pas fiable. |
 | `detailRowTemplate`         | `TemplateRef<{$implicit, row}>`                                  | `null`    | Template de la ligne détail. `null` = pas de ligne détail.                                                           |

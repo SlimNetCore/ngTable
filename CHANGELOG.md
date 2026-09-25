@@ -51,6 +51,7 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - `NgTableComponent<T>` est générique. `T` est inféré dans les templates depuis `[rows]`/`[columns]`, et les sorties sont typées (`rowClick: T`, `selectionChange: NgTableSelectionChangeEvent<T>`...). Du code qui passait des lignes incohérentes avec ses colonnes peut désormais être signalé à la compilation. Sans paramètre, `T = any` comme avant.
 - Les membres internes du composant (gestionnaires d'événements du template, helpers d'affichage) sont `protected`. L'API publique se limite aux entrées, aux sorties et aux méthodes listées dans le README (« Méthodes publiques »). Du code qui appelait par exemple `onHeaderSort()` ou `onFilterValue()` doit passer par les entrées contrôlées (`[filters]`...) ou par ces méthodes.
 - `NgTableDetailToggleEvent.row` est typé `T | null` : il valait déjà `null` après `collapseAllDetails()`.
+- Les valeurs affichées (`valueAccessor`), les textes copiés et les classes (`rowClassFn`) sont calculés une fois par ligne rendue, et non plus à chaque détection de changements. Une ligne modifiée **sur place** (même objet, même tableau `rows`) n'est donc plus relue à l'écran, comme c'était déjà le cas pour les filtres, le tri et la recherche. Passez un nouveau tableau (`rows.set([...])`, ou un nouvel objet pour la ligne modifiée). Les signaux lus dans `valueAccessor` ou `rowClassFn` restent suivis.
 
 ### Modifié
 - Tri : les cellules vides restent en fin de liste aussi en tri décroissant. Avant, un tri décroissant les faisait remonter en tête.
@@ -65,6 +66,7 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - Défilement virtuel (`[virtualScroll]`) : sur 50 000 lignes sans pagination, 22 à 30 lignes rendues au lieu de 50 000. Hauteur de ligne mesurée, en-tête fixe, compatible filtres / tri / regroupement / sélection / navigation clavier.
 - Tri : clés de tri calculées une fois par ligne au lieu d'à chaque comparaison (n au lieu de ~n·log n appels aux accessors).
 - État de sélection mémoïsé : plus d'`Array.includes` par ligne en mode contrôlé, ni de `Set` recréé à chaque vérification.
+- Modèle de vue précalculé par ligne rendue : une détection de changements sans rapport avec les données (sélection, menu, bouton « copié »...) ne rappelle plus `valueAccessor` ni `rowClassFn`. Mesuré : 50 sélections sur une page de 100 lignes × 10 colonnes, 0 appel au lieu de 105 000 ; contexte de `cellTemplate` à référence stable.
 
 ## [0.4.4]
 

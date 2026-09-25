@@ -1127,6 +1127,43 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('modèle de vue des lignes', () => {
+    const rowsEl = (fixture: ComponentFixture<NgTableComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')] as HTMLTableRowElement[];
+
+    it('une détection de changements sans rapport avec les données ne rappelle pas valueAccessor', async () => {
+      const accessor = vi.fn((r: Row) => r.montant);
+      const cols = columns().map((column) => (column.id === 'montant' ? {...column, valueAccessor: accessor} : column));
+      const {component, fixture} = await createTable({columns: cols, rowSelectionEnabled: true, rowKeyAccessor: (r: Row) => r.id});
+      const callsAfterRender = accessor.mock.calls.length;
+      expect(callsAfterRender).toBe(ROWS.length); // une fois par ligne affichée
+
+      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, ROWS[1]);
+      await fixture.whenStable();
+
+      const checked = rowsEl(fixture).map((row) => row.querySelector<HTMLInputElement>('input[type=checkbox]')?.checked);
+      expect(checked).toEqual([false, true, false]); // le rendu a bien été refait
+      expect(accessor.mock.calls.length).toBe(callsAfterRender);
+    });
+
+    it('suit les signaux lus par rowClassFn', async () => {
+      const highlighted = signal('1');
+      const {fixture} = await createTable({rowClassFn: (r: Row) => ({highlighted: r.id === highlighted()})});
+      const highlightedIds = () => rowsEl(fixture).map((row) => row.classList.contains('highlighted'));
+      expect(highlightedIds()).toEqual([true, false, false]);
+
+      highlighted.set('3');
+      await fixture.whenStable();
+      expect(highlightedIds()).toEqual([false, false, true]);
+    });
+
+    it('relit les valeurs quand les lignes sont remplacées', async () => {
+      const {fixture, setInput} = await createTable();
+      await setInput('rows', ROWS.map((row) => (row.id === '1' ? {...row, nom: 'Charlotte'} : row)));
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Charlotte');
+    });
+  });
+
   describe('sélection de lignes', () => {
     it('sélectionne une ligne et publie les lignes sélectionnées', async () => {
       const {component} = await createTable({rowSelectionEnabled: true, rowKeyAccessor: (r: Row) => r.id});
@@ -1690,8 +1727,8 @@ describe('NgTableComponent', () => {
     it('n’affiche pas l’action de copie sur une colonne sans `copy`', async () => {
       const {component} = await createTable();
 
-      expect(component['hasCopyAction'](component.columns()[0], ROWS[0])).toBe(true);
-      expect(component['hasCopyAction'](component.columns()[1], ROWS[0])).toBe(false);
+      expect(component['cellView'](ROWS[0], component.columns()[0]).copyText).not.toBe('');
+      expect(component['cellView'](ROWS[0], component.columns()[1]).copyText).toBe('');
     });
   });
 

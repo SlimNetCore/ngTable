@@ -503,24 +503,20 @@
           </td>
           <td *matCellDef="let row; let rowIndex = dataIndex" [style.max-width.px]="column.maxWidthPx ?? null"
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
+            @let cell = cellView(row, column);
             <div class="cell-content" [class.cell-content--wrap]="column.textOverflow === 'wrap'">
               @if (column.cellTemplate) {
                 <span class="cell-text" [class.cell-text--truncate]="column.textOverflow !== 'wrap'"
                       [class.cell-text--wrap]="column.textOverflow === 'wrap'">
-                  <ng-container
-                    *ngTemplateOutlet="
-                      column.cellTemplate;
-                      context: { $implicit: row, row: row, value: cellValue(row, column), column: column }
-                    "
-                  />
+                  <ng-container *ngTemplateOutlet="column.cellTemplate; context: cell.context" />
                 </span>
               } @else if (column.textOverflow === 'wrap') {
-                <span class="cell-text cell-text--wrap">{{ cellValue(row, column) }}</span>
+                <span class="cell-text cell-text--wrap">{{ cell.value }}</span>
               } @else {
-                <span [ngTableTruncateTooltip]="cellText(row, column)" class="cell-text cell-text--truncate">{{ cellValue(row, column) }}</span>
+                <span [ngTableTruncateTooltip]="cell.text" class="cell-text cell-text--truncate">{{ cell.value }}</span>
               }
 
-              @if (hasCopyAction(column, row)) {
+              @if (cell.copyText) {
                 <button
                   (click)="onCopyCellValue($event, column, row, rowIndex)"
                   [attr.aria-label]="copyTooltip(column)"
