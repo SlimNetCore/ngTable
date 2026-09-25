@@ -100,3 +100,39 @@ function isValidView(value: unknown): value is NgTableView {
     isRecord(state['filters'])
   );
 }
+
+/** Clé `localStorage` d'un store de vues : namespacée pour ne pas heurter les clés de l'application. */
+export function viewsStorageKeyFor(key: string): string {
+  return `ng-table.views.${key}`;
+}
+
+/** Lit un store de vues en `localStorage` ; vide côté serveur (SSR) ou si le stockage est inaccessible. */
+export function loadViewsStore(key: string): NgTableViewsStore {
+  if (typeof localStorage === 'undefined') {
+    return emptyViewsStore(); // SSR : pas de stockage côté serveur.
+  }
+  try {
+    return parseViewsStore(localStorage.getItem(viewsStorageKeyFor(key)));
+  } catch {
+    return emptyViewsStore(); // Stockage inaccessible (navigation privée, quota...).
+  }
+}
+
+/** Écrit un store de vues en `localStorage` ; sans effet si le stockage est absent ou plein. */
+export function saveViewsStore(key: string, store: NgTableViewsStore): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+  try {
+    localStorage.setItem(viewsStorageKeyFor(key), serializeViewsStore(store));
+  } catch {
+    // Stockage plein ou indisponible (navigation privée) : la vue reste utilisable pour la session.
+  }
+}
+
+export function generateViewId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `view-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}

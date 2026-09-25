@@ -1,5 +1,6 @@
 import {CommonModule} from '@angular/common';
 import {
+  afterRenderEffect,
   ChangeDetectionStrategy,
   model,
   untracked,
@@ -32,21 +33,21 @@ import {debounce, groupBy, mergeMap} from 'rxjs/operators';
 import {ColumnFilterRendererComponent, ColumnFilterType} from './column-filter-renderer.component';
 import {DynamicFilterHostComponent} from './dynamic-filter-host.component';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
-import {emptyViewsStore, mergeViewsStores, parseViewsStore, serializeViewsStore} from './views-storage';
-import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
 import {
-  formatRangeValue,
-  matchesBoolean,
-  matchesDate,
-  matchesNumberExpression,
-  matchesNumberRange,
-  matchesSearchTerms,
-  matchesText,
-  NgTableTextOperator,
-  normalizeSearchText,
-  searchTerms,
-  toIsoDay,
-} from './filter-matching';
+  FOCUSABLE_IN_CELL,
+  GridPosition,
+  gridCellAt,
+  gridRows,
+  locateGridCell,
+  moveGridTabStop,
+  nextGridPosition,
+  syncGridTabStops,
+} from './grid-navigation';
+import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
+import {matchesAllFilters, searchText, SortLevel, sortRows} from './row-pipeline';
+import {escapeCssToken, measureNaturalWidth} from './dom-utils';
+import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
+import {formatRangeValue, matchesSearchTerms, NgTableTextOperator, searchTerms} from './filter-matching';
 import {
   NG_TABLE_DEFAULT_LABELS,
   NG_TABLE_LABELS,
@@ -481,6 +482,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * (casse et accents ignorés). Voir `NgTableColumn.searchable`.
    */
   readonly globalSearchEnabled = input(false);
+  /**
+   * Navigation clavier cellule par cellule (motif « grid » de WAI-ARIA) : la table
+   * devient un seul arrêt de tabulation, les flèches passent d'une cellule à l'autre
+   * (Début/Fin, Ctrl+Début/Fin, Page préc./suiv.), Entrée ou F2 entre dans le contenu
+   * interactif d'une cellule et Échap en ressort. Entrée sur une cellule simple active
+   * la ligne, Espace la sélectionne, Maj+F10 ouvre son menu contextuel.
+   */
+  readonly cellNavigation = input(false);
   /** Tri sur plusieurs colonnes : Maj+clic sur un en-tête ajoute un niveau de tri. */
   readonly multiSort = input(false);
   /** Mode contrôlé de la recherche globale ; `null` = non contrôlé. */
@@ -859,41 +868,19 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const terms = searchTerms(this.globalSearchTerm());
     const haystacks = terms.length > 0 ? this.searchHaystacks() : null;
 
-    let nextRows = sourceRows.filter(
+    const nextRows = sourceRows.filter(
       (row) =>
-        this.matchesAllFilters(row, activeColumns, filters) &&
+        matchesAllFilters(row, activeColumns, filters) &&
         (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms)),
     );
-    const levels: { column: NgTableColumn<T>; factor: number }[] = [];
+    const levels: SortLevel<T>[] = [];
     for (const sort of sorts) {
       const column = activeColumns.find((candidate) => candidate.id === sort.columnId);
       if (column) {
         levels.push({column, factor: sort.direction === 'desc' ? -1 : 1});
       }
     }
-    if (levels.length === 0) {
-      return nextRows;
-    }
-
-    // Clés de tri calculées une fois par ligne (et non à chaque comparaison, soit
-    // ~n·log n appels aux accessors) ; l'index d'origine garde le tri stable.
-    const keyed = nextRows.map((row, index) => ({
-      row,
-      index,
-      keys: levels.map((level) => this.getSortValue(row, level.column)),
-    }));
-    keyed.sort((left, right) => {
-      for (let i = 0; i < levels.length; i++) {
-        const result = this.compareSortValues(left.keys[i], right.keys[i]);
-        if (result !== 0) {
-          return result * levels[i].factor;
-        }
-      }
-      return left.index - right.index;
-    });
-    nextRows = keyed.map((entry) => entry.row);
-
-    return nextRows;
+    return sortRows(nextRows, levels, this.collator);
   });
 
   private readonly searchableColumns = computed(() =>
@@ -977,6 +964,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
     {equal: ngTableLabelsEqual},
   );
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
+  // `read` obligatoire : sur `<table mat-table>`, la référence désignerait l'instance MatTable.
+  private readonly tableElement = viewChild('gridTable', {read: ElementRef<HTMLTableElement>});
+  /** Cellule active de la navigation clavier (index de ligne affichée, index de cellule). */
+  private readonly activeGridCell = signal<GridPosition>({row: 0, col: 0});
   /** Ancre du menu contextuel, une fois déplacée dans `document.body` (voir `onRowContextMenu`). */
   private contextMenuAnchor: HTMLElement | null = null;
   /**
@@ -1121,6 +1112,20 @@ export class NgTableComponent<T = any> implements OnDestroy {
       this.filteredCountChange.emit(this.filteredSortedRows().length);
     });
 
+    // Navigation cellule par cellule : après chaque rendu qui change les lignes ou les
+    // colonnes, une seule cellule reste atteignable par Tab (tabindex itinérant).
+    afterRenderEffect(() => {
+      if (!this.cellNavigation()) {
+        return;
+      }
+      this.displayedRows();
+      this.displayedColumnIds();
+      const table = this.tableElement()?.nativeElement;
+      if (table) {
+        syncGridTabStops(table, untracked(() => this.activeGridCell()));
+      }
+    });
+
     // Un seul point d'émission de `queryStateChange`, quelle que soit l'origine du
     // changement (clic, vue, paginateur, applyQueryState...). Émis une fois au démarrage.
     effect(() => {
@@ -1181,7 +1186,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
         return;
       }
       this.hasLoadedInitialViewsStore = true;
-      const loaded = this.loadViewsStoreFromLocalStorage(key);
+      const loaded = loadViewsStore(key);
       this.internalViewsStore.set(loaded);
       this.applyInitialView(loaded);
     });
@@ -1319,12 +1324,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (cached !== undefined) {
       return cached;
     }
-    const text = haystacks.columns
-      .map((column) => {
-        const value = typeof column.searchable === 'function' ? column.searchable(row) : column.valueAccessor(row);
-        return normalizeSearchText(value instanceof Date ? toIsoDay(value) : value);
-      })
-      .join('\n');
+    const text = searchText(row, haystacks.columns);
     if (cacheable) {
       haystacks.cache.set(row, text);
     }
@@ -1354,7 +1354,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       activeViewId = existing.id;
       nextViews = store.views.map((v) => (v.id === existing.id ? {...v, state, updatedAt: now} : v));
     } else {
-      const created: NgTableView = {id: this.generateViewId(), name: trimmed, createdAt: now, updatedAt: now, state};
+      const created: NgTableView = {id: generateViewId(), name: trimmed, createdAt: now, updatedAt: now, state};
       activeViewId = created.id;
       nextViews = [...store.views, created];
     }
@@ -1496,7 +1496,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return;
     }
 
-    const selector = `.mat-column-${this.escapeCssToken(column.id)}`;
+    const selector = `.mat-column-${escapeCssToken(column.id)}`;
     const cells = Array.from(table.querySelectorAll<HTMLElement>(selector));
     if (cells.length === 0) {
       return;
@@ -1512,7 +1512,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
       const computed = window.getComputedStyle(cell);
       const padding = (parseFloat(computed.paddingLeft) || 0) + (parseFloat(computed.paddingRight) || 0);
-      measured = Math.max(measured, Math.ceil(this.measureNaturalWidth(preferredNode) + padding + 14));
+      measured = Math.max(measured, Math.ceil(measureNaturalWidth(preferredNode) + padding + 14));
     }
 
     const minWidth = column.minWidthPx ?? DEFAULT_MIN_COLUMN_WIDTH_PX;
@@ -1665,7 +1665,98 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * right-click, per the WAI-ARIA APG. Without this, `rowContextMenuEnabled` would
    * only ever be reachable with a mouse.
    */
+  /** Navigation cellule par cellule : touches reçues par la table (voir `cellNavigation`). */
+  protected onGridKeydown(event: KeyboardEvent): void {
+    const table = this.tableElement()?.nativeElement;
+    const target = event.target as HTMLElement | null;
+    if (!this.cellNavigation() || !table || !target) {
+      return;
+    }
+    const located = locateGridCell(table, target);
+    if (!located) {
+      return;
+    }
+    const {cell, position} = located;
+
+    // Focus sur un bouton / champ d'une cellule : il garde ses touches, Échap rend la main à la cellule.
+    if (target !== cell) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cell.focus();
+      }
+      return;
+    }
+
+    const rows = gridRows(table);
+    const next = nextGridPosition(event.key, event.ctrlKey || event.metaKey, position, rows.length, cell.parentElement
+      ? (cell.parentElement as HTMLTableRowElement).cells.length
+      : 0);
+    if (next) {
+      event.preventDefault();
+      this.focusGridCell(table, next, cell);
+      return;
+    }
+
+    const row = this.displayedRows()[position.row];
+    if (row === undefined) {
+      return;
+    }
+    if (event.key === 'Enter' || event.key === 'F2') {
+      event.preventDefault();
+      const inner = cell.querySelector<HTMLElement>(FOCUSABLE_IN_CELL);
+      if (inner) {
+        inner.focus();
+      } else if (event.key === 'Enter') {
+        this.onRowClick(row);
+      }
+    } else if (event.key === ' ' && this.rowSelectionEnabled()) {
+      event.preventDefault();
+      this.toggleRowSelectionFromKeyboard(row);
+    } else if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+      event.preventDefault();
+      this.openRowContextMenuFromKeyboard(cell.parentElement, row);
+    }
+  }
+
+  /** Un clic (ou un focus programmatique) dans une cellule en fait la cellule active. */
+  protected onGridFocusIn(event: FocusEvent): void {
+    const table = this.tableElement()?.nativeElement;
+    if (!this.cellNavigation() || !table || !event.target) {
+      return;
+    }
+    const located = locateGridCell(table, event.target as Element);
+    if (located) {
+      moveGridTabStop(gridCellAt(table, this.activeGridCell()), located.cell);
+      this.activeGridCell.set(located.position);
+    }
+  }
+
+  private focusGridCell(table: HTMLTableElement, position: GridPosition, from: HTMLTableCellElement): void {
+    const target = gridCellAt(table, position);
+    if (!target) {
+      return;
+    }
+    moveGridTabStop(from, target);
+    this.activeGridCell.set(position);
+    target.focus();
+  }
+
+  private toggleRowSelectionFromKeyboard(row: T): void {
+    const key = this.rowKey(row);
+    const selected = new Set(this.selectedKeysSet());
+    const checked = !selected.has(key);
+    if (checked) {
+      selected.add(key);
+    } else {
+      selected.delete(key);
+    }
+    this.commitSelection(selected, row, checked);
+  }
+
   protected onRowKeydown(event: KeyboardEvent, row: T): void {
+    if (this.cellNavigation()) {
+      return; // la grille gère déjà ces touches depuis la cellule active
+    }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       this.onRowClick(row);
@@ -1729,7 +1820,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
         continue;
       }
       const headerCell = table.querySelector<HTMLElement>(
-        `th.mat-column-${this.escapeCssToken(candidate.id)}`,
+        `th.mat-column-${escapeCssToken(candidate.id)}`,
       );
       const width = headerCell?.getBoundingClientRect().width ?? 0;
       if (width > 0) {
@@ -2235,31 +2326,6 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   /**
-   * Largeur naturelle du contenu d'un nœud, indépendamment de la largeur imposée à sa
-   * colonne. On ne peut pas se contenter de `scrollWidth` : le nœud est déjà contraint,
-   * et comme les cellules sont en `overflow: visible`, `scrollWidth` renvoie ~la largeur
-   * de la boîte, pas celle du contenu — d'où un auto-fit systématiquement trop étroit.
-   * On dé-contraint donc le nœud le temps d'une mesure, puis on restaure ses styles.
-   */
-  private measureNaturalWidth(node: HTMLElement): number {
-    const previousWidth = node.style.width;
-    const previousMaxWidth = node.style.maxWidth;
-    const previousWhiteSpace = node.style.whiteSpace;
-
-    node.style.width = 'max-content';
-    node.style.maxWidth = 'none';
-    node.style.whiteSpace = 'nowrap';
-
-    const natural = Math.max(node.scrollWidth, node.getBoundingClientRect().width);
-
-    node.style.width = previousWidth;
-    node.style.maxWidth = previousMaxWidth;
-    node.style.whiteSpace = previousWhiteSpace;
-
-    return natural;
-  }
-
-  /**
    * L'ancre du menu contextuel est en `position: fixed` : si un ancêtre du composant
    * porte `backdrop-filter`, `transform`, `filter` ou `perspective`, cet ancêtre devient
    * le bloc conteneur des éléments `fixed` et le menu s'ouvre au mauvais endroit.
@@ -2622,42 +2688,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.internalViewsStore.set(next);
     const key = this.viewsStorageKey();
     if (key && !this.viewsStore()) {
-      this.saveViewsStoreToLocalStorage(key, next);
+      saveViewsStore(key, next);
     }
     this.viewsStoreChange.emit(next);
-  }
-
-  private loadViewsStoreFromLocalStorage(key: string): NgTableViewsStore {
-    if (typeof localStorage === 'undefined') {
-      return emptyViewsStore(); // SSR : pas de stockage côté serveur.
-    }
-    try {
-      return parseViewsStore(localStorage.getItem(this.viewsStorageNamespacedKey(key)));
-    } catch {
-      return emptyViewsStore(); // Stockage inaccessible (navigation privée, quota...).
-    }
-  }
-
-  private saveViewsStoreToLocalStorage(key: string, store: NgTableViewsStore): void {
-    if (typeof localStorage === 'undefined') {
-      return;
-    }
-    try {
-      localStorage.setItem(this.viewsStorageNamespacedKey(key), serializeViewsStore(store));
-    } catch {
-      // Storage full/unavailable (e.g. private browsing) — the view still works for this session.
-    }
-  }
-
-  private viewsStorageNamespacedKey(key: string): string {
-    return `ng-table.views.${key}`;
-  }
-
-  private generateViewId(): string {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID();
-    }
-    return `view-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   private commitSelection(next: Set<unknown>, row: T | null, selected: boolean): void {
@@ -2849,136 +2882,4 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return typeof (value as Observable<NgTableFilterOption[]>)?.subscribe === 'function';
   }
 
-  private escapeCssToken(value: string): string {
-    const raw = value ?? '';
-    // `CSS.escape` gère correctement tous les cas (chiffre en tête, unicode...) ;
-    // repli manuel pour les environnements qui ne l'exposent pas (certains jsdom).
-    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-      return CSS.escape(raw);
-    }
-    return raw.replace(/[^a-zA-Z0-9_-]/g, (match) => `\\${match}`);
-  }
-
-  private matchesAllFilters(
-    row: T,
-    columns: NgTableColumn<T>[],
-    activeFilters: Record<string, string>,
-  ): boolean {
-    for (const column of columns) {
-      const filterValue = (activeFilters[column.id] ?? '').trim();
-      if (!filterValue) {
-        continue;
-      }
-
-      if (!this.matchesColumnFilter(row, column, filterValue)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private matchesColumnFilter(row: T, column: NgTableColumn<T>, filterValue: string): boolean {
-    if (column.filterPredicate) {
-      return column.filterPredicate(row, filterValue);
-    }
-
-    const raw = column.valueAccessor(row);
-    if (raw === null || raw === undefined) {
-      return false;
-    }
-
-    const filterType = column.filter?.type;
-    if (filterType === 'date' || filterType === 'range') {
-      return matchesDate(raw, filterValue, filterType);
-    }
-    if (typeof raw === 'boolean') {
-      return matchesBoolean(raw, filterValue);
-    }
-    if (filterType === 'enum') {
-      // Le filtre `enum` est un multi-select sérialisé en CSV ("A,B") : la cellule
-      // doit égaler l'UNE des valeurs cochées — pas "contenir" la chaîne entière,
-      // ce qui ne matchait plus aucune ligne dès 2 valeurs cochées.
-      const cell = `${raw}`.toLowerCase();
-      return filterValue.split(',').some((value) => value.trim().toLowerCase() === cell);
-    }
-    if (filterType === 'numberRange') {
-      return matchesNumberRange(raw, filterValue) ?? true;
-    }
-    if (filterType === 'number' || typeof raw === 'number') {
-      const numeric = matchesNumberExpression(raw, filterValue);
-      if (numeric !== null) {
-        return numeric;
-      }
-    }
-    return matchesText(raw, filterValue, column.filter?.operator);
-  }
-
-  private getSortValue(row: T, column: NgTableColumn<T>): string | number | Date | boolean | null {
-    if (column.sortValueAccessor) {
-      return column.sortValueAccessor(row) ?? null;
-    }
-
-    const raw = column.valueAccessor(row);
-    if (raw instanceof Date) {
-      return raw;
-    }
-    if (typeof raw === 'boolean' || typeof raw === 'number' || typeof raw === 'string') {
-      return raw;
-    }
-    return raw === null || raw === undefined ? null : `${raw}`;
-  }
-
-  private compareSortValues(
-    left: string | number | Date | boolean | null,
-    right: string | number | Date | boolean | null,
-  ): number {
-    if (left === right) {
-      return 0;
-    }
-
-    if (left === null || left === undefined) {
-      return 1;
-    }
-
-    if (right === null || right === undefined) {
-      return -1;
-    }
-
-    if (left instanceof Date || right instanceof Date) {
-      const leftTime = this.toComparableDateValue(left);
-      const rightTime = this.toComparableDateValue(right);
-
-      if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) {
-        return 0;
-      }
-      if (Number.isNaN(leftTime)) {
-        return 1;
-      }
-      if (Number.isNaN(rightTime)) {
-        return -1;
-      }
-
-      return leftTime - rightTime;
-    }
-
-    if (typeof left === 'boolean' || typeof right === 'boolean') {
-      return Number(left) - Number(right);
-    }
-
-    if (typeof left === 'number' && typeof right === 'number') {
-      return left - right;
-    }
-
-    return this.collator.compare(`${left}`, `${right}`);
-  }
-
-  private toComparableDateValue(value: string | number | Date | boolean): number {
-    if (value instanceof Date) {
-      return value.getTime();
-    }
-    if (typeof value === 'string' || typeof value === 'number') {
-      return new Date(value).getTime();
-    }
-    return Number.NaN;
-  }
 }

@@ -31,6 +31,7 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - Recherche globale : Entrée applique la saisie tout de suite, sans attendre le debounce.
 - Paginateur intégré : `[paginator]`, `[pageSizeOptions]`, `[totalCount]` (mode remote). Plus besoin de relier `filteredCountChange` / `pageIndexChange` / `viewPaginationRestore` à son propre `<mat-paginator>`.
 - Tri multi-colonnes : `[multiSort]`, Maj+clic sur un en-tête ; `(sortsChange)`, `NgTableRemoteQuery.sorts`, `NgTableViewState.sorts`. Labels `sortPriority`, `multiSortHint`.
+- Accessibilité : navigation clavier cellule par cellule (`[cellNavigation]`, motif « grid » de WAI-ARIA) : un seul arrêt de tabulation, flèches, Début/Fin, Page préc./suiv., Entrée/F2 pour le contenu d'une cellule, Échap, Espace pour sélectionner.
 - Accessibilité : une région `aria-live` annonce le tri et, en mode local, le nombre de lignes après chaque tri, filtre ou recherche. Labels `announceSortAsc`, `announceSortDesc`, `announceSortCleared`, `announceRowCount`, `announceNoRows`.
 - Export / import des vues en JSON : `[viewsImportExportEnabled]`, `exportViews()`, `importViews(json, 'merge' | 'replace')`, `(viewsImported)`. Labels `setDefaultView`, `unsetDefaultView`, `exportViews`, `importViews`, `viewsImported`, `viewsImportInvalid`.
 - `[exportFormat]="'xlsx'"` : export Excel natif, sans dépendance ; nombres et booléens restent typés, en-tête en gras et figé.
@@ -49,6 +50,7 @@ Voir aussi `ROADMAP.md` pour le suivi détaillé.
 - `NgTableDetailToggleEvent.row` est typé `T | null` : il valait déjà `null` après `collapseAllDetails()`.
 
 ### Modifié
+- Tri : les cellules vides restent en fin de liste aussi en tri décroissant. Avant, un tri décroissant les faisait remonter en tête.
 - Les vues stockées en `localStorage` portent une version de schéma ; les vues malformées sont ignorées au lieu de casser l'affichage, et une vue active qui n'existe plus est oubliée. Les stores existants sont relus sans perte.
 - « Réinitialiser les filtres » efface aussi la recherche globale.
 - Supprimer la vue active fait basculer sur la vue par défaut (sinon la première vue restante, comme avant).

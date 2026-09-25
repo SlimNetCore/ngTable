@@ -45,7 +45,7 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 
 | ID | Amélioration | Statut | Notes |
 |----|--------------|--------|-------|
-| A1 | Découper le composant monolithique | En cours | Extraits : `views-storage.ts`, `filter-matching.ts` (fonctions pures testées) |
+| A1 | Découper le composant monolithique | En cours | Modules purs extraits et testés : `views-storage.ts` (format + localStorage), `filter-matching.ts`, `export-writers.ts`, `grid-navigation.ts`, `row-pipeline.ts` (filtres, recherche, tri), `dom-utils.ts`. Composant : 3 112 → 2 885 lignes. Reste : redimensionnement et vues (logique liée à l'état du composant) |
 | A2 | Mode non contrôlé pour `pageIndex`/`pageSize` | Vérifié | `model()` + paginateur intégré `[paginator]` (local et remote, `[totalCount]`), recul automatique sur la dernière page, pagination des vues réappliquée ; 4 tests ; démo simplifiée (plus de `<mat-paginator>` à relier) |
 | A3 | Versionner le schéma des vues stockées | Fait (à vérifier) | `views-storage.ts` : version, migrations, vues malformées écartées |
 | A4 | Protections SSR (`window`/`document`/`localStorage`) | Fait (à vérifier) | Le reste était déjà sûr (gestionnaires d'événements seulement). Limite connue : `isMobileView` vaut `false` côté serveur |
@@ -87,7 +87,7 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 
 | ID | Amélioration | Statut | Notes |
 |----|--------------|--------|-------|
-| X1 | Navigation clavier cellule par cellule (APG Grid) | À faire | |
+| X1 | Navigation clavier cellule par cellule (APG Grid) | Vérifié | `[cellNavigation]` ; logique dans `grid-navigation.ts` (calcul pur testé + tabindex itinérant) ; 4 tests purs + 5 tests DOM ; testée au vrai clavier dans la démo, y compris après changement de page |
 | X2 | Annonces `aria-live` sur tri/filtres | Vérifié | Région `role="status"` ; tri + nombre de lignes (local), tri seul (remote) ; message identique réannoncé ; 3 tests |
 
 ## Journal
@@ -111,3 +111,5 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 - **2026-09-25** — Retour utilisateur : filtres inline qui débordent de leur colonne. Mesuré dans la démo, colonne par colonne : +48 px pour les champs texte/nombre (`box-sizing` manquant sur `.field-shell`), libellé des dates sous l'icône du calendrier. Corrigé, 0 px de débordement mesuré ensuite. Démo refaite en trois modes. Trouvé en la construisant : un filtre booléen s'affichait « true » dans la barre des filtres actifs (corrigé). 161 tests OK.
 - **2026-09-25** — F13 (colonne de référence dynamique) fait et vérifié (165 tests, lint 0/0, démo).
 - **2026-09-25** — Démo (mode avancé) : exemple de paginateur personnalisé (`page-bar.component.ts`, sans Material) branché par `[pageTrackingEnabled]`, `[(pageIndex)]`, `[(pageSize)]`, `(filteredCountChange)`, avec le code affiché ; choix Intégrée / Personnalisée / Aucune. Vérifié dans le navigateur (navigation, taille de page, retour en page 1 après recherche, URL).
+- **2026-09-25** — X1 fait et vérifié (174 tests, lint 0/0, démo au clavier). Piège rencontré : `#ref` sur `<table mat-table>` désigne l'instance `MatTable`, d'où `viewChild(..., {read: ElementRef})`.
+- **2026-09-25** — A1 : extraction de `row-pipeline.ts` (filtres par colonne, recherche, tri multi-niveaux) et de `dom-utils.ts`, lecture/écriture `localStorage` déplacée dans `views-storage.ts`. 10 tests dédiés au pipeline. Trouvé en les écrivant : en tri décroissant, les cellules vides remontaient en tête ; elles restent maintenant en fin de liste. 184 tests OK.

@@ -104,6 +104,7 @@ function addDays(isoDay: string, days: number): string {
       [showActiveFiltersBar]="true"
       [inlineFilters]="inlineFilters()"
       [multiSort]="multiSort()"
+      [cellNavigation]="cellNavigation()"
       [paginator]="pagination() === 'integree'"
       [pageTrackingEnabled]="pagination() === 'personnalisee'"
       [(pageIndex)]="pageIndex"
@@ -162,6 +163,8 @@ function addDays(isoDay: string, days: number): string {
         <li>Rendu personnalisé (<code>cellTemplate</code>), copie de cellule, lignes urgentes mises en avant
           (<code>rowClassFn</code>).</li>
         <li>Ligne détail, menu contextuel (clic droit ou Maj+F10), sélection de lignes.</li>
+        <li>Navigation clavier cellule par cellule (<code>cellNavigation</code>) : Tab entre dans la table, flèches,
+          Début/Fin, Entrée ou F2 pour les boutons d'une cellule, Échap pour en sortir, Espace pour sélectionner.</li>
         <li>Vues sauvegardées, vue par défaut (étoile), export / import des vues.</li>
         <li>Pagination intégrée (<code>[paginator]</code>), ou paginateur personnalisé branché avec
           <code>[pageTrackingEnabled]</code>, <code>[(pageIndex)]</code>, <code>[(pageSize)]</code> et
@@ -222,6 +225,7 @@ export class AdvancedDemoComponent {
   protected readonly filteredTotal = signal(0);
   protected readonly inlineFilters = signal(false);
   protected readonly multiSort = signal(true);
+  protected readonly cellNavigation = signal(true);
   protected readonly selection = signal(false);
   protected readonly detailRows = signal(true);
   protected readonly contextMenu = signal(true);
@@ -236,6 +240,7 @@ export class AdvancedDemoComponent {
   protected readonly settings = [
     {label: 'Filtres inline', value: this.inlineFilters},
     {label: 'Tri multi-colonnes', value: this.multiSort},
+    {label: 'Navigation clavier (grille)', value: this.cellNavigation},
     {label: 'Sélection', value: this.selection},
     {label: 'Ligne détail', value: this.detailRows},
     {label: 'Menu contextuel', value: this.contextMenu},

@@ -224,7 +224,7 @@ Le tri compare directement la valeur de `valueAccessor` (nombres/chaînes/dates/
 - `(sortChange)` continue d'émettre le **tri principal** seul. `(sortsChange)` émet tous les niveaux, par priorité.
 - En mode `remote`, `NgTableRemoteQuery.sorts` porte tous les niveaux. `sort` reste le tri principal, pour les backends qui n'en gèrent qu'un.
 - Les vues sauvegardées enregistrent tous les niveaux (`NgTableViewState.sorts`).
-- Les clés de tri sont calculées une fois par ligne, pas à chaque comparaison. Le tri est stable : à égalité, l'ordre d'origine est conservé.
+- Les clés de tri sont calculées une fois par ligne, pas à chaque comparaison. Le tri est stable : à égalité, l'ordre d'origine est conservé. Les cellules vides restent en fin de liste, en tri croissant comme décroissant.
 
 ### Étape 3 — Filtres par colonne
 
@@ -1088,6 +1088,7 @@ interface NgTableFilterConfig {
 | `referenceColumn`           | `string \| null \| undefined` (`model`)                           | `undefined` | Colonne fixée à gauche ; liable en `[(referenceColumn)]`, émet `(referenceColumnChange)`.                        |
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
+| `cellNavigation`            | `boolean`                                                        | `false`   | Navigation clavier cellule par cellule (motif « grid » WAI-ARIA), voir « Accessibilité ».                            |
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
 | `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
 | `globalSearch`              | `string \| null`                                                 | `null`    | Mode contrôlé de la recherche globale.                                                                               |
@@ -1591,6 +1592,23 @@ Une ligne ne devient un arrêt de tabulation (`tabindex="0"`) **que si elle fait
 
 - **Entrée / Espace** : équivalent clavier du clic (bascule le détail).
 - **Touche Menu, ou Maj+F10** : équivalent clavier standard du clic droit — ouvre le menu contextuel (`rowContextMenuEnabled`), ancré au coin de la ligne (pas de coordonnées souris disponibles au clavier).
+
+### Navigation cellule par cellule (`[cellNavigation]`)
+
+Par défaut, chaque bouton des cellules (copier, actions...) est un arrêt de tabulation. Sur une longue liste, atteindre la suite de la page au clavier devient pénible. Avec `[cellNavigation]="true"`, la table suit le motif « grid » de WAI-ARIA APG :
+
+| Touche | Effet |
+|--------|-------|
+| Tab | Entre dans la table sur la dernière cellule active (un seul arrêt de tabulation pour tout le corps de la table), puis en ressort. |
+| Flèches | Cellule voisine. |
+| Début / Fin | Première / dernière cellule de la ligne ; avec Ctrl : première cellule de la table / dernière cellule. |
+| Page préc. / Page suiv. | 10 lignes plus haut / plus bas. |
+| Entrée ou F2 | Donne le focus au premier bouton ou champ de la cellule ; Échap revient à la cellule. |
+| Entrée (cellule sans bouton) | Active la ligne : `(rowClick)`, ouverture de la ligne détail. |
+| Espace | Sélectionne / désélectionne la ligne (`[rowSelectionEnabled]`). |
+| Maj+F10 ou touche Menu | Menu contextuel de la ligne. |
+
+La table porte alors `role="grid"`. Les contrôles de l'en-tête (tri, filtres, réordonnancement) restent atteignables par Tab, comme avant.
 
 ### Annonces des changements (`aria-live`)
 

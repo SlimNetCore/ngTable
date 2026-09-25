@@ -264,7 +264,10 @@
 
   <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--loading]="loading()" class="table-viewport">
   <div (scroll)="onTableWrapScroll()" [style.max-height]="maxHeight()" class="table-wrap">
-    <table [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [dataSource]="displayedRows()"
+    <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
+    <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event)"
+           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="cellNavigation() ? 'grid' : null"
+           [dataSource]="displayedRows()"
            [class.ngt-density-compact]="density() === 'compact'"
            [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
            [trackBy]="resolvedTrackBy"
@@ -514,7 +517,7 @@
         (keydown)="onRowKeydown($event, row)"
         *matRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
         [attr.aria-expanded]="detailRowTemplate() ? isDetailExpanded(rowIndex, row) : null"
-        [attr.tabindex]="isRowInteractive() ? 0 : null"
+        [attr.tabindex]="isRowInteractive() && !cellNavigation() ? 0 : null"
         [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
         [ngClass]="rowClasses(row)"
         class="data-row"

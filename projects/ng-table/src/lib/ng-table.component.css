@@ -1173,3 +1173,9 @@
   transform: none;
   opacity: 1;
 }
+
+/* Navigation cellule par cellule : cellule active bien visible au clavier. */
+.ng-table[role='grid'] td.mat-mdc-cell:focus-visible {
+  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline-offset: -2px;
+}

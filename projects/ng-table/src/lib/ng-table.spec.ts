@@ -1597,6 +1597,75 @@ describe('NgTableComponent', () => {
   });
 
   describe('accessibilité', () => {
+    describe('navigation cellule par cellule ([cellNavigation])', () => {
+      const key = (el: Element, k: string, extra: KeyboardEventInit = {}) =>
+        el.dispatchEvent(new KeyboardEvent('keydown', {key: k, bubbles: true, cancelable: true, ...extra}));
+      const cells = (fixture: ComponentFixture<NgTableComponent>) =>
+        [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLTableRowElement>('tr.data-row')].map((row) => [...row.cells]);
+
+      it('fait de la table un seul arrêt de tabulation, rôle grid', async () => {
+        const {fixture} = await createTable({cellNavigation: true, detailRowTemplate: null});
+        const table = fixture.nativeElement.querySelector('table') as HTMLElement;
+
+        expect(table.getAttribute('role')).toBe('grid');
+        const tabStops = [...table.querySelectorAll('tbody [tabindex="0"]')];
+        expect(tabStops).toEqual([cells(fixture)[0][0]]);
+        // Le bouton « copier » de la cellule n'est plus un arrêt de tabulation.
+        expect((cells(fixture)[0][0].querySelector('button') as HTMLButtonElement).tabIndex).toBe(-1);
+      });
+
+      it('déplace le focus et le tabindex avec les flèches, Fin et Ctrl+Début', async () => {
+        const {fixture} = await createTable({cellNavigation: true});
+        const grid = cells(fixture);
+        grid[0][0].focus();
+
+        key(grid[0][0], 'ArrowRight');
+        expect(document.activeElement).toBe(grid[0][1]);
+        key(grid[0][1], 'ArrowDown');
+        expect(document.activeElement).toBe(grid[1][1]);
+        key(grid[1][1], 'End');
+        expect(document.activeElement).toBe(grid[1][3]);
+        expect(grid[1][3].tabIndex).toBe(0);
+        expect(grid[0][0].tabIndex).toBe(-1);
+        key(grid[1][3], 'Home', {ctrlKey: true});
+        expect(document.activeElement).toBe(grid[0][0]);
+      });
+
+      it('Entrée entre dans le contenu interactif, Échap revient à la cellule', async () => {
+        const {fixture} = await createTable({cellNavigation: true});
+        const cell = cells(fixture)[0][0];
+        cell.focus();
+
+        key(cell, 'Enter');
+        const copyButton = cell.querySelector('button') as HTMLButtonElement;
+        expect(document.activeElement).toBe(copyButton);
+
+        key(copyButton, 'Escape');
+        expect(document.activeElement).toBe(cell);
+      });
+
+      it('Entrée sur une cellule simple active la ligne, Espace la sélectionne', async () => {
+        const {component, fixture} = await createTable({cellNavigation: true, rowSelectionEnabled: true});
+        const clicked: unknown[] = [];
+        component.rowClick.subscribe((row) => clicked.push(row));
+        const montantCell = cells(fixture)[1][2]; // [sélection, nom, montant, ...]
+        montantCell.focus();
+
+        key(montantCell, 'Enter');
+        expect(clicked).toEqual([ROWS[1]]);
+
+        key(montantCell, ' ');
+        expect(component.isRowSelected(ROWS[1])).toBe(true);
+      });
+
+      it('sans l’option, rien ne change (lignes focusables, pas de rôle grid)', async () => {
+        const {fixture} = await createTable({detailRowTemplate: null});
+        const table = fixture.nativeElement.querySelector('table') as HTMLElement;
+        expect(table.getAttribute('role')).toBeNull();
+        expect(table.querySelectorAll('td[tabindex]')).toHaveLength(0);
+      });
+    });
+
     it('annonce le tri et le nombre de lignes dans une région aria-live', async () => {
       const {component, fixture} = await createTable();
       const region = () => (fixture.nativeElement.querySelector('.ngt-live-region') as HTMLElement);
