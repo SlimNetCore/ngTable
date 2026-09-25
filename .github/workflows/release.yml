@@ -3,8 +3,9 @@ name: Release
 # Publie @sbourahla/ng-table sur npm quand un tag de version est poussé :
 #   git tag 1.0.0 && git push origin 1.0.0
 # Le tag doit être égal à la version de projects/ng-table/package.json.
-# Prérequis : un token npm (type « Automation » ou « Granular », droit de publication
-# sur le paquet) dans le secret NPM_TOKEN du dépôt.
+# Prérequis : configurer soit le trusted publishing npm↔GitHub (OIDC), soit un token npm
+# (type « Automation » ou « Granular », droit de publication sur le paquet) dans le
+# secret NPM_TOKEN du dépôt.
 on:
   push:
     tags:
@@ -49,9 +50,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::Secret NPM_TOKEN absent (Settings > Secrets and variables > Actions)"
-            exit 1
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            echo "Publication npm avec le secret NPM_TOKEN"
+          else
+            echo "::notice::Secret NPM_TOKEN absent ; tentative de publication via trusted publishing GitHub↔npm (OIDC)"
           fi
           # Une préversion (1.1.0-beta.1) va sous le dist-tag « next » : `npm install` ne la prend pas par défaut.
           case "$GITHUB_REF_NAME" in
