@@ -2982,6 +2982,21 @@ await (await table.getPaginator())?.goToNextPage();  // MatPaginatorHarness du p
 | `getPaginator()` | `MatPaginatorHarness` du paginateur intégré, ou `null`. |
 | `getEmptyText()`, `isLoading()`, `getLiveAnnouncement()`, `getAriaLabel()` | États affichés et accessibilité. |
 
+## Migrer de 0.4 vers 1.0
+
+La 1.0.0 apporte des changements cassants. Le détail est dans le [CHANGELOG](https://github.com/SlimNetCore/ngTable/blob/main/CHANGELOG.md#100--2026-09-25). En pratique, vérifiez ces points :
+
+1. **Angular 22** et `@angular/cdk` sont requis (peerDependencies). `@angular/router` n'est nécessaire que pour `@sbourahla/ng-table/router`.
+2. **Page contrôlée** : `pageIndex` et `pageSize` sont des `model()`. La table change de page d'elle-même (retour en page 1 après un filtre, restauration d'une vue). Si vous liez `[pageIndex]` sans écouter `(pageIndexChange)`, passez à `[(pageIndex)]`. En TypeScript, `table.pageIndexChange.subscribe(...)` devient `table.pageIndex.subscribe(...)`.
+   Vous pouvez aussi remplacer votre `<mat-paginator>` par le paginateur intégré : `[paginator]="true"`, plus `[totalCount]` en mode remote.
+3. **Typage** : `NgTableComponent<T>` est générique et `T` est inféré depuis `[rows]` et `[columns]`. Des incohérences entre vos lignes et vos colonnes peuvent apparaître à la compilation : ce sont de vraies erreurs.
+4. **API publique** : les méthodes internes (`onHeaderSort()`, `onFilterValue()`...) sont `protected`. Passez par les entrées contrôlées (`[filters]`, `[columnVisibility]`...) ou par les méthodes publiques (`applyQueryState()` pour le tri, les filtres, la recherche et la page ; `getQueryState()`...).
+5. **Données** : pour mettre à jour l'affichage, passez un nouveau tableau `rows`, avec un nouvel objet pour chaque ligne modifiée. Une ligne modifiée sur place n'est plus relue.
+6. **`NgTableDetailToggleEvent.row`** est typé `T | null`.
+7. **Comportements** : en tri décroissant, les cellules vides restent en fin de liste. « Réinitialiser les filtres » efface aussi la recherche globale.
+
+Les vues déjà enregistrées en `localStorage` sont relues sans perte.
+
 ## Points d'attention
 
 - **Performance** : en mode `local`, `displayedRows()` (filtre + tri) est recalculé à chaque changement de `rows`/`columns`/filtres/tri — pour de très gros volumes, préférez `dataMode='remote'`. Réordonner les colonnes (glisser-déposer ou flèches clavier) n'en fait **volontairement pas partie** : ça ne change ni les lignes filtrées ni leur tri, donc `displayedRows()` n'est pas recalculé — seul l'ordre d'affichage des colonnes change. Le coût restant (déplacer les cellules dans le DOM pour refléter le nouvel ordre) vient d'Angular CDK Table et grandit avec le nombre de lignes **rendues** ; pour une très grosse liste sans pagination, activer `pageTrackingEnabled` (ou passer en `dataMode='remote'` paginé) réduit ce nombre et rend le réordonnancement visiblement plus rapide.

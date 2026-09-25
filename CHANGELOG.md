@@ -2,9 +2,9 @@
 
 Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versions suivant [SemVer](https://semver.org/lang/fr/).
 
-## [Non publié] — vers 1.0.0
+## [1.0.0] — 2026-09-25
 
-Voir aussi `ROADMAP.md` pour le suivi détaillé.
+Première version majeure. Elle contient des changements cassants (section « Modifié (cassant) ») : voir « Migrer de 0.4 vers 1.0 » dans le README.
 
 ### Documentation
 - `examples/spring-boot-backend` : export CSV / XLSX (`POST /api/commandes/export`, `NgTableExporter`, Apache POI en continu). Démo expert : punaise « colonne de référence » et choix du format d'export.

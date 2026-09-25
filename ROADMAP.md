@@ -17,8 +17,8 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 | # | Quand | À lancer | Statut |
 |---|-------|----------|--------|
 | C1 | Après l'outillage (phase 1) | `node scripts/migrate-to-workspace.mjs` puis `npm install`, `npm run build`, `npm run test:ci`, `npm start` | Passé (2026-09-25) |
-| C2 | Après les refontes (phase 3) | `npm run lint`, `npm run test:ci`, `npm run build`, tester la démo | À faire |
-| C3 | Avant la publication 1.0.0 | Tout, plus un test manuel dans votre application | À faire |
+| C2 | Après les refontes (phase 3) | `npm run lint`, `npm run test:ci`, `npm run build`, tester la démo | Passé (2026-09-25) |
+| C3 | Avant la publication 1.0.0 | Tout, plus un test manuel dans votre application | En partie : paquet 1.0.0 installé dans une application Angular 22 neuve (build + navigateur OK) ; reste le test dans votre application |
 
 ## 1. Outillage et qualité
 
@@ -29,7 +29,7 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 | O3 | CI GitHub Actions | Fait (à vérifier) | Nécessite de committer `package-lock.json` |
 | O4 | ESLint (angular-eslint) | Vérifié | 0 erreur, 0 avertissement ; `no-explicit-any` en erreur |
 | O5 | Application de démo | Vérifié | Trois modes routés : simple (code affiché), avancé (toutes les options en local, panneau de réglages), expert (faux serveur, mode contrôlé, filtre personnalisé, API, journal d'événements) |
-| O6 | CHANGELOG, semver, guide de migration 1.0.0 | En cours | Rempli au fil des phases |
+| O6 | CHANGELOG, semver, guide de migration 1.0.0 | Fait | CHANGELOG `[1.0.0]` daté ; guide « Migrer de 0.4 vers 1.0 » dans le README (visible sur npm) ; version 1.0.0 dans `projects/ng-table/package.json` |
 | O7 | Ménage du repo | Fait (à vérifier) | `.gitignore` ; fichiers obsolètes supprimés par le script |
 | O8 | Harness de test CDK (`NgTableHarness`) | Vérifié | Point d'entrée `@sbourahla/ng-table/testing` (construit par ng-packagr, présent dans `exports`) ; lignes, en-têtes, tri, recherche, sélection, paginateur ; 4 tests |
 
@@ -57,16 +57,16 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 | D1 | Typage générique `NgTableComponent<T>` | Vérifié | Inférence de `T` vérifiée dans la démo (erreur volontaire détectée). 87 `any` → 0 ; `no-explicit-any` passe en erreur. Écart de type réel trouvé : `detailToggle.row` pouvait être `null` |
 | D2 | Exporter `ColumnFilterType` | Fait (à vérifier) | |
 | D3 | Méthodes internes en `protected` | Vérifié | 75 membres passés en `protected`, API publique listée dans le README ; spec adaptée (156 accès par indexation) |
-| D4 | Pack de labels anglais | Fait (à vérifier) | `NG_TABLE_LABELS_EN` |
+| D4 | Pack de labels anglais | Vérifié | `NG_TABLE_LABELS_EN` ; « Search… », « Columns », « Views », « Export » (démo et application neuve) |
 
 ## 5. Fonctionnalités
 
 | ID | Amélioration | Statut | Notes |
 |----|--------------|--------|-------|
-| F1 | En-tête sticky | Fait (à vérifier) | `[stickyHeader]` + `[maxHeight]` ; compilé |
-| F2 | Colonnes épinglées (gauche/droite) | Fait (à vérifier) | `column.pinned` ; regroupées aux bords ; compilé |
+| F1 | En-tête sticky | Vérifié | `[stickyHeader]` + `[maxHeight]` ; en-tête resté en haut après 400 px de défilement (démo) |
+| F2 | Colonnes épinglées (gauche/droite) | Vérifié | `column.pinned` ; regroupées aux bords ; fixes au défilement horizontal, colonnes libres décalées (démo) |
 | F3 | Tri multi-colonnes | Vérifié | `[multiSort]` + Maj+clic, rang affiché, `sorts` en remote et dans les vues ; clés précalculées, tri stable ; 3 tests ; testé dans la démo |
-| F4 | Densité compacte | Fait (à vérifier) | `[density]="'compact'"` via les tokens Material ; compilé |
+| F4 | Densité compacte | Vérifié | `[density]="'compact'"` via les tokens Material ; ligne de 52 à 45 px (démo) |
 | F5 | Recherche globale | Vérifié | `[globalSearchEnabled]`, `column.searchable`, champ `search` en remote, sauvegardée dans les vues. Texte des lignes mis en cache (`WeakMap`) : pas de recalcul à chaque frappe. 3 tests purs + 7 tests composant OK, testée dans la démo |
 | F6 | Filtre numérique par plage | Vérifié (partiel) | `type: 'numberRange'` ; logique testée (Vitest), UI compilée |
 | F7 | Opérateurs de filtre | Vérifié (partiel) | `filter.operator` (texte), expressions `>`, `<=`, `!=`, `a..b` (number) ; logique testée |
@@ -123,3 +123,4 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 - **2026-09-25** — Retour utilisateur : deux requêtes au changement de serveur dans la démo expert. Cause : `switchApi()` appelait `load()` puis `applyQueryState()`, qui émet lui-même `(remoteQueryChange)`. Seul `applyQueryState()` reste. Vérifié dans le navigateur, backend Spring Boot lancé : une requête HTTP par action (choix du serveur, regroupement, recherche avec et sans Entrée, repli, page suivante, bouton preset).
 - **2026-09-25** — Demande utilisateur : colonne de référence dans la démo expert, et export côté serveur avec Spring. Démo expert : `[referenceColumnSelectable]`, choix CSV / Excel. Librairie : `(remoteExportRequested)` émet `NgTableRemoteExportRequest` (requête + `columns`, `format`, `filename`), sans quoi le serveur ne peut pas savoir quelles colonnes exporter (1 test). Spring : `POST /api/commandes/export`, `NgTableExporter` (CSV identique à l'export local, XLSX POI SXSSF typé), lignes lues en flux (`streamAll`) et détachées, validation avant écriture (400 plutôt qu'un fichier tronqué). Trouvé par les tests : la base renvoie `97.80` (échelle SQL) là où l'export local écrit `97.8` ; aligné. 11 tests Maven (dont fuite de fichiers temporaires POI, vérifiée par mutation). Vérifié dans le navigateur : punaise sur Client, Description masquée, filtre « urgentes validées » → CSV et XLSX de 5 000 lignes téléchargés et relus (colonnes dans l'ordre affiché, montant numérique, date Excel).
 - **2026-09-25** — Retour utilisateur : brancher l'export sur Spring. C'était fait, mais deux choses l'empêchaient en pratique : la démo repartait sur « Serveur simulé » à chaque visite (l'export n'y produit pas de fichier), et un backend lancé avant la mise à jour renvoie 404 sur `/export` avec un message trompeur (« Lancez le backend »). Le choix du serveur est retenu (`localStorage`), et un 404 dit que le backend n'est pas à jour. Vérifié dans le navigateur avec l'ancien backend (message clair) puis le backend à jour (commandes.csv, 100 000 lignes ; choix retenu après rechargement).
+- **2026-09-25** — Demande utilisateur : publier la 1.0.0. Pas d'identifiants npm dans l'environnement de l'assistant (et la publication est quasi irréversible) : publication préparée, commande finale laissée à l'utilisateur. Version 1.0.0, CHANGELOG daté, guide de migration dans le README (corrigé au passage : il citait une entrée `[sorts]` qui n'existe pas). Points « à vérifier » contrôlés dans le navigateur : F1, F2, F4, D4 → Vérifié. C2 passé : lint 0/0, 221 tests, build des 3 points d'entrée, build démo. `npm pack` : 12 fichiers, 238 kB, ni démo ni exemples. Tarball installé dans une application Angular 22 neuve (`ng new`) : build OK, table, recherche et état dans l'URL fonctionnent dans le navigateur.
