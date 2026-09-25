@@ -16,6 +16,33 @@
   }
 
   <div class="list-actions">
+    @if (globalSearchEnabled()) {
+      <div class="global-search" role="search">
+        <mat-icon aria-hidden="true" class="global-search__icon">search</mat-icon>
+        <input
+          (input)="onGlobalSearchInput($any($event.target).value)"
+          (keydown.escape)="clearGlobalSearch()"
+          [attr.aria-label]="effectiveLabels().globalSearchLabel"
+          [placeholder]="effectiveLabels().globalSearchPlaceholder"
+          [value]="globalSearchDraft()"
+          class="global-search__input"
+          type="search"
+        />
+        @if (globalSearchDraft()) {
+          <button
+            (click)="clearGlobalSearch()"
+            [attr.aria-label]="effectiveLabels().clearGlobalSearch"
+            [title]="effectiveLabels().clearGlobalSearch"
+            class="global-search__clear"
+            mat-icon-button
+            type="button"
+          >
+            <mat-icon aria-hidden="true">close</mat-icon>
+          </button>
+        }
+      </div>
+    }
+
     @if (columnsMenuEnabled()) {
       <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" mat-stroked-button type="button">
         <mat-icon aria-hidden="true">view_column</mat-icon>
@@ -27,6 +54,7 @@
           <!-- `<div mat-menu-item>` et non `<button>` : un `<mat-checkbox>` est lui-même
                un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
                et perturbe la navigation clavier/lecteur d'écran (contrôle dans contrôle). -->
+          <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
           <div (click)="$event.stopPropagation()" mat-menu-item>
             <mat-checkbox
               (change)="onToggleColumnVisibility(column.id, $event.checked)"
@@ -49,6 +77,7 @@
       </button>
 
       <mat-menu #viewsMenu="matMenu" class="ngt-views-menu-panel">
+        <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
         <div (click)="$event.stopPropagation()" class="views-menu-body">
           <div class="views-save-row">
             <input
@@ -115,6 +144,7 @@
       </button>
 
       <mat-menu #exportMenu="matMenu" class="ngt-export-menu-panel">
+        <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
         <div (click)="$event.stopPropagation()" class="export-menu-body">
           <p class="export-menu-title">{{ effectiveLabels().exportDialogTitle }}</p>
 
@@ -185,13 +215,14 @@
   }
 
   <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--loading]="loading()" class="table-viewport">
-  <div (scroll)="onTableWrapScroll()" class="table-wrap">
+  <div (scroll)="onTableWrapScroll()" [style.max-height]="maxHeight()" class="table-wrap">
     <table [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [dataSource]="displayedRows()"
+           [class.ngt-density-compact]="density() === 'compact'"
            [fixedLayout]="true" [style.min-width.px]="minTableWidthPx()"
            [trackBy]="resolvedTrackBy"
            class="ng-table" mat-table multiTemplateDataRows>
       @if (rowSelectionEnabled()) {
-        <ng-container matColumnDef="__row_selection__">
+        <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__row_selection__">
           <th *matHeaderCellDef class="selection-header-cell" mat-header-cell>
             <mat-checkbox
               (change)="onToggleAllDisplayedRows($event)"
@@ -200,7 +231,7 @@
               [indeterminate]="hasPartiallySelectedDisplayedRows()"
             />
           </th>
-          <td *matCellDef="let row; let rowIndex = index" class="selection-cell" mat-cell>
+          <td *matCellDef="let row; let rowIndex = dataIndex" class="selection-cell" mat-cell>
             <mat-checkbox
               (change)="onToggleRowSelection($event, row)"
               (click)="$event.stopPropagation()"
@@ -212,7 +243,8 @@
       }
 
       @for (column of columns(); track trackByColumn($index, column)) {
-        <ng-container [matColumnDef]="column.id">
+        <ng-container [matColumnDef]="column.id" [sticky]="column.pinned === 'left'"
+                      [stickyEnd]="column.pinned === 'right'">
           <th (dragleave)="onColumnDragLeave(column)"
               (dragover)="onColumnDragOver($event, column)"
               (drop)="onColumnDrop($event, column)"
@@ -266,6 +298,7 @@
                   </button>
 
                   <mat-menu #menu="matMenu" class="ngt-filter-menu-panel">
+                    <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
                     <div
                       (click)="$event.stopPropagation()"
                       (keydown.enter)="closeFilterMenuOnEnter($event, filterTrigger)"
@@ -317,6 +350,7 @@
             </div>
 
             @if (shouldRenderInlineFilter(column) && column.filter; as filter) {
+              <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
               <div (click)="$event.stopPropagation()" class="inline-filter">
                 @if (isFilterOptionsLoading(column.id)) {
                   <div class="filter-loading-inline">
@@ -368,7 +402,7 @@
             }
           </th>
 
-          <td *matCellDef="let row; let rowIndex = index" [style.max-width.px]="column.maxWidthPx ?? null"
+          <td *matCellDef="let row; let rowIndex = dataIndex" [style.max-width.px]="column.maxWidthPx ?? null"
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
             <div class="cell-content" [class.cell-content--wrap]="column.textOverflow === 'wrap'">
               @if (column.cellTemplate) {
@@ -421,12 +455,12 @@
         </td>
       </ng-container>
 
-      <tr *matHeaderRowDef="displayedColumnIds()" mat-header-row></tr>
+      <tr *matHeaderRowDef="displayedColumnIds(); sticky: stickyHeader()" mat-header-row></tr>
       <tr
         (click)="onRowClick(row)"
         (contextmenu)="onRowContextMenu($event, row)"
         (keydown)="onRowKeydown($event, row)"
-        *matRowDef="let row; let rowIndex = index; columns: displayedColumnIds(); when: dataRowWhen"
+        *matRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
         [attr.aria-expanded]="detailRowTemplate() ? isDetailExpanded(rowIndex, row) : null"
         [attr.tabindex]="isRowInteractive() ? 0 : null"
         [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
@@ -435,7 +469,7 @@
         mat-row
       ></tr>
       <tr
-        *matRowDef="let row; let rowIndex = index; columns: detailRowColumns; when: detailRowRenderWhen"
+        *matRowDef="let row; let rowIndex = dataIndex; columns: detailRowColumns; when: detailRowRenderWhen"
         [class.detail-row-collapsed]="!isDetailExpanded(rowIndex, row)"
         class="detail-row-container"
         mat-row

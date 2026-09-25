@@ -51,11 +51,11 @@ function columns(): NgTableColumn<Row>[] {
   ];
 }
 
-type Harness = {
+interface Harness {
   fixture: ComponentFixture<NgTableComponent>;
   component: NgTableComponent;
   setInput: (name: string, value: unknown) => Promise<void>;
-};
+}
 
 async function createTable(inputs: Record<string, unknown> = {}): Promise<Harness> {
   const fixture = TestBed.createComponent(NgTableComponent);
@@ -77,6 +77,16 @@ async function createTable(inputs: Record<string, unknown> = {}): Promise<Harnes
   };
 }
 
+/** jsdom n'implémente pas `Blob.text()`. */
+function readBlobText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}
+
 function ids(rows: unknown[]): string[] {
   return (rows as Row[]).map((r) => r.id);
 }
@@ -89,6 +99,7 @@ describe('NgTableComponent', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks(); // un test qui échoue avant son `mockRestore()` ne doit pas contaminer les suivants
     TestBed.resetTestingModule();
   });
 
@@ -144,7 +155,7 @@ describe('NgTableComponent', () => {
         template: `<ng-template #tpl let-value>{{ value }}</ng-template>`,
       })
       class HostComponent {
-        readonly tpl = viewChild.required<TemplateRef<unknown>>('tpl');
+        readonly tpl = viewChild.required<NonNullable<NgTableColumn<Row>['cellTemplate']>>('tpl');
       }
 
       const hostFixture = TestBed.createComponent(HostComponent);
@@ -248,6 +259,37 @@ describe('NgTableComponent', () => {
 
       component.onFilterValue('actif', 'false');
 
+      expect(ids(component.displayedRows())).toEqual(['2']);
+    });
+
+    it('filtre enum à plusieurs valeurs cochées : une ligne passe si elle égale l’une d’elles', async () => {
+      const {component} = await createTable();
+
+      component.onFilterValue('statut', 'BROUILLON,ANNULEE');
+
+      expect(ids(component.displayedRows())).toEqual(['2']);
+    });
+
+    it('filtre number : accepte les opérateurs de comparaison et les plages', async () => {
+      const cols = columns();
+      cols[1] = {...cols[1], filter: {type: 'number'}};
+      const {component} = await createTable({columns: cols});
+
+      component['commitFilterValue']('montant', '>150');
+      expect(ids(component.displayedRows())).toEqual(['1', '3']);
+
+      component['commitFilterValue']('montant', '100..200');
+      expect(ids(component.displayedRows())).toEqual(['2', '3']);
+    });
+
+    it('filtre texte : respecte filter.operator', async () => {
+      const cols = columns();
+      cols[0] = {...cols[0], filter: {type: 'text', operator: 'startsWith'}};
+      const {component} = await createTable({columns: cols});
+
+      component['commitFilterValue']('nom', 'a');
+
+      // `contains` aurait aussi gardé "Charlie" ; `startsWith` ne garde que "alice".
       expect(ids(component.displayedRows())).toEqual(['2']);
     });
 
@@ -408,6 +450,89 @@ describe('NgTableComponent', () => {
       component.onFilterValue('statut', 'VALIDEE');
 
       expect(pages).toEqual([0]);
+    });
+  });
+
+  describe('recherche globale', () => {
+    it('garde les lignes contenant chaque mot, toutes colonnes confondues, sans tenir compte des accents', async () => {
+      const {component} = await createTable({globalSearchEnabled: true});
+
+      component['commitGlobalSearch']('VALIDÉE bob');
+
+      expect(ids(component.displayedRows())).toEqual(['3']);
+    });
+
+    it('respecte column.searchable (exclusion ou texte dédié)', async () => {
+      const cols = columns();
+      cols[0] = {...cols[0], searchable: false};
+      cols[2] = {...cols[2], searchable: (r) => (r.statut === 'VALIDEE' ? 'Validée' : 'Brouillon')};
+      const {component} = await createTable({columns: cols});
+
+      component['commitGlobalSearch']('alice');
+      expect(ids(component.displayedRows())).toEqual([]);
+
+      component['commitGlobalSearch']('brouillon');
+      expect(ids(component.displayedRows())).toEqual(['2']);
+    });
+
+    it('se combine aux filtres de colonnes, et « réinitialiser » efface les deux', async () => {
+      const {component} = await createTable();
+      const searches: string[] = [];
+      component.globalSearchChange.subscribe((s) => searches.push(s));
+
+      component.onFilterValue('statut', 'VALIDEE');
+      component['commitGlobalSearch']('charlie');
+      expect(ids(component.displayedRows())).toEqual(['1']);
+
+      component.clearAllFilters();
+      expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
+      expect(searches).toEqual(['charlie', '']);
+    });
+
+    it('apparaît dans la barre des filtres actifs et s’y efface', async () => {
+      const {component} = await createTable();
+
+      component['commitGlobalSearch']('bob');
+      const chip = component.activeFilterSummaries().find((s) => s.value === 'bob')!;
+      expect(chip.label).toBe(NG_TABLE_DEFAULT_LABELS.globalSearchLabel);
+
+      component.clearFilter(chip.columnId);
+      expect(component.activeFilterSummaries()).toEqual([]);
+    });
+
+    it('est debouncée comme un filtre texte', async () => {
+      const {component} = await createTable({filterDebounceMs: 300});
+      vi.useFakeTimers();
+
+      component.onGlobalSearchInput('bob');
+      expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
+
+      vi.advanceTimersByTime(300);
+      expect(ids(component.displayedRows())).toEqual(['3']);
+    });
+
+    it('mode remote : la recherche part dans remoteQueryChange sans filtrer localement', async () => {
+      const queries: NgTableRemoteQuery[] = [];
+      const {component} = await createTable({dataMode: 'remote'});
+      component.remoteQueryChange.subscribe((q) => queries.push(q));
+
+      component['commitGlobalSearch']('bob');
+
+      expect(queries[0].search).toBe('bob');
+      expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
+    });
+
+    it('est enregistrée dans une vue et restaurée à son activation', async () => {
+      const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'search'});
+
+      component['commitGlobalSearch']('bob');
+      component.saveCurrentAsView('Bob');
+      const view = component.viewsList()[0];
+      expect(view.state.search).toBe('bob');
+
+      component.clearAllFilters();
+      component.activateView(view);
+      expect(ids(component.displayedRows())).toEqual(['3']);
     });
   });
 
@@ -583,7 +708,7 @@ describe('NgTableComponent', () => {
     });
 
     it('conserve la sélection correcte après un changement de pageSize, sans id ni rowKeyAccessor', async () => {
-      const rowsWithoutId = ROWS.map(({id, ...rest}) => rest) as unknown as Row[];
+      const rowsWithoutId = ROWS.map(({id: _id, ...rest}) => rest) as unknown as Row[];
       const {component, setInput} = await createTable({
         rows: rowsWithoutId,
         rowSelectionEnabled: true,
@@ -684,7 +809,7 @@ describe('NgTableComponent', () => {
       component.activateView(view);
 
       expect(queries).toEqual([
-        {sort: {columnId: '', direction: ''}, filters: expect.any(Object), page: {index: 3, size: 5}},
+        {sort: {columnId: '', direction: ''}, filters: expect.any(Object), page: {index: 3, size: 5}, search: ''},
       ]);
     });
 
@@ -718,8 +843,8 @@ describe('NgTableComponent', () => {
     });
 
     it('affiche une coche transitoire sur le bouton de mise à jour d’une vue', async () => {
-      vi.useFakeTimers();
       const {component} = await createTable({viewsEnabled: true, viewsStorageKey: 'test-list'});
+      vi.useFakeTimers();
       component.saveCurrentAsView('Ma vue');
       const view = component.viewsList()[0];
 
@@ -910,7 +1035,7 @@ describe('NgTableComponent', () => {
 
       expect(completed).toEqual([{fromPage: 1, toPage: 1, rowCount: 3}]);
       expect(clickSpy).toHaveBeenCalledTimes(1);
-      const text = await capturedBlob!.text();
+      const text = await readBlobText(capturedBlob!);
       expect(text).toContain('Nom;Montant;Statut;Actif');
       expect(text).not.toContain('Actions');
 
@@ -941,11 +1066,11 @@ describe('NgTableComponent', () => {
 
       component.openExportDialog();
       expect(createObjectURLSpy).not.toHaveBeenCalled();
-      expect(component.exportFromPage()).toBe(1);
-      expect(component.exportToPage()).toBe(3);
+      expect(component['exportFromPage']()).toBe(1);
+      expect(component['exportToPage']()).toBe(3);
 
-      component.exportFromPage.set(2);
-      component.exportToPage.set(3);
+      component['exportFromPage'].set(2);
+      component['exportToPage'].set(3);
       component.confirmExportDialog();
       expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
 

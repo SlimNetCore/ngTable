@@ -260,6 +260,32 @@ La valeur de cellule peut être une chaîne ISO (`"2026-01-12"`, `"2026-01-12T08
 
 > **Changement de comportement** — avant la séparation des deux types, `type: 'date'` affichait un sélecteur de **plage**. Une colonne qui attendait ce comportement doit désormais déclarer `type: 'range'`. À l'inverse, `type: 'date'` devient ce que son nom annonce : un jour unique.
 
+**Nombre** (`type: 'number'`) : un champ texte (clavier décimal sur mobile) qui accepte une **expression** :
+
+| Saisie | Signification |
+|--------|---------------|
+| `150` ou `=150` | égal à 150 |
+| `!=0` | différent de 0 |
+| `>150`, `>=150`, `<20`, `<=20` | comparaisons |
+| `100..200` | entre 100 et 200, bornes incluses (`100..` ou `..200` pour une plage ouverte) |
+
+La virgule décimale est acceptée (`>12,5`). Une saisie qui n'est pas une expression numérique retombe sur une recherche texte « contient ».
+
+**Plage numérique** (`type: 'numberRange'`) : deux champs Min / Max, valeur sérialisée `"min..max"` (une borne peut rester vide) :
+
+```ts
+{id: 'montant', header: 'Montant', valueAccessor: (c) => c.montant, filter: {type: 'numberRange'}}
+```
+
+**Opérateur texte** : les filtres texte font un « contient » insensible à la casse. `operator` change ce comportement :
+
+```ts
+{id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference,
+ filter: {type: 'text', operator: 'startsWith'}}   // 'contains' (défaut) | 'equals' | 'startsWith' | 'endsWith'
+```
+
+**Enum multi-valeurs** : si l'utilisateur coche plusieurs options, une ligne correspond dès qu'elle vaut **l'une** d'elles (valeur sérialisée `"A,B"`).
+
 Sans `filter`, une colonne n'est simplement pas filtrable (pas d'icône, pas de menu).
 
 **Filtrage custom** — si le filtrage "contient/égalité" par défaut ne convient pas (ex. filtrer sur un total calculé, ou sur plusieurs champs à la fois), fournissez `filterPredicate` : il remplace entièrement la logique de filtrage de cette colonne (le `type`/`options` du `filter` restent utilisés pour l'UI, seule la logique de correspondance change) :
@@ -337,6 +363,30 @@ export class MontantMinFilterComponent {
 ```
 
 `componentInputs` passe des `@Input()` additionnels au composant custom (ici `step`).
+
+### Étape 6bis — Recherche globale
+
+Un champ « Rechercher… » en haut à gauche de la table, qui cherche dans toutes les colonnes visibles :
+
+```html
+<ng-table [globalSearchEnabled]="true" ... />
+```
+
+- Chaque mot saisi doit apparaître dans la ligne, pas forcément dans la même colonne. Par exemple, `dupont validée` trouve le client Dupont au statut Validée.
+- La casse et les accents sont ignorés : `elodie` trouve `Élodie`.
+- La saisie est debouncée comme les filtres texte (`[filterDebounceMs]`). Échap efface le champ.
+- La recherche se combine aux filtres de colonnes. Elle apparaît dans la barre des filtres actifs, et « Réinitialiser les filtres » l'efface aussi.
+- Elle est enregistrée dans les vues sauvegardées.
+
+Par défaut, la recherche porte sur la valeur de `valueAccessor`. `searchable` permet de changer ça, colonne par colonne :
+
+```ts
+{id: 'actions', header: '', valueAccessor: () => '', searchable: false},          // exclue
+{id: 'statut', header: 'Statut', valueAccessor: (c) => c.statut,                   // code brut "VALIDEE"...
+ searchable: (c) => STATUT_LABELS[c.statut]},                                      // ...mais on cherche le libellé affiché
+```
+
+En mode `remote`, rien n'est filtré côté client. Le texte saisi part dans `remoteQueryChange` (champ `search`), à vous de le transmettre au serveur. En mode contrôlé : `[globalSearch]` et `(globalSearchChange)`.
 
 ### Étape 7 — Barre de filtres actifs + reset
 
@@ -445,6 +495,23 @@ onCellCopied(event: NgTableCopyEvent<Commande>): void {
 ```ts
 readonly columnOrder = signal<string[]>(['reference', 'client', 'statut', 'montant', 'dateCommande']);
 ```
+
+### Étape 10bis — En-tête fixe, colonnes épinglées, densité
+
+Pour une longue liste sans pagination, limitez la hauteur et gardez l'en-tête visible :
+
+```html
+<ng-table [maxHeight]="'60vh'" [stickyHeader]="true" [density]="'compact'" ... />
+```
+
+Pour une table large, épinglez les colonnes clés : elles restent visibles pendant le défilement horizontal.
+
+```ts
+{id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference, pinned: 'left'},
+{id: 'actions', header: '', valueAccessor: () => '', cellTemplate: actionsTpl, pinned: 'right'},
+```
+
+Les colonnes épinglées sont regroupées à leur bord, quel que soit l'ordre choisi par l'utilisateur. Leur ordre relatif reste respecté. Si une colonne est épinglée à gauche, la case de sélection l'est aussi.
 
 ### Étape 11 — Visibilité des colonnes
 
@@ -728,15 +795,20 @@ onViewsStoreChange(store: NgTableViewsStore): void {
 }
 ```
 
-### Étape 18bis — Export (CSV local ou génération serveur)
+### Étape 18bis — Export (CSV / Excel local ou génération serveur)
 
 Un bouton "Exporter" dans la barre d'actions, avec deux modes au choix via `exportMode` :
 
-**Mode `local`** (défaut) — `ng-table` génère lui-même le CSV, aucune requête réseau :
+**Mode `local`** (défaut) — `ng-table` génère lui-même le fichier, aucune requête réseau :
 
 ```html
 <ng-table [exportEnabled]="true" [exportFilename]="'commandes'" ... />
+
+<!-- Excel (.xlsx) plutôt que CSV -->
+<ng-table [exportEnabled]="true" [exportFormat]="'xlsx'" [exportFilename]="'commandes'" ... />
 ```
+
+Le `.xlsx` est produit par la lib elle-même, **sans dépendance**. Les nombres et booléens restent typés, donc Excel peut les additionner et les trier. La ligne d'en-tête est en gras et figée. Une `Date` est exportée au format ISO (`2026-01-12`). Le CSV utilise `;` comme séparateur et un BOM UTF-8, pour qu'Excel en français l'ouvre correctement.
 
 Au clic, si les données locales tiennent sur plusieurs pages (`pageTrackingEnabled=true` avec plus d'une page), une boîte de dialogue demande la plage à exporter ("de la page 1 à la page X", X = le nombre total de pages après filtrage) ; sinon le fichier est généré immédiatement avec toutes les lignes filtrées/triées. Colonnes exportées : celles actuellement visibles, dans leur ordre courant.
 
@@ -765,7 +837,7 @@ onExportRequested(query: NgTableRemoteQuery): void {
 }
 ```
 
-`NgTableRemoteQuery` (`{sort, filters, page}`) reprend le tri/filtres/page courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
+`NgTableRemoteQuery` (`{sort, filters, page, search}`) reprend le tri/filtres/page/recherche globale courants — exactement ce qui alimente `remoteQueryChange`. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
 
 ### Étape 18ter — Indicateur de chargement
 
@@ -917,12 +989,15 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 | `copy?`                                    | `boolean \| {valueAccessor?, tooltip?}`                                | Bouton "copier" sur la cellule. `true` copie `valueAccessor(row)` ; l'objet permet un accessor/tooltip dédiés (`tooltip` = texte déjà résolu). |
 | `exportable?`                              | `boolean`                                                               | Exclut la colonne de l'export CSV si `false` (utile pour une colonne d'actions/boutons). `true` par défaut.                                    |
 | `exportValueAccessor?`                     | `(row: T) => string \| number \| boolean \| null \| undefined`         | Valeur exportée si différente de `valueAccessor` (ex. valeur brute plutôt que le rendu riche d'un `cellTemplate`).                              |
+| `searchable?`                              | `boolean \| (row: T) => string`                                        | Recherche globale : `false` exclut la colonne ; une fonction fournit le texte cherché. Défaut : la valeur de `valueAccessor`.                   |
+| `pinned?`                                  | `'left' \| 'right'`                                                    | Épingle la colonne au bord gauche/droit pendant le défilement horizontal. Les colonnes épinglées sont regroupées à leur bord, dans leur ordre courant. |
 
 ### `NgTableFilterConfig`
 
 ```ts
 interface NgTableFilterConfig {
-  type?: ColumnFilterType;   // 'text' | 'number' | 'date' (jour unique) | 'range' (période) | 'boolean' | 'enum' | 'search' | 'email' | ...
+  type?: ColumnFilterType;   // 'text' | 'number' | 'numberRange' | 'date' (jour unique) | 'range' (période) | 'boolean' | 'enum' | 'search' | 'email' | ...
+  operator?: NgTableTextOperator;  // filtres texte : 'contains' (défaut) | 'equals' | 'startsWith' | 'endsWith'
   options?: {value: string; label: string}[];   // options statiques (select) — label = texte déjà résolu
   optionsLoader?: () => Observable<...> | Promise<...>;  // options chargées à la demande
   placeholder?: string;
@@ -963,7 +1038,9 @@ interface NgTableFilterConfig {
 | `detailRowCanExpand`        | `(row) => boolean`                                               | `null`    | Garde optionnelle.                                                                                                   |
 | `showResetFilters`          | `boolean`                                                        | `true`    | Affiche le bouton "réinitialiser les filtres".                                                                       |
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
-| `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie dans un filtre **texte** (`0` = immédiat). Les filtres à choix fixe (select/enum/booléen/date) ne sont jamais debouncés. |
+| `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
+| `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
+| `globalSearch`              | `string \| null`                                                 | `null`    | Mode contrôlé de la recherche globale.                                                                               |
 | `rowSelectionEnabled`       | `boolean`                                                        | `false`   | Ajoute une colonne checkbox de sélection.                                                                            |
 | `selectedRowKeys`           | `ReadonlyArray<unknown> \| null`                                 | `null`    | Mode contrôlé de la sélection.                                                                                       |
 | `inlineFilters`             | `boolean`                                                        | `false`   | Filtres affichés directement dans l'en-tête (pas de menu).                                                           |
@@ -980,7 +1057,11 @@ interface NgTableFilterConfig {
 | `viewsStore`                | `NgTableViewsStore \| null`                                      | `null`    | Mode contrôlé : le parent possède le store des vues.                                                                 |
 | `exportEnabled`              | `boolean`                                                        | `false`   | Affiche le bouton d'export.                                                                                           |
 | `exportMode`                 | `'local' \| 'remote'`                                            | `'local'` | Voir "Export".                                                                                                        |
-| `exportFilename`             | `string`                                                         | `'export'`| Nom de fichier (sans extension) du CSV généré en mode `local`.                                                        |
+| `exportFilename`             | `string`                                                         | `'export'`| Nom de fichier (sans extension) du fichier généré en mode `local`.                                                    |
+| `exportFormat`               | `'csv' \| 'xlsx'`                                                | `'csv'`   | Format du fichier généré en mode `local`.                                                                             |
+| `density`                    | `'default' \| 'compact'`                                         | `'default'` | Hauteur des lignes et de l'en-tête.                                                                                 |
+| `maxHeight`                  | `string \| null`                                                 | `null`    | Hauteur maximale de la zone de la table (ex. `'480px'`, `'60vh'`) ; au-delà, défilement vertical.                    |
+| `stickyHeader`               | `boolean`                                                        | `false`   | Garde l'en-tête visible pendant le défilement (à combiner avec `maxHeight`).                                         |
 
 ### Outputs
 
@@ -988,6 +1069,7 @@ interface NgTableFilterConfig {
 |--------------------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `rowClick`               | `any`                                                                         | Clic sur une ligne de données.                                                                                                                                             |
 | `filtersChange`          | `Record<string, string>`                                                      | Tout changement de filtre.                                                                                                                                                 |
+| `globalSearchChange`     | `string`                                                                      | Recherche globale appliquée (après debounce ; `''` quand elle est effacée).                                                                                                |
 | `sortChange`             | `NgTableSortChange` (`{columnId, direction}`)                                 | Changement de tri.                                                                                                                                                         |
 | `cellCopied`             | `NgTableCopyEvent` (`{columnId, value, row}`)                                 | Après un clic sur le bouton copier.                                                                                                                                        |
 | `detailToggle`           | `NgTableDetailToggleEvent` (`{row, expanded, expandedKeys}`)                  | Ouverture/fermeture d'une ligne détail.                                                                                                                                    |
@@ -998,10 +1080,10 @@ interface NgTableFilterConfig {
 | `viewsStoreChange`       | `NgTableViewsStore`                                                           | Le store des vues a changé. En mode non contrôlé, miroir de ce qui vient d'être écrit en `localStorage` ; en mode contrôlé, **seul endroit** où le changement est notifié. |
 | `viewActivated`          | `NgTableView \| null`                                                         | Une vue devient active (changement manuel ou auto au chargement).                                                                                                          |
 | `viewPaginationRestore`  | `{pageIndex, pageSize}`                                                       | Émis quand la vue activée contient une pagination.                                                                                                                         |
-| `remoteQueryChange`      | `NgTableRemoteQuery` (`{sort, filters, page}`)                                | **Mode `remote`.** Émis à chaque changement de tri/filtre, état complet, prêt pour une requête serveur unique.                                                             |
+| `remoteQueryChange`      | `NgTableRemoteQuery` (`{sort, filters, page, search}`)                        | **Mode `remote`.** Émis à chaque changement de tri/filtre, état complet, prêt pour une requête serveur unique.                                                             |
 | `filteredCountChange`    | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Total après filtrage, pour `[length]` de votre paginator.                                                                   |
 | `pageIndexChange`        | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Émis avec `0` quand un filtre/tri doit remettre la page à zéro.                                                             |
-| `remoteExportRequested`  | `NgTableRemoteQuery` (`{sort, filters, page}`)                                | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
+| `remoteExportRequested`  | `NgTableRemoteQuery` (`{sort, filters, page, search}`)                        | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
 | `localExportCompleted`   | `NgTableLocalExportEvent` (`{fromPage, toPage, rowCount}`)                    | **`exportMode='local'`.** Émis après la génération et le téléchargement du CSV — informatif (toast, analytics...).                                                         |
 
 ## Personnaliser les textes (`NgTableLabels`)
@@ -1107,6 +1189,11 @@ export interface NgTableLabels {
   selectRow: string;            // aria-label d'une case de ligne — {index} = numéro de ligne (1-based)
   dragHandleLabel: string;      // aria-label de la poignée de réorganisation (glisser OU flèches gauche/droite)
   resizeHandleLabel: string;    // aria-label de la poignée de redimensionnement (glisser OU flèches gauche/droite)
+  numberMin: string;            // placeholder de la borne basse d'un filtre numberRange
+  numberMax: string;            // placeholder de la borne haute d'un filtre numberRange
+  globalSearchPlaceholder: string; // placeholder du champ de recherche globale
+  globalSearchLabel: string;    // nom accessible du champ, et libellé de sa pastille dans la barre des filtres actifs
+  clearGlobalSearch: string;    // bouton d'effacement de la recherche
 }
 ```
 
@@ -1405,6 +1492,19 @@ Le menu "Colonnes" imbriquait un `<mat-checkbox>` (lui-même interactif) dans un
 - **Performance** : en mode `local`, `displayedRows()` (filtre + tri) est recalculé à chaque changement de `rows`/`columns`/filtres/tri — pour de très gros volumes, préférez `dataMode='remote'`. Réordonner les colonnes (glisser-déposer ou flèches clavier) n'en fait **volontairement pas partie** : ça ne change ni les lignes filtrées ni leur tri, donc `displayedRows()` n'est pas recalculé — seul l'ordre d'affichage des colonnes change. Le coût restant (déplacer les cellules dans le DOM pour refléter le nouvel ordre) vient d'Angular CDK Table et grandit avec le nombre de lignes **rendues** ; pour une très grosse liste sans pagination, activer `pageTrackingEnabled` (ou passer en `dataMode='remote'` paginé) réduit ce nombre et rend le réordonnancement visiblement plus rapide.
 - **`rowKeyAccessor`** : recommandé dès que `rowSelectionEnabled`, `expandedRowKeys`, ou les vues sont utilisés sans `row.id` fiable et stable.
 - **Le jeu de filtres est construit par le composant** : `columnFilters` est toujours dérivé de `columns()` (une entrée par colonne filtrable, jamais tronqué) — aucun consommateur n'a besoin d'énumérer lui-même ses colonnes filtrables ; un backend générique peut transmettre `remoteQueryChange.filters`/`filtersChange` tel quel.
+
+## Développement
+
+Le repo est un workspace Angular : la lib est dans `projects/ng-table`, une application de démo dans `projects/demo`.
+
+| Commande | Rôle |
+|----------|------|
+| `npm start` | Lance la démo. Elle importe la lib depuis ses **sources** : une modification est visible immédiatement, sans rebuild. |
+| `npm test` / `npm run test:ci` | Tests unitaires (Vitest), en continu / une seule passe. |
+| `npm run lint` | Lint (angular-eslint). |
+| `npm run build` | Construit le paquet publiable dans `dist/ng-table` (README et LICENSE inclus). |
+
+Suivi des évolutions : `CHANGELOG.md` ; feuille de route : `ROADMAP.md`.
 
 ## Licence
 

@@ -144,6 +144,14 @@
   color: var(--app-muted, #4f6573);
 }
 
+/* Plage numérique : deux champs min/max côte à côte. */
+.number-range {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+}
+
 .field-shell {
   position: relative;
   display: flex;

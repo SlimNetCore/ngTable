@@ -63,6 +63,16 @@ export interface NgTableLabels {
   dragHandleLabel: string;
   /** `aria-label` de la poignée de redimensionnement d'une colonne (glisser ou flèches gauche/droite au clavier). */
   resizeHandleLabel: string;
+  /** Placeholder de la borne basse d'un filtre `numberRange`. */
+  numberMin: string;
+  /** Placeholder de la borne haute d'un filtre `numberRange`. */
+  numberMax: string;
+  /** Placeholder du champ de recherche globale. */
+  globalSearchPlaceholder: string;
+  /** Nom accessible du champ de recherche globale, et libellé de sa pastille dans la barre des filtres actifs. */
+  globalSearchLabel: string;
+  /** Bouton d'effacement de la recherche globale. */
+  clearGlobalSearch: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -105,6 +115,66 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   selectRow: 'Sélectionner la ligne {index}',
   dragHandleLabel: 'Réordonner la colonne : glisser-déposer, ou flèches gauche/droite au clavier',
   resizeHandleLabel: 'Redimensionner la colonne : glisser, ou flèches gauche/droite au clavier',
+  numberMin: 'Min',
+  numberMax: 'Max',
+  globalSearchPlaceholder: 'Rechercher…',
+  globalSearchLabel: 'Recherche',
+  clearGlobalSearch: 'Effacer la recherche',
+};
+
+/**
+ * Textes anglais prêts à l'emploi. Typé `NgTableLabels` (et non `Partial`) : le
+ * compilateur signale toute clé oubliée quand une nouvelle est ajoutée.
+ *
+ * ```ts
+ * provideNgTableLabels(() => NG_TABLE_LABELS_EN)
+ * ```
+ */
+export const NG_TABLE_LABELS_EN: NgTableLabels = {
+  columnsButton: 'Columns',
+  viewsButton: 'Views',
+  resetFiltersButton: 'Reset filters',
+  clearFilter: 'Clear filter',
+  activeFilters: 'Active filters',
+  filterBy: 'Filter by {field}',
+  refOptionsLoading: 'Loading options...',
+  refOptionsEmpty: 'No options loaded.',
+  refOptionsLoadError: 'Failed to load options.',
+  dateStart: 'Start date',
+  dateEnd: 'End date',
+  ok: 'OK',
+  cancel: 'Cancel',
+  all: 'All',
+  search: 'Search',
+  noData: 'No data',
+  sort: 'Sort',
+  sortAsc: 'Sorted ascending',
+  sortDesc: 'Sorted descending',
+  copy: 'Copy',
+  yes: 'Yes',
+  no: 'No',
+  viewNamePlaceholder: 'View name',
+  saveView: 'Save current view',
+  updateView: 'Update this view with the current display',
+  deleteView: 'Delete view',
+  noSavedViews: 'No saved views',
+  dragToReorder: 'Drag to reorder',
+  exportButton: 'Export',
+  exportDialogTitle: 'Export data',
+  exportFromPage: 'From page',
+  exportToPage: 'to page',
+  exportConfirm: 'Export',
+  loading: 'Loading',
+  tableLabel: 'Data table',
+  selectAllRows: 'Select all rows',
+  selectRow: 'Select row {index}',
+  dragHandleLabel: 'Reorder column: drag and drop, or left/right arrow keys',
+  resizeHandleLabel: 'Resize column: drag, or left/right arrow keys',
+  numberMin: 'Min',
+  numberMax: 'Max',
+  globalSearchPlaceholder: 'Search…',
+  globalSearchLabel: 'Search',
+  clearGlobalSearch: 'Clear search',
 };
 
 /**

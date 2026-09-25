@@ -35,9 +35,66 @@
 
 .list-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 16px 12px;
+}
+
+/* Recherche globale : à gauche, les boutons d'action restent alignés à droite. */
+.global-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 220px;
+  max-width: 360px;
+  margin-right: auto;
+  padding: 0 4px 0 10px;
+  height: 40px;
+  border: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border-radius: 999px;
+  background: var(--app-surface, #ffffff);
+}
+
+.global-search:focus-within {
+  border-color: var(--app-primary, #3a7ca5);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #3a7ca5) 20%, transparent);
+}
+
+.global-search__icon {
+  color: var(--app-muted, #4f6573);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.global-search__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+
+/* La croix native de `type="search"` ferait doublon avec notre bouton. */
+.global-search__input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.global-search__clear.mat-mdc-icon-button {
+  --mat-icon-button-state-layer-size: 32px;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+}
+
+.global-search__clear mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
 }
 
 /*
@@ -54,8 +111,38 @@
 }
 
 .table-wrap {
-  overflow-x: auto;
+  overflow: auto;
   border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+}
+
+/* Densité compacte : on passe par les tokens de Material plutôt que de forcer des
+   hauteurs, pour rester cohérent avec le reste du thème. */
+.ng-table.ngt-density-compact {
+  --mat-table-row-item-container-height: 36px;
+  --mat-table-header-container-height: 44px;
+}
+
+.ng-table.ngt-density-compact td.mat-mdc-cell {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* Cellules figées (en-tête sticky, colonnes épinglées) : fond opaque, sinon les
+   lignes qui défilent dessous restent visibles à travers. */
+.ng-table .mat-mdc-table-sticky {
+  background: var(--app-surface, #ffffff);
+}
+
+.ng-table .mat-mdc-table-sticky-border-elem-left {
+  box-shadow: 6px 0 8px -6px rgba(15, 23, 42, 0.18);
+}
+
+.ng-table .mat-mdc-table-sticky-border-elem-right {
+  box-shadow: -6px 0 8px -6px rgba(15, 23, 42, 0.18);
+}
+
+.ng-table .mat-mdc-table-sticky-border-elem-top {
+  box-shadow: 0 6px 8px -6px rgba(15, 23, 42, 0.18);
 }
 
 .table-viewport--loading {

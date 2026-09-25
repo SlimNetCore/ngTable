@@ -1,43 +1,41 @@
 {
-  "name": "@sbourahla/ng-table",
-  "version": "0.4.4",
-  "description": "Table Angular Material configurable : colonnes, tri, filtres, vues sauvegardées, modes local/remote. Sans dépendance i18n ni métier.",
-  "keywords": [
-    "angular",
-    "angular-material",
-    "table",
-    "data-table",
-    "datagrid",
-    "grid"
-  ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/SlimNetCore/ngTable.git"
-  },
-  "homepage": "https://github.com/SlimNetCore/ngTable#readme",
-  "bugs": {
-    "url": "https://github.com/SlimNetCore/ngTable/issues"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "peerDependencies": {
-    "@angular/common": "^22.0.0",
-    "@angular/core": "^22.0.0",
-    "@angular/material": "^22.0.0",
-    "rxjs": "^7.0.0"
+  "name": "ng-table-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Workspace de développement de @sbourahla/ng-table (le paquet publié est dans projects/ng-table).",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve demo",
+    "build": "ng build ng-table && node scripts/copy-package-files.mjs",
+    "build:demo": "ng build demo",
+    "watch": "ng build ng-table --watch --configuration development",
+    "test": "ng test ng-table",
+    "test:ci": "ng test ng-table --watch=false",
+    "lint": "ng lint"
   },
   "dependencies": {
+    "@angular/cdk": "^22.1.6",
+    "@angular/common": "^22.2.0",
+    "@angular/compiler": "^22.2.0",
+    "@angular/core": "^22.2.0",
+    "@angular/forms": "^22.2.0",
+    "@angular/material": "^22.1.6",
+    "@angular/platform-browser": "^22.2.0",
+    "@angular/router": "^22.2.0",
+    "rxjs": "^7.8.0",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/compiler-cli": "^22.1.5",
-    "ng-packagr": "^22.0.0",
-    "typescript": ">=6.0 <6.1"
-  },
-  "scripts": {
-    "build": "ng-packagr -p ng-package.json -c tsconfig.lib.prod.json"
-  },
-  "sideEffects": false
+    "@angular/build": "^22.2.0",
+    "@angular/cli": "^22.2.0",
+    "@angular/compiler-cli": "^22.2.0",
+    "@eslint/js": "^9.0.0",
+    "angular-eslint": "^22.0.0",
+    "eslint": "^9.0.0",
+    "jsdom": "^27.0.0",
+    "ng-packagr": "^22.2.0",
+    "typescript": ">=6.0 <6.1",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.0.0"
+  }
 }

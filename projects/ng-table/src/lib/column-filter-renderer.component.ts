@@ -24,7 +24,14 @@ export type ColumnFilterType =
   | 'password'
   | 'tel'
   | 'url'
+  /**
+   * Nombre, saisie libre avec opérateurs : `42`, `>100`, `<=50`, `!=0`, `10..50`.
+   * Rendu en champ texte (`inputmode="decimal"`) : un `type="number"` natif
+   * refuserait les caractères `>`, `<`, `=` et `..`.
+   */
   | 'number'
+  /** Plage numérique : deux champs min/max, valeur sérialisée `"min..max"` (bornes incluses, une borne peut être vide). */
+  | 'numberRange'
   /** Date simple : un seul jour, valeur sérialisée `"YYYY-MM-DD"`. */
   | 'date'
   /** Période : deux bornes, valeur sérialisée `"YYYY-MM-DD..YYYY-MM-DD"` (bornes incluses, une borne peut être vide). */
@@ -80,7 +87,7 @@ export class ColumnFilterRendererComponent {
   /** Textes affichés par le composant, hérités de `NgTableComponent`. */
   readonly labels = input<NgTableLabels>(NG_TABLE_DEFAULT_LABELS);
   /** Options pour les types enum/boolean. */
-  readonly options = input<Array<{ value: string; label: string }>>([]);
+  readonly options = input<{ value: string; label: string }[]>([]);
   /** Emet la nouvelle valeur serialisee vers le parent. */
   readonly valueChange = output<string>();
   /** Demande au parent d'effacer le filtre. */
@@ -117,11 +124,28 @@ export class ColumnFilterRendererComponent {
 
   inputType(): string {
     const type = this.type();
-    if (this.isNativeInputType(type)) {
+    // `number` accepte des opérateurs (`>100`, `10..50`) qu'un `type="number"` refuserait.
+    if (this.isNativeInputType(type) && type !== 'number') {
       return type;
     }
 
     return 'text';
+  }
+
+  /** Clavier numérique sur mobile pour `number`, sans les restrictions de `type="number"`. */
+  inputMode(): string | null {
+    return this.type() === 'number' ? 'decimal' : null;
+  }
+
+  /** Bornes courantes d'un filtre `numberRange` (`"min..max"`). */
+  numberRangeBounds(): { min: string; max: string } {
+    const [min = '', max = ''] = (this.value() ?? '').split('..', 2);
+    return {min: min.trim(), max: max.trim()};
+  }
+
+  onNumberRangeInput(bound: 'min' | 'max', value: string): void {
+    const bounds = {...this.numberRangeBounds(), [bound]: value.trim()};
+    this.valueChange.emit(bounds.min || bounds.max ? `${bounds.min}..${bounds.max}` : '');
   }
 
   isActive(): boolean {
@@ -197,7 +221,7 @@ export class ColumnFilterRendererComponent {
     });
   }
 
-  booleanOptions(): Array<{ value: string; label: string }> {
+  booleanOptions(): { value: string; label: string }[] {
     const labels = this.labels();
     return [
       {value: 'true', label: labels.yes},
@@ -259,6 +283,7 @@ export class ColumnFilterRendererComponent {
     return (
       !this.isDateRangeType(type) &&
       !this.isSingleDateType(type) &&
+      type !== 'numberRange' &&
       type !== 'boolean' &&
       type !== 'enum'
     );

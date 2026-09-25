@@ -13,9 +13,9 @@ import {
   ViewContainerRef,
 } from '@angular/core';
 
-type SubscribableOutput<T> = {
+interface SubscribableOutput<T> {
   subscribe: (callback: (value: T) => void) => { unsubscribe: () => void } | void;
-};
+}
 
 /** Usage interne uniquement — non exporté par `public-api.ts`. */
 @Component({
@@ -37,7 +37,7 @@ export class DynamicFilterHostComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   private componentRef: ComponentRef<unknown> | null = null;
-  private readonly outputSubscriptions: Array<{ unsubscribe: () => void }> = [];
+  private readonly outputSubscriptions: { unsubscribe: () => void }[] = [];
 
   constructor() {
     effect(() => {

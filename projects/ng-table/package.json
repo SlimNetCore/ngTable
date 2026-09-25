@@ -1,0 +1,42 @@
+{
+  "name": "@sbourahla/ng-table",
+  "version": "0.4.4",
+  "description": "Table Angular Material configurable : colonnes, tri, filtres, vues sauvegardées, modes local/remote. Sans dépendance i18n ni métier.",
+  "keywords": [
+    "angular",
+    "angular-material",
+    "table",
+    "data-table",
+    "datagrid",
+    "grid"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SlimNetCore/ngTable.git"
+  },
+  "homepage": "https://github.com/SlimNetCore/ngTable#readme",
+  "bugs": {
+    "url": "https://github.com/SlimNetCore/ngTable/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@angular/cdk": "^22.0.0",
+    "@angular/common": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/material": "^22.0.0",
+    "@angular/router": "^22.0.0",
+    "rxjs": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@angular/router": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}

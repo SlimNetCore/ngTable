@@ -1,2 +1,14 @@
 node_modules/
 dist/
+out-tsc/
+.angular/
+coverage/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*

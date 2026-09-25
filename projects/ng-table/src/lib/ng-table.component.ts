@@ -29,6 +29,21 @@ import {debounce, groupBy, mergeMap} from 'rxjs/operators';
 import {ColumnFilterRendererComponent, ColumnFilterType} from './column-filter-renderer.component';
 import {DynamicFilterHostComponent} from './dynamic-filter-host.component';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
+import {emptyViewsStore, parseViewsStore, serializeViewsStore} from './views-storage';
+import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
+import {
+  formatRangeValue,
+  matchesBoolean,
+  matchesDate,
+  matchesNumberExpression,
+  matchesNumberRange,
+  matchesSearchTerms,
+  matchesText,
+  NgTableTextOperator,
+  normalizeSearchText,
+  searchTerms,
+  toIsoDay,
+} from './filter-matching';
 import {
   NG_TABLE_DEFAULT_LABELS,
   NG_TABLE_LABELS,
@@ -38,6 +53,27 @@ import {
 } from './ng-table-labels';
 
 export type SortDirection = 'asc' | 'desc' | '';
+
+function toExportCell(value: unknown): ExportCell {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return typeof value === 'number' || typeof value === 'boolean' ? value : String(value);
+}
+
+/** Clé de la recherche globale dans le flux debouncé des saisies et dans la barre des filtres actifs. */
+const GLOBAL_SEARCH_KEY = '__global_search__';
+
+/** Filtres à choix discret : appliqués immédiatement, jamais debouncés. */
+const DISCRETE_FILTER_TYPES: ReadonlySet<ColumnFilterType> = new Set<ColumnFilterType>([
+  'enum',
+  'boolean',
+  'date',
+  'range',
+]);
 
 /**
  * `local`: tri/filtrage appliqués côté client sur `rows()` (défaut, adapté aux
@@ -53,6 +89,8 @@ export interface NgTableRemoteQuery {
   sort: NgTableSortChange;
   filters: Record<string, string>;
   page: { index: number; size: number };
+  /** Recherche globale saisie (`''` si aucune). Toujours renseignée par le composant. */
+  search?: string;
 }
 
 /**
@@ -73,7 +111,7 @@ export interface NgTableLocalExportEvent {
   rowCount: number;
 }
 
-export type NgTableFilterOption = { value: string; label: string };
+export interface NgTableFilterOption { value: string; label: string }
 
 /**
  * Configuration de filtrage d'une colonne.
@@ -87,6 +125,11 @@ export type NgTableFilterOption = { value: string; label: string };
  */
 export interface NgTableFilterConfig {
   type?: ColumnFilterType;
+  /**
+   * Types texte uniquement : comment la saisie est comparée à la cellule
+   * (insensible à la casse). `contains` par défaut.
+   */
+  operator?: NgTableTextOperator;
   options?: NgTableFilterOption[];
   optionsLoader?: () => Observable<NgTableFilterOption[]> | Promise<NgTableFilterOption[]>;
   placeholder?: string;
@@ -123,6 +166,19 @@ export interface NgTableColumn<T> {
   filter?: NgTableFilterConfig;
   filterPredicate?: (row: T, filterValue: string) => boolean;
   mobileRowActions?: boolean;
+  /**
+   * Épingle la colonne à gauche ou à droite : elle reste visible pendant le
+   * défilement horizontal. Les colonnes épinglées sont toujours regroupées aux
+   * bords (à gauche puis à droite), quel que soit l'ordre choisi par glisser-déposer.
+   */
+  pinned?: 'left' | 'right';
+  /**
+   * Participation à la recherche globale (`[globalSearchEnabled]`). Par défaut, la
+   * valeur de `valueAccessor` est cherchée. `false` exclut la colonne ; une fonction
+   * fournit le texte à chercher (ex. le libellé affiché par un `cellTemplate`
+   * plutôt que le code brut).
+   */
+  searchable?: boolean | ((row: T) => string);
   copy?:
     | boolean
     | {
@@ -176,6 +232,8 @@ export interface NgTableViewState {
    * elles restaurent alors simplement les largeurs par défaut des colonnes.
    */
   columnWidths?: Record<string, number>;
+  /** Recherche globale. Absente des vues enregistrées avant son ajout (= pas de recherche). */
+  search?: string;
   /** Only populated when `pageTrackingEnabled=true` (reuses `[pageIndex]`/`[pageSize]`). */
   pageIndex?: number;
   pageSize?: number;
@@ -250,7 +308,7 @@ export class NgTableComponent implements OnDestroy {
   /** Mode controle: visibilite des colonnes pilotee par le parent. */
   readonly columnVisibility = input<Record<string, boolean> | null>(null);
   /** Mode controle: ordre des colonnes (ids) pilote par le parent. */
-  readonly columnOrder = input<ReadonlyArray<string> | null>(null);
+  readonly columnOrder = input<readonly string[] | null>(null);
   /** Mode controle: filtres pilotes par le parent. */
   readonly filters = input<Record<string, string> | null>(null);
   /**
@@ -268,6 +326,18 @@ export class NgTableComponent implements OnDestroy {
   readonly ariaLabel = input<string | null>(null);
   /** Message affiché quand `rows()` est vide (ou vide après filtrage en mode local). */
   readonly emptyLabel = input<string | null>(null);
+  /** Densité des lignes : `compact` réduit la hauteur des lignes et de l'en-tête. */
+  readonly density = input<'default' | 'compact'>('default');
+  /**
+   * Hauteur maximale de la zone des lignes (toute valeur CSS : `'600px'`, `'70vh'`) ;
+   * au-delà, le défilement vertical se fait À L'INTÉRIEUR de la table.
+   */
+  readonly maxHeight = input<string | null>(null);
+  /**
+   * Garde l'en-tête visible pendant le défilement vertical. N'a d'effet qu'avec
+   * `[maxHeight]` : sans hauteur limitée, c'est la page qui défile, pas la table.
+   */
+  readonly stickyHeader = input(false);
   /**
    * Affiche un overlay de chargement centré au milieu de la table (bloque
    * l'interaction avec les lignes tant qu'il est visible). A piloter depuis le
@@ -301,7 +371,7 @@ export class NgTableComponent implements OnDestroy {
    * Controlled mode (key based): externally managed list of expanded row keys.
    * Keys are resolved with `rowKeyAccessor` / `rowTrackBy` / `row.id`.
    */
-  readonly expandedRowKeys = input<ReadonlyArray<unknown> | null>(null);
+  readonly expandedRowKeys = input<readonly unknown[] | null>(null);
   /** Uncontrolled mode: toggle the detail row when the data row is clicked. */
   readonly detailRowToggleOnRowClick = input(true);
   /** Uncontrolled mode: only one detail row expanded at a time. */
@@ -321,14 +391,22 @@ export class NgTableComponent implements OnDestroy {
    * (select/enum/booléen/date) ne sont jamais debouncés.
    */
   readonly filterDebounceMs = input(350);
+  /**
+   * Affiche un champ de recherche globale dans la barre d'actions : une ligne est
+   * gardée si chaque mot saisi apparaît dans l'une de ses colonnes visibles
+   * (casse et accents ignorés). Voir `NgTableColumn.searchable`.
+   */
+  readonly globalSearchEnabled = input(false);
+  /** Mode contrôlé de la recherche globale ; `null` = non contrôlé. */
+  readonly globalSearch = input<string | null>(null);
   /** Show a leading checkbox column to select one or many rows. */
   readonly rowSelectionEnabled = input(false);
   /** Controlled mode (key based): externally managed selected row keys. */
-  readonly selectedRowKeys = input<ReadonlyArray<unknown> | null>(null);
+  readonly selectedRowKeys = input<readonly unknown[] | null>(null);
   /** Render column filters inline inside the header cell (no filter icon/menu). */
   readonly inlineFilters = input(false);
   /** Optional list of column ids allowed to render inline filters (when inlineFilters=true). */
-  readonly inlineFilterColumnIds = input<ReadonlyArray<string> | null>(null);
+  readonly inlineFilterColumnIds = input<readonly string[] | null>(null);
   /** Show a summary bar of the active filters below the list. */
   readonly showActiveFiltersBar = input(false);
   /** Enable right-click contextual menu on data rows. */
@@ -387,10 +465,18 @@ export class NgTableComponent implements OnDestroy {
   readonly exportMode = input<NgTableExportMode>('local');
   /** Base filename (without extension) used for the file generated in `exportMode='local'`. */
   readonly exportFilename = input('export');
+  /**
+   * Format du fichier généré en `exportMode='local'`. `xlsx` garde les nombres et
+   * booléens typés (sommables dans Excel) et fige la ligne d'en-têtes ; `csv` reste
+   * le défaut (séparateur `;`, UTF-8 avec BOM).
+   */
+  readonly exportFormat = input<NgTableExportFormat>('csv');
 
   readonly rowClick = output<any>();
   /** Emitted whenever any filter value changes. */
   readonly filtersChange = output<Record<string, string>>();
+  /** Recherche globale appliquée (après debounce). */
+  readonly globalSearchChange = output<string>();
   readonly sortChange = output<NgTableSortChange>();
   readonly cellCopied = output<NgTableCopyEvent>();
   readonly detailToggle = output<NgTableDetailToggleEvent>();
@@ -487,17 +573,32 @@ export class NgTableComponent implements OnDestroy {
   readonly visibleColumns = computed(() => {
     const filtered = this.visibleColumnsUnordered();
     const order = this.effectiveColumnOrder();
-    if (order.length === 0) {
-      return filtered;
+    let ordered = filtered;
+    if (order.length > 0) {
+      const orderIndex = new Map(order.map((id, index) => [id, index]));
+      ordered = [...filtered].sort((a, b) => {
+        const indexA = orderIndex.has(a.id) ? orderIndex.get(a.id)! : Number.MAX_SAFE_INTEGER;
+        const indexB = orderIndex.has(b.id) ? orderIndex.get(b.id)! : Number.MAX_SAFE_INTEGER;
+        return indexA - indexB;
+      });
     }
 
-    const orderIndex = new Map(order.map((id, index) => [id, index]));
-    return [...filtered].sort((a, b) => {
-      const indexA = orderIndex.has(a.id) ? orderIndex.get(a.id)! : Number.MAX_SAFE_INTEGER;
-      const indexB = orderIndex.has(b.id) ? orderIndex.get(b.id)! : Number.MAX_SAFE_INTEGER;
-      return indexA - indexB;
-    });
+    // Les colonnes épinglées doivent être contiguës aux bords : le CDK calcule le
+    // décalage d'une colonne `sticky` en cumulant les largeurs des colonnes
+    // `sticky` qui la PRÉCÈDENT — une colonne libre intercalée la ferait coller
+    // à la mauvaise position.
+    if (!ordered.some((column) => column.pinned)) {
+      return ordered;
+    }
+    return [
+      ...ordered.filter((column) => column.pinned === 'left'),
+      ...ordered.filter((column) => !column.pinned),
+      ...ordered.filter((column) => column.pinned === 'right'),
+    ];
   });
+
+  /** La colonne de sélection suit les colonnes épinglées à gauche, sinon elles glisseraient dessous. */
+  readonly hasLeftPinnedColumns = computed(() => this.visibleColumns().some((column) => column.pinned === 'left'));
   readonly actionColumn = computed(() =>
     this.visibleColumns().find((column) => column.mobileRowActions) ?? null,
   );
@@ -509,10 +610,18 @@ export class NgTableComponent implements OnDestroy {
   protected readonly internalSelectedKeys = signal<ReadonlySet<unknown>>(new Set());
   protected readonly contextMenuRow = signal<any | null>(null);
   protected readonly columnFilters = signal<Record<string, string>>({});
+  /** Recherche globale appliquée (après debounce). */
+  protected readonly globalSearchTerm = signal('');
+  /** Texte du champ de recherche, à jour à chaque frappe (le debounce ne porte que sur l'application). */
+  protected readonly globalSearchDraft = signal('');
   /** Summary of currently active filters (for the bottom bar). */
-  readonly activeFilterSummaries = computed<Array<{ columnId: string; label: string; value: string }>>(() => {
+  readonly activeFilterSummaries = computed<{ columnId: string; label: string; value: string }[]>(() => {
     const filters = this.columnFilters();
-    const summaries: Array<{ columnId: string; label: string; value: string }> = [];
+    const summaries: { columnId: string; label: string; value: string }[] = [];
+    const search = this.globalSearchTerm().trim();
+    if (search) {
+      summaries.push({columnId: GLOBAL_SEARCH_KEY, label: this.effectiveLabels().globalSearchLabel, value: search});
+    }
     for (const column of this.columns()) {
       const rawValue = (filters[column.id] ?? '').trim();
       if (!rawValue) {
@@ -574,8 +683,14 @@ export class NgTableComponent implements OnDestroy {
     const activeColumns = this.visibleColumnsUnordered();
     const filters = this.columnFilters();
     const sort = this.sortState();
+    const terms = searchTerms(this.globalSearchTerm());
+    const haystacks = terms.length > 0 ? this.searchHaystacks() : null;
 
-    let nextRows = sourceRows.filter((row) => this.matchesAllFilters(row, activeColumns, filters));
+    let nextRows = sourceRows.filter(
+      (row) =>
+        this.matchesAllFilters(row, activeColumns, filters) &&
+        (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms)),
+    );
     if (!sort.columnId || !sort.direction) {
       return nextRows;
     }
@@ -593,6 +708,20 @@ export class NgTableComponent implements OnDestroy {
     });
 
     return nextRows;
+  });
+
+  private readonly searchableColumns = computed(() =>
+    this.visibleColumnsUnordered().filter((column) => column.searchable !== false),
+  );
+
+  /**
+   * Texte normalisé de chaque ligne pour la recherche globale : calculé une fois par
+   * ligne, puis réutilisé à chaque nouvelle saisie (seule la comparaison est refaite).
+   * Le cache est recréé quand les lignes ou les colonnes cherchables changent.
+   */
+  private readonly searchHaystacks = computed(() => {
+    this.rows();
+    return {columns: this.searchableColumns(), cache: new WeakMap<object, string>()};
   });
   readonly displayedRows = computed(() => {
     if (this.dataMode() === 'remote') {
@@ -685,8 +814,21 @@ export class NgTableComponent implements OnDestroy {
         if (entry.epoch !== this.filterEpoch(entry.columnId)) {
           return; // superseded by a clear/reset that happened while this keystroke was debouncing
         }
+        if (entry.columnId === GLOBAL_SEARCH_KEY) {
+          this.commitGlobalSearch(entry.value);
+          return;
+        }
         this.commitFilterValue(entry.columnId, entry.value);
       });
+
+    effect(() => {
+      const external = this.globalSearch();
+      if (external === null) {
+        return;
+      }
+      this.globalSearchTerm.set(external);
+      this.globalSearchDraft.set(external);
+    });
 
     effect(() => {
       const externalFilters = this.filters();
@@ -782,7 +924,7 @@ export class NgTableComponent implements OnDestroy {
     });
 
     effect(() => {
-      this.displayedRows().length;
+      this.displayedRows(); // dépendance seule : repositionner le menu de filtre ouvert
       this.requestFilterPositionUpdate();
     });
 
@@ -886,18 +1028,71 @@ export class NgTableComponent implements OnDestroy {
   }
 
   clearFilter(columnId: string): void {
+    if (columnId === GLOBAL_SEARCH_KEY) {
+      this.clearGlobalSearch(); // pastille « Recherche » de la barre des filtres actifs
+      return;
+    }
     this.bumpFilterEpoch(columnId); // supersede any debounced keystroke still in flight for this column
     this.commitFilterValue(columnId, '');
   }
 
+  /** Réinitialise les filtres de colonnes ET la recherche globale, en une seule requête en mode `remote`. */
   clearAllFilters(): void {
     for (const column of this.columns()) {
       this.bumpFilterEpoch(column.id);
+    }
+    this.bumpFilterEpoch(GLOBAL_SEARCH_KEY);
+    this.globalSearchDraft.set('');
+    if (this.globalSearchTerm()) {
+      this.globalSearchTerm.set('');
+      this.globalSearchChange.emit('');
     }
     const next: Record<string, string> = {};
     this.columnFilters.set(next);
     this.filtersChange.emit(next);
     this.onQueryStateChanged();
+  }
+
+  /** Saisie dans le champ de recherche globale : debouncée comme un filtre texte. */
+  onGlobalSearchInput(value: string): void {
+    this.globalSearchDraft.set(value);
+    this.filterInputSubject.next({columnId: GLOBAL_SEARCH_KEY, value, epoch: this.filterEpoch(GLOBAL_SEARCH_KEY)});
+  }
+
+  clearGlobalSearch(): void {
+    this.bumpFilterEpoch(GLOBAL_SEARCH_KEY);
+    this.globalSearchDraft.set('');
+    this.commitGlobalSearch('');
+  }
+
+  private commitGlobalSearch(value: string): void {
+    if (value === this.globalSearchTerm()) {
+      return;
+    }
+    this.globalSearchTerm.set(value);
+    this.globalSearchChange.emit(value);
+    this.onQueryStateChanged();
+  }
+
+  private searchHaystack(
+    row: any,
+    haystacks: { columns: NgTableColumn<any>[]; cache: WeakMap<object, string> },
+  ): string {
+    const cacheable = typeof row === 'object' && row !== null;
+    const cached = cacheable ? haystacks.cache.get(row) : undefined;
+    if (cached !== undefined) {
+      return cached;
+    }
+    const text = haystacks.columns
+      .map((column) => {
+        const value = typeof column.searchable === 'function' ? column.searchable(row) : column.valueAccessor(row);
+        return normalizeSearchText(value instanceof Date ? toIsoDay(value) : value);
+      })
+      .join('\n');
+    if (cacheable) {
+      haystacks.cache.set(row, text);
+    }
+    return text;
   }
 
   /**
@@ -967,6 +1162,7 @@ export class NgTableComponent implements OnDestroy {
       sort: {...this.sortState()},
       filters: {...this.columnFilters()},
       columnWidths: {...this.columnWidths()},
+      ...(this.globalSearchTerm() ? {search: this.globalSearchTerm()} : {}),
       ...(this.pageTrackingEnabled() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
     };
   }
@@ -1336,51 +1532,46 @@ export class NgTableComponent implements OnDestroy {
     return this.isDetailExpanded(0, row);
   }
 
-  isRowSelected(row: any): boolean {
-    if (!this.rowSelectionEnabled()) {
-      return false;
-    }
-    const key = this.rowKey(row);
+  /**
+   * Clés sélectionnées sous forme de `Set`, mémoïsé : `isRowSelected()` est appelé
+   * pour chaque ligne à chaque rendu. Avant, le mode contrôlé faisait un
+   * `Array.includes` (O(n)) par ligne, et chaque appel à `resolveSelectedKeysSet()`
+   * recréait un `Set` complet.
+   */
+  private readonly selectedKeysSet = computed<ReadonlySet<unknown>>(() => {
     const external = this.selectedRowKeys();
-    if (external) {
-      return external.includes(key);
-    }
-    return this.internalSelectedKeys().has(key);
+    return external ? new Set(external) : this.internalSelectedKeys();
+  });
+
+  isRowSelected(row: any): boolean {
+    return this.rowSelectionEnabled() && this.selectedKeysSet().has(this.rowKey(row));
   }
 
-  selectedRowsCount(): number {
-    return this.resolveSelectedKeysSet().size;
-  }
+  readonly selectedRowsCount = computed(() => this.selectedKeysSet().size);
 
-  areAllDisplayedRowsSelected(): boolean {
+  /** Nombre de lignes affichées sélectionnées — base commune de l'état de la case « tout sélectionner ». */
+  private readonly selectedDisplayedCount = computed(() => {
     if (!this.rowSelectionEnabled()) {
-      return false;
+      return 0;
     }
-    const rows = this.displayedRows();
-    if (rows.length === 0) {
-      return false;
-    }
-    const selected = this.resolveSelectedKeysSet();
-    return rows.every((row) => selected.has(this.rowKey(row)));
-  }
+    const selected = this.selectedKeysSet();
+    return this.displayedRows().reduce((count, row) => count + (selected.has(this.rowKey(row)) ? 1 : 0), 0);
+  });
 
-  hasPartiallySelectedDisplayedRows(): boolean {
-    if (!this.rowSelectionEnabled()) {
-      return false;
-    }
-    const rows = this.displayedRows();
-    if (rows.length === 0) {
-      return false;
-    }
-    const selected = this.resolveSelectedKeysSet();
-    const selectedCount = rows.reduce((count, row) => count + (selected.has(this.rowKey(row)) ? 1 : 0), 0);
-    return selectedCount > 0 && selectedCount < rows.length;
-  }
+  readonly areAllDisplayedRowsSelected = computed(() => {
+    const total = this.displayedRows().length;
+    return this.rowSelectionEnabled() && total > 0 && this.selectedDisplayedCount() === total;
+  });
+
+  readonly hasPartiallySelectedDisplayedRows = computed(() => {
+    const count = this.selectedDisplayedCount();
+    return count > 0 && count < this.displayedRows().length;
+  });
 
   onToggleRowSelection(event: MatCheckboxChange, row: any): void {
     const checked = !!event.checked;
     const key = this.rowKey(row);
-    const selected = new Set(this.resolveSelectedKeysSet());
+    const selected = new Set(this.selectedKeysSet());
     if (checked) {
       selected.add(key);
     } else {
@@ -1391,7 +1582,7 @@ export class NgTableComponent implements OnDestroy {
 
   onToggleAllDisplayedRows(event: MatCheckboxChange): void {
     const checked = !!event.checked;
-    const selected = new Set(this.resolveSelectedKeysSet());
+    const selected = new Set(this.selectedKeysSet());
     const rows = this.displayedRows();
     for (const row of rows) {
       const key = this.rowKey(row);
@@ -1440,11 +1631,7 @@ export class NgTableComponent implements OnDestroy {
    */
   openExportDialog(): void {
     if (this.exportMode() === 'remote') {
-      this.remoteExportRequested.emit({
-        sort: this.sortState(),
-        filters: this.columnFilters(),
-        page: {index: this.pageIndex(), size: this.pageTrackingEnabled() ? this.pageSize() : 0},
-      });
+      this.remoteExportRequested.emit(this.buildRemoteQuery(this.pageIndex(), this.pageSize()));
       return;
     }
 
@@ -1470,49 +1657,29 @@ export class NgTableComponent implements OnDestroy {
     const size = this.pageTrackingEnabled() && this.pageSize() > 0 ? this.pageSize() : allRows.length || 1;
     const rows = this.pageTrackingEnabled() ? allRows.slice((fromPage - 1) * size, toPage * size) : allRows;
 
-    this.downloadCsv(this.buildExportCsv(rows), `${this.exportFilename()}.csv`);
+    const matrix = this.buildExportMatrix(rows);
+    const filename = this.exportFilename();
+    if (this.exportFormat() === 'xlsx') {
+      downloadFile(toXlsx(matrix) as BlobPart, `${filename}.xlsx`, XLSX_MIME);
+    } else {
+      // BOM UTF-8 : sans lui, Excel interprète le CSV en Latin-1 et corrompt les accents.
+      downloadFile('﻿' + toCsv(matrix), `${filename}.csv`, 'text/csv;charset=utf-8;');
+    }
     this.localExportCompleted.emit({fromPage, toPage, rowCount: rows.length});
   }
 
-  private buildExportCsv(rows: readonly any[]): string {
+  /** En-têtes puis une ligne par enregistrement ; valeurs typées (le CSV les convertit en texte). */
+  private buildExportMatrix(rows: readonly any[]): ExportCell[][] {
     const exportColumns = this.visibleColumns().filter((column) => column.exportable !== false);
-    const lines = [exportColumns.map((column) => this.csvEscape(column.header)).join(';')];
-
+    const matrix: ExportCell[][] = [exportColumns.map((column) => column.header)];
     for (const row of rows) {
-      const cells = exportColumns.map((column) => {
-        const raw = column.exportValueAccessor ? column.exportValueAccessor(row) : column.valueAccessor(row);
-        return this.csvEscape(this.formatExportValue(raw));
-      });
-      lines.push(cells.join(';'));
+      matrix.push(
+        exportColumns.map((column) =>
+          toExportCell(column.exportValueAccessor ? column.exportValueAccessor(row) : column.valueAccessor(row)),
+        ),
+      );
     }
-
-    return lines.join('\r\n');
-  }
-
-  private formatExportValue(value: unknown): string {
-    if (value === null || value === undefined) {
-      return '';
-    }
-    return value instanceof Date ? value.toISOString() : String(value);
-  }
-
-  /** Quotes a CSV field only when needed (separator, quote or newline present). */
-  private csvEscape(value: string): string {
-    return /[";\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-  }
-
-  private downloadCsv(content: string, filename: string): void {
-    if (typeof document === 'undefined') {
-      return;
-    }
-    // BOM UTF-8 : sans lui, Excel interprète le CSV en Latin-1 et corrompt les accents.
-    const blob = new Blob(['﻿' + content], {type: 'text/csv;charset=utf-8;'});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+    return matrix;
   }
 
   /** Reorders columns after a header drag-and-drop. Disabled on mobile (columns are already collapsed there). */
@@ -1859,9 +2026,15 @@ export class NgTableComponent implements OnDestroy {
     return Math.max(1, this.displayedColumnIds().length || 1);
   }
 
+  /**
+   * Saisie libre (clavier) = debouncée ; choix discret (select, booléen, date
+   * choisie au calendrier) = appliqué tout de suite. Avant, seul `text` était
+   * debouncé : un filtre `number` ou `search` refiltrait à chaque touche.
+   */
   private isFreeTypedFilter(columnId: string): boolean {
     const column = this.columns().find((c) => c.id === columnId);
-    return (column?.filter?.type ?? 'text') === 'text';
+    const type = column?.filter?.type ?? 'text';
+    return !DISCRETE_FILTER_TYPES.has(type);
   }
 
   private filterEpoch(columnId: string): number {
@@ -1887,16 +2060,22 @@ export class NgTableComponent implements OnDestroy {
    */
   private onQueryStateChanged(): void {
     if (this.dataMode() === 'remote') {
-      this.remoteQueryChange.emit({
-        sort: this.sortState(),
-        filters: this.columnFilters(),
-        page: {index: 0, size: this.pageTrackingEnabled() ? this.pageSize() : 0},
-      });
+      this.remoteQueryChange.emit(this.buildRemoteQuery(0, this.pageSize()));
       return;
     }
     if (this.pageTrackingEnabled() && this.pageIndex() !== 0) {
       this.pageIndexChange.emit(0);
     }
+  }
+
+  /** `page.size` vaut `0` quand la pagination n'est pas suivie (= tout). */
+  private buildRemoteQuery(pageIndex: number, pageSize: number): NgTableRemoteQuery {
+    return {
+      sort: this.sortState(),
+      filters: this.columnFilters(),
+      page: {index: pageIndex, size: this.pageTrackingEnabled() ? pageSize : 0},
+      search: this.globalSearchTerm(),
+    };
   }
 
   /** Uncontrolled mode = no external predicate nor external keys provided. */
@@ -1965,6 +2144,14 @@ export class NgTableComponent implements OnDestroy {
     }
     this.filtersChange.emit(this.columnFilters());
 
+    const search = state.search ?? '';
+    this.bumpFilterEpoch(GLOBAL_SEARCH_KEY);
+    this.globalSearchDraft.set(search);
+    if (search !== this.globalSearchTerm()) {
+      this.globalSearchTerm.set(search);
+      this.globalSearchChange.emit(search);
+    }
+
     // `onQueryStateChanged()` remettrait la page à 0 (comportement normal pour un
     // simple changement de filtre) — mais ici la vue a potentiellement sa PROPRE
     // page à restaurer. L'appeler quand même, puis corriger juste après avec
@@ -1977,8 +2164,7 @@ export class NgTableComponent implements OnDestroy {
       this.onQueryStateChanged();
     } else if (this.dataMode() === 'remote') {
       this.remoteQueryChange.emit({
-        sort: this.sortState(),
-        filters: this.columnFilters(),
+        ...this.buildRemoteQuery(state.pageIndex!, state.pageSize!),
         page: {index: state.pageIndex!, size: state.pageSize!},
       });
     }
@@ -2000,24 +2186,22 @@ export class NgTableComponent implements OnDestroy {
   }
 
   private loadViewsStoreFromLocalStorage(key: string): NgTableViewsStore {
-    try {
-      const raw = localStorage.getItem(this.viewsStorageNamespacedKey(key));
-      if (!raw) {
-        return {views: [], activeViewId: null};
-      }
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.views)) {
-        return {views: parsed.views, activeViewId: parsed.activeViewId ?? null};
-      }
-    } catch {
-      // Corrupt/unavailable storage — fall through to an empty store.
+    if (typeof localStorage === 'undefined') {
+      return emptyViewsStore(); // SSR : pas de stockage côté serveur.
     }
-    return {views: [], activeViewId: null};
+    try {
+      return parseViewsStore(localStorage.getItem(this.viewsStorageNamespacedKey(key)));
+    } catch {
+      return emptyViewsStore(); // Stockage inaccessible (navigation privée, quota...).
+    }
   }
 
   private saveViewsStoreToLocalStorage(key: string, store: NgTableViewsStore): void {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
     try {
-      localStorage.setItem(this.viewsStorageNamespacedKey(key), JSON.stringify(store));
+      localStorage.setItem(this.viewsStorageNamespacedKey(key), serializeViewsStore(store));
     } catch {
       // Storage full/unavailable (e.g. private browsing) — the view still works for this session.
     }
@@ -2032,15 +2216,6 @@ export class NgTableComponent implements OnDestroy {
       return crypto.randomUUID();
     }
     return `view-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  private resolveSelectedKeysSet(): Set<unknown> {
-    // Priorite au mode controle, fallback sur l'etat interne.
-    const external = this.selectedRowKeys();
-    if (external) {
-      return new Set(external);
-    }
-    return new Set(this.internalSelectedKeys());
   }
 
   private commitSelection(next: Set<unknown>, row: any | null, selected: boolean): void {
@@ -2126,12 +2301,8 @@ export class NgTableComponent implements OnDestroy {
       return rawValue;
     }
 
-    if (filter.type === 'range' && rawValue.includes('..')) {
-      const [from = '', to = ''] = rawValue.split('..', 2);
-      if (from && to) {
-        return `${from} → ${to}`;
-      }
-      return from || to;
+    if ((filter.type === 'range' || filter.type === 'numberRange') && rawValue.includes('..')) {
+      return formatRangeValue(rawValue);
     }
 
     const options = this.resolvedFilterOptions(column.id, filter);
@@ -2256,92 +2427,35 @@ export class NgTableComponent implements OnDestroy {
       return column.filterPredicate(row, filterValue);
     }
 
-    const lowerFilter = filterValue.toLowerCase();
     const raw = column.valueAccessor(row);
-
     if (raw === null || raw === undefined) {
       return false;
     }
 
     const filterType = column.filter?.type;
     if (filterType === 'date' || filterType === 'range') {
-      return this.matchesDateFilter(raw, filterValue, filterType);
+      return matchesDate(raw, filterValue, filterType);
     }
-
     if (typeof raw === 'boolean') {
-      const expected = lowerFilter === 'true' || lowerFilter === '1';
-      return raw === expected;
+      return matchesBoolean(raw, filterValue);
     }
-
-    if (typeof raw === 'number') {
-      const parsed = Number(lowerFilter);
-      if (!Number.isNaN(parsed)) {
-        return raw === parsed;
+    if (filterType === 'enum') {
+      // Le filtre `enum` est un multi-select sérialisé en CSV ("A,B") : la cellule
+      // doit égaler l'UNE des valeurs cochées — pas "contenir" la chaîne entière,
+      // ce qui ne matchait plus aucune ligne dès 2 valeurs cochées.
+      const cell = `${raw}`.toLowerCase();
+      return filterValue.split(',').some((value) => value.trim().toLowerCase() === cell);
+    }
+    if (filterType === 'numberRange') {
+      return matchesNumberRange(raw, filterValue) ?? true;
+    }
+    if (filterType === 'number' || typeof raw === 'number') {
+      const numeric = matchesNumberExpression(raw, filterValue);
+      if (numeric !== null) {
+        return numeric;
       }
-      return `${raw}`.toLowerCase().includes(lowerFilter);
     }
-
-    return `${raw}`.toLowerCase().includes(lowerFilter);
-  }
-
-  /**
-   * Filtrage par défaut des types `date` (jour exact) et `range` (période, bornes
-   * incluses, chacune pouvant être vide = borne ouverte).
-   *
-   * La valeur de cellule est ramenée à un jour `"YYYY-MM-DD"` (`Date`, chaîne ISO,
-   * ou toute date parsable) : sur ce format, la comparaison lexicographique est
-   * équivalente à la comparaison chronologique, donc pas de `Date` à instancier
-   * par ligne et par rendu.
-   */
-  private matchesDateFilter(raw: unknown, filterValue: string, type: 'date' | 'range'): boolean {
-    const cellDay = this.toIsoDay(raw);
-    if (!cellDay) {
-      return false;
-    }
-
-    if (type === 'date') {
-      const day = this.normalizeIsoDay(filterValue);
-      // Valeur de filtre non parsable (saisie libre en cours) : on retombe sur une
-      // correspondance textuelle plutôt que de tout masquer.
-      return day ? cellDay === day : `${raw}`.toLowerCase().includes(filterValue.toLowerCase());
-    }
-
-    const [fromRaw = '', toRaw = ''] = filterValue.split('..', 2);
-    const from = this.normalizeIsoDay(fromRaw);
-    const to = this.normalizeIsoDay(toRaw);
-    if (!from && !to) {
-      return false;
-    }
-
-    return (!from || cellDay >= from) && (!to || cellDay <= to);
-  }
-
-  /** Ramène une valeur de cellule à un jour `"YYYY-MM-DD"`, ou `''` si ce n'est pas une date. */
-  private toIsoDay(raw: unknown): string {
-    if (raw instanceof Date) {
-      return Number.isNaN(raw.getTime()) ? '' : this.formatIsoDay(raw);
-    }
-
-    const text = `${raw}`.trim();
-    // Couvre "2026-01-12" comme "2026-01-12T08:30:00Z" sans passer par `Date`.
-    const leadingIsoDay = /^(\d{4}-\d{2}-\d{2})/.exec(text);
-    if (leadingIsoDay) {
-      return leadingIsoDay[1];
-    }
-
-    const parsed = new Date(text);
-    return Number.isNaN(parsed.getTime()) ? '' : this.formatIsoDay(parsed);
-  }
-
-  private normalizeIsoDay(value: string): string {
-    const raw = (value ?? '').trim();
-    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
-  }
-
-  private formatIsoDay(value: Date): string {
-    const month = `${value.getMonth() + 1}`.padStart(2, '0');
-    const day = `${value.getDate()}`.padStart(2, '0');
-    return `${value.getFullYear()}-${month}-${day}`;
+    return matchesText(raw, filterValue, column.filter?.operator);
   }
 
   private getSortValue(row: any, column: NgTableColumn<any>): string | number | Date | boolean | null {

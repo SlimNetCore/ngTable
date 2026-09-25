@@ -50,6 +50,31 @@
       </mat-date-range-picker-actions>
     </mat-date-range-picker>
   </mat-form-field>
+} @else if (type() === 'numberRange') {
+  <div [class.active]="isActive()" class="number-range">
+    <div class="field-shell">
+      <input
+        (input)="onNumberRangeInput('min', $any($event.target).value)"
+        [attr.aria-label]="filterByPlaceholder() + ' — ' + labels().numberMin"
+        [placeholder]="labels().numberMin"
+        [value]="numberRangeBounds().min"
+        class="col-filter"
+        inputmode="decimal"
+        type="text"
+      />
+    </div>
+    <div class="field-shell">
+      <input
+        (input)="onNumberRangeInput('max', $any($event.target).value)"
+        [attr.aria-label]="filterByPlaceholder() + ' — ' + labels().numberMax"
+        [placeholder]="labels().numberMax"
+        [value]="numberRangeBounds().max"
+        class="col-filter"
+        inputmode="decimal"
+        type="text"
+      />
+    </div>
+  </div>
 } @else {
   @if (isSelectType()) {
     <mat-form-field
@@ -70,6 +95,7 @@
           [value]="panelFilterOptionValue"
           class="panel-filter-option"
         >
+          <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
           <div
             (click)="$event.stopPropagation()"
             (mousedown)="$event.stopPropagation()"
@@ -105,6 +131,7 @@
       <input
         (input)="onInput($event)"
         [attr.aria-label]="placeholder() || filterByPlaceholder()"
+        [attr.inputmode]="inputMode()"
         [attr.type]="inputType()"
         [placeholder]="placeholder() || filterByPlaceholder()"
         [value]="value()"
