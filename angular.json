@@ -90,7 +90,10 @@
               "buildTarget": "demo:build:development"
             }
           },
-          "defaultConfiguration": "development"
+          "defaultConfiguration": "development",
+          "options": {
+            "proxyConfig": "projects/demo/proxy.conf.json"
+          }
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",

@@ -819,6 +819,8 @@ Point important : `ng-table` n'applique **plus aucun** filtrage/tri local dans c
 
 Un backend complet pour le mode `remote` : filtres, recherche globale, tri multi-colonnes, regroupement avec groupes repliés, pagination et résumés de groupes. JPA Criteria uniquement (pas de SQL écrit à la main, pas d'API Spring Data propre à une version) : testé avec **Spring Boot 3.5 et 4.1**, sur H2.
 
+**Projet prêt à lancer** : [`examples/spring-boot-backend`](https://github.com/SlimNetCore/ngTable/tree/main/examples/spring-boot-backend) contient ce code, 100 000 commandes de démonstration et ses tests (`./mvnw spring-boot:run`, ou `mvnw.cmd` sous Windows). Avec le backend lancé, `npm start` puis http://localhost:4200/expert, **Serveur → Spring Boot**, branche la démo dessus.
+
 #### Ce que le serveur reçoit
 
 Branchez le serveur sur **`(remoteQueryChange)`**, pas sur `(queryStateChange)`. Les deux portent le même état, mais `remoteQueryChange` est fait pour une requête HTTP : il est émis quand il faut recharger (y compris quand on replie un groupe), et la page y est un objet.
@@ -1560,10 +1562,19 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
+// Index sur les colonnes filtrées, triées et regroupées.
+@Table(indexes = {
+    @Index(columnList = "statut"),
+    @Index(columnList = "client"),
+    @Index(columnList = "montant"),
+    @Index(columnList = "date_commande"),
+})
 public class Commande {
 
   @Id
@@ -1610,11 +1621,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /** Une ligne de la table : les noms des champs sont ceux lus par les `valueAccessor` Angular. */
-public record CommandeDto(Long id, String reference, String client, CommandeStatut statut, BigDecimal montant,
+public record CommandeDto(String id, String reference, String client, CommandeStatut statut, BigDecimal montant,
                           LocalDate dateCommande, boolean urgent, String description) {
 
   static CommandeDto from(Commande c) {
-    return new CommandeDto(c.getId(), c.getReference(), c.getClient(), c.getStatut(), c.getMontant(),
+    return new CommandeDto(String.valueOf(c.getId()), c.getReference(), c.getClient(), c.getStatut(), c.getMontant(),
         c.getDateCommande(), c.isUrgent(), c.getDescription());
   }
 }

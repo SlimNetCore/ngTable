@@ -14,7 +14,8 @@ import {
   NgTableViewsStore,
 } from '@sbourahla/ng-table';
 import {CLIENTS, Commande, CommandeStatut, STATUT_LABELS, STATUT_OPTIONS} from './demo-data';
-import {FakeCommandesApi} from './fake-commandes-api';
+import {CommandesBackend, FakeCommandesApi} from './fake-commandes-api';
+import {SpringCommandesApi} from './spring-commandes-api';
 import {MontantPresetFilterComponent} from './montant-preset-filter.component';
 
 interface LogEntry {
@@ -47,6 +48,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
     .log .detail { display: block; color: #4f6573; word-break: break-all; }
     .state { margin: 0; font-size: .72rem; max-height: 220px; overflow: auto; background: #f5f7fa; padding: 8px; border-radius: 8px; }
     .server { font-size: .8rem; color: #4f6573; }
+    .server--error { color: #b3261e; font-weight: 600; }
     .perf { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
     .perf div { padding: 8px 10px; background: #f5f7fa; border-radius: 8px; }
     .perf strong { display: block; font-size: 1.1rem; color: #0d1d26; }
@@ -54,25 +56,36 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
   `,
   template: `
     <p class="demo-intro">
-      Les données viennent d'un faux serveur (jusqu'à 1 000 000 de commandes, 150 ms de latence) : ng-table n'affiche que la page reçue et
+      Les données viennent d'un serveur : simulé dans le navigateur (jusqu'à 1 000 000 de commandes, 150 ms de latence), ou le
+      vrai backend Spring Boot de <code>examples/spring-boot-backend</code>. ng-table n'affiche que la page reçue et
       émet <code>(remoteQueryChange)</code> à chaque tri, filtre, recherche ou page. L'état (filtres, colonnes, ordre,
       sélection, page, vues) est tenu par le parent (mode contrôlé), et chaque événement est journalisé à droite.
     </p>
 
     <div class="demo-card">
-      <h2>Performance (données serveur)</h2>
+      <h2>Serveur et performance</h2>
+      <div class="actions-row">
+        <span class="setting-label">Serveur</span>
+        <mat-button-toggle-group [value]="backend()" (change)="setBackend($event.value)">
+          <mat-button-toggle value="fake">Simulé (navigateur)</mat-button-toggle>
+          <mat-button-toggle value="spring">Spring Boot (localhost:8080)</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
       <div class="actions-row">
         <span class="setting-label">Commandes côté serveur</span>
-        <mat-button-toggle-group [value]="datasetSize()" (change)="setDatasetSize($event.value)">
+        <mat-button-toggle-group [disabled]="backend() === 'spring'" [value]="datasetSize()" (change)="setDatasetSize($event.value)">
           <mat-button-toggle [value]="2000">2 000</mat-button-toggle>
           <mat-button-toggle [value]="100000">100 000</mat-button-toggle>
           <mat-button-toggle [value]="1000000">1 000 000</mat-button-toggle>
         </mat-button-toggle-group>
+        @if (backend() === 'spring') {
+          <span class="server">Fixé par <code>demo.commandes.count</code> (100 000 par défaut) dans le backend.</span>
+        }
       </div>
       <div class="perf">
         <div><strong>{{ total().toLocaleString('fr-FR') }}</strong><span>lignes correspondantes côté serveur</span></div>
         <div><strong>{{ renderedRows() }}</strong><span>lignes rendues dans la table</span></div>
-        <div><strong>{{ lastServerMs() }} ms</strong><span>calcul serveur (filtre, tri, résumés)</span></div>
+        <div><strong>{{ lastServerMs() }} ms</strong><span>{{ backend() === 'spring' ? 'aller-retour HTTP (Spring Boot + H2)' : 'calcul serveur (filtre, tri, résumés)' }}</span></div>
         <div><strong>{{ lastRenderMs() }} ms</strong><span>rendu de la table (réponse → écran)</span></div>
       </div>
     </div>
@@ -142,7 +155,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           (pageIndexChange)="log('pageIndexChange', $event)"
           (rowClick)="log('rowClick', $event.reference)"
         />
-        <p class="demo-meta server">{{ serverStatus() }}</p>
+        <p [class.server--error]="serverError()" class="demo-meta server">{{ serverStatus() }}</p>
       </div>
 
       <aside>
@@ -177,6 +190,8 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
         <li>Regroupement côté serveur : <code>groupBy</code> part dans la requête, le serveur trie par groupe et renvoie le
           compte et la somme de chaque groupe (<code>[groupSummaries]</code>), calculés sur tout le groupe et pas sur la page.
           Les groupes se replient : <code>collapsedGroups</code> part dans la requête et le serveur exclut leurs lignes.</li>
+        <li>Vrai backend au choix : Spring Boot + JPA (<code>examples/spring-boot-backend</code>), appelé par
+          <code>fetch</code> via le proxy <code>/api</code> de <code>npm start</code>.</li>
         <li>Export généré côté serveur (<code>exportMode='remote'</code>).</li>
         <li>Textes traduits via <code>[labels]</code> (<code>NG_TABLE_LABELS_EN</code>).</li>
         <li>En test : <code>NgTableHarness</code> (<code>&#64;sbourahla/ng-table/testing</code>) pilote cette table comme
@@ -195,7 +210,9 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
 })
 export class ExpertDemoComponent {
   protected readonly table = viewChild.required<NgTableComponent<Commande>>(NgTableComponent);
-  private api = new FakeCommandesApi(2000);
+  private api: CommandesBackend = new FakeCommandesApi(2000);
+  protected readonly backend = signal<'fake' | 'spring'>('fake');
+  protected readonly serverError = signal(false);
   private readonly injector = inject(Injector);
   private lastQuery: NgTableRemoteQuery = {sort: {columnId: '', direction: ''}, sorts: [], filters: {}, search: '', page: {index: 0, size: 20}};
   protected readonly datasetSize = signal(2000);
@@ -232,12 +249,14 @@ export class ExpertDemoComponent {
   private readonly statutCell = viewChild<TemplateRef<unknown>>('statutCell');
 
   protected readonly columns = computed<NgTableColumn<Commande>[]>(() => [
-    {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference, sortable: true, filter: {type: 'text'}},
+    // `groupable` explicite : mêmes colonnes que côté serveur (`NgTableColumn.groupable()` en Java).
+    {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference, sortable: true, groupable: false, filter: {type: 'text'}},
     {
       id: 'client',
       header: 'Client',
       valueAccessor: (c) => c.client,
       sortable: true,
+      groupable: true,
       filter: {type: 'enum', options: CLIENTS.map((client) => ({value: client, label: client}))},
     },
     {
@@ -245,6 +264,7 @@ export class ExpertDemoComponent {
       header: 'Statut',
       valueAccessor: (c) => c.statut,
       sortable: true,
+      groupable: true,
       cellTemplate: this.statutCell() as CellTemplate,
       filter: {type: 'enum', options: STATUT_OPTIONS},
     },
@@ -253,14 +273,17 @@ export class ExpertDemoComponent {
       header: 'Montant (€)',
       valueAccessor: (c) => c.montant,
       sortable: true,
+      groupable: false,
       aggregate: 'sum', // somme calculée par le serveur (groupSummaries)
       filter: {type: 'numberRange', label: 'Tranche de montant', component: MontantPresetFilterComponent},
     },
-    {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, filter: {type: 'range'}},
+    {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, groupable: true, filter: {type: 'range'}},
     {
       id: 'urgent',
       header: 'Urgent',
       valueAccessor: (c) => (c.urgent ? 'Oui' : 'Non'),
+      // Pas regroupable : la table regrouperait sur « Oui » / « Non », le serveur sur true / false.
+      groupable: false,
       filter: {type: 'boolean'},
     },
     {id: 'description', header: 'Description', valueAccessor: (c) => c.description, widthPx: 260},
@@ -274,7 +297,18 @@ export class ExpertDemoComponent {
   /** Change la taille de la « base » du serveur et recharge la même requête. */
   protected setDatasetSize(size: number): void {
     this.datasetSize.set(size);
-    this.api = new FakeCommandesApi(size);
+    this.switchApi(new FakeCommandesApi(size));
+  }
+
+  /** Serveur simulé dans le navigateur, ou vrai backend Spring Boot. */
+  protected setBackend(backend: 'fake' | 'spring'): void {
+    this.backend.set(backend);
+    this.switchApi(backend === 'spring' ? new SpringCommandesApi() : new FakeCommandesApi(this.datasetSize()));
+  }
+
+  /** Recharge la même requête (page 1) sur un autre serveur. */
+  private switchApi(api: CommandesBackend): void {
+    this.api = api;
     void this.load({...this.lastQuery, page: {...this.lastQuery.page, index: 0}});
     this.table().applyQueryState({pageIndex: 0});
   }
@@ -284,10 +318,19 @@ export class ExpertDemoComponent {
     this.lastQuery = query;
     const id = ++this.requestId;
     this.loading.set(true);
-    const page = await this.api.query(query);
+    let page;
+    try {
+      page = await this.api.query(query);
+    } catch (error) {
+      if (id === this.requestId) {
+        this.showServerError(error);
+      }
+      return;
+    }
     if (id !== this.requestId) {
       return; // une requête plus récente est partie entre-temps : réponse obsolète
     }
+    this.serverError.set(false);
     // Temps de rendu de la table : de la réception de la page à l'écran mis à jour.
     const received = performance.now();
     this.rows.set(page.rows);
@@ -299,9 +342,27 @@ export class ExpertDemoComponent {
     this.serverStatus.set(`Serveur : ${page.total.toLocaleString('fr-FR')} commande(s) correspondent, page ${query.page.index + 1} reçue.`);
   }
 
-  protected exportOnServer(query: NgTableRemoteQuery): void {
+  protected async exportOnServer(query: NgTableRemoteQuery): Promise<void> {
     this.log('remoteExportRequested', query);
-    this.serverStatus.set(`Export lancé côté serveur : ${this.api.count(query)} ligne(s), toutes pages confondues.`);
+    try {
+      const count = await this.api.count(query);
+      this.serverStatus.set(`Export lancé côté serveur : ${count} ligne(s), toutes pages confondues.`);
+    } catch (error) {
+      this.showServerError(error);
+    }
+  }
+
+  private showServerError(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    this.loading.set(false);
+    this.rows.set([]);
+    this.total.set(0);
+    this.groupSummaries.set(null);
+    this.serverError.set(true);
+    this.serverStatus.set(this.backend() === 'spring'
+      ? `Erreur du serveur : ${message}. Lancez le backend : cd examples/spring-boot-backend puis ./mvnw spring-boot:run (mvnw.cmd sous Windows).`
+      : `Erreur du serveur : ${message}.`);
+    this.log('erreur serveur', message);
   }
 
   protected saveViews(store: NgTableViewsStore): void {

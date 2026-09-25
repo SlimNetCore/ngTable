@@ -10,6 +10,13 @@ export interface CommandesPage {
   serverMs: number;
 }
 
+/** Ce que la démo attend d'un serveur : le faux (dans le navigateur) ou le vrai (Spring Boot). */
+export interface CommandesBackend {
+  query(query: NgTableRemoteQuery): Promise<CommandesPage>;
+  /** Nombre de lignes qu'exporterait le serveur pour cette requête (toutes pages confondues). */
+  count(query: NgTableRemoteQuery): Promise<number>;
+}
+
 const STATUTS = Object.keys(STATUT_LABELS) as CommandeStatut[];
 const DESCRIPTIONS = [
   'Livraison standard',
@@ -99,7 +106,7 @@ interface QueryResult {
  * renvoie une page, après une latence réseau simulée. Le résultat trié d'une requête
  * est mis en cache : changer de page ne recalcule rien (comme un curseur côté serveur).
  */
-export class FakeCommandesApi {
+export class FakeCommandesApi implements CommandesBackend {
   private readonly cache = new Map<string, QueryResult>();
 
   constructor(readonly size = 2000) {}
@@ -119,8 +126,8 @@ export class FakeCommandesApi {
   }
 
   /** Nombre de lignes qu'exporterait le serveur pour cette requête (toutes pages confondues). */
-  count(query: NgTableRemoteQuery): number {
-    return this.resolve({...query, collapsedGroups: []}).indices.length;
+  count(query: NgTableRemoteQuery): Promise<number> {
+    return Promise.resolve(this.resolve({...query, collapsedGroups: []}).indices.length);
   }
 
   private commande(i: number): Commande {

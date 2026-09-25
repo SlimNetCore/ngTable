@@ -7,6 +7,7 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 Voir aussi `ROADMAP.md` pour le suivi détaillé.
 
 ### Documentation
+- `examples/spring-boot-backend` : le backend de l'Étape 17ter en projet Spring Boot autonome (H2, 100 000 commandes, tests, Maven Wrapper). La démo expert peut s'y brancher (**Serveur → Spring Boot**, proxy `/api` de `npm start`).
 - README, Étape 17ter : backend Spring Boot complet pour le mode `remote` (contrat JSON requête / réponse, format des filtres par type, tri avec regroupement, groupes repliés, résumés de groupes), en JPA Criteria, testé avec Spring Boot 3.5 et 4.1.
 
 ### Outillage
