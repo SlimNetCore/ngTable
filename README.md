@@ -629,6 +629,99 @@ Avec des dizaines ou des centaines de colonnes, `[virtualColumns]="true"` ne ren
 
 Le modèle de vue (valeurs, textes) n'est calculé que pour les colonnes rendues. L'export, le menu « Colonnes » et les vues portent toujours sur toutes les colonnes. Limite : la navigation clavier cellule par cellule (`cellNavigation`) ne parcourt que les colonnes rendues.
 
+### Étape 10undecies — Édition de cellules
+
+Des cellules modifiables au clavier ou à la souris, avec validation, annuler / rétablir et collage dans les cellules.
+
+```ts
+{
+  id: 'montant', header: 'Montant', valueAccessor: (c) => c.montant,
+  editable: true,                                   // ou (row) => row.statut === 'BROUILLON'
+  editor: 'number',                                 // text | number | date | select | checkbox (déduit du filtre sinon)
+  valueSetter: (c, value) => ({...c, montant: value as number}),   // renvoie la NOUVELLE ligne
+  validate: (value) => (value as number) < 0 ? 'Montant négatif' : null,
+}
+```
+
+```html
+<ng-table [columns]="columns" [rows]="rows" [cellNavigation]="true" [rangeSelection]="true"
+          (cellEdited)="log($event)" (cellEditRejected)="warn($event)" />
+```
+
+| Geste | Effet |
+|-------|-------|
+| Double-clic, Entrée ou F2 | Ouvre l'éditeur (Entrée / F2 avec `[cellNavigation]`). |
+| Taper un caractère sur une cellule | Ouvre l'éditeur avec ce caractère. |
+| Entrée / Tab / Maj+Tab | Valide et passe à la cellule du dessous / de droite / de gauche. |
+| Échap | Abandonne. La perte de focus valide ; une saisie invalide est alors abandonnée. |
+| Ctrl+Z, Ctrl+Y (ou Ctrl+Maj+Z) | Défait / rétablit, depuis une cellule. |
+| Case à cocher éditable | Un clic enregistre la valeur. |
+| Ctrl+V sur une plage | Écrit dans les cellules éditables (`[editOnPaste]`), en **un seul lot annulable**. |
+
+- **Données immuables.** `valueSetter` renvoie la nouvelle ligne ; en mode local la table l'applique par `applyTransaction({update})` (tri, filtre et totaux suivent, la ligne reste à sa place si la clé est stable). Sans `valueSetter`, ou en mode distant, seul `(cellEdited)` est émis : l'application enregistre (appel serveur…) et met `[rows]` à jour.
+- **Validation.** Nombre (virgule ou point) et date (AAAA-MM-JJ) sont contrôlés par la table, `validate` par vous. Une saisie refusée garde l'éditeur ouvert avec son message (`role="alert"`, `aria-invalid`) et émet `(cellEditRejected)`.
+- **Événements.** `(cellEdited)` : `{row, newRow, column, oldValue, newValue, source: 'edit' | 'paste' | 'undo' | 'redo'}`. `(rangePasted)` gagne `applied`, le nombre de cellules modifiées.
+- **Méthodes.** `undo()`, `redo()`, `canUndo()`, `canRedo()`, `startEditing(row, columnId)`, `stopEditing(cancel?)`. `[undoRedoLimit]` (100) borne l'historique.
+- **Limites.** Les lignes épinglées ne s'éditent pas. L'historique annuler / rétablir ne couvre que le mode local.
+
+### Étape 10decies — Sélection de plage et copier-coller
+
+Comme dans un tableur : sélectionner un rectangle de cellules, le copier vers Excel ou Google Sheets, et recevoir ce qu'on colle.
+
+```html
+<ng-table [rangeSelection]="true" [rangeCopyHeaders]="true" [cellNavigation]="true"
+          (rangeCopied)="toast($event)" (rangePasted)="appliquer($event)" ... />
+```
+
+| Geste | Effet |
+|-------|-------|
+| Glisser, ou Maj+clic | Sélectionne le rectangle entre deux cellules. |
+| Maj+flèches (avec `[cellNavigation]`) | Étend la plage depuis la cellule de départ. Une flèche seule la réduit à la cellule atteinte. |
+| Ctrl+C (Cmd+C) | Copie la plage en texte tabulé, collable dans Excel et Google Sheets. |
+| Ctrl+A | Sélectionne toutes les cellules de la page affichée. |
+| Échap | Efface la plage. |
+| Ctrl+V | Émet `(rangePasted)` avec les cellules cibles. |
+
+- **Texte copié.** Colonnes séparées par une tabulation, lignes par un saut de ligne. Une valeur qui contient une tabulation, un saut de ligne ou un guillemet est entourée de guillemets. La valeur est celle de `exportValueAccessor`, sinon de `valueAccessor`. `[rangeCopyHeaders]` ajoute la ligne des en-têtes. Le copier passe par l'API du presse-papiers, avec un repli (`execCommand`) quand le navigateur la refuse.
+- **Collage.** La table **ne modifie pas vos données** : `(rangePasted)` donne `assignments` (`{row, column, value}`, déjà limités à la grille) et le texte brut découpé en `values`. Le texte est posé à partir de la cellule en haut à gauche de la plage. Une valeur unique collée sur une plage remplit toutes ses cellules, comme dans Excel. À vous d'appliquer les valeurs (pour une colonne éditable, voir l'édition de cellules).
+- **Ce qui est sélectionnable.** Les cellules de données de la page affichée : pas la colonne de cases à cocher, ni les lignes épinglées, ni les boutons des cellules (ils gardent leur clic). Un tri, un filtre, une recherche, un changement de page ou de colonnes efface la plage ; les transactions du mode live la laissent en place.
+- **Méthodes.** `getSelectedRange()` (lignes, colonnes, texte), `copySelectedRange()`, `pasteIntoRange(texte)`, `selectAllCells()`, `clearRangeSelection()`.
+- **Accessibilité.** Avec `[cellNavigation]`, les cellules de la plage portent `aria-selected="true"`. Sans lui, la plage se fait à la souris seulement.
+- **Limites.** Pas avec `[remoteDatasource]` (les lignes ne sont chargées que par blocs). Pas de défilement automatique en glissant au bord de la zone : utilisez Maj+clic ou Maj+flèches pour une plage plus longue.
+
+### Étape 10nonies — En-têtes de colonnes groupés
+
+Un libellé commun au-dessus de plusieurs colonnes, sur un ou plusieurs niveaux, comme les « column groups » d'AG Grid.
+
+```ts
+{id: 'nom',    header: 'Nom',    valueAccessor: (c) => c.nom,    headerGroup: ['Client', 'Identité']},
+{id: 'prenom', header: 'Prénom', valueAccessor: (c) => c.prenom, headerGroup: ['Client', 'Identité']},
+{id: 'mail',   header: 'E-mail', valueAccessor: (c) => c.mail,   headerGroup: ['Client', 'Contact']},
+{id: 'ca',     header: 'CA',     valueAccessor: (c) => c.ca,     headerGroup: 'Finance'},   // un seul niveau
+```
+
+- `headerGroup` est un libellé, ou un chemin du plus externe au plus interne. Une ligne d'en-tête est ajoutée **par niveau**, au-dessus de celle des colonnes.
+- Les colonnes **voisines** qui partagent un groupe sont fusionnées en une cellule (`colspan`). Deux groupes de même nom sous des parents différents restent distincts, et un groupe séparé par une autre colonne donne deux cellules.
+- Les cellules suivent la table : colonne masquée (le groupe rétrécit, ou disparaît), colonne déplacée par glisser-déposer, colonne de sélection (cellule vide), virtualisation horizontale.
+- Un groupe **ne traverse jamais** la limite des colonnes épinglées : la partie épinglée est une cellule à part, épinglée comme sa colonne, qui répète le libellé.
+- Avec `[stickyHeader]` ou `[virtualScroll]`, toutes les lignes d'en-tête restent visibles. Les lignes épinglées se placent sous leur total.
+- Sans `headerGroup` sur aucune colonne, la table n'ajoute aucune ligne. Limites : l'export (CSV, Excel) n'inclut pas ces lignes, et un groupe ne se déplace pas d'un bloc (les colonnes se déplacent une à une).
+
+### Étape 10octies — Lignes épinglées en haut et en bas
+
+Des lignes qui restent visibles pendant le défilement vertical, sous l'en-tête ou au-dessus du bas de la zone : synthèse, favoris, ligne « nouvelle saisie »...
+
+```html
+<ng-table [pinnedTopRows]="[prioritaire]" [pinnedBottomRows]="[total]" [maxHeight]="'60vh'" ... />
+```
+
+- Ce sont de vraies lignes rendues par les mêmes cellules (`cellTemplate`, `rowClassFn`, copie...). Elles sont **hors de `[rows]`** : ni filtrées, ni triées, ni paginées, ni comptées par `(filteredCountChange)`, et leur clé doit différer de celles de `[rows]`.
+- Elles ne sont pas sélectionnables (pas de case à cocher), sans ligne détail, et non exportées.
+- Elles s'appuient sur une zone de défilement à hauteur limitée : `[maxHeight]`, `[stickyHeader]` ou `[virtualScroll]` (70vh par défaut). Sans cela, la table n'a pas de défilement propre et elles restent à leur place naturelle.
+- Le décalage sous l'en-tête et au-dessus de la ligne de totaux (`[showTotals]`) vient des hauteurs réellement mesurées : densité, thème et police sont suivis.
+- Avec `[virtualScroll]` ou `[remoteDatasource]`, elles encadrent la tranche rendue et ne comptent pas dans la hauteur de la liste.
+- Une ligne épinglée modifiée (un total en direct, par exemple) se met à jour en passant un nouveau tableau ou de nouveaux objets.
+
 ### Étape 10ter — Regroupement et totaux
 
 Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`), avec un en-tête par groupe : libellé, nombre de lignes et agrégats.
@@ -2431,6 +2524,12 @@ interface NgTableFilterConfig {
 | `maxBlocksInCache`          | `number`                                                         | `50`      | Blocs gardés en mémoire.                                                                                             |
 | `maxConcurrentBlockRequests`| `number`                                                         | `2`       | Requêtes de blocs simultanées au plus.                                                                               |
 | `virtualColumns`            | `boolean`                                                        | `false`   | Affichage partiel des colonnes (Étape 10septies).                                                                     |
+| `editOnPaste`               | `boolean`                                                        | `true`    | Un collage écrit dans les cellules éditables de la plage (Étape 10undecies).                                          |
+| `undoRedoLimit`             | `number`                                                         | `100`     | Taille de l'historique annuler / rétablir.                                                                            |
+| `rangeSelection`            | `boolean`                                                        | `false`   | Sélection d'une plage de cellules et copier-coller (Étape 10decies).                                                  |
+| `rangeCopyHeaders`          | `boolean`                                                        | `false`   | Ajoute les en-têtes de colonnes au texte copié.                                                                       |
+| `pinnedTopRows`             | `readonly T[]`                                                   | `[]`      | Lignes épinglées sous l'en-tête (Étape 10octies).                                                                    |
+| `pinnedBottomRows`          | `readonly T[]`                                                   | `[]`      | Lignes épinglées en bas de la zone.                                                                                  |
 | `flashCells`                | `boolean`                                                        | `false`   | Mode live : surligne les cellules dont la valeur change (voir Étape 10quinquies).                                   |
 | `flashDurationMs`           | `number`                                                         | `1000`    | Durée de la surbrillance (ms).                                                                                       |
 | `asyncTransactionWaitMillis`| `number`                                                         | `50`      | Délai de regroupement de `applyTransactionAsync()` (ms).                                                             |
@@ -2486,6 +2585,7 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `exportViews()`, `importViews(json, mode?)`, `downloadViews()` | Partager des vues. |
 | `openExportDialog()` | Lancer l'export, comme le bouton « Exporter ». |
 | `applyTransaction(tx)`, `applyTransactionAsync(tx, callback?)`, `flushAsyncTransactions()` | Mode live : ajouter, modifier, retirer des lignes (voir Étape 10quinquies). |
+| `getSelectedRange()`, `copySelectedRange()`, `pasteIntoRange(texte)`, `selectAllCells()`, `clearRangeSelection()` | Sélection de plage et presse-papiers (Étape 10decies). |
 | `scrollToIndex(n)` | Amène la ligne `n` en haut de la zone (défilement virtuel ou modèle par blocs). |
 | `refreshRemoteDatasource()`, `remoteRowCount()` | Modèle par blocs : recharger les blocs affichés, nombre total de lignes côté serveur. |
 | `expandAllGroups()`, `collapseAllGroups()` | Déplier / replier tous les groupes. |

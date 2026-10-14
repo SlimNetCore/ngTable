@@ -300,11 +300,17 @@
   <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--loading]="loading()" class="table-viewport">
   <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" class="table-wrap">
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
-    <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event)"
+    <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event); onRangeKeydown($event); onEditKeydown($event)"
            [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="cellNavigation() ? 'grid' : null"
            [dataSource]="tableRows()"
            [style.--ngt-flash-duration]="flashDurationMs() + 'ms'"
+           [style.--ngt-row-h]="rowHeight() + 'px'"
+           [style.--ngt-header-h]="pinHeaderOffset() + 'px'"
+           [style.--ngt-footer-h]="pinFooterOffset() + 'px'"
            [class.ngt-density-compact]="density() === 'compact'"
+           [class.ngt-range-enabled]="rangeSelection()"
+           (mousedown)="onRangeMouseDown($event)"
+           (paste)="onRangePaste($event)"
            [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
            [style.width.px]="columnVirtualization() ? tableMinWidthPx() : null"
            [trackBy]="resolvedTrackBy"
@@ -321,12 +327,14 @@
           </th>
           <td *matFooterCellDef class="totals-cell" mat-footer-cell></td>
           <td *matCellDef="let row; let rowIndex = dataIndex" class="selection-cell" mat-cell>
-            <mat-checkbox
-              (change)="onToggleRowSelection($event, row)"
-              (click)="$event.stopPropagation()"
-              [aria-label]="rowSelectAriaLabel(rowIndex)"
-              [checked]="isRowSelected(row)"
-            />
+            @if (!pinInfo(row)) {
+              <mat-checkbox
+                (change)="onToggleRowSelection($event, row)"
+                (click)="$event.stopPropagation()"
+                [aria-label]="rowSelectAriaLabel(rowIndex)"
+                [checked]="isRowSelected(row)"
+              />
+            }
           </td>
         </ng-container>
       }
@@ -504,10 +512,49 @@
             }
           </td>
           <td *matCellDef="let row; let rowIndex = dataIndex" [attr.data-ngt-flash]="cellView(row, column).flash || null"
+              [attr.aria-selected]="cellRangeSelected(row, column)"
+              [attr.data-ngt-col]="cellsTagged() ? column.id : null"
+              [attr.data-ngt-editable]="hasEditableColumns() && isEditable(row, column) ? '' : null"
+              (dblclick)="onCellDoubleClick($event, row, column)"
+              [attr.data-ngt-range]="cellRangeAttr(row, column)"
               [style.max-width.px]="column.maxWidthPx ?? null"
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
             @let cell = cellView(row, column);
-            <div class="cell-content" [class.cell-content--wrap]="column.textOverflow === 'wrap'">
+            @if (isEditing(row, column)) {
+              <div class="cell-editor">
+                @switch (editorKind(column)) {
+                  @case ('select') {
+                    <select (blur)="onEditorBlur()" (change)="onEditSelect($any($event.target).value)"
+                            (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                            [attr.aria-label]="column.header" class="ngt-editor">
+                      <option [selected]="!editing()?.draft" value="">—</option>
+                      @for (option of editorOptions(column); track option.value) {
+                        <option [selected]="option.value === editing()?.draft" [value]="option.value">{{ option.label }}</option>
+                      }
+                    </select>
+                  }
+                  @case ('date') {
+                    <input (blur)="onEditorBlur()" (input)="onEditInput($any($event.target).value)"
+                           (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                           [attr.aria-label]="column.header" [value]="editing()?.draft ?? ''" class="ngt-editor" type="date"/>
+                  }
+                  @default {
+                    <input (blur)="onEditorBlur()" (input)="onEditInput($any($event.target).value)"
+                           (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                           [attr.aria-label]="column.header" [attr.inputmode]="editorKind(column) === 'number' ? 'decimal' : null"
+                           [value]="editing()?.draft ?? ''" class="ngt-editor" type="text"/>
+                  }
+                }
+                @if (editing()?.error; as error) {
+                  <span class="ngt-editor-error" role="alert">{{ error }}</span>
+                }
+              </div>
+            } @else if (isInlineCheckbox(row, column)) {
+              <input (change)="onInlineCheckbox(row, column, $any($event.target).checked)" (click)="$event.stopPropagation()"
+                     [attr.aria-label]="column.header" [checked]="!!cell.value" class="ngt-inline-check" type="checkbox"/>
+            }
+            <div class="cell-content" [class.cell-content--hidden]="isEditing(row, column) || isInlineCheckbox(row, column)"
+                 [class.cell-content--wrap]="column.textOverflow === 'wrap'">
               @if (column.cellTemplate) {
                 <span class="cell-text" [class.cell-text--truncate]="column.textOverflow !== 'wrap'"
                       [class.cell-text--wrap]="column.textOverflow === 'wrap'">
@@ -578,6 +625,17 @@
             mat-cell></td>
       </ng-container>
 
+      <!-- En-têtes de colonnes groupés : une ligne par niveau, cellules fusionnées par `colspan`. -->
+      @for (level of headerGroupLevels(); track $index) {
+        @for (run of level.runs; track run.key) {
+          <ng-container [matColumnDef]="run.key" [sticky]="run.pin === 'left'" [stickyEnd]="run.pin === 'right'">
+            <th *matHeaderCellDef [attr.colspan]="run.span" [class.header-group-cell--empty]="!run.label"
+                class="header-group-cell" mat-header-cell scope="colgroup">{{ run.label }}</th>
+          </ng-container>
+        }
+        <tr *matHeaderRowDef="level.ids; sticky: stickyHeader() || virtualActive()" class="header-group-row" mat-header-row></tr>
+      }
+
       <!-- Virtualisation horizontale : largeur des colonnes non rendues, à gauche et à droite. -->
       @for (side of columnSpacerSides; track side) {
         <ng-container [matColumnDef]="'__colspacer_' + side + '__'">
@@ -636,8 +694,12 @@
         (contextmenu)="onRowContextMenu($event, row)"
         (keydown)="onRowKeydown($event, row)"
         *matRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
-        [attr.aria-expanded]="detailRowTemplate() ? isDetailExpanded(rowIndex, row) : null"
+        [attr.aria-expanded]="detailRowTemplate() && !pinInfo(row) ? isDetailExpanded(rowIndex, row) : null"
+        [attr.data-ngt-pin]="pinInfo(row)?.side ?? null"
+        [attr.data-ngt-row]="rowRangeIndex(row)"
+        [attr.data-ngt-pin-edge]="pinInfo(row)?.edge ? '' : null"
         [attr.tabindex]="isRowInteractive() && !cellNavigation() ? 0 : null"
+        [style.--ngt-pin-index]="pinInfo(row)?.index ?? null"
         [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
         [ngClass]="rowClasses(row)"
         class="data-row"

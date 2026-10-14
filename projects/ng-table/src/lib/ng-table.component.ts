@@ -1,5 +1,6 @@
 import {CommonModule} from '@angular/common';
 import {
+  afterNextRender,
   afterRenderEffect,
   ChangeDetectionStrategy,
   model,
@@ -15,6 +16,7 @@ import {
   computed,
   effect,
   inject,
+  Injector,
   input,
   output,
   signal,
@@ -61,9 +63,22 @@ import {IncrementalPipeline, NgTableRowTransaction, NgTableTransactionResult, Ro
 
 /** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
 import {BlockCache, NgTableLoadingRow} from './block-cache';
+import {draftFromValue, EditChange, EditHistory, EditRestore, editorKindFor, NgTableEditorKind, parseDraft, sameCellValue} from './cell-edit';
+import {buildHeaderGroupLevels, headerGroupPath} from './header-groups';
 
 type TableItem<T> = T | NgTableGroupRow<T> | NgTableSpacerRow | NgTableLoadingRow;
-import {escapeCssToken, measureNaturalWidth} from './dom-utils';
+import {escapeCssToken, measureNaturalWidth, writeClipboardText} from './dom-utils';
+import {
+  buildPasteAssignments,
+  CellPosition,
+  CellRange,
+  clampRange,
+  normalizeRange,
+  parseClipboardText,
+  rangeContains,
+  rangeEdges,
+  toClipboardText,
+} from './cell-range';
 import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
 import {formatRangeValue, matchesSearchTerms, NgTableTextOperator, searchTerms} from './filter-matching';
 import {
@@ -169,6 +184,58 @@ export interface NgTableBlockResult<T> {
  */
 export interface NgTableRemoteDatasource<T> {
   getRows(request: NgTableBlockRequest): Promise<NgTableBlockResult<T>> | Observable<NgTableBlockResult<T>>;
+}
+
+/** Plage de cellules sélectionnée (`[rangeSelection]`) : lignes, colonnes et texte copiable. */
+export interface NgTableRangeSelection<T> {
+  rows: T[];
+  columns: NgTableColumn<T>[];
+  /** Texte tabulé que Ctrl+C place dans le presse-papiers (avec les en-têtes si `[rangeCopyHeaders]`). */
+  text: string;
+}
+
+export interface NgTableRangeCopyEvent {
+  text: string;
+  rowCount: number;
+  columnCount: number;
+}
+
+/** Une valeur à écrire dans une cellule, issue d'un collage. */
+export interface NgTableRangeAssignment<T> {
+  row: T;
+  column: NgTableColumn<T>;
+  value: string;
+}
+
+/** Une cellule modifiée : par la saisie, un collage, ou Ctrl+Z / Ctrl+Y. */
+export interface NgTableCellEditEvent<T> {
+  /** La ligne avant la modification. */
+  row: T;
+  /** La ligne après, telle que la renvoie `valueSetter` ; `null` si la colonne n'en déclare pas. */
+  newRow: T | null;
+  column: NgTableColumn<T>;
+  oldValue: unknown;
+  newValue: unknown;
+  source: 'edit' | 'paste' | 'undo' | 'redo';
+}
+
+/** Une saisie refusée (nombre ou date illisible, ou `validate` qui renvoie un message). */
+export interface NgTableCellEditRejectedEvent<T> {
+  row: T;
+  column: NgTableColumn<T>;
+  /** Texte saisi. */
+  value: string;
+  error: string;
+}
+
+export interface NgTableRangePasteEvent<T> {
+  /** Cellules cibles et valeurs à y écrire (ce qui dépasse de la grille est déjà écarté). */
+  assignments: NgTableRangeAssignment<T>[];
+  /** Texte collé, et ce même texte découpé en lignes et colonnes. */
+  text: string;
+  values: string[][];
+  /** Cellules réellement modifiées dans la table (colonnes éditables avec `valueSetter`, `[editOnPaste]`). */
+  applied: number;
 }
 
 export interface NgTableRemoteQuery {
@@ -309,6 +376,30 @@ export interface NgTableColumn<T> {
    * rouge à la baisse pour un nombre). Par défaut, suit `[flashCells]` de la table.
    */
   flashOnChange?: boolean;
+  /**
+   * Cellule modifiable : `true`, ou une fonction par ligne. Double-clic, Entrée ou F2 (avec
+   * `[cellNavigation]`), ou simplement taper un caractère ouvre l'éditeur. Sans
+   * `valueSetter`, la table n'émet que `(cellEdited)` : c'est à vous de modifier vos données.
+   */
+  editable?: boolean | ((row: T) => boolean);
+  /** Éditeur : texte, nombre, date, liste (`editorOptions`), case à cocher. Déduit du filtre par défaut. */
+  editor?: NgTableEditorKind;
+  /** Valeurs de l'éditeur `select` ; par défaut les options du filtre. */
+  editorOptions?: NgTableFilterOption[];
+  /**
+   * Renvoie la **nouvelle ligne** portant la valeur saisie (données immuables) :
+   * `(row, value) => ({...row, montant: value as number})`. La table l'applique par
+   * transaction (mode local) et la garde pour annuler / rétablir.
+   */
+  valueSetter?: (row: T, value: unknown) => T;
+  /** Message d'erreur pour une valeur refusée, `null` si elle est acceptée. Bloque la validation de la cellule. */
+  validate?: (value: unknown, row: T) => string | null;
+  /**
+   * En-tête de groupe au-dessus de la colonne : un libellé, ou un chemin du plus externe au
+   * plus interne (`['Identité', 'Contact']`). Les colonnes voisines qui partagent un groupe
+   * sont fusionnées sous une même cellule, une ligne d'en-tête par niveau.
+   */
+  headerGroup?: string | readonly string[];
   /** Agrégat affiché dans les en-têtes de groupe et la ligne de totaux (voir `NgTableAggregate`). */
   aggregate?: NgTableAggregate<T>;
   /**
@@ -641,6 +732,33 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * une largeur fixe : `widthPx`, sinon `minWidthPx`, sinon 120 px.
    */
   readonly virtualColumns = input(false);
+  /**
+   * Lignes épinglées en haut de la table : elles restent visibles pendant le défilement
+   * vertical, sous l'en-tête (colonnes et cellules identiques aux autres lignes). Pour des
+   * lignes de synthèse, des favoris, une ligne « nouvelle saisie »... Ce ne sont pas des
+   * lignes de `[rows]` : ni filtrées, ni triées, ni sélectionnables, et sans ligne détail.
+   * Une zone de défilement à hauteur limitée (`[maxHeight]`) est nécessaire pour qu'elles
+   * aient un effet. Chaque ligne doit avoir une clé distincte de celles de `[rows]`.
+   */
+  readonly pinnedTopRows = input<readonly T[]>([]);
+  /** Lignes épinglées en bas de la table (voir `pinnedTopRows`). */
+  readonly pinnedBottomRows = input<readonly T[]>([]);
+  /**
+   * Sélection d'une plage rectangulaire de cellules : glisser à la souris, Maj+clic, et
+   * Maj+flèches avec `[cellNavigation]`. Ctrl+C copie la plage (texte tabulé, collable dans
+   * Excel), Ctrl+A la étend à toute la page, Échap l'efface. Le collage (Ctrl+V) émet
+   * `(rangePasted)`. Non disponible avec `[remoteDatasource]`.
+   */
+  readonly rangeSelection = input(false);
+  /**
+   * Un collage (Ctrl+V sur une plage) écrit dans les cellules éditables de la plage, en
+   * une seule opération annulable. `(rangePasted)` est émis dans tous les cas.
+   */
+  readonly editOnPaste = input(true);
+  /** Nombre d'opérations que Ctrl+Z peut défaire. */
+  readonly undoRedoLimit = input(100);
+  /** Ajoute une première ligne d'en-têtes de colonnes au texte copié. */
+  readonly rangeCopyHeaders = input(false);
   /** Lignes par bloc demandé au serveur. */
   readonly cacheBlockSize = input(100);
   /** Blocs gardés en mémoire ; au-delà, les moins récemment affichés sont oubliés. */
@@ -798,6 +916,17 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly viewsImported = output<NgTableViewsImportEvent>();
   /** Lot de transactions asynchrones appliqué (une entrée par transaction). */
   readonly asyncTransactionsFlushed = output<NgTableTransactionResult<T>[]>();
+  /** Une cellule vient d'être modifiée (saisie, collage, annuler, rétablir). */
+  readonly cellEdited = output<NgTableCellEditEvent<T>>();
+  /** Une saisie a été refusée à la validation : l'édition est abandonnée (perte de focus) ou reste ouverte (Entrée). */
+  readonly cellEditRejected = output<NgTableCellEditRejectedEvent<T>>();
+  /** Une plage de cellules vient d'être copiée dans le presse-papiers. */
+  readonly rangeCopied = output<NgTableRangeCopyEvent>();
+  /**
+   * Du texte a été collé sur la plage sélectionnée (Ctrl+V). La table ne modifie pas vos
+   * données : appliquez les `assignments` (ou rien) comme vous l'entendez.
+   */
+  readonly rangePasted = output<NgTableRangePasteEvent<T>>();
   /** Modèle par blocs : le chargement d'un bloc a échoué (erreur renvoyée par `getRows`). */
   readonly remoteBlockError = output<{ request: NgTableBlockRequest; error: unknown }>();
   /** Emitted whenever a view becomes active (user switch, or auto-activation on load). */
@@ -915,6 +1044,28 @@ export class NgTableComponent<T = any> implements OnDestroy {
     // La liste est passée à `matHeaderRowDef`/`matRowDef` : garder la même référence
     // quand les ids n'ont pas changé évite à mat-table de reconstruire ses colonnes.
     {equal: (a, b) => a.length === b.length && a.every((id, index) => id === b[index])},
+  );
+
+  /**
+   * Lignes d'en-tête de groupe (`NgTableColumn.headerGroup`), de la plus externe à la plus
+   * interne, pour les colonnes réellement affichées (sélection, espacements et vue
+   * mobile compris). Vide quand aucune colonne n'a de groupe.
+   */
+  protected readonly headerGroupLevels = computed(
+    () => {
+      const columns = new Map(this.columns().map((column) => [column.id, column] as const));
+      const leftEdge = this.hasLeftPinnedColumns();
+      return buildHeaderGroupLevels(
+        this.displayedColumnIds().map((id) => {
+          const column = columns.get(id);
+          if (!column) {
+            return {id, path: [], pin: id === this.selectionColumnId && leftEdge ? ('left' as const) : undefined};
+          }
+          return {id, path: headerGroupPath(column.headerGroup), pin: this.pinnedSide(column)};
+        }),
+      );
+    },
+    {equal: (a, b) => JSON.stringify(a) === JSON.stringify(b)},
   );
 
   protected readonly columnsMenuItems = computed(() =>
@@ -1309,6 +1460,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
   private readonly viewportHeight = signal(0);
   /** Hauteur d'une ligne, mesurée sur la première ligne rendue (densité, thème...). */
   private readonly rowHeight = signal(48);
+  /** Hauteurs mesurées de l'en-tête et de la ligne de totaux : décalages des lignes épinglées. */
+  private readonly headerHeight = signal(56);
+  private readonly footerHeight = signal(48);
+
+  /** Décalage CSS des lignes épinglées du haut : l'en-tête, s'il reste visible au défilement. */
+  protected readonly pinHeaderOffset = computed(() => (this.stickyHeader() || this.virtualActive() ? this.headerHeight() : 0));
+  /** Décalage CSS des lignes épinglées du bas : la ligne de totaux, si elle reste visible. */
+  protected readonly pinFooterOffset = computed(() => (this.totals() && this.stickyHeader() ? this.footerHeight() : 0));
 
   /**
    * Tranche rendue en défilement virtuel. Ne change que lorsque ses bornes changent :
@@ -1361,8 +1520,30 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return this.pageItems().length;
   });
 
-  /** Source de données de la table : éléments de la page, fenêtrés en défilement virtuel. */
+  /** Lignes épinglées : côté et rang (depuis le bord le plus proche) de chacune. */
+  protected readonly pinnedInfo = computed(() => {
+    const info = new Map<T, { side: 'top' | 'bottom'; index: number; edge: boolean }>();
+    const top = this.pinnedTopRows();
+    top.forEach((row, index) => info.set(row, {side: 'top', index, edge: index === top.length - 1}));
+    const bottom = this.pinnedBottomRows();
+    bottom.forEach((row, index) => info.set(row, {side: 'bottom', index: bottom.length - 1 - index, edge: index === 0}));
+    return info;
+  });
+
+  protected pinInfo(row: T): { side: 'top' | 'bottom'; index: number; edge: boolean } | undefined {
+    return this.pinnedInfo().get(row);
+  }
+
+  /** Source de données de la table : lignes épinglées autour du corps (page ou tranche virtuelle). */
   protected readonly tableRows = computed<TableItem<T>[]>(() => {
+    const top = this.pinnedTopRows();
+    const bottom = this.pinnedBottomRows();
+    const body = this.bodyRows();
+    return top.length === 0 && bottom.length === 0 ? body : [...top, ...body, ...bottom];
+  });
+
+  /** Corps de la table : éléments de la page, fenêtrés en défilement virtuel. */
+  private readonly bodyRows = computed<TableItem<T>[]>(() => {
     const range = this.virtualRange();
     if (this.blockMode() && range) {
       this.blockVersion();
@@ -1380,14 +1561,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return [new NgTableSpacerRow('top', 0), ...items.slice(range.start, range.end), new NgTableSpacerRow('bottom', 0)];
   });
 
-  /** Nombre de lignes de données avant la tranche rendue : position DOM → index dans `displayedRows()`. */
-  private readonly renderedRowOffset = computed(() => {
+  /** Index (dans `displayedRows()`) de la première ligne de données rendue : tranche virtuelle et groupes. */
+  private readonly renderedRowBase = computed(() => {
     const range = this.virtualRange();
     if (!range || this.blockMode()) {
-      return 0; // modèle par blocs : `displayedRows()` ne contient déjà que la zone rendue
+      return 0;
     }
     if (!this.groupUnits()) {
-      return range.start; // pas d'en-tête de groupe : une ligne par élément
+      return range.start;
     }
     const items = this.pageItems();
     let count = 0;
@@ -1397,6 +1578,51 @@ export class NgTableComponent<T = any> implements OnDestroy {
       }
     }
     return count;
+  });
+
+  /** Index dans `displayedRows()` de chaque ligne rendue (les lignes épinglées n'en ont pas). */
+  private readonly renderedRowIndexes = computed(() => {
+    const indexes = new Map<T, number>();
+    if (!this.rangeSelection()) {
+      return indexes;
+    }
+    const pinned = this.pinnedInfo();
+    let index = this.renderedRowBase();
+    for (const item of this.tableRows()) {
+      if (isDataItem(item) && !pinned.has(item)) {
+        indexes.set(item, index++);
+      }
+    }
+    return indexes;
+  });
+
+  private readonly visibleColumnIndexes = computed(() => new Map(this.visibleColumns().map((column, index) => [column.id, index] as const)));
+
+  /** Une colonne au moins est éditable : les cellules portent leur id de colonne (`data-ngt-col`). */
+  protected readonly hasEditableColumns = computed(() => this.columns().some((column) => !!column.editable));
+  protected readonly cellsTagged = computed(() => this.rangeSelection() || this.hasEditableColumns());
+
+  /** Cellule en cours d'édition : repérée par la clé de sa ligne (stable au tri, au défilement). */
+  protected readonly editing = signal<{ key: unknown; columnId: string; draft: string; error: string | null; cell: HTMLElement | null } | null>(null);
+  private readonly injector = inject(Injector);
+  private history = new EditHistory<T>(100);
+  private readonly historyVersion = signal(0);
+  /** Peut-on défaire / rétablir une modification ? */
+  readonly canUndo = computed(() => (this.historyVersion(), this.history.canUndo));
+  readonly canRedo = computed(() => (this.historyVersion(), this.history.canRedo));
+
+  private readonly rangeAnchor = signal<CellPosition | null>(null);
+  private readonly rangeFocus = signal<CellPosition | null>(null);
+  private rangeDragging = false;
+
+  /** Plage sélectionnée, ramenée aux lignes et colonnes qui existent encore. */
+  protected readonly rangeBounds = computed<CellRange | null>(() => {
+    const anchor = this.rangeAnchor();
+    const focus = this.rangeFocus();
+    if (!this.rangeSelection() || !anchor || !focus) {
+      return null;
+    }
+    return clampRange(normalizeRange(anchor, focus), this.displayedRows().length, this.visibleColumns().length);
   });
 
   /**
@@ -1673,7 +1899,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
     // Défilement virtuel : mesure la zone visible et la hauteur réelle d'une ligne.
     afterRenderEffect(() => {
-      if (!this.virtualActive() && !this.columnVirtualization()) {
+      const hasPinnedRows = this.pinnedTopRows().length > 0 || this.pinnedBottomRows().length > 0;
+      if (!this.virtualActive() && !this.columnVirtualization() && !hasPinnedRows) {
         return;
       }
       this.tableRows();
@@ -1682,6 +1909,15 @@ export class NgTableComponent<T = any> implements OnDestroy {
         return;
       }
       untracked(() => {
+        // Toutes les lignes d'en-tête (groupes compris) : les lignes épinglées se placent sous leur total.
+        const header = [...wrap.querySelectorAll('tr.mat-mdc-header-row')].reduce((sum, row) => sum + row.getBoundingClientRect().height, 0);
+        if (header > 0 && Math.abs(header - this.headerHeight()) > 0.5) {
+          this.headerHeight.set(header);
+        }
+        const footer = wrap.querySelector('tr.totals-row')?.getBoundingClientRect().height ?? 0;
+        if (footer > 0 && Math.abs(footer - this.footerHeight()) > 0.5) {
+          this.footerHeight.set(footer);
+        }
         if (wrap.clientWidth !== this.viewportWidth()) {
           this.viewportWidth.set(wrap.clientWidth);
         }
@@ -1734,6 +1970,28 @@ export class NgTableComponent<T = any> implements OnDestroy {
         return;
       }
       untracked(() => this.loadVisibleBlocks(range));
+    });
+
+    // Taille de l'historique annuler / rétablir : en changer repart d'un historique vide.
+    effect(() => {
+      const limit = Math.max(1, this.undoRedoLimit());
+      untracked(() => {
+        this.history = new EditHistory<T>(limit);
+        this.historyVersion.update((version) => version + 1);
+      });
+    });
+
+    // La plage se rapporte à des positions : elle ne survit pas à un tri, un filtre, une
+    // recherche, un changement de page ou de colonnes (mais bien aux mises à jour de données).
+    effect(() => {
+      this.sortStates();
+      this.columnFilters();
+      this.globalSearchTerm();
+      this.pageIndex();
+      this.pageSize();
+      this.groupBy();
+      this.displayedColumnIds();
+      untracked(() => this.clearRangeSelection());
     });
 
     // Un seul point d'émission de `queryStateChange`, quelle que soit l'origine du
@@ -1803,6 +2061,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.detachRangeDragListeners();
     if (this.asyncTimer !== null) {
       clearTimeout(this.asyncTimer);
     }
@@ -2310,15 +2569,21 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (next) {
       event.preventDefault();
       this.focusGridCell(table, next, cell);
+      this.moveRangeWithKeyboard(cell, gridCellAt(table, next), event.shiftKey);
       return;
     }
 
-    const row = this.displayedRows()[this.renderedRowOffset() + position.row];
+    // Lignes de données dans l'ordre du DOM : épinglées, tranche virtuelle ou page.
+    const row = this.tableRows().filter((item): item is T => isDataItem(item))[position.row];
     if (row === undefined) {
       return;
     }
     if (event.key === 'Enter' || event.key === 'F2') {
       event.preventDefault();
+      const column = this.columnOfCell(cell);
+      if (column && this.startEdit(row, column, cell)) {
+        return;
+      }
       const inner = cell.querySelector<HTMLElement>(FOCUSABLE_IN_CELL);
       if (inner) {
         inner.focus();
@@ -2331,7 +2596,499 @@ export class NgTableComponent<T = any> implements OnDestroy {
     } else if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
       event.preventDefault();
       this.openRowContextMenuFromKeyboard(cell.parentElement, row);
+    } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      // Taper un caractère sur une cellule éditable ouvre l'éditeur avec ce caractère (comme un tableur).
+      const column = this.columnOfCell(cell);
+      if (column && this.startEdit(row, column, cell, event.key)) {
+        event.preventDefault();
+      }
     }
+  }
+
+  /** Ctrl+Z défait, Ctrl+Y (ou Ctrl+Maj+Z) rétablit : seulement sur une cellule, pas dans un champ de saisie. */
+  protected onEditKeydown(event: KeyboardEvent): void {
+    if (!this.hasEditableColumns() || (event.target as HTMLElement | null)?.tagName !== 'TD' || !(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    if (key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      this.undo();
+    } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+      event.preventDefault();
+      this.redo();
+    }
+  }
+
+  /** Position (ligne affichée, colonne visible) d'une cellule du DOM ; `null` hors données (sélection, épinglées...). */
+  private rangePositionOf(element: Element | null): CellPosition | null {
+    const cell = element?.closest('td');
+    const rowAttr = cell?.parentElement?.getAttribute('data-ngt-row');
+    const columnId = cell?.getAttribute('data-ngt-col');
+    if (!cell || rowAttr === null || rowAttr === undefined || !columnId) {
+      return null;
+    }
+    const col = this.visibleColumnIndexes().get(columnId);
+    return col === undefined ? null : {row: Number(rowAttr), col};
+  }
+
+  /** Flèches : avec Maj, la plage s'étend jusqu'à la cellule atteinte ; sans Maj, elle se réduit à cette cellule. */
+  private moveRangeWithKeyboard(from: HTMLTableCellElement, to: HTMLTableCellElement | null, extend: boolean): void {
+    if (!this.rangeSelection()) {
+      return;
+    }
+    const destination = this.rangePositionOf(to);
+    if (!destination) {
+      return;
+    }
+    if (extend) {
+      this.rangeAnchor.update((anchor) => anchor ?? this.rangePositionOf(from) ?? destination);
+      this.rangeFocus.set(destination);
+    } else {
+      this.rangeAnchor.set(destination);
+      this.rangeFocus.set(destination);
+    }
+  }
+
+  protected onRangeMouseDown(event: MouseEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (!this.rangeSelection() || event.button !== 0 || !target) {
+      return;
+    }
+    // Les boutons, champs et cases à cocher des cellules gardent leur comportement.
+    if (target.closest('button, a, input, select, textarea, mat-checkbox, [role="button"]')) {
+      return;
+    }
+    const position = this.rangePositionOf(target);
+    const cell = target.closest('td');
+    if (!position || !cell) {
+      return;
+    }
+    event.preventDefault(); // pas de sélection de texte pendant le glissement
+    if (cell.getAttribute('tabindex') === null) {
+      cell.tabIndex = -1; // focalisable, pour recevoir Ctrl+C / Ctrl+V / Échap
+    }
+    cell.focus({preventScroll: true});
+    if (event.shiftKey && this.rangeAnchor()) {
+      this.rangeFocus.set(position);
+    } else {
+      this.rangeAnchor.set(position);
+      this.rangeFocus.set(position);
+    }
+    this.rangeDragging = true;
+    document.addEventListener('mousemove', this.onRangeMouseMove);
+    document.addEventListener('mouseup', this.onRangeMouseUp);
+  }
+
+  private readonly onRangeMouseMove = (event: MouseEvent): void => {
+    const position = this.rangePositionOf(event.target as Element | null);
+    const focus = this.rangeFocus();
+    if (this.rangeDragging && position && (!focus || focus.row !== position.row || focus.col !== position.col)) {
+      this.rangeFocus.set(position);
+    }
+  };
+
+  private readonly onRangeMouseUp = (): void => this.detachRangeDragListeners();
+
+  private detachRangeDragListeners(): void {
+    this.rangeDragging = false;
+    document.removeEventListener('mousemove', this.onRangeMouseMove);
+    document.removeEventListener('mouseup', this.onRangeMouseUp);
+  }
+
+  /** Ctrl+C copie la plage, Ctrl+A la étend à toute la page, Échap l'efface. */
+  protected onRangeKeydown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    // Dans un champ ou un bouton d'une cellule, les raccourcis gardent leur sens habituel.
+    if (!this.rangeSelection() || target?.tagName !== 'TD') {
+      return;
+    }
+    const modifier = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    if (modifier && key === 'c' && this.rangeBounds()) {
+      event.preventDefault();
+      void this.copySelectedRange();
+    } else if (modifier && key === 'a' && this.rangePositionOf(target)) {
+      event.preventDefault();
+      this.selectAllCells();
+    } else if (event.key === 'Escape' && this.rangeBounds()) {
+      this.clearRangeSelection();
+    }
+  }
+
+  protected onRangePaste(event: ClipboardEvent): void {
+    if (!this.rangeSelection() || (event.target as HTMLElement | null)?.tagName !== 'TD' || !this.rangeBounds()) {
+      return;
+    }
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    if (text !== '') {
+      event.preventDefault();
+      this.pasteIntoRange(text);
+    }
+  }
+
+  /** `data-ngt-range` d'une cellule : `in`, plus `top` / `right` / `bottom` / `left` sur le contour de la plage. */
+  protected cellRangeAttr(row: T, column: NgTableColumn<T>): string | null {
+    const bounds = this.rangeBounds();
+    if (!bounds) {
+      return null;
+    }
+    const r = this.renderedRowIndexes().get(row);
+    const c = this.visibleColumnIndexes().get(column.id);
+    if (r === undefined || c === undefined || !rangeContains(bounds, r, c)) {
+      return null;
+    }
+    const edges = rangeEdges(bounds, r, c);
+    return ['in', edges.top && 'top', edges.right && 'right', edges.bottom && 'bottom', edges.left && 'left'].filter(Boolean).join(' ');
+  }
+
+  /** `aria-selected` d'une cellule : seulement quand la table est une grille (`[cellNavigation]`). */
+  protected cellRangeSelected(row: T, column: NgTableColumn<T>): 'true' | null {
+    return this.cellNavigation() && this.cellRangeAttr(row, column) ? 'true' : null;
+  }
+
+  /** `data-ngt-row` d'une ligne : son index dans `displayedRows()`, pour retrouver la cellule sous la souris. */
+  protected rowRangeIndex(row: T): number | null {
+    return this.rangeSelection() ? (this.renderedRowIndexes().get(row) ?? null) : null;
+  }
+
+  /** Plage actuellement sélectionnée, ou `null`. */
+  getSelectedRange(): NgTableRangeSelection<T> | null {
+    const bounds = this.rangeBounds();
+    if (!bounds) {
+      return null;
+    }
+    const rows = this.displayedRows().slice(bounds.row1, bounds.row2 + 1);
+    const columns = this.visibleColumns().slice(bounds.col1, bounds.col2 + 1);
+    const matrix = rows.map((row) =>
+      columns.map((column) => {
+        const value = toExportCell(column.exportValueAccessor ? column.exportValueAccessor(row) : column.valueAccessor(row));
+        return value === null ? '' : String(value);
+      }),
+    );
+    if (this.rangeCopyHeaders()) {
+      matrix.unshift(columns.map((column) => column.header));
+    }
+    return {rows, columns, text: toClipboardText(matrix)};
+  }
+
+  /** Copie la plage sélectionnée dans le presse-papiers. `false` s'il n'y en a pas, ou si le navigateur refuse. */
+  async copySelectedRange(): Promise<boolean> {
+    const selection = this.getSelectedRange();
+    if (!selection) {
+      return false;
+    }
+    const copied = await writeClipboardText(selection.text);
+    if (copied) {
+      this.rangeCopied.emit({text: selection.text, rowCount: selection.rows.length, columnCount: selection.columns.length});
+    }
+    return copied;
+  }
+
+  /** Traite un texte collé comme le ferait Ctrl+V sur la plage : émet `(rangePasted)`. */
+  pasteIntoRange(text: string): void {
+    const bounds = this.rangeBounds();
+    if (!bounds) {
+      return;
+    }
+    const values = parseClipboardText(text);
+    const rows = this.displayedRows();
+    const columns = this.visibleColumns();
+    const assignments = buildPasteAssignments(values, bounds, rows.length, columns.length).map(({row, col, value}) => ({
+      row: rows[row],
+      column: columns[col],
+      value,
+    }));
+    const applied = this.editOnPaste() ? this.applyPastedValues(assignments) : 0;
+    this.rangePasted.emit({assignments, text, values, applied});
+  }
+
+  /** Sélectionne toutes les cellules de la page affichée. */
+  selectAllCells(): void {
+    const rows = this.displayedRows().length;
+    const columns = this.visibleColumns().length;
+    if (rows > 0 && columns > 0) {
+      this.rangeAnchor.set({row: 0, col: 0});
+      this.rangeFocus.set({row: rows - 1, col: columns - 1});
+    }
+  }
+
+  /** Efface la plage sélectionnée. */
+  clearRangeSelection(): void {
+    this.rangeAnchor.set(null);
+    this.rangeFocus.set(null);
+  }
+
+  // ------------------------------------------------------------------ édition de cellules
+
+  protected isEditable(row: T, column: NgTableColumn<T>): boolean {
+    if (!column.editable || this.pinnedInfo().has(row)) {
+      return false;
+    }
+    return typeof column.editable === 'function' ? column.editable(row) : true;
+  }
+
+  protected editorKind(column: NgTableColumn<T>): NgTableEditorKind {
+    return editorKindFor(column);
+  }
+
+  protected editorOptions(column: NgTableColumn<T>): NgTableFilterOption[] {
+    return column.editorOptions ?? column.filter?.options ?? [];
+  }
+
+  protected isEditing(row: T, column: NgTableColumn<T>): boolean {
+    const editing = this.editing();
+    return !!editing && editing.columnId === column.id && Object.is(editing.key, this.rowKey(row));
+  }
+
+  /** Case à cocher éditable : toujours affichée, un clic enregistre tout de suite. */
+  protected isInlineCheckbox(row: T, column: NgTableColumn<T>): boolean {
+    return this.hasEditableColumns() && this.editorKind(column) === 'checkbox' && this.isEditable(row, column);
+  }
+
+  private columnOfCell(cell: Element): NgTableColumn<T> | null {
+    const id = cell.getAttribute('data-ngt-col');
+    return id ? (this.visibleColumns().find((column) => column.id === id) ?? null) : null;
+  }
+
+  private findRowByKey(key: unknown): T | undefined {
+    return this.dataMode() === 'local' ? this.syncedStore().get(key) : this.displayedRows().find((row) => Object.is(this.rowKey(row), key));
+  }
+
+  protected onCellDoubleClick(event: MouseEvent, row: T, column: NgTableColumn<T>): void {
+    if (!this.hasEditableColumns() || (event.target as HTMLElement).closest('button, a, input, select, textarea')) {
+      return;
+    }
+    this.startEdit(row, column, (event.currentTarget as HTMLElement) ?? null);
+  }
+
+  /**
+   * Ouvre l'éditeur de la cellule (ou, pour une case à cocher, bascule sa valeur). `initial`
+   * remplace le contenu : le caractère tapé pour démarrer. `false` si la cellule n'est pas éditable.
+   */
+  protected startEdit(row: T, column: NgTableColumn<T>, cell: HTMLElement | null, initial?: string): boolean {
+    if (!this.isEditable(row, column)) {
+      return false;
+    }
+    if (this.editing()) {
+      this.finishEdit('none'); // une seule cellule en cours d'édition
+    }
+    const kind = this.editorKind(column);
+    if (kind === 'checkbox') {
+      this.commitValue(row, column, !column.valueAccessor(row), 'edit');
+      return true;
+    }
+    const draft = initial !== undefined && kind !== 'select' ? initial : draftFromValue(kind, column.valueAccessor(row));
+    this.editing.set({key: this.rowKey(row), columnId: column.id, draft, error: null, cell});
+    afterNextRender(
+      () => {
+        const editor = this.hostElement.nativeElement.querySelector<HTMLInputElement | HTMLSelectElement>('.ngt-editor');
+        editor?.focus();
+        if (editor instanceof HTMLInputElement && editor.type === 'text') {
+          if (initial !== undefined) {
+            editor.setSelectionRange(draft.length, draft.length);
+          } else {
+            editor.select();
+          }
+        }
+      },
+      {injector: this.injector},
+    );
+    return true;
+  }
+
+  /** Ouvre l'éditeur d'une cellule par programme. `false` si elle n'est pas éditable. */
+  startEditing(row: T, columnId: string): boolean {
+    const column = this.columns().find((candidate) => candidate.id === columnId);
+    return !!column && this.startEdit(row, column, null);
+  }
+
+  /** Ferme l'éditeur : valide la saisie, ou l'abandonne avec `cancel`. */
+  stopEditing(cancel = false): void {
+    if (cancel) {
+      this.cancelEdit();
+    } else {
+      this.finishEdit('none');
+    }
+  }
+
+  protected onInlineCheckbox(row: T, column: NgTableColumn<T>, checked: boolean): void {
+    this.commitValue(row, column, checked, 'edit');
+  }
+
+  protected onEditInput(value: string): void {
+    this.editing.update((editing) => (editing ? {...editing, draft: value, error: null} : editing));
+  }
+
+  protected onEditSelect(value: string): void {
+    this.onEditInput(value);
+    this.finishEdit('stay');
+  }
+
+  protected onEditorKeydown(event: KeyboardEvent): void {
+    event.stopPropagation(); // les touches de l'éditeur ne pilotent pas la grille
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.finishEdit('down');
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      this.finishEdit(event.shiftKey ? 'left' : 'right');
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      this.cancelEdit();
+    }
+  }
+
+  /** Perte de focus : valide ; une saisie invalide est abandonnée (et signalée par `cellEditRejected`). */
+  protected onEditorBlur(): void {
+    if (this.editing() && !this.finishEdit('none')) {
+      this.cancelEdit(false);
+    }
+  }
+
+  /**
+   * Valide la saisie en cours. `false` si elle est refusée : l'éditeur reste ouvert avec son
+   * message d'erreur. Sinon l'édition se ferme et le focus passe à la cellule voisine (`move`).
+   */
+  private finishEdit(move: 'none' | 'stay' | 'down' | 'right' | 'left'): boolean {
+    const editing = this.editing();
+    if (!editing) {
+      return true;
+    }
+    const column = this.visibleColumns().find((candidate) => candidate.id === editing.columnId);
+    const row = this.findRowByKey(editing.key);
+    if (!column || row === undefined) {
+      this.editing.set(null);
+      return true;
+    }
+    const labels = this.effectiveLabels();
+    const parsed = parseDraft(this.editorKind(column), editing.draft);
+    let error: string | null = parsed.ok ? null : parsed.error === 'number' ? labels.editInvalidNumber : labels.editInvalidDate;
+    if (parsed.ok) {
+      error = column.validate?.(parsed.value, row) ?? null;
+    }
+    if (error || !parsed.ok) {
+      this.editing.set({...editing, error});
+      this.cellEditRejected.emit({row, column, value: editing.draft, error: error ?? ''});
+      return false;
+    }
+    this.editing.set(null);
+    this.commitValue(row, column, parsed.value, 'edit');
+    this.focusAfterEdit(editing.cell, move);
+    return true;
+  }
+
+  private cancelEdit(refocus = true): void {
+    const editing = this.editing();
+    this.editing.set(null);
+    if (refocus) {
+      this.focusAfterEdit(editing?.cell ?? null, 'stay');
+    }
+  }
+
+  private focusAfterEdit(cell: HTMLElement | null, move: 'none' | 'stay' | 'down' | 'right' | 'left'): void {
+    if (!cell || !cell.isConnected || move === 'none') {
+      return;
+    }
+    const table = this.tableElement()?.nativeElement;
+    const key = move === 'down' ? 'ArrowDown' : move === 'right' ? 'ArrowRight' : move === 'left' ? 'ArrowLeft' : null;
+    const located = key && this.cellNavigation() && table ? locateGridCell(table, cell) : null;
+    const columns = (cell.parentElement as HTMLTableRowElement | null)?.cells.length ?? 0;
+    const next = located && key && table ? nextGridPosition(key, false, located.position, gridRows(table).length, columns) : null;
+    if (next && table) {
+      this.focusGridCell(table, next, cell as HTMLTableCellElement);
+    } else {
+      cell.focus({preventScroll: true});
+    }
+  }
+
+  /**
+   * Applique une valeur à une cellule : validation, `valueSetter`, transaction (mode local),
+   * historique et événement. `false` si la valeur ne change rien.
+   */
+  private commitValue(row: T, column: NgTableColumn<T>, value: unknown, source: 'edit' | 'paste'): boolean {
+    const oldValue = column.valueAccessor(row);
+    if (sameCellValue(oldValue, value)) {
+      return false;
+    }
+    const newRow = column.valueSetter ? column.valueSetter(row, value) : null;
+    if (newRow && this.dataMode() === 'local') {
+      this.applyTransaction({update: [newRow]});
+      this.history.record([{key: this.rowKey(row), columnId: column.id, previous: row, current: newRow}]);
+      this.historyVersion.update((version) => version + 1);
+    }
+    this.cellEdited.emit({row, newRow, column, oldValue, newValue: value, source});
+    this.announce([this.effectiveLabels().announceCellEdited.replace('{column}', column.header)]);
+    return true;
+  }
+
+  /** Défait la dernière modification (ou le dernier collage). `false` s'il n'y en a pas. */
+  undo(): boolean {
+    return this.restoreEdits(this.history.undo(), 'undo');
+  }
+
+  /** Rétablit la dernière modification défaite. */
+  redo(): boolean {
+    return this.restoreEdits(this.history.redo(), 'redo');
+  }
+
+  private restoreEdits(restore: EditRestore<T> | null, source: 'undo' | 'redo'): boolean {
+    if (!restore) {
+      return false;
+    }
+    this.applyTransaction({update: restore.rows});
+    this.historyVersion.update((version) => version + 1);
+    for (const change of restore.changes) {
+      const column = this.columns().find((candidate) => candidate.id === change.columnId);
+      if (column) {
+        const from = source === 'undo' ? change.current : change.previous;
+        const to = source === 'undo' ? change.previous : change.current;
+        this.cellEdited.emit({row: from, newRow: to, column, oldValue: column.valueAccessor(from), newValue: column.valueAccessor(to), source});
+      }
+    }
+    const labels = this.effectiveLabels();
+    this.announce([source === 'undo' ? labels.announceEditUndone : labels.announceEditRedone]);
+    return true;
+  }
+
+  /** Écrit les valeurs collées dans les cellules éditables, en un seul lot annulable. Renvoie le nombre de cellules modifiées. */
+  private applyPastedValues(assignments: readonly { row: T; column: NgTableColumn<T>; value: string }[]): number {
+    if (this.dataMode() !== 'local') {
+      return 0;
+    }
+    const latest = new Map<unknown, T>();
+    const changes: EditChange<T>[] = [];
+    const events: NgTableCellEditEvent<T>[] = [];
+    for (const {row, column, value} of assignments) {
+      if (!column.valueSetter || !this.isEditable(row, column)) {
+        continue;
+      }
+      const key = this.rowKey(row);
+      const current = latest.get(key) ?? this.findRowByKey(key) ?? row;
+      const parsed = parseDraft(this.editorKind(column), value);
+      const labels = this.effectiveLabels();
+      const error = !parsed.ok ? (parsed.error === 'number' ? labels.editInvalidNumber : labels.editInvalidDate) : (column.validate?.(parsed.value, current) ?? null);
+      if (error || !parsed.ok) {
+        this.cellEditRejected.emit({row: current, column, value, error: error ?? ''});
+        continue;
+      }
+      const oldValue = column.valueAccessor(current);
+      if (sameCellValue(oldValue, parsed.value)) {
+        continue;
+      }
+      const next = column.valueSetter(current, parsed.value);
+      latest.set(key, next);
+      changes.push({key, columnId: column.id, previous: current, current: next});
+      events.push({row: current, newRow: next, column, oldValue, newValue: parsed.value, source: 'paste'});
+    }
+    if (changes.length > 0) {
+      this.applyTransaction({update: [...latest.values()]});
+      this.history.record(changes);
+      this.historyVersion.update((version) => version + 1);
+      events.forEach((event) => this.cellEdited.emit(event));
+      this.announce([this.effectiveLabels().announceCellEdited.replace('{column}', events[0].column.header)]);
+    }
+    return changes.length;
   }
 
   /** Un clic (ou un focus programmatique) dans une cellule en fait la cellule active. */
@@ -3281,6 +4038,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (row instanceof NgTableLoadingRow) {
       return `__loading__${row.index}`;
     }
+    const pin = this.pinnedInfo().get(row);
+    if (pin) {
+      return `__pinned_${pin.side}__${pin.index}`; // clé propre : une ligne épinglée peut ressembler à une ligne du corps
+    }
     return this.trackByRow(index, row);
   };
 
@@ -3320,7 +4081,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * on every change detection cycle.
    */
   protected detailRowRenderWhen = (_index: number, row: TableItem<T>): boolean =>
-    !!this.detailRowTemplate() && isDataItem(row);
+    !!this.detailRowTemplate() && isDataItem(row) && !this.pinnedInfo().has(row);
 
   protected isDetailExpanded(index: number, row: T): boolean {
     if (!this.detailRowTemplate()) {

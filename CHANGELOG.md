@@ -10,6 +10,10 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 - Modèle serveur par blocs (`[remoteDatasource]`, `NgTableRemoteDatasource` / `NgTableBlockRequest` / `NgTableBlockResult`) : défilement continu sur toutes les lignes du serveur, blocs chargés à la demande et mis en cache (`[cacheBlockSize]`, `[maxBlocksInCache]`, `[maxConcurrentBlockRequests]`), `refreshRemoteDatasource()`, `remoteRowCount()`, `(remoteBlockError)`. Label `blockLoadError`.
 - Affichage partiel des colonnes (`[virtualColumns]`) pour les tables très larges.
 - `scrollToIndex()`.
+- Édition de cellules : options de colonne `editable`, `editor`, `editorOptions`, `valueSetter`, `validate` ; `(cellEdited)`, `(cellEditRejected)`, `[editOnPaste]`, `[undoRedoLimit]`, `undo()`, `redo()`, `canUndo()`, `canRedo()`, `startEditing()`, `stopEditing()` ; collage appliqué aux cellules éditables, annuler / rétablir par lots.
+- Sélection de plage de cellules et copier-coller : `[rangeSelection]`, `[rangeCopyHeaders]`, `(rangeCopied)`, `(rangePasted)`, `getSelectedRange()`, `copySelectedRange()`, `pasteIntoRange()`, `selectAllCells()`, `clearRangeSelection()`. Texte tabulé compatible Excel / Google Sheets.
+- En-têtes de colonnes groupés : `NgTableColumn.headerGroup` (libellé ou chemin), une ligne par niveau, cellules fusionnées par `colspan`.
+- Lignes épinglées en haut et en bas : `[pinnedTopRows]`, `[pinnedBottomRows]` (attributs `data-ngt-pin`, `data-ngt-pin-edge`).
 - Démo : page **Live** (flux de cotations jusqu'à 50 000 mises à jour/s sur 100 000 instruments, compteurs de performance).
 
 ### Performance

@@ -1330,3 +1330,144 @@
   border-left: 0;
   border-right: 0;
 }
+
+/* --- Lignes épinglées en haut / en bas ---------------------------------- */
+/* Les mesures (--ngt-row-h, --ngt-header-h, --ngt-footer-h) viennent du composant. Le rang
+   (--ngt-pin-index) est compté depuis le bord le plus proche. */
+.ng-table tr[data-ngt-pin='top'] td {
+  position: sticky;
+  top: calc(var(--ngt-header-h, 0px) + var(--ngt-pin-index, 0) * var(--ngt-row-h, 48px));
+  z-index: 2;
+  background: var(--app-surface-alt, #f1f5f9);
+  font-weight: 500;
+}
+
+.ng-table tr[data-ngt-pin='bottom'] td {
+  position: sticky;
+  bottom: calc(var(--ngt-footer-h, 0px) + var(--ngt-pin-index, 0) * var(--ngt-row-h, 48px));
+  z-index: 2;
+  background: var(--app-surface-alt, #f1f5f9);
+  font-weight: 500;
+}
+
+/* Une colonne épinglée à gauche / à droite reste au-dessus des cellules qui défilent.
+   Material pose `z-index: 1` en style inline sur les cellules de colonne figée : seul
+   `!important` passe devant, et la ligne épinglée doit dépasser les colonnes figées du corps. */
+.ng-table tr[data-ngt-pin] td.mat-mdc-table-sticky {
+  z-index: 3 !important;
+}
+
+.ng-table tr[data-ngt-pin='top'][data-ngt-pin-edge] td {
+  box-shadow: 0 6px 8px -6px rgba(15, 23, 42, 0.25);
+}
+
+.ng-table tr[data-ngt-pin='bottom'][data-ngt-pin-edge] td {
+  box-shadow: 0 -6px 8px -6px rgba(15, 23, 42, 0.25);
+}
+
+/* --- En-têtes de colonnes groupés --------------------------------------- */
+.ng-table th.header-group-cell {
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--app-muted, #4f6573);
+  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+}
+
+.ng-table th.header-group-cell:not(.header-group-cell--empty) {
+  border-left: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border-right: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  background: var(--app-surface-alt, #f1f5f9);
+}
+
+/* Ligne de groupes : plus basse que la ligne des colonnes. */
+.ng-table tr.header-group-row {
+  height: 36px;
+}
+
+/* --- Sélection d'une plage de cellules ---------------------------------- */
+.ng-table.ngt-range-enabled td.mat-mdc-cell {
+  user-select: none;
+  cursor: cell;
+}
+
+/* Contour de la plage : un ombrage intérieur par côté, combinés par des variables CSS. */
+.ng-table td[data-ngt-range~='in'] {
+  background-color: color-mix(in srgb, var(--app-primary, #3a7ca5) 14%, transparent);
+  box-shadow: var(--ngt-rs-t, 0 0 #0000), var(--ngt-rs-r, 0 0 #0000), var(--ngt-rs-b, 0 0 #0000), var(--ngt-rs-l, 0 0 #0000);
+}
+
+.ng-table td[data-ngt-range~='top'] { --ngt-rs-t: inset 0 2px 0 0 var(--app-primary, #3a7ca5); }
+.ng-table td[data-ngt-range~='right'] { --ngt-rs-r: inset -2px 0 0 0 var(--app-primary, #3a7ca5); }
+.ng-table td[data-ngt-range~='bottom'] { --ngt-rs-b: inset 0 -2px 0 0 var(--app-primary, #3a7ca5); }
+.ng-table td[data-ngt-range~='left'] { --ngt-rs-l: inset 2px 0 0 0 var(--app-primary, #3a7ca5); }
+
+/* Les cellules épinglées ont un fond opaque : la teinte de la plage s'y mélange à ce fond. */
+.ng-table td.mat-mdc-table-sticky[data-ngt-range~='in'] {
+  background-color: color-mix(in srgb, var(--app-surface, #ffffff) 86%, var(--app-primary, #3a7ca5));
+}
+
+/* La cellule active (navigation clavier) garde son contour de focus par-dessus celui de la plage. */
+.ng-table[role='grid'] td.mat-mdc-cell:focus-visible[data-ngt-range~='in'] {
+  outline-offset: -2px;
+}
+
+/* --- Édition de cellules ------------------------------------------------ */
+.ng-table td[data-ngt-editable] {
+  cursor: text;
+}
+
+.ng-table td[data-ngt-editable]:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-primary, #3a7ca5) 40%, transparent);
+}
+
+.cell-content--hidden {
+  display: none;
+}
+
+.cell-editor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.ngt-editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 2px solid var(--app-primary, #3a7ca5);
+  border-radius: 6px;
+  background: var(--app-surface, #ffffff);
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.ngt-editor[aria-invalid='true'] {
+  border-color: var(--mat-sys-error, #b3261e);
+}
+
+.ngt-editor-error {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--mat-sys-error, #b3261e);
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.ngt-inline-check {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--app-primary, #3a7ca5);
+  cursor: pointer;
+}

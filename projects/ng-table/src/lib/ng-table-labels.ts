@@ -125,6 +125,14 @@ export interface NgTableLabels {
   totalsLabel: string;
   /** Modèle par blocs : texte des lignes dont le bloc n'a pas pu être chargé. */
   blockLoadError: string;
+  /** Édition : texte saisi qui n'est pas un nombre. */
+  editInvalidNumber: string;
+  /** Édition : texte saisi qui n'est pas une date AAAA-MM-JJ. */
+  editInvalidDate: string;
+  /** Annonce lecteur d'écran après une édition ; `{column}` = en-tête de la colonne. */
+  announceCellEdited: string;
+  announceEditUndone: string;
+  announceEditRedone: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -200,6 +208,11 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   aggregateCount: 'Nb',
   totalsLabel: 'Total',
   blockLoadError: 'Chargement impossible',
+  editInvalidNumber: 'Nombre invalide',
+  editInvalidDate: 'Date invalide (AAAA-MM-JJ)',
+  announceCellEdited: 'Cellule « {column} » modifiée',
+  announceEditUndone: 'Modification annulée',
+  announceEditRedone: 'Modification rétablie',
 };
 
 /**
@@ -283,6 +296,11 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   aggregateCount: 'Count',
   totalsLabel: 'Total',
   blockLoadError: 'Could not load rows',
+  editInvalidNumber: 'Invalid number',
+  editInvalidDate: 'Invalid date (YYYY-MM-DD)',
+  announceCellEdited: 'Cell "{column}" edited',
+  announceEditUndone: 'Edit undone',
+  announceEditRedone: 'Edit redone',
 };
 
 /**

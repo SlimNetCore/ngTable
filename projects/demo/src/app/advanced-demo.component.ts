@@ -106,6 +106,13 @@ function addDays(isoDay: string, days: number): string {
       [inlineFilters]="inlineFilters()"
       [multiSort]="multiSort()"
       [cellNavigation]="cellNavigation()"
+      [pinnedTopRows]="pinnedRows() ? pinnedTop() : []"
+      [pinnedBottomRows]="pinnedRows() ? pinnedBottom() : []"
+      [rangeSelection]="rangeSelection()"
+      [rangeCopyHeaders]="true"
+      (rangeCopied)="rangeInfo.set($event.rowCount + ' × ' + $event.columnCount + ' cellules copiées')"
+      (rangePasted)="rangeInfo.set('Collé : ' + $event.assignments.length + ' cellule(s) cible(s), ' + $event.values.length + ' ligne(s) × ' + ($event.values[0]?.length ?? 0) + ' colonne(s)')"
+      (cellEdited)="editInfo.set($event.column.header + ' : ' + $event.oldValue + ' → ' + $event.newValue + ' (' + $event.source + ')')"
       [groupingEnabled]="grouping()"
       [(groupBy)]="groupBy"
       [showTotals]="totalsRow()"
@@ -151,6 +158,8 @@ function addDays(isoDay: string, days: number): string {
       {{ rows().length }} lignes
       @if (selection()) { · {{ selectedCount() }} sélectionnée(s) }
       @if (lastClicked()) { · dernière ligne cliquée : {{ lastClicked() }} }
+      @if (rangeInfo()) { · {{ rangeInfo() }} }
+      @if (editInfo()) { · modifié : {{ editInfo() }} }
       @if (copied()) { · copié : « {{ copied() }} » }
     </p>
 
@@ -162,6 +171,8 @@ function addDays(isoDay: string, days: number): string {
           plage numérique (TTC), période, jour exact, booléen.</li>
         <li>Recherche globale (le statut est cherché sur son libellé via <code>searchable</code>).</li>
         <li>Tri, et tri multi-colonnes avec Maj+clic.</li>
+        <li>En-têtes de colonnes groupés sur deux niveaux (<code>headerGroup</code>) : « Commande », « Suivi », « Finance »
+          (Montants, Dates), cellules fusionnées par <code>colspan</code> et suivant le masquage et l'ordre des colonnes.</li>
         <li>Colonnes épinglées (Référence à gauche, Actions à droite), redimensionnables, réordonnables. La colonne
           fixée à gauche se choisit avec la punaise du menu « Colonnes » (<code>referenceColumnSelectable</code>).</li>
         <li>Colonne « Livraison » masquée par défaut : bouton « Colonnes ».</li>
@@ -173,6 +184,10 @@ function addDays(isoDay: string, days: number): string {
         <li>Regroupement (bouton « Grouper », ex. par Statut ou Client), groupes repliables, agrégats par colonne
           (<code>aggregate: 'sum'</code> sur les montants, agrégat personnalisé sur « Urgent ») et ligne de totaux.</li>
         <li>Vues sauvegardées, vue par défaut (étoile), export / import des vues.</li>
+        <li>Sélection de plage de cellules (<code>rangeSelection</code>) : glissez, ou Maj+clic ; Ctrl+C copie (collable dans Excel,
+          avec les en-têtes), Ctrl+A tout, Échap efface ; Ctrl+V émet <code>rangePasted</code>.</li>
+        <li>Lignes épinglées en haut et en bas (<code>[pinnedTopRows]</code>, <code>[pinnedBottomRows]</code>) : elles restent
+          visibles pendant le défilement (activez « En-tête fixe » pour limiter la hauteur).</li>
         <li>Défilement virtuel (<code>[virtualScroll]</code>) : 50 000 lignes sans pagination, seules les lignes
           visibles sont rendues.</li>
         <li>Pagination intégrée (<code>[paginator]</code>), ou paginateur personnalisé branché avec
@@ -236,6 +251,12 @@ export class AdvancedDemoComponent {
   protected readonly multiSort = signal(true);
   protected readonly cellNavigation = signal(true);
   protected readonly totalsRow = signal(true);
+  protected readonly pinnedRows = signal(true);
+  protected readonly rangeSelection = signal(true);
+  protected readonly rangeInfo = signal('');
+  protected readonly cellEditing = signal(true);
+  protected readonly editInfo = signal('');
+  protected readonly headerGroups = signal(true);
   protected readonly grouping = signal(true);
   protected readonly groupBy = signal<string | null>(null);
   protected readonly selection = signal(false);
@@ -255,6 +276,10 @@ export class AdvancedDemoComponent {
     {label: 'Navigation clavier (grille)', value: this.cellNavigation},
     {label: 'Regroupement', value: this.grouping},
     {label: 'Ligne de totaux', value: this.totalsRow},
+    {label: 'Lignes épinglées', value: this.pinnedRows},
+    {label: 'Sélection de plage', value: this.rangeSelection},
+    {label: 'Édition de cellules', value: this.cellEditing},
+    {label: 'En-têtes groupés', value: this.headerGroups},
     {label: 'Sélection', value: this.selection},
     {label: 'Ligne détail', value: this.detailRows},
     {label: 'Menu contextuel', value: this.contextMenu},
@@ -287,12 +312,57 @@ pageIndex = signal(0);
 pageSize = signal(25);
 filteredTotal = signal(0);   // total APRÈS filtres : seul ng-table le connaît`;
   protected readonly rowKey = (row: Commande): string => row.id;
+
+  /** Lignes épinglées : de vraies `Commande`, hors de `[rows]` (clés distinctes). */
+  protected readonly pinnedTop = computed<Commande[]>(() => [
+    {id: 'epingle-1', reference: 'CMD-PRIORITAIRE', client: 'Commande à traiter en premier', statut: 'VALIDEE', montant: 0, dateCommande: '', urgent: true, description: 'Reste visible sous l’en-tête'},
+  ]);
+  protected readonly pinnedBottom = computed<Commande[]>(() => [
+    {id: 'epingle-total', reference: 'TOTAL GÉNÉRAL', client: `${this.rows().length} commandes`, statut: 'VALIDEE',
+      montant: Math.round(this.rows().reduce((total, c) => total + c.montant, 0)), dateCommande: '', urgent: false, description: 'Reste visible au-dessus du bas de la zone'},
+  ]);
   protected readonly rowClass = (row: Commande) => ({'row-urgent': row.urgent});
 
   private readonly statutCell = viewChild<TemplateRef<unknown>>('statutCell');
   private readonly actionsCell = viewChild<TemplateRef<unknown>>('actionsCell');
 
-  protected readonly columns = computed<NgTableColumn<Commande>[]>(() => [
+  protected readonly columns = computed<NgTableColumn<Commande>[]>(() => this.withEditing(this.withHeaderGroups(this.baseColumns())));
+
+  /** Édition de cellules : client (texte), statut (liste), montant HT (nombre, positif). */
+  private withEditing(columns: NgTableColumn<Commande>[]): NgTableColumn<Commande>[] {
+    if (!this.cellEditing()) {
+      return columns;
+    }
+    const editable: Record<string, Partial<NgTableColumn<Commande>>> = {
+      client: {editable: true, valueSetter: (c, v) => ({...c, client: `${v}`})},
+      statut: {editable: true, editor: 'select', valueSetter: (c, v) => ({...c, statut: v as Commande['statut']})},
+      montant: {
+        editable: true,
+        valueSetter: (c, v) => ({...c, montant: (v as number | null) ?? 0}),
+        validate: (v) => ((v as number | null) !== null && (v as number) < 0 ? 'Le montant doit être positif' : null),
+      },
+    };
+    return columns.map((column) => (editable[column.id] ? {...column, ...editable[column.id]} : column));
+  }
+
+  /** Regroupement des en-têtes (`headerGroup`) : colonnes voisines fusionnées sous un libellé, sur deux niveaux. */
+  private withHeaderGroups(columns: NgTableColumn<Commande>[]): NgTableColumn<Commande>[] {
+    if (!this.headerGroups()) {
+      return columns;
+    }
+    const groups: Record<string, string[]> = {
+      reference: ['Commande'],
+      client: ['Commande'],
+      statut: ['Suivi'],
+      montant: ['Finance', 'Montants'],
+      ttc: ['Finance', 'Montants'],
+      dateCommande: ['Finance', 'Dates'],
+      livraison: ['Finance', 'Dates'],
+    };
+    return columns.map((column) => (groups[column.id] ? {...column, headerGroup: groups[column.id]} : column));
+  }
+
+  private readonly baseColumns = computed<NgTableColumn<Commande>[]>(() => [
     {
       id: 'reference',
       header: 'Référence',

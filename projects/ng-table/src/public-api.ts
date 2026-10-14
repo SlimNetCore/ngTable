@@ -10,3 +10,4 @@ export type {ColumnFilterType} from './lib/column-filter-renderer.component';
 export type {NgTableTextOperator} from './lib/filter-matching';
 export type {NgTableExportFormat} from './lib/export-writers';
 export type {NgTableRowTransaction, NgTableTransactionResult} from './lib/live-rows';
+export type {NgTableEditorKind} from './lib/cell-edit';
