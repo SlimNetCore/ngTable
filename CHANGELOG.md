@@ -2,6 +2,17 @@
 
 Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versions suivant [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+- Mode live : `applyTransaction()`, `applyTransactionAsync()` (lots regroupés pendant `[asyncTransactionWaitMillis]`), `flushAsyncTransactions()`, `(asyncTransactionsFlushed)`, types `NgTableRowTransaction` / `NgTableTransactionResult`.
+- Surbrillance des cellules modifiées : `[flashCells]`, `[flashDurationMs]`, `NgTableColumn.flashOnChange`, attribut `data-ngt-flash`, variables `--ngt-flash-up-bg`, `--ngt-flash-down-bg`, `--ngt-flash-change-bg`.
+- Démo : page **Live** (flux de cotations jusqu'à 50 000 mises à jour/s sur 100 000 instruments, compteurs de performance).
+
+### Performance
+- Pipeline local incrémental : quand seules les données changent (transaction ou nouveau tableau `[rows]` comparé clé par clé), seules les lignes modifiées sont refiltrées et replacées dans le tri par recherche dichotomique. Sur 100 000 lignes triées et filtrées, un lot de 1 000 mises à jour coûte ~15 ms de pipeline au lieu de ~115 ms (mesuré sous jsdom).
+- Recherche globale : le texte de recherche des lignes inchangées reste en cache quand les données changent.
+
 ## [1.0.0] — 2026-09-25
 
 Première version majeure. Elle contient des changements cassants (section « Modifié (cassant) ») : voir « Migrer de 0.4 vers 1.0 » dans le README.

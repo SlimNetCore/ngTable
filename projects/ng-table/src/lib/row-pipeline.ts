@@ -141,24 +141,40 @@ export function sortRows<T>(rows: T[], levels: readonly SortLevel<T>[], collator
   if (levels.length === 0) {
     return rows;
   }
-  const keyed = rows.map((row, index) => ({row, index, keys: levels.map((level) => getSortValue(row, level.column))}));
-  keyed.sort((left, right) => {
-    for (let i = 0; i < levels.length; i++) {
-      const leftEmpty = isEmpty(left.keys[i]);
-      const rightEmpty = isEmpty(right.keys[i]);
-      // Les cellules vides restent en fin de liste dans les deux sens de tri : inverser
-      // la comparaison les ferait remonter en tête d'un tri décroissant.
-      if (leftEmpty !== rightEmpty) {
-        return leftEmpty ? 1 : -1;
-      }
-      const result = compareSortValues(left.keys[i], right.keys[i], collator);
-      if (result !== 0) {
-        return result * levels[i].factor;
-      }
-    }
-    return left.index - right.index;
-  });
+  const keyed = rows.map((row, index) => ({row, index, keys: sortKeysOf(row, levels)}));
+  keyed.sort((left, right) => compareSortKeys(left.keys, right.keys, levels, collator) || left.index - right.index);
   return keyed.map((entry) => entry.row);
+}
+
+/** Clés de tri d'une ligne, une par niveau. */
+export function sortKeysOf<T>(row: T, levels: readonly SortLevel<T>[]): SortValue[] {
+  return levels.map((level) => getSortValue(row, level.column));
+}
+
+/**
+ * Compare deux jeux de clés de tri, niveau par niveau ; `0` en cas d'égalité complète
+ * (l'appelant départage, par l'ordre d'origine).
+ */
+export function compareSortKeys<T>(
+  left: readonly SortValue[],
+  right: readonly SortValue[],
+  levels: readonly SortLevel<T>[],
+  collator: Intl.Collator,
+): number {
+  for (let i = 0; i < levels.length; i++) {
+    const leftEmpty = isEmpty(left[i]);
+    const rightEmpty = isEmpty(right[i]);
+    // Les cellules vides restent en fin de liste dans les deux sens de tri : inverser
+    // la comparaison les ferait remonter en tête d'un tri décroissant.
+    if (leftEmpty !== rightEmpty) {
+      return leftEmpty ? 1 : -1;
+    }
+    const result = compareSortValues(left[i], right[i], collator);
+    if (result !== 0) {
+      return result * levels[i].factor;
+    }
+  }
+  return 0;
 }
 
 function isEmpty(value: SortValue): boolean {

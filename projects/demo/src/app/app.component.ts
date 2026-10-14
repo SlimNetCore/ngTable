@@ -40,5 +40,6 @@ export class AppComponent {
     {path: '/simple', label: 'Simple', hint: 'le minimum'},
     {path: '/avance', label: 'Avancé', hint: 'toutes les options'},
     {path: '/expert', label: 'Expert', hint: 'serveur, contrôle, API'},
+    {path: '/live', label: 'Live', hint: 'flux temps réel'},
   ];
 }

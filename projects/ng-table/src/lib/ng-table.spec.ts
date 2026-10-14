@@ -11,7 +11,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {By} from '@angular/platform-browser';
 import {MatCheckboxChange} from '@angular/material/checkbox';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRemoteQuery, NgTableSortChange} from './ng-table.component';
+import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRemoteQuery, NgTableSelectionChangeEvent, NgTableSortChange} from './ng-table.component';
 import {NG_TABLE_DEFAULT_LABELS, provideNgTableLabels} from './ng-table-labels';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
 
@@ -833,6 +833,119 @@ describe('NgTableComponent', () => {
       const {fixture} = await createTable({rows: manyRows.slice(0, 60)});
       expect(dataRows(fixture)).toHaveLength(60);
       expect(spacers(fixture)).toEqual([]);
+    });
+  });
+
+  describe('mode live (transactions, surbrillance)', () => {
+    const montantDesc = async (component: NgTableComponent) => {
+      component['onHeaderSort'](component.columns()[1]);
+      component['onHeaderSort'](component.columns()[1]); // montant décroissant
+    };
+
+    it('applyTransaction : ajoute, met à jour et retire, en gardant filtres et tri', async () => {
+      const {component} = await createTable();
+      await montantDesc(component);
+      component['onFilterValue']('actif', 'true'); // garde 1 (300) et 3 (200)
+      expect(ids(component.displayedRows())).toEqual(['1', '3']);
+
+      const result = component.applyTransaction({
+        update: [{...ROWS[2], montant: 900}],
+        add: [{id: '4', nom: 'Dan', montant: 250, statut: 'VALIDEE', actif: true, date: '2026-04-01'}],
+        remove: [{id: '1'} as Row],
+      });
+
+      expect(result.update.map((r) => r.id)).toEqual(['3']);
+      expect(result.remove.map((r) => r.id)).toEqual(['1']);
+      expect(ids(component.displayedRows())).toEqual(['3', '4']);
+    });
+
+    it('une ligne mise à jour qui ne passe plus le filtre disparaît, et réapparaît', async () => {
+      const {component} = await createTable();
+      component['onFilterValue']('actif', 'true');
+
+      component.applyTransaction({update: [{...ROWS[0], actif: false}]});
+      expect(ids(component.displayedRows())).toEqual(['3']);
+
+      component.applyTransaction({update: [{...ROWS[0], actif: true}]});
+      expect(ids(component.displayedRows())).toEqual(['1', '3']);
+    });
+
+    it('un nouveau tableau [rows] n’est traité que pour les lignes changées (fusion, pas de recalcul)', async () => {
+      const {component, setInput} = await createTable();
+      await montantDesc(component);
+      component.displayedRows();
+      const before = {...component['pipeline'].stats};
+
+      await setInput('rows', [ROWS[0], {...ROWS[1], montant: 999}, ROWS[2]]);
+
+      expect(ids(component.displayedRows())).toEqual(['2', '1', '3']);
+      expect(component['pipeline'].stats.merges).toBe(before.merges + 1);
+      expect(component['pipeline'].stats.rebuilds).toBe(before.rebuilds);
+    });
+
+    it('applyTransactionAsync : regroupe les transactions en un seul passage', async () => {
+      const {component} = await createTable({asyncTransactionWaitMillis: 50});
+      vi.useFakeTimers();
+      const flushed: unknown[] = [];
+      component.asyncTransactionsFlushed.subscribe((results) => flushed.push(results));
+      const callback = vi.fn();
+
+      component.applyTransactionAsync({update: [{...ROWS[0], nom: 'Charles'}]}, callback);
+      component.applyTransactionAsync({remove: [{id: '2'} as Row]});
+      expect(component.displayedRows()).toHaveLength(3); // rien d'appliqué avant le délai
+
+      vi.advanceTimersByTime(50);
+      expect(ids(component.displayedRows())).toEqual(['1', '3']);
+      expect(component.displayedRows()[0].nom).toBe('Charles');
+      expect(callback).toHaveBeenCalledOnce();
+      expect(flushed).toHaveLength(1);
+    });
+
+    it('surligne les cellules modifiées, vert à la hausse, rouge à la baisse, et redémarre l’animation', async () => {
+      const {component, fixture} = await createTable({flashCells: true});
+      const cell = (rowId: string, column: string) =>
+        [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')]
+          .find((tr) => tr.textContent?.includes(ROWS.find((r) => r.id === rowId)!.nom))!
+          .querySelector(`td.mat-column-${column}`)!;
+
+      component.applyTransaction({update: [{...ROWS[0], montant: 350}, {...ROWS[1], montant: 50}]});
+      await fixture.whenStable();
+      expect(cell('1', 'montant').getAttribute('data-ngt-flash')).toBe('up-0');
+      expect(cell('2', 'montant').getAttribute('data-ngt-flash')).toBe('down-0');
+      expect(cell('1', 'nom').hasAttribute('data-ngt-flash')).toBe(false); // valeur inchangée
+
+      component.applyTransaction({update: [{...ROWS[0], montant: 400}]});
+      await fixture.whenStable();
+      expect(cell('1', 'montant').getAttribute('data-ngt-flash')).toBe('up-1'); // nouvelle valeur : l'animation repart
+    });
+
+    it('sans [flashCells], aucune surbrillance ; flashOnChange l’active colonne par colonne', async () => {
+      const cols = columns();
+      cols[1] = {...cols[1], flashOnChange: true};
+      const {component, fixture} = await createTable({columns: cols});
+
+      component.applyTransaction({update: [{...ROWS[0], montant: 1, nom: 'Zoé'}]});
+      await fixture.whenStable();
+
+      const flashed = [...(fixture.nativeElement as HTMLElement).querySelectorAll('td[data-ngt-flash]')];
+      expect(flashed.map((td) => [...td.classList].find((c) => c.startsWith('mat-column-')))).toEqual(['mat-column-montant']);
+    });
+
+    it('la sélection renvoie les lignes à jour après une transaction', async () => {
+      const {component} = await createTable({rowSelectionEnabled: true});
+      const events: NgTableSelectionChangeEvent<Row>[] = [];
+      component.selectionChange.subscribe((e) => events.push(e));
+      component.applyTransaction({update: [{...ROWS[0], nom: 'Charles'}]});
+
+      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, component.displayedRows()[0]);
+
+      expect(events[0].selectedRows.map((r) => r.nom)).toEqual(['Charles']);
+    });
+
+    it('mode remote : les transactions sont ignorées (le serveur est la source)', async () => {
+      const {component} = await createTable({dataMode: 'remote'});
+      expect(component.applyTransaction({remove: [ROWS[0]]})).toEqual({add: [], update: [], remove: []});
+      expect(component.displayedRows()).toHaveLength(3);
     });
   });
 

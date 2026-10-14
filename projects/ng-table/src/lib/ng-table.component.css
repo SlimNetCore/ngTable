@@ -1271,3 +1271,25 @@
 .ng-table tr.group-row.group-row--static {
   cursor: default;
 }
+
+/* --- Mode live : surbrillance des cellules modifiées ----------------- */
+/* Deux animations identiques en alternance (-0 / -1) : changer de nom de classe
+   redémarre l'animation quand la même cellule change à nouveau. */
+@keyframes ngt-flash-up-0 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); } }
+@keyframes ngt-flash-up-1 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); } }
+@keyframes ngt-flash-down-0 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); } }
+@keyframes ngt-flash-down-1 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); } }
+@keyframes ngt-flash-change-0 { from { background-color: var(--ngt-flash-change-bg, rgba(58, 124, 165, 0.3)); } }
+@keyframes ngt-flash-change-1 { from { background-color: var(--ngt-flash-change-bg, rgba(58, 124, 165, 0.3)); } }
+
+.ng-table td[data-ngt-flash='up-0'] { animation: ngt-flash-up-0 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='up-1'] { animation: ngt-flash-up-1 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='down-0'] { animation: ngt-flash-down-0 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='down-1'] { animation: ngt-flash-down-1 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='change-0'] { animation: ngt-flash-change-0 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='change-1'] { animation: ngt-flash-change-1 var(--ngt-flash-duration, 1s) ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ng-table td[data-ngt-flash] { animation-duration: 1ms; }
+}
+

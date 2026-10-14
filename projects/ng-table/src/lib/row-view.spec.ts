@@ -14,7 +14,14 @@ describe('row-view', () => {
   it('calcule valeur, texte, texte copié et contexte de chaque cellule', () => {
     const row = {id: 1, nom: ' Alice '};
     const cell = buildRowViews([row], [nom, id], null).get(row)!.cells.get('nom')!;
-    expect(cell).toEqual({value: ' Alice ', text: ' Alice ', copyText: 'Alice', context: {$implicit: row, row, value: ' Alice ', column: nom}});
+    expect(cell).toEqual({value: ' Alice ', text: ' Alice ', copyText: 'Alice', context: {$implicit: row, row, value: ' Alice ', column: nom}, flash: ''});
+  });
+
+  it('applique la classe de surbrillance fournie (mode live)', () => {
+    const row = {id: 3, nom: 'Bob'};
+    const cells = buildRowViews([row], [nom, id], null, (_, column) => (column.id === 'id' ? 'up-0' : '')).get(row)!.cells;
+    expect(cells.get('id')!.flash).toBe('up-0');
+    expect(cells.get('nom')!.flash).toBe('');
   });
 
   it('valeur nulle : texte vide, pas de bouton de copie', () => {

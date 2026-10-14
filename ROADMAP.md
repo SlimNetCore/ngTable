@@ -83,6 +83,30 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 |----|--------------|--------|-------|
 | L1 | En-têtes illisibles dans une colonne étroite | Vérifié | Cause : `table-layout: fixed` répartissait `minTableWidthPx` sans plancher (71 px par colonne dans la démo). Largeur mini du tableau = somme des largeurs mini des colonnes ; poignée en position absolue dans la marge ; bouton filtre ramené à 28 px. Libellés de 0 à 26-52 px dans la démo ; 1 test |
 
+## 7. Parité AG Grid (branche `feature/ag-grid-parity`)
+
+Demande du 2026-10-14 : des performances et des options comparables à [AG Grid](https://www.ag-grid.com), en priorité le mode live et les performances. AG Grid Community / Enterprise sert de référence ; certaines fonctions Enterprise (graphiques intégrés, pivot) sont des chantiers à part entière.
+
+| ID | Fonction AG Grid | Équivalent ng-table | Statut | Notes |
+|----|------------------|---------------------|--------|-------|
+| G1 | Transactions (`applyTransaction`) | `applyTransaction()` | Vérifié | Ajout / mise à jour / retrait par clé ; `live-rows.ts` |
+| G2 | Transactions asynchrones (`applyTransactionAsync`, `asyncTransactionWaitMillis`) | `applyTransactionAsync()`, `flushAsyncTransactions()` | Vérifié | Un seul recalcul et un seul rendu par lot |
+| G3 | Tri / filtre incrémentaux (« delta sort ») | `IncrementalPipeline` | Vérifié | Fusion par dichotomie + copies natives ; test de propriété : identique à un recalcul complet sur 500 lots aléatoires |
+| G4 | Données immuables + `getRowId` | `[rows]` comparé clé par clé, `rowKeyAccessor` | Vérifié | Recalcul complet si l'ordre du tableau change |
+| G5 | Surbrillance des changements (`enableCellChangeFlash`) | `[flashCells]`, `flashOnChange` | Vérifié | Hausse / baisse colorées, animation CSS relancée par alternance de valeur |
+| G6 | Virtualisation des lignes | `[virtualScroll]` | Vérifié | Existait (P1) |
+| G7 | Virtualisation des colonnes | — | À faire | Utile au-delà de ~50 colonnes visibles |
+| G8 | Modèle « serveur » à blocs (Server-Side / Infinite Row Model) : défilement continu, blocs chargés à la demande | — | À faire | Priorité suivante côté performances : défilement sur 1 000 000 de lignes serveur sans pagination |
+| G9 | Agrégation live (totaux recalculés en continu) | `[showTotals]` / groupes | Fait (partiel) | Recalcul complet O(n) à chaque lot ; à rendre incrémental |
+| G10 | Édition de cellules (éditeurs, validation, annuler) | — | À faire | |
+| G11 | Sélection de plages + copier / coller (presse-papiers) | Copie de cellule seule | À faire | |
+| G12 | Lignes épinglées en haut / en bas | Ligne de totaux seule | À faire | |
+| G13 | En-têtes de colonnes groupés | — | À faire | |
+| G14 | Barre d'état, panneau latéral (colonnes, filtres) | — | À faire | |
+| G15 | Données arborescentes (tree data), maître / détail imbriqué | Ligne détail simple | À faire | |
+| G16 | Glisser-déposer de lignes | — | À faire | |
+| G17 | Pivot, graphiques intégrés, sparklines | — | Hors périmètre pour l'instant | Fonctions Enterprise, chantiers à part |
+
 ## 6. Accessibilité
 
 | ID | Amélioration | Statut | Notes |
@@ -125,3 +149,4 @@ Les commandes sont lancées par l'assistant (Bash / terminal WebStorm).
 - **2026-09-25** — Retour utilisateur : brancher l'export sur Spring. C'était fait, mais deux choses l'empêchaient en pratique : la démo repartait sur « Serveur simulé » à chaque visite (l'export n'y produit pas de fichier), et un backend lancé avant la mise à jour renvoie 404 sur `/export` avec un message trompeur (« Lancez le backend »). Le choix du serveur est retenu (`localStorage`), et un 404 dit que le backend n'est pas à jour. Vérifié dans le navigateur avec l'ancien backend (message clair) puis le backend à jour (commandes.csv, 100 000 lignes ; choix retenu après rechargement).
 - **2026-09-25** — Demande utilisateur : publier la 1.0.0. Pas d'identifiants npm dans l'environnement de l'assistant (et la publication est quasi irréversible) : publication préparée, commande finale laissée à l'utilisateur. Version 1.0.0, CHANGELOG daté, guide de migration dans le README (corrigé au passage : il citait une entrée `[sorts]` qui n'existe pas). Points « à vérifier » contrôlés dans le navigateur : F1, F2, F4, D4 → Vérifié. C2 passé : lint 0/0, 221 tests, build des 3 points d'entrée, build démo. `npm pack` : 12 fichiers, 238 kB, ni démo ni exemples. Tarball installé dans une application Angular 22 neuve (`ng new`) : build OK, table, recherche et état dans l'URL fonctionnent dans le navigateur.
 - **2026-09-25** — Workflow de publication `.github/workflows/release.yml` : sur tag `x.y.z` (ou `x.y.z-*`, publié sous `next`), vérification tag = version du paquet, lint, tests, build, `npm publish --provenance` (secret `NPM_TOKEN`), Release GitHub avec la section du CHANGELOG. Vérifié hors GitHub : `actionlint` sans erreur, contrôle de version (1.0.0 accepté, 0.4.4 et 9.9.9 refusés), extraction des notes (sections 1.0.0 et 0.4.4). Pas encore exécuté sur GitHub : le sera au premier tag.
+- **2026-10-14** — Branche `feature/ag-grid-parity` créée depuis `main` (1.0.0). Demande : performances et options d'AG Grid, surtout le mode live. Fait : G1 à G5 (transactions, transactions asynchrones, pipeline incrémental, données immuables comparées clé par clé, surbrillance) et page **Live** de la démo. Mesures : sous jsdom, 100 000 lignes triées et filtrées, lot de 1 000 mises à jour → pipeline ~15 ms (recalcul complet ~115 ms) ; dans le navigateur, 10 000 mises à jour/s sur 10 000 lignes → 7 ms par lot, ~130 images/s ; 46 000 mises à jour/s sur 100 000 lignes → ~33 ms par lot, 26 lignes rendues. Corrigé en mesurant : une première fusion en O(n) d'opérations JavaScript (20 à 100 ms) remplacée par des recherches dichotomiques et des copies natives ; un `NgClass` par cellule pour la surbrillance remplacé par un attribut. 238 tests, lint 0/0, build des 3 points d'entrée + démo.

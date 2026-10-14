@@ -44,10 +44,11 @@ import {
   syncGridTabStops,
 } from './grid-navigation';
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
-import {matchesAllFilters, searchText, SortLevel, sortRows} from './row-pipeline';
+import {matchesAllFilters, searchText, SortLevel} from './row-pipeline';
 import {buildConsecutiveGroups, buildGroups, computeAggregate, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
 import {computeVirtualRange, NgTableSpacerRow, VirtualRange} from './virtual-window';
 import {buildCellView, buildRowViews, copyText, NgTableCellView, NgTableRowClasses} from './row-view';
+import {IncrementalPipeline, NgTableRowTransaction, NgTableTransactionResult, RowStore, RowUpdate} from './live-rows';
 
 /** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
 type TableItem<T> = T | NgTableGroupRow<T> | NgTableSpacerRow;
@@ -265,6 +266,11 @@ export interface NgTableColumn<T> {
    * plutôt que le code brut).
    */
   searchable?: boolean | ((row: T) => string);
+  /**
+   * Mode live : surligne brièvement la cellule quand sa valeur change (vert à la hausse,
+   * rouge à la baisse pour un nombre). Par défaut, suit `[flashCells]` de la table.
+   */
+  flashOnChange?: boolean;
   /** Agrégat affiché dans les en-têtes de groupe et la ligne de totaux (voir `NgTableAggregate`). */
   aggregate?: NgTableAggregate<T>;
   /**
@@ -583,6 +589,18 @@ export class NgTableComponent<T = any> implements OnDestroy {
    */
   readonly virtualScroll = input(false);
   /**
+   * Mode live : surligne les cellules dont la valeur change, après une transaction ou un
+   * nouveau tableau `[rows]`. Colonne par colonne : `NgTableColumn.flashOnChange`.
+   */
+  readonly flashCells = input(false);
+  /** Durée de la surbrillance d'une cellule modifiée (ms). */
+  readonly flashDurationMs = input(1000);
+  /**
+   * `applyTransactionAsync()` : délai de regroupement des transactions (ms). Toutes celles
+   * reçues pendant ce délai sont appliquées en un seul passage, avec un seul rendu.
+   */
+  readonly asyncTransactionWaitMillis = input(50);
+  /**
    * Mode `remote` + regroupement : TOUS les groupes, dans leur ordre, avec nombre de
    * lignes et agrégats calculés par le serveur (voir `NgTableGroupSummary`). Rend les
    * groupes repliables. Sans cela, l'en-tête d'un groupe n'affiche que son libellé (un
@@ -719,6 +737,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly queryStateChange = output<NgTableQueryState>();
   /** Émis après chaque import de vues, réussi ou non (`imported: 0`). */
   readonly viewsImported = output<NgTableViewsImportEvent>();
+  /** Lot de transactions asynchrones appliqué (une entrée par transaction). */
+  readonly asyncTransactionsFlushed = output<NgTableTransactionResult<T>[]>();
   /** Emitted whenever a view becomes active (user switch, or auto-activation on load). */
   readonly viewActivated = output<NgTableView | null>();
   /** Emitted when an activated view carries pagination — apply it to your own paginator. */
@@ -962,18 +982,15 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * commentaire de `visibleColumnsUnordered`.
    */
   private readonly filteredSortedRows = computed(() => {
-    const sourceRows = this.rows();
+    const store = this.syncedStore();
+    this.dataVersion();
     const activeColumns = this.visibleColumnsUnordered();
     const filters = this.columnFilters();
     const sorts = this.sortStates();
-    const terms = searchTerms(this.globalSearchTerm());
+    const search = this.globalSearchTerm();
+    const terms = searchTerms(search);
     const haystacks = terms.length > 0 ? this.searchHaystacks() : null;
 
-    const nextRows = sourceRows.filter(
-      (row) =>
-        matchesAllFilters(row, activeColumns, filters) &&
-        (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms)),
-    );
     const levels: SortLevel<T>[] = [];
     for (const sort of sorts) {
       const column = activeColumns.find((candidate) => candidate.id === sort.columnId);
@@ -981,7 +998,48 @@ export class NgTableComponent<T = any> implements OnDestroy {
         levels.push({column, factor: sort.direction === 'desc' ? -1 : 1});
       }
     }
-    return sortRows(nextRows, levels, this.collator);
+    // Seules les lignes modifiées depuis le dernier passage sont refiltrées puis fusionnées
+    // dans le résultat déjà trié ; tout est recalculé si filtres, tri ou colonnes changent.
+    return this.pipeline.compute(store, {
+      matches: (row) =>
+        matchesAllFilters(row, activeColumns, filters) &&
+        (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms)),
+      levels,
+      collator: this.collator,
+      deps: [store, activeColumns, filters, sorts, search, haystacks?.columns],
+    });
+  });
+
+  /**
+   * Lignes de la table indexées par clé (mode local) : alimentées par `[rows]` (comparé
+   * à la version précédente, clé par clé) et par les transactions.
+   */
+  private rowStore = new RowStore<T>((row) => this.rowKey(row));
+  private pipeline = new IncrementalPipeline<T>((row) => this.rowKey(row));
+  /** Incrémenté à chaque transaction appliquée. */
+  private readonly dataVersion = signal(0);
+
+  /**
+   * Reporte `[rows]` dans le store à chaque nouveau tableau. Lu avant toute transaction,
+   * pour qu'une transaction s'applique toujours après le dernier `[rows]` reçu.
+   */
+  private readonly syncedStore = computed(() => {
+    const rows = this.rows();
+    const keyAccessor = this.rowKeyAccessor();
+    if (keyAccessor !== this.storeKeyAccessor) {
+      this.storeKeyAccessor = keyAccessor;
+      this.rowStore = new RowStore<T>((row) => this.rowKey(row));
+      this.pipeline = new IncrementalPipeline<T>((row) => this.rowKey(row));
+    }
+    untracked(() => this.recordFlashes(this.rowStore.replaceAll(rows)));
+    return this.rowStore;
+  }, {equal: () => false});
+  private storeKeyAccessor: ((row: T) => unknown) | null | undefined = undefined;
+
+  /** Toutes les lignes en mode local, transactions comprises (ordre d'arrivée). */
+  private readonly sourceRows = computed(() => {
+    this.dataVersion();
+    return this.syncedStore().rows();
   });
 
   private readonly searchableColumns = computed(() =>
@@ -993,10 +1051,11 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * ligne, puis réutilisé à chaque nouvelle saisie (seule la comparaison est refaite).
    * Le cache est recréé quand les lignes ou les colonnes cherchables changent.
    */
-  private readonly searchHaystacks = computed(() => {
-    this.rows();
-    return {columns: this.searchableColumns(), cache: new WeakMap<object, string>()};
-  });
+  private readonly searchHaystacks = computed(() =>
+    // Mis en cache par objet ligne : une ligne modifiée (nouvel objet) est recalculée à la
+    // demande, les autres gardent leur texte. Seul un changement de colonnes vide le cache.
+    ({columns: this.searchableColumns(), cache: new WeakMap<object, string>()}),
+  );
   /** Colonne de regroupement effective (mode local, colonne existante), sinon `null`. */
   protected readonly groupColumn = computed(() => {
     const id = this.groupBy();
@@ -1127,6 +1186,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (!range) {
       return 0;
     }
+    if (!this.groupUnits()) {
+      return range.start; // pas d'en-tête de groupe : une ligne par élément
+    }
     const items = this.pageItems();
     let count = 0;
     for (let i = 0; i < range.start; i++) {
@@ -1147,6 +1209,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       this.tableRows().filter((item): item is T => !(item instanceof NgTableGroupRow) && !(item instanceof NgTableSpacerRow)),
       this.visibleColumns(),
       this.rowClassFn(),
+      this.flashes.size > 0 ? this.flashClassFn(performance.now()) : null,
     ),
   );
 
@@ -1501,6 +1564,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.asyncTimer !== null) {
+      clearTimeout(this.asyncTimer);
+    }
     this.stopResize();
     this.stopScrollTracking();
     // L'ancre a été déplacée dans `document.body` : elle n'est plus détruite avec la vue.
@@ -2368,6 +2434,129 @@ export class NgTableComponent<T = any> implements OnDestroy {
     }
   }
 
+  /**
+   * Mode live : ajoute, met à jour ou retire des lignes sans renvoyer tout le tableau.
+   * Les lignes sont retrouvées par leur clé (`rowKeyAccessor`, sinon `id`) ; seules les
+   * lignes touchées sont refiltrées et replacées dans le tri. Mode local uniquement.
+   *
+   * Les transactions s'ajoutent à `[rows]` : un nouveau tableau `[rows]` redevient la
+   * référence (ligne à ligne : ce qui n'y figure pas est retiré).
+   */
+  applyTransaction(transaction: NgTableRowTransaction<T>): NgTableTransactionResult<T> {
+    const result = this.applyToStore(transaction);
+    this.dataVersion.update((version) => version + 1);
+    return result;
+  }
+
+  /**
+   * Comme `applyTransaction`, mais regroupée avec les autres transactions reçues pendant
+   * `[asyncTransactionWaitMillis]` : un seul recalcul et un seul rendu pour tout le lot.
+   * C'est la méthode à utiliser pour des mises à jour à haute fréquence (flux temps réel).
+   */
+  applyTransactionAsync(transaction: NgTableRowTransaction<T>, callback?: (result: NgTableTransactionResult<T>) => void): void {
+    this.asyncQueue.push({transaction, callback});
+    if (this.asyncTimer === null) {
+      this.asyncTimer = setTimeout(() => this.flushAsyncTransactions(), this.asyncTransactionWaitMillis());
+    }
+  }
+
+  /** Applique tout de suite les transactions asynchrones en attente. */
+  flushAsyncTransactions(): void {
+    if (this.asyncTimer !== null) {
+      clearTimeout(this.asyncTimer);
+      this.asyncTimer = null;
+    }
+    const queue = this.asyncQueue;
+    this.asyncQueue = [];
+    if (queue.length === 0) {
+      return;
+    }
+    const results = queue.map(({transaction, callback}) => {
+      const result = this.applyToStore(transaction);
+      callback?.(result);
+      return result;
+    });
+    this.dataVersion.update((version) => version + 1);
+    this.asyncTransactionsFlushed.emit(results);
+  }
+
+  private asyncQueue: { transaction: NgTableRowTransaction<T>; callback?: (result: NgTableTransactionResult<T>) => void }[] = [];
+  private asyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private applyToStore(transaction: NgTableRowTransaction<T>): NgTableTransactionResult<T> {
+    if (this.dataMode() !== 'local') {
+      return {add: [], update: [], remove: []}; // en remote, le serveur est la source
+    }
+    const store = this.syncedStore(); // le dernier `[rows]` d'abord
+    const {result, updates} = store.applyTransaction(transaction);
+    this.recordFlashes(updates);
+    return result;
+  }
+
+  private lastFlashPrune = 0;
+
+  /** Cellules modifiées récemment, par clé de ligne puis id de colonne. */
+  private readonly flashes = new Map<unknown, Map<string, { direction: 'up' | 'down' | 'change'; at: number; parity: number }>>();
+
+  /** Relève les cellules dont la valeur a changé, pour les colonnes en surbrillance. */
+  private recordFlashes(updates: readonly RowUpdate<T>[]): void {
+    if (updates.length === 0) {
+      return;
+    }
+    const columns = untracked(() => this.columns()).filter((column) => column.flashOnChange ?? untracked(() => this.flashCells()));
+    if (columns.length === 0) {
+      return;
+    }
+    const now = performance.now();
+    for (const {key, previous, current} of updates) {
+      for (const column of columns) {
+        const before = column.valueAccessor(previous);
+        const after = column.valueAccessor(current);
+        if (Object.is(before, after) || (before instanceof Date && after instanceof Date && before.getTime() === after.getTime())) {
+          continue;
+        }
+        let cells = this.flashes.get(key);
+        if (!cells) {
+          cells = new Map();
+          this.flashes.set(key, cells);
+        }
+        const direction = typeof before === 'number' && typeof after === 'number' ? (after > before ? 'up' : 'down') : 'change';
+        cells.set(column.id, {direction, at: now, parity: 1 - (cells.get(column.id)?.parity ?? 1)});
+      }
+    }
+    // Ménage des surbrillances terminées : au plus une fois par durée de surbrillance,
+    // pas à chaque lot (à haute fréquence, la table en compte vite des milliers).
+    const duration = untracked(() => this.flashDurationMs());
+    if (this.flashes.size > 2048 && now - this.lastFlashPrune > duration) {
+      this.lastFlashPrune = now;
+      const expired = now - duration;
+      for (const [key, cells] of this.flashes) {
+        for (const [columnId, flash] of cells) {
+          if (flash.at < expired) {
+            cells.delete(columnId);
+          }
+        }
+        if (cells.size === 0) {
+          this.flashes.delete(key);
+        }
+      }
+    }
+  }
+
+  /**
+   * Surbrillance d'une cellule à l'instant `now` (attribut `data-ngt-flash` : `up-0`,
+   * `down-1`...). Deux valeurs en alternance (`-0` / `-1`) : un nouveau changement
+   * redémarre l'animation CSS sur la même cellule. Un attribut plutôt qu'une classe :
+   * une directive `NgClass` par cellule ralentissait nettement le rendu des pages.
+   */
+  private flashClassFn(now: number): (row: T, column: NgTableColumn<T>) => string {
+    const limit = now - this.flashDurationMs();
+    return (row, column) => {
+      const flash = this.flashes.get(this.rowKey(row))?.get(column.id);
+      return flash && flash.at >= limit ? `${flash.direction}-${flash.parity}` : '';
+    };
+  }
+
   /** Toutes les vues, au format JSON versionné (même format que le `localStorage`). */
   exportViews(): string {
     return serializeViewsStore(this.effectiveViewsStore());
@@ -3143,7 +3332,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
       this.internalSelectedKeys.set(next);
     }
 
-    const selectedRows = this.rows().filter((item) => next.has(this.rowKey(item)));
+    const source = this.dataMode() === 'local' ? this.sourceRows() : this.rows();
+    const selectedRows = source.filter((item) => next.has(this.rowKey(item)));
     this.selectionChange.emit({
       row,
       selected,

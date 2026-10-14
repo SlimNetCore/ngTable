@@ -563,6 +563,35 @@ Sans pagination, une table de 50 000 lignes crée 50 000 lignes dans le DOM : l'
 - **Compatibilité** : filtres, tri, recherche, regroupement, sélection (« tout sélectionner » porte sur toutes les lignes), export et navigation clavier (`cellNavigation`) fonctionnent comme sans défilement virtuel. `displayedRows()` renvoie toujours toutes les lignes.
 - **Limite des navigateurs** : un élément ne peut guère dépasser 30 millions de pixels de haut, soit environ 600 000 lignes de 52 px. Au-delà, préférez `dataMode='remote'` paginé.
 
+### Étape 10quinquies — Mode live (données temps réel)
+
+Pour des données qui changent en continu (cotations, supervision, suivi de commandes...), la table ne retraite que ce qui a changé. C'est le même principe que les transactions d'AG Grid.
+
+**Transactions.** On envoie seulement les lignes ajoutées, modifiées ou retirées, sans renvoyer tout le tableau. Elles sont retrouvées par leur clé : `rowKeyAccessor`, sinon `id`.
+
+```ts
+table = viewChild.required<NgTableComponent<Cotation>>(NgTableComponent);
+
+this.table().applyTransaction({add: [nouvelle], update: [modifiee], remove: [{id: 42}]});
+
+// Flux à haute fréquence : transactions regroupées, un seul recalcul et un seul rendu par lot.
+socket.onmessage = (message) => this.table().applyTransactionAsync({update: JSON.parse(message.data)});
+```
+
+```html
+<ng-table [rows]="cotations" [rowKeyAccessor]="cle" [virtualScroll]="true"
+          [flashCells]="true" [asyncTransactionWaitMillis]="50" ... />
+```
+
+- **Ce qui est recalculé.** Seules les lignes touchées sont refiltrées. Elles sont replacées dans le résultat déjà trié par recherche dichotomique, au lieu de tout retrier. Changer un filtre, le tri ou les colonnes recalcule tout, comme avant.
+- **`applyTransactionAsync(transaction, callback?)`** regroupe les transactions reçues pendant `[asyncTransactionWaitMillis]` (50 ms par défaut). `flushAsyncTransactions()` les applique tout de suite, et `(asyncTransactionsFlushed)` signale chaque lot appliqué.
+- **Données immuables.** Le mode live marche aussi sans transactions : à chaque nouveau tableau `[rows]`, la table compare clé par clé avec le précédent. Seules les lignes dont l'objet a changé sont retraitées. Les lignes doivent donc être de **nouveaux objets** quand elles changent (`{...ligne, prix}`). Si l'ordre du tableau change, ou qu'une ligne est insérée ailleurs qu'à la fin, tout est recalculé.
+- **Surbrillance.** `[flashCells]="true"` surligne les cellules modifiées pendant `[flashDurationMs]` (1 000 ms) : vert si un nombre monte, rouge s'il baisse, bleu sinon. Colonne par colonne : `flashOnChange: true | false`. Les couleurs se règlent avec `--ngt-flash-up-bg`, `--ngt-flash-down-bg` et `--ngt-flash-change-bg`. La cellule porte l'attribut `data-ngt-flash` (`up-0`, `down-1`...) pour un style personnalisé. L'animation est quasi instantanée si l'utilisateur a demandé moins d'animations (`prefers-reduced-motion`).
+- **Avec `[rows]`.** Un nouveau tableau `[rows]` redevient la référence : ce qui n'y figure pas est retiré, y compris les lignes ajoutées par transaction.
+- **Mode `remote`.** Le serveur est la source : les transactions y sont ignorées.
+
+Combinez le mode live avec le défilement virtuel (`[virtualScroll]`) : seules les lignes visibles sont rendues. La page **Live** de la démo envoie jusqu'à 50 000 mises à jour par seconde sur 100 000 instruments, avec compteurs d'images par seconde et de temps par lot.
+
 ### Étape 10ter — Regroupement et totaux
 
 Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`), avec un en-tête par groupe : libellé, nombre de lignes et agrégats.
@@ -2360,6 +2389,9 @@ interface NgTableFilterConfig {
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
 | `cellNavigation`            | `boolean`                                                        | `false`   | Navigation clavier cellule par cellule (motif « grid » WAI-ARIA), voir « Accessibilité ».                            |
+| `flashCells`                | `boolean`                                                        | `false`   | Mode live : surligne les cellules dont la valeur change (voir Étape 10quinquies).                                   |
+| `flashDurationMs`           | `number`                                                         | `1000`    | Durée de la surbrillance (ms).                                                                                       |
+| `asyncTransactionWaitMillis`| `number`                                                         | `50`      | Délai de regroupement de `applyTransactionAsync()` (ms).                                                             |
 | `virtualScroll`             | `boolean`                                                        | `false`   | Défilement virtuel : seules les lignes visibles sont rendues (voir Étape 10quater).                                   |
 | `groupingEnabled`           | `boolean`                                                        | `false`   | Bouton « Grouper » (local et remote), voir Étape 10ter.                                                              |
 | `groupBy`                   | `string \| null` (`model`)                                       | `null`    | Colonne de regroupement ; liable en `[(groupBy)]`, émet `(groupByChange)`.                                          |
@@ -2411,6 +2443,7 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `toggleDefaultView(view)`, `isDefaultView(view)` | Vue par défaut. |
 | `exportViews()`, `importViews(json, mode?)`, `downloadViews()` | Partager des vues. |
 | `openExportDialog()` | Lancer l'export, comme le bouton « Exporter ». |
+| `applyTransaction(tx)`, `applyTransactionAsync(tx, callback?)`, `flushAsyncTransactions()` | Mode live : ajouter, modifier, retirer des lignes (voir Étape 10quinquies). |
 | `expandAllGroups()`, `collapseAllGroups()` | Déplier / replier tous les groupes. |
 | `getQueryState()`, `applyQueryState(partiel)` | Lire / appliquer tri, filtres, recherche, page et regroupement (`NgTableQueryState`) en une fois. |
 

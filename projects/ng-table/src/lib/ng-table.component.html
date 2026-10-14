@@ -303,6 +303,7 @@
     <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event)"
            [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="cellNavigation() ? 'grid' : null"
            [dataSource]="tableRows()"
+           [style.--ngt-flash-duration]="flashDurationMs() + 'ms'"
            [class.ngt-density-compact]="density() === 'compact'"
            [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
            [trackBy]="resolvedTrackBy"
@@ -501,7 +502,8 @@
               <span class="totals-label">{{ effectiveLabels().totalsLabel }}</span>
             }
           </td>
-          <td *matCellDef="let row; let rowIndex = dataIndex" [style.max-width.px]="column.maxWidthPx ?? null"
+          <td *matCellDef="let row; let rowIndex = dataIndex" [attr.data-ngt-flash]="cellView(row, column).flash || null"
+              [style.max-width.px]="column.maxWidthPx ?? null"
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
             @let cell = cellView(row, column);
             <div class="cell-content" [class.cell-content--wrap]="column.textOverflow === 'wrap'">

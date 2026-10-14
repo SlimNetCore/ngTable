@@ -10,6 +10,8 @@ export interface NgTableCellView<T> {
   copyText: string;
   /** Contexte de `column.cellTemplate`, avec une référence stable d'un rendu à l'autre. */
   context: { $implicit: T; row: T; value: unknown; column: NgTableColumn<T> };
+  /** Surbrillance après un changement de valeur (mode live, ex. `up-0`), `''` sinon. */
+  flash: string;
 }
 
 export type NgTableRowClasses = string | string[] | Record<string, boolean>;
@@ -23,13 +25,14 @@ export function copyText<T>(column: NgTableColumn<T>, row: T): string {
   return `${accessor(row) ?? ''}`.trim();
 }
 
-export function buildCellView<T>(row: T, column: NgTableColumn<T>): NgTableCellView<T> {
+export function buildCellView<T>(row: T, column: NgTableColumn<T>, flash = ''): NgTableCellView<T> {
   const value = column.valueAccessor(row);
   return {
     value,
     text: value === null || value === undefined ? '' : String(value),
     copyText: copyText(column, row),
     context: {$implicit: row, row, value, column},
+    flash,
   };
 }
 
@@ -50,6 +53,7 @@ export function buildRowViews<T>(
   rows: readonly T[],
   columns: readonly NgTableColumn<T>[],
   rowClassFn: ((row: T) => NgTableRowClasses | null) | null,
+  flashClass: ((row: T, column: NgTableColumn<T>) => string) | null = null,
 ): Map<T, NgTableRowView<T>> {
   const views = new Map<T, NgTableRowView<T>>();
   for (const row of rows) {
@@ -58,7 +62,7 @@ export function buildRowViews<T>(
     }
     const cells = new Map<string, NgTableCellView<T>>();
     for (const column of columns) {
-      cells.set(column.id, buildCellView(row, column));
+      cells.set(column.id, buildCellView(row, column, flashClass ? flashClass(row, column) : ''));
     }
     views.set(row, {cells, classes: rowClassFn?.(row) ?? ''});
   }
