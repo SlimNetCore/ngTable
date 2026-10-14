@@ -9,6 +9,7 @@ const routes: Routes = [
   {path: 'simple', title: 'ng-table — simple', loadComponent: () => import('./app/simple-demo.component').then((m) => m.SimpleDemoComponent)},
   {path: 'avance', title: 'ng-table — avancé', loadComponent: () => import('./app/advanced-demo.component').then((m) => m.AdvancedDemoComponent)},
   {path: 'expert', title: 'ng-table — expert', loadComponent: () => import('./app/expert-demo.component').then((m) => m.ExpertDemoComponent)},
+  {path: 'analyse', title: 'ng-table — analyse', loadComponent: () => import('./app/analytics-demo.component').then((m) => m.AnalyticsDemoComponent)},
   {path: 'live', title: 'ng-table — live', loadComponent: () => import('./app/live-demo.component').then((m) => m.LiveDemoComponent)},
   {path: '**', redirectTo: 'simple'},
 ];

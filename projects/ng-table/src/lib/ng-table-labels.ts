@@ -133,6 +133,30 @@ export interface NgTableLabels {
   announceCellEdited: string;
   announceEditUndone: string;
   announceEditRedone: string;
+  /** Barre d'état. `{count}` et `{total}` sont remplacés. */
+  statusBarLabel: string;
+  statusRows: string;
+  statusRowsOf: string;
+  statusSelected: string;
+  statusCells: string;
+  statusSum: string;
+  statusAvg: string;
+  statusMin: string;
+  statusMax: string;
+  /** Panneau latéral. */
+  sidePanelButton: string;
+  sidePanelTitle: string;
+  sidePanelColumns: string;
+  sidePanelFilters: string;
+  sidePanelNoFilters: string;
+  sidePanelClose: string;
+  sidePanelPin: string;
+  /** Arbre : `{row}` n'est pas utilisé, les libellés sont génériques. */
+  treeExpand: string;
+  treeCollapse: string;
+  /** Glisser-déposer de lignes. `{position}` = nouvelle position (à partir de 1). */
+  rowDragHandle: string;
+  announceRowMoved: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -213,6 +237,26 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   announceCellEdited: 'Cellule « {column} » modifiée',
   announceEditUndone: 'Modification annulée',
   announceEditRedone: 'Modification rétablie',
+  statusBarLabel: 'Barre d’état',
+  statusRows: '{count} lignes',
+  statusRowsOf: '{count} sur {total} lignes',
+  statusSelected: '{count} sélectionnée(s)',
+  statusCells: '{count} cellules',
+  statusSum: 'Somme',
+  statusAvg: 'Moyenne',
+  statusMin: 'Min',
+  statusMax: 'Max',
+  sidePanelButton: 'Panneau',
+  sidePanelTitle: 'Panneau latéral',
+  sidePanelColumns: 'Colonnes',
+  sidePanelFilters: 'Filtres',
+  sidePanelNoFilters: 'Aucun filtre actif',
+  sidePanelClose: 'Fermer le panneau',
+  sidePanelPin: 'Fixer le panneau à droite',
+  treeExpand: 'Déplier',
+  treeCollapse: 'Replier',
+  rowDragHandle: 'Déplacer la ligne (Alt + flèches haut / bas)',
+  announceRowMoved: 'Ligne déplacée en position {position}',
 };
 
 /**
@@ -301,6 +345,26 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   announceCellEdited: 'Cell "{column}" edited',
   announceEditUndone: 'Edit undone',
   announceEditRedone: 'Edit redone',
+  statusBarLabel: 'Status bar',
+  statusRows: '{count} rows',
+  statusRowsOf: '{count} of {total} rows',
+  statusSelected: '{count} selected',
+  statusCells: '{count} cells',
+  statusSum: 'Sum',
+  statusAvg: 'Average',
+  statusMin: 'Min',
+  statusMax: 'Max',
+  sidePanelButton: 'Panel',
+  sidePanelTitle: 'Side panel',
+  sidePanelColumns: 'Columns',
+  sidePanelFilters: 'Filters',
+  sidePanelNoFilters: 'No active filter',
+  sidePanelClose: 'Close panel',
+  sidePanelPin: 'Dock the panel on the right',
+  treeExpand: 'Expand',
+  treeCollapse: 'Collapse',
+  rowDragHandle: 'Move row (Alt + up / down arrows)',
+  announceRowMoved: 'Row moved to position {position}',
 };
 
 /**

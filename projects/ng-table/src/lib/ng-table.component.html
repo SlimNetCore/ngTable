@@ -1,4 +1,5 @@
-<section class="list-panel">
+<!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- écoute globale (clic à l'extérieur du panneau latéral), rien d'interactif -->
+<section (document:click)="onDocumentClick($event)" class="list-panel">
   <div aria-atomic="true" class="ngt-visually-hidden ngt-live-region" role="status">{{ liveAnnouncement() }}</div>
 
   @if (rowContextMenuEnabled() && rowContextMenuTemplate()) {
@@ -84,6 +85,14 @@
           </div>
         }
       </mat-menu>
+    }
+
+    @if (sidePanel()) {
+      <button (click)="toggleSidePanel()" [attr.aria-expanded]="sidePanelOpen()" class="ngt-side-panel-toggle" [attr.aria-pressed]="sidePanelOpen()"
+              mat-stroked-button type="button">
+        <mat-icon aria-hidden="true">dock_to_left</mat-icon>
+        {{ effectiveLabels().sidePanelButton }}
+      </button>
     }
 
     @if (groupingEnabled()) {
@@ -297,7 +306,75 @@
     </div>
   }
 
-  <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--loading]="loading()" class="table-viewport">
+  <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--docked]="sidePanel() && sidePanelOpen() && sidePanelPinned()"
+       [class.table-viewport--loading]="loading()" class="table-viewport">
+  @if (sidePanel() && sidePanelOpen()) {
+    <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- seul Échap ferme, géré par keydown -->
+    <aside (keydown.escape)="sidePanelOpen.set(false)" [attr.aria-label]="effectiveLabels().sidePanelTitle"
+           [class.ngt-side-panel--docked]="sidePanelPinned()" class="ngt-side-panel">
+      <div class="ngt-side-panel__tabs" role="tablist">
+        <button (click)="sidePanelTab.set('columns')" [attr.aria-selected]="sidePanelTab() === 'columns'"
+                [class.ngt-side-panel__tab--on]="sidePanelTab() === 'columns'" class="ngt-side-panel__tab" role="tab" type="button">
+          {{ effectiveLabels().sidePanelColumns }}
+        </button>
+        <button (click)="sidePanelTab.set('filters')" [attr.aria-selected]="sidePanelTab() === 'filters'"
+                [class.ngt-side-panel__tab--on]="sidePanelTab() === 'filters'" class="ngt-side-panel__tab" role="tab" type="button">
+          {{ effectiveLabels().sidePanelFilters }}
+          @if (activeFilterSummaries().length > 0) {
+            <span class="ngt-side-panel__badge">{{ activeFilterSummaries().length }}</span>
+          }
+        </button>
+        <button (click)="sidePanelPinned.set(!sidePanelPinned())" [attr.aria-label]="effectiveLabels().sidePanelPin"
+                [attr.aria-pressed]="sidePanelPinned()" [class.ngt-side-panel__pin--on]="sidePanelPinned()"
+                [title]="effectiveLabels().sidePanelPin" class="ngt-side-panel__pin" type="button">
+          <mat-icon aria-hidden="true">push_pin</mat-icon>
+        </button>
+        <button (click)="sidePanelOpen.set(false)" [attr.aria-label]="effectiveLabels().sidePanelClose"
+                [title]="effectiveLabels().sidePanelClose" class="ngt-side-panel__close" type="button">
+          <mat-icon aria-hidden="true">close</mat-icon>
+        </button>
+      </div>
+      <div class="ngt-side-panel__body" role="tabpanel">
+        @if (sidePanelTab() === 'columns') {
+          @for (column of columnsMenuItems(); track column.id) {
+            <div class="ngt-side-panel__column">
+              <mat-checkbox (change)="onToggleColumnVisibility(column.id, $event.checked)" [checked]="isColumnVisible(column.id)"
+                            class="ngt-side-panel__item">
+                {{ column.header }}
+              </mat-checkbox>
+              <button (click)="toggleReferenceColumn(column)"
+                      [attr.aria-label]="(isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn : effectiveLabels().setReferenceColumn).replace('{column}', column.header)"
+                      [attr.aria-pressed]="isReferenceColumn(column)" [class.reference-pin--on]="isReferenceColumn(column)"
+                      [disabled]="!isColumnVisible(column.id)"
+                      [title]="(isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn : effectiveLabels().setReferenceColumn).replace('{column}', column.header)"
+                      class="reference-pin" mat-icon-button type="button">
+                <mat-icon aria-hidden="true">push_pin</mat-icon>
+              </button>
+            </div>
+          }
+        } @else {
+          @for (summary of activeFilterSummaries(); track summary.columnId) {
+            <div class="ngt-side-panel__filter">
+              <span class="active-filter-chip__field">{{ summary.label }}</span>
+              <span class="active-filter-chip__value">{{ summary.value }}</span>
+              <button (click)="clearFilter(summary.columnId)" [attr.aria-label]="effectiveLabels().clearFilter"
+                      class="active-filter-chip__clear" mat-icon-button type="button">
+                <mat-icon aria-hidden="true">close</mat-icon>
+              </button>
+            </div>
+          } @empty {
+            <p class="ngt-side-panel__empty">{{ effectiveLabels().sidePanelNoFilters }}</p>
+          }
+          @if (activeFilterSummaries().length > 0) {
+            <button (click)="clearAllFilters()" mat-stroked-button type="button">
+              <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+              {{ effectiveLabels().resetFiltersButton }}
+            </button>
+          }
+        }
+      </div>
+    </aside>
+  }
   <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" class="table-wrap">
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
     <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event); onRangeKeydown($event); onEditKeydown($event)"
@@ -315,6 +392,29 @@
            [style.width.px]="columnVirtualization() ? tableMinWidthPx() : null"
            [trackBy]="resolvedTrackBy"
            class="ng-table" mat-table multiTemplateDataRows>
+      <!-- Largeurs des colonnes : en `table-layout: fixed` elles viennent de la première ligne, qui est une ligne
+           d'en-têtes groupés (sans largeur) dès qu'il y en a. Le `<colgroup>` les donne indépendamment des lignes. -->
+      <colgroup>
+        @for (id of displayedColumnIds(); track id) {
+          <col [style.width.px]="colWidthFor(id)"/>
+        }
+      </colgroup>
+      @if (rowDragActive()) {
+        <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__row_drag__">
+          <th *matHeaderCellDef class="row-drag-cell" mat-header-cell></th>
+          <td *matFooterCellDef class="totals-cell" mat-footer-cell></td>
+          <td *matCellDef="let row" class="row-drag-cell" mat-cell>
+            @if (!pinInfo(row)) {
+              <button (click)="$event.stopPropagation()" (dragend)="onRowDragEnd()" (dragstart)="onRowDragStart($event, row)"
+                      (keydown)="onRowHandleKeydown($event, row)" [attr.aria-label]="effectiveLabels().rowDragHandle"
+                      [title]="effectiveLabels().rowDragHandle" class="ngt-row-handle" draggable="true" type="button">
+                <mat-icon aria-hidden="true">drag_indicator</mat-icon>
+              </button>
+            }
+          </td>
+        </ng-container>
+      }
+
       @if (rowSelectionEnabled()) {
         <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__row_selection__">
           <th *matHeaderCellDef class="selection-header-cell" mat-header-cell>
@@ -555,7 +655,22 @@
             }
             <div class="cell-content" [class.cell-content--hidden]="isEditing(row, column) || isInlineCheckbox(row, column)"
                  [class.cell-content--wrap]="column.textOverflow === 'wrap'">
-              @if (column.cellTemplate) {
+              @if (treeActive() && column.id === leadColumnId()) {
+                <span [style.width.px]="treeDepth(row) * treeIndent()" aria-hidden="true" class="ngt-tree-indent"></span>
+                @if (treeHasChildren(row)) {
+                  <button (click)="onTreeToggle($event, row)" [attr.aria-expanded]="isTreeExpanded(row)"
+                          [attr.aria-label]="isTreeExpanded(row) ? effectiveLabels().treeCollapse : effectiveLabels().treeExpand"
+                          class="ngt-tree-toggle" type="button">
+                    <mat-icon aria-hidden="true">{{ isTreeExpanded(row) ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                  </button>
+                } @else {
+                  <span aria-hidden="true" class="ngt-tree-toggle"></span>
+                }
+              }
+              @if (column.sparkline; as spark) {
+                <ng-table-sparkline [color]="spark.color ?? null" [height]="spark.height ?? 24" [type]="spark.type ?? 'line'"
+                               [values]="cell.value" [width]="spark.width ?? 96"/>
+              } @else if (column.cellTemplate) {
                 <span class="cell-text" [class.cell-text--truncate]="column.textOverflow !== 'wrap'"
                       [class.cell-text--wrap]="column.textOverflow === 'wrap'">
                   <ng-container *ngTemplateOutlet="column.cellTemplate; context: cell.context" />
@@ -585,6 +700,9 @@
 
       <!-- En-têtes de groupe : une cellule par colonne affichée, pour aligner les agrégats. -->
       <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__group____row_selection__">
+        <td *matCellDef="let item" class="group-cell" mat-cell></td>
+      </ng-container>
+      <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__group____row_drag__">
         <td *matCellDef="let item" class="group-cell" mat-cell></td>
       </ng-container>
       @for (column of columns(); track trackByColumn($index, column)) {
@@ -692,9 +810,14 @@
       <tr
         (click)="onRowClick(row)"
         (contextmenu)="onRowContextMenu($event, row)"
+        (dragover)="onRowDragOver($event, row)"
+        (drop)="onRowDrop($event, row)"
         (keydown)="onRowKeydown($event, row)"
         *matRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
-        [attr.aria-expanded]="detailRowTemplate() && !pinInfo(row) ? isDetailExpanded(rowIndex, row) : null"
+        [attr.aria-expanded]="detailRowTemplate() && !pinInfo(row) ? isDetailExpanded(rowIndex, row) : treeAriaExpanded(row)"
+        [attr.aria-level]="treeActive() ? treeDepth(row) + 1 : null"
+        [attr.data-ngt-drop]="rowDropAttr(row)"
+        [class.ngt-row-dragging]="isRowDragging(row)"
         [attr.data-ngt-pin]="pinInfo(row)?.side ?? null"
         [attr.data-ngt-row]="rowRangeIndex(row)"
         [attr.data-ngt-pin-edge]="pinInfo(row)?.edge ? '' : null"
@@ -739,6 +862,25 @@
     </div>
   }
   </div>
+
+  @if (statusBar()) {
+    <div [attr.aria-label]="effectiveLabels().statusBarLabel" class="ngt-status-bar" role="status">
+      <span class="ngt-status-bar__item">{{ statusRowsText() }}</span>
+      @if (rowSelectionEnabled() && selectedRowsCount() > 0) {
+        <span class="ngt-status-bar__item">{{ statusText(effectiveLabels().statusSelected, selectedRowsCount()) }}</span>
+      }
+      @if (rangeStats(); as stats) {
+        <span class="ngt-status-bar__spacer"></span>
+        <span class="ngt-status-bar__item">{{ statusText(effectiveLabels().statusCells, stats.count) }}</span>
+        @if (stats.numericCount > 0) {
+          <span class="ngt-status-bar__item">{{ effectiveLabels().statusSum }} : <b>{{ formatStat(stats.sum) }}</b></span>
+          <span class="ngt-status-bar__item">{{ effectiveLabels().statusAvg }} : <b>{{ formatStat(stats.avg) }}</b></span>
+          <span class="ngt-status-bar__item">{{ effectiveLabels().statusMin }} : <b>{{ formatStat(stats.min) }}</b></span>
+          <span class="ngt-status-bar__item">{{ effectiveLabels().statusMax }} : <b>{{ formatStat(stats.max) }}</b></span>
+        }
+      }
+    </div>
+  }
 
   @if (paginator() && !blockMode()) {
     <mat-paginator

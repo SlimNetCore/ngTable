@@ -1471,3 +1471,239 @@
   accent-color: var(--app-primary, #3a7ca5);
   cursor: pointer;
 }
+
+/* --- Barre d'état ------------------------------------------------------- */
+.ngt-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 20px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  color: var(--app-text-muted, #475569);
+  font-size: 0.8125rem;
+}
+
+.ngt-status-bar__spacer {
+  flex: 1;
+}
+
+.ngt-status-bar b {
+  color: var(--app-text, #0f172a);
+  font-weight: 600;
+}
+
+/* --- Panneau latéral ---------------------------------------------------- */
+.ngt-side-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200; /* au-dessus des en-têtes fixes, des colonnes figées et des lignes épinglées */
+  display: flex;
+  flex-direction: column;
+  width: min(280px, 90%);
+  border-left: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  background: var(--app-surface, #ffffff);
+  box-shadow: -8px 0 16px -8px rgba(15, 23, 42, 0.2);
+}
+
+.ngt-side-panel__tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+}
+
+.ngt-side-panel__tab {
+  flex: 1;
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ngt-side-panel__tab--on {
+  border-bottom-color: var(--app-primary, #3a7ca5);
+  font-weight: 600;
+}
+
+.ngt-side-panel__badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 4px;
+  border-radius: 9px;
+  background: var(--app-primary, #3a7ca5);
+  color: #fff;
+  font-size: 0.7rem;
+  line-height: 18px;
+  text-align: center;
+}
+
+.ngt-side-panel__pin,
+.ngt-side-panel__close {
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ngt-side-panel__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 4px;
+  padding: 8px 12px;
+  overflow: auto;
+}
+
+.ngt-side-panel__filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ngt-side-panel__empty {
+  color: var(--app-text-muted, #475569);
+}
+
+/* --- Glisser-déposer de lignes ------------------------------------------ */
+.row-drag-cell {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding-inline: 4px !important;
+  text-align: center;
+}
+
+.ngt-row-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--app-text-muted, #475569);
+  cursor: grab;
+}
+
+.ngt-row-handle:hover,
+.ngt-row-handle:focus-visible {
+  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 14%, transparent);
+  color: var(--app-primary, #3a7ca5);
+}
+
+.ngt-row-handle:active {
+  cursor: grabbing;
+}
+
+.ng-table tr.ngt-row-dragging {
+  opacity: 0.45;
+}
+
+.ng-table tr[data-ngt-drop='before'] td {
+  box-shadow: inset 0 2px 0 0 var(--app-primary, #3a7ca5);
+}
+
+/* Panneau latéral fixé : il prend sa place à gauche au lieu de recouvrir le tableau. */
+.table-viewport--docked {
+  display: flex;
+  align-items: stretch;
+}
+
+.table-viewport--docked > .table-wrap {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.ngt-side-panel--docked {
+  position: static;
+  flex: 0 0 260px;
+  width: 260px;
+  order: 1; /* après le tableau : le panneau fixé reste à droite */
+  box-shadow: none;
+}
+
+/* Punaise « enfoncée » : l'icône se couche à l'horizontale. */
+.ngt-side-panel__pin--on {
+  color: var(--app-primary, #3a7ca5);
+}
+
+.ngt-side-panel__pin--on .mat-icon {
+  transform: rotate(90deg);
+}
+
+.ngt-side-panel .reference-pin.mat-mdc-icon-button {
+  --mat-icon-button-state-layer-size: 32px;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  color: var(--app-muted, #4f6573);
+}
+
+.ngt-side-panel .reference-pin mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  opacity: 0.6;
+}
+
+/* Colonne fixée : la punaise se couche à l'horizontale et prend la couleur principale. */
+.ngt-side-panel .reference-pin--on.mat-mdc-icon-button {
+  color: var(--app-primary, #3a7ca5);
+}
+
+.ngt-side-panel .reference-pin--on mat-icon {
+  transform: rotate(90deg);
+  opacity: 1;
+}
+
+.ngt-side-panel__column {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ng-table tr[data-ngt-drop='after'] td {
+  box-shadow: inset 0 -2px 0 0 var(--app-primary, #3a7ca5);
+}
+
+/* --- Données arborescentes ---------------------------------------------- */
+.ngt-tree-indent {
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 1px;
+}
+
+.ngt-tree-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--app-text-muted, #475569);
+}
+
+button.ngt-tree-toggle {
+  cursor: pointer;
+}
+
+button.ngt-tree-toggle:hover,
+button.ngt-tree-toggle:focus-visible {
+  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 14%, transparent);
+  color: var(--app-primary, #3a7ca5);
+}

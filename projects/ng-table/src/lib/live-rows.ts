@@ -10,6 +10,7 @@
  *   trié, en O(n + k·log k) au lieu de O(n·log n) avec un appel aux accessors par
  *   comparaison. Il recalcule tout quand les filtres, le tri ou les colonnes changent.
  */
+import {buildSortOrder} from './fast-sort';
 import {compareSortKeys, numericValue, SortLevel, sortKeysOf, SortValue} from './row-pipeline';
 
 /** Transaction sur les lignes (même forme que la `RowDataTransaction` d'AG Grid). */
@@ -54,6 +55,7 @@ export class RowStore<T> {
   private pendingKeys = new Set<unknown>();
   private pendingReset = true;
   private cachedRows: T[] | null = [];
+  private cachedSeqs: number[] = [];
 
   constructor(private readonly keyOf: (row: T) => unknown) {}
 
@@ -63,10 +65,29 @@ export class RowStore<T> {
 
   /** Les lignes, dans l'ordre d'arrivée (tableau mis en cache jusqu'au prochain changement). */
   rows(): T[] {
-    if (!this.cachedRows) {
-      this.cachedRows = Array.from(this.entries.values(), (entry) => entry.row);
+    this.fillCache();
+    return this.cachedRows!;
+  }
+
+  /** Ordre d'arrivée de chaque ligne de `rows()`, dans le même ordre. */
+  seqs(): number[] {
+    this.fillCache();
+    return this.cachedSeqs;
+  }
+
+  private fillCache(): void {
+    if (this.cachedRows) {
+      return;
     }
-    return this.cachedRows;
+    const rows = new Array<T>(this.entries.size);
+    const seqs = new Array<number>(this.entries.size);
+    let index = 0;
+    for (const entry of this.entries.values()) {
+      rows[index] = entry.row;
+      seqs[index++] = entry.seq;
+    }
+    this.cachedRows = rows;
+    this.cachedSeqs = seqs;
   }
 
   get(key: unknown): T | undefined {
@@ -234,11 +255,18 @@ interface ResultEntry<T> {
 }
 
 export class IncrementalPipeline<T> {
-  /** Résultat trié (ordre total : clés de tri puis `seq`), et ses lignes en parallèle. */
-  private entries: ResultEntry<T>[] = [];
+  /** Résultat trié (ordre total : clés de tri puis `seq`). */
   private result: T[] = [];
-  /** Entrée de chaque clé présente dans le résultat. */
-  private index = new Map<unknown, ResultEntry<T>>();
+  /**
+   * Entrées du résultat (clé, ligne, `seq`, clés de tri), en parallèle de `result`, et entrée de
+   * chaque clé. Elles ne servent qu'aux fusions : un recalcul complet ne les construit pas, la
+   * première fusion qui suit les construit (une fois, en O(n)). Avec un million de lignes, cela
+   * retire l'essentiel du coût d'un tri ou d'un filtre.
+   */
+  private entries: ResultEntry<T>[] | null = [];
+  private index: Map<unknown, ResultEntry<T>> | null = new Map();
+  /** `seq` de chaque ligne de `result` pendant que `entries` n'est pas construit. */
+  private seqs: number[] = [];
   private deps: readonly unknown[] | null = null;
   /** Nombre de recalculs complets / de fusions : pour les tests et le diagnostic. */
   readonly stats = {rebuilds: 0, merges: 0};
@@ -298,20 +326,58 @@ export class IncrementalPipeline<T> {
 
   private rebuild(store: RowStore<T>, config: PipelineConfig<T>): void {
     this.stats.rebuilds++;
-    const entries: ResultEntry<T>[] = [];
-    for (const row of store.rows()) {
-      if (config.matches(row)) {
-        const key = this.keyOf(row);
-        entries.push({key, row, seq: store.seqOf(key), sortKeys: sortKeysOf(row, config.levels)});
+    const all = store.rows();
+    const allSeqs = store.seqs();
+    const matched: T[] = [];
+    const matchedSeqs: number[] = [];
+    for (let i = 0; i < all.length; i++) {
+      if (config.matches(all[i])) {
+        matched.push(all[i]);
+        matchedSeqs.push(allSeqs[i]);
       }
     }
-    if (config.levels.length > 0) {
-      entries.sort((a, b) => this.compare(a, b, config));
+    if (config.levels.length === 0) {
+      this.setResult(matched, matchedSeqs);
+    } else {
+      const order = buildSortOrder(matched, config.levels, config.collator);
+      if (order) {
+        const rows = new Array<T>(order.length);
+        const seqs = new Array<number>(order.length);
+        for (let i = 0; i < order.length; i++) {
+          rows[i] = matched[order[i]];
+          seqs[i] = matchedSeqs[order[i]];
+        }
+        this.setResult(rows, seqs);
+      } else {
+        // Niveau qu'on ne sait pas ranger en nombres (types mêlés...) : tri par comparaisons.
+        const entries = matched.map((row, i) => ({key: this.keyOf(row), row, seq: matchedSeqs[i], sortKeys: sortKeysOf(row, config.levels)}));
+        entries.sort((a, b) => this.compare(a, b, config));
+        this.result = entries.map((entry) => entry.row);
+        this.entries = entries;
+        this.index = null;
+        this.seqs = [];
+      }
     }
-    this.entries = entries;
-    this.result = entries.map((entry) => entry.row);
-    this.index = new Map(entries.map((entry) => [entry.key, entry]));
     this.resyncTotals(config);
+  }
+
+  private setResult(rows: T[], seqs: number[]): void {
+    this.result = rows;
+    this.seqs = seqs;
+    this.entries = null;
+    this.index = null;
+  }
+
+  /** Entrées et index du résultat, construits à la demande. */
+  private ensureEntries(config: PipelineConfig<T>): {entries: ResultEntry<T>[]; index: Map<unknown, ResultEntry<T>>} {
+    if (!this.entries) {
+      this.entries = this.result.map((row, i) => ({key: this.keyOf(row), row, seq: this.seqs[i], sortKeys: sortKeysOf(row, config.levels)}));
+      this.seqs = [];
+    }
+    if (!this.index) {
+      this.index = new Map(this.entries.map((entry) => [entry.key, entry]));
+    }
+    return {entries: this.entries, index: this.index};
   }
 
   /**
@@ -322,13 +388,14 @@ export class IncrementalPipeline<T> {
    */
   private merge(store: RowStore<T>, config: PipelineConfig<T>, keys: ReadonlySet<unknown>): void {
     this.stats.merges++;
+    const {entries: current, index} = this.ensureEntries(config);
     // 1. Positions des anciennes versions, à retirer.
     const removed: number[] = [];
     for (const key of keys) {
-      const previous = this.index.get(key);
+      const previous = index.get(key);
       if (previous) {
         removed.push(this.positionOf(previous, config));
-        this.index.delete(key);
+        index.delete(key);
         this.applyToTotals(previous.row, -1, config);
       }
     }
@@ -337,11 +404,11 @@ export class IncrementalPipeline<T> {
     const keptRows: T[][] = [];
     let from = 0;
     for (const position of removed) {
-      keptEntries.push(this.entries.slice(from, position));
+      keptEntries.push(current.slice(from, position));
       keptRows.push(this.result.slice(from, position));
       from = position + 1;
     }
-    keptEntries.push(this.entries.slice(from));
+    keptEntries.push(current.slice(from));
     keptRows.push(this.result.slice(from));
     const entries = ([] as ResultEntry<T>[]).concat(...keptEntries);
     const rows = ([] as T[]).concat(...keptRows);
@@ -389,7 +456,7 @@ export class IncrementalPipeline<T> {
       c = end;
     }
     for (const candidate of candidates) {
-      this.index.set(candidate.key, candidate);
+      index.set(candidate.key, candidate);
     }
     mergedEntries.push(entries.slice(start));
     mergedRows.push(rows.slice(start));
@@ -399,17 +466,18 @@ export class IncrementalPipeline<T> {
 
   /** Position d'une entrée du résultat (ordre total : elle y est à un seul endroit). */
   private positionOf(entry: ResultEntry<T>, config: PipelineConfig<T>): number {
+    const entries = this.entries!;
     let low = 0;
-    let high = this.entries.length;
+    let high = entries.length;
     while (low < high) {
       const mid = (low + high) >>> 1;
-      if (this.compare(this.entries[mid], entry, config) < 0) {
+      if (this.compare(entries[mid], entry, config) < 0) {
         low = mid + 1;
       } else {
         high = mid;
       }
     }
-    return this.entries[low] === entry ? low : this.entries.indexOf(entry);
+    return entries[low] === entry ? low : entries.indexOf(entry);
   }
 
   private compare(a: ResultEntry<T>, b: ResultEntry<T>, config: PipelineConfig<T>): number {

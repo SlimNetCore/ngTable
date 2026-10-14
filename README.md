@@ -629,6 +629,138 @@ Avec des dizaines ou des centaines de colonnes, `[virtualColumns]="true"` ne ren
 
 Le modèle de vue (valeurs, textes) n'est calculé que pour les colonnes rendues. L'export, le menu « Colonnes » et les vues portent toujours sur toutes les colonnes. Limite : la navigation clavier cellule par cellule (`cellNavigation`) ne parcourt que les colonnes rendues.
 
+### Étape 10sexdecies — Performances sur de gros volumes
+
+Mesures sur **1 000 000 de lignes** en mémoire (poste de développement ; `PERF_ROWS=1000000 npm run test:ci` les rejoue, 200 000 lignes par défaut). Chaque temps comprend le chargement des lignes dans la table (de 300 à 500 ms à lui seul pour un million) :
+
+| Opération | Avant | Maintenant |
+|-----------|------:|-----------:|
+| Tri numérique ou date | 2,7 s | 0,35 – 0,65 s |
+| Tri sur deux niveaux | 3,1 s | 0,4 – 0,8 s |
+| Tri texte, valeurs peu nombreuses (statut) | 1,6 s | 0,3 – 0,4 s |
+| Tri texte, un million de valeurs distinctes (références) | 6,4 s | 1,0 – 2,4 s |
+| Filtre texte, nombre, liste, période, booléen | 0,5 – 1,1 s | 0,2 – 0,45 s |
+| Pivot (2 champs × 1 colonne pivot) | 1,0 s | 0,2 – 0,3 s |
+| Graphique de 1 000 000 de points (courbe ou barres) | débordement de la pile | 35 – 70 ms |
+| Lot de 1 000 mises à jour live sur 100 000 lignes | 12 ms | 6 – 8 ms |
+
+Ce qui a changé :
+
+- **Tri par base (radix)** : chaque niveau de tri devient une colonne de nombres (valeur, date, booléen, rang du texte), puis les indices sont triés par un tri par base stable, du niveau le moins important au plus important. Pas de comparateur, pas d'objet par ligne. Les mêmes règles qu'avant s'appliquent (vides en dernier dans les deux sens, égalités dans l'ordre d'origine) : un test compare le résultat à l'ancien tri sur des données aléatoires. Un niveau qu'on ne sait pas ranger en nombres (types mêlés, date invalide, `NaN`) retombe sur l'ancien tri par comparaisons.
+- **Texte** : le rang d'une valeur vient d'un tri des valeurs *distinctes*. Pour les textes ASCII, la table construit des **clés de tri en octets** (chiffres comparés par valeur, casse ignorée) triées elles aussi par base ; ces clés sont **vérifiées contre `Intl.Collator`** sur un corpus avant le premier usage, et abandonnées au moindre écart : le résultat reste celui du collateur. Texte accentué ou non ASCII : le collateur, comme avant.
+- **Filtres compilés** : `>5000`, `10..50`, `Validée,Annulée` ou une période sont lus *une fois* par changement de filtre au lieu d'une fois par ligne. Un test compare le prédicat compilé à l'ancien sur plus de 12 000 couples valeur / saisie.
+- **Pas de travail inutile** : un recalcul complet ne construit plus ni l'index par clé ni les clés de tri du résultat ; la première fusion live qui suit les construit (une fois). La clé de ligne est lue une fois, pas un signal par ligne.
+- **Pivot en une passe** : chaque ligne ne touche qu'un accumulateur par valeur ; totaux de ligne et total général se déduisent ensuite des accumulateurs (une moyenne est recombinée à partir de sommes et de nombres).
+- **Graphiques** : minimum et maximum par boucle (plus de `Math.min(...)` qui faisait déborder la pile au-delà de ~100 000 points), réduction à `[maxPoints]` points qui garde pics et creux, zoom en fenêtre.
+- **Recherche globale** : le texte normalisé d'une ligne est calculé une fois et mis en cache (premier passage : environ 1,2 s pour un million de lignes sur 6 colonnes, ensuite quelques dizaines de ms par saisie) ; le texte ASCII évite la décomposition Unicode.
+- **Rendu** : défilement virtuel (lignes et colonnes) et modèle serveur par blocs ; le temps de rendu d'une page ne dépend pas du nombre total de lignes.
+
+### Étape 10quindecies — Données arborescentes et maître / détail imbriqué
+
+```html
+<!-- Lignes à plat : chacune donne la clé de son parent -->
+<ng-table [treeData]="true" [treeParent]="(f) => f.parentId" [rowKeyAccessor]="(f) => f.id" [treeDefaultExpanded]="1" ... />
+
+<!-- Lignes imbriquées : [rows] ne contient que les racines -->
+<ng-table [treeData]="true" [treeChildren]="(n) => n.children" ... />
+```
+
+La première colonne reçoit le retrait (`[treeIndent]`, 20 px par niveau) et un bouton déplier / replier. `[treeDefaultExpanded]` : `true` pour tout, ou un nombre de niveaux. Méthodes : `setTreeExpanded(row, bool)`, `expandAllTree()`, `collapseAllTree()` ; `(treeToggle)` à chaque changement ; Alt + → / Alt + ← sur une cellule (avec `[cellNavigation]`). `aria-level` et `aria-expanded` sont posés sur les lignes.
+
+- **Tri** : entre frères, l'arbre reste intact. **Filtre et recherche** : une ligne reste si elle correspond ou si l'un de ses descendants correspond ; ses ancêtres sont dépliés pour la montrer. **Pagination** : sur les lignes visibles.
+- **Transactions** (`applyTransaction`) : prises en compte avec `[treeParent]`. Avec `[treeChildren]` les lignes sont aplaties une fois depuis `[rows]` : modifiez `[rows]` plutôt que de passer par une transaction.
+- **Performance** : l'ensemble des lignes à garder est recalculé à chaque changement de filtre ou de données (le pipeline incrémental n'est pas utilisé en mode arbre). L'index parent / enfant se construit en une passe, sans récursion, et supporte des arbres très profonds.
+- **Inactif en mode arbre** : regroupement, déplacement de lignes. Un lien vers un parent inconnu fait de la ligne une racine ; un cycle est coupé.
+- **Maître / détail imbriqué** : une `ng-table` dans `[detailRowTemplate]` fonctionne telle quelle (test à l'appui) : chaque ligne maître déplie son propre tableau, avec son tri et ses filtres.
+
+### Étape 10quaterdecies — Analyse : pivot, graphiques et mini-graphiques
+
+Trois outils, sans dépendance supplémentaire : tout est calculé dans le navigateur et dessiné en SVG. Démo : page `/analyse`.
+
+**Tableau croisé dynamique** — `<ng-table-pivot>` est une `ng-table` dont les lignes et les colonnes viennent d'un pivot :
+
+```html
+<ng-table-pivot [rows]="ventes()" [config]="pivot" />
+```
+```ts
+pivot: PivotConfig<Vente> = {
+  rows: [{id: 'region', header: 'Région', accessor: (v) => v.region}],            // une ou plusieurs colonnes
+  columns: {id: 'annee', header: 'Année', accessor: (v) => v.annee},                // chaque valeur devient une colonne
+  values: [{id: 'montant', header: 'Montant', accessor: (v) => v.montant, aggregate: 'sum'}],  // sum | avg | min | max | count
+  // rowTotals, grandTotal (true par défaut), totalLabel, columnSort: 'asc' | 'desc'
+};
+```
+
+Colonnes groupées sous l'en-tête de la colonne pivot, colonne « Total », ligne de total général épinglée en bas. Tri, filtres, recherche, export et `[statusBar]` fonctionnent comme sur toute table. Le pivot se recalcule quand `[rows]` ou `[config]` changent. Les moyennes se calculent sur les lignes, pas sur des moyennes de moyennes. Pour brancher le pivot sur votre propre `ng-table`, `buildPivotModel(rows, config)` renvoie `{columns, rows, pinnedBottom}`; `computePivot` donne le résultat brut.
+
+**Graphiques** — `<ng-table-chart>` dessine barres, courbes, zones, secteurs ou anneau :
+
+```html
+<ng-table #table [rangeSelection]="true" ... />
+<ng-table-chart [data]="table.rangeChartData()" type="bar" title="Plage sélectionnée" />
+```
+
+`rangeChartData()` transforme la plage sélectionnée : les colonnes numériques deviennent des séries, la première colonne de texte les catégories. Vous pouvez aussi fournir vos séries : `{categories: string[], series: {name, values}[]}`. Couleurs par `--ngt-chart-1` à `--ngt-chart-8`. Accessibilité : infobulle sur chaque forme, légende qui estompe les autres séries au survol, et un tableau masqué reprend les données pour les lecteurs d'écran. `[height]` règle la hauteur, la largeur suit le conteneur.
+
+**Mini-graphiques** — une colonne dont `valueAccessor` renvoie une série de nombres :
+
+```ts
+{id: 'tendance', header: 'Tendance', valueAccessor: (c) => c.sixDerniersMois,
+ sparkline: {type: 'area' /* line | area | bar */, width: 96, height: 24, color: '#3a7ca5'},
+ sortValueAccessor: (c) => c.sixDerniersMois.at(-1)}   // pour pouvoir trier
+```
+
+`<ng-table-sparkline [values]="…" type="bar" />` s'utilise aussi seul. La dernière valeur d'une courbe est marquée ; les barres négatives sont en rouge.
+
+**Pivot composé par glisser-déposer.** Avec `[configurator]`, l'utilisateur glisse des champs entre « Champs », « Lignes », « Colonnes » et « Valeurs », et choisit l'agrégat de chaque valeur :
+
+```html
+<ng-table-pivot [rows]="ventes()" [(config)]="pivot" [dimensions]="dimensions" [measures]="mesures" [configurator]="true" />
+```
+
+`dimensions` : les champs qui peuvent être lignes ou colonne ; `measures` : ceux qu'on peut agréger. Une dimension ne va pas dans « Valeurs », une mesure ne va pas en « Lignes » ; « Colonnes » n'accepte qu'un champ ; lâcher un champ sur « Champs » le retire. Au clavier : chaque zone a une liste « + » pour ajouter un champ, « × » pour le retirer. Les règles de composition sont des fonctions pures (`placeInLayout`, `removeFromLayout`, `configFromLayout`).
+
+**Pivot calculé par le serveur.** Pour de gros volumes, c'est la base de données qui agrège :
+
+```ts
+pivotServeur: PivotDatasource = (request, {signal}) =>
+  fetch('/api/pivot', {method: 'POST', body: JSON.stringify(request), signal}).then((r) => r.json());
+// request : {rows: ['region'], column: 'annee', values: [{id: 'montant', aggregate: 'sum'}], columnSort: 'asc', filters?}
+// réponse : {columnKeys?: ['2025', '2026'], rows: [{labels: ['Nord'], cells: {'2025': {montant: 10}, '2026': {montant: 30}}, totals: {montant: 40}}], grandTotal: {cells, totals}}
+```
+```html
+<ng-table-pivot [datasource]="pivotServeur" [(config)]="pivot" [dimensions]="dimensions" [measures]="mesures" [configurator]="true" [filters]="filtres" />
+```
+
+Les champs sont envoyés par leur `id` (les `accessor` ne servent pas). Chaque changement de configuration annule la requête en cours (`AbortSignal`) et ignore sa réponse si elle arrive en retard. Pendant le calcul le tableau affiche son indicateur de chargement ; une erreur s'affiche avec un bouton « Réessayer » et émet `(pivotError)`. `pivotToServerResult(computePivot(...))` fabrique une réponse valide : utile pour un faux serveur de test.
+
+**Zoom.** Barres, courbes et zones se zooment : glissez sur le tracé pour sélectionner une période, ou Ctrl + molette (autour du pointeur), ou les boutons + / − / ◀ / ▶ / Tout, ou le clavier (`+`, `-`, flèches, Origine) ; double-clic pour tout revoir. `(zoomChange)` émet la fenêtre `{start, end}`, `[zoomable]="false"` désactive. L'échelle verticale suit la fenêtre.
+
+**Grandes séries.** Au-delà de `[maxPoints]` (600) points ou barres par série, chaque tranche garde son plus petit et son plus grand point : aucun pic, aucun creux ne disparaît, et le tracé reste fluide avec des centaines de milliers de valeurs. Un « ≈ » signale la réduction ; zoomer montre les points exacts.
+
+**Limites.** Les graphiques ne sont pas interactifs au-delà de l'infobulle, de la légende et du zoom (pas d'export image) ; le pivot composé ne gère qu'une colonne pivot et pas de sous-totaux intermédiaires.
+
+### Étape 10terdecies — Déplacer des lignes (glisser-déposer)
+
+```html
+<ng-table [rowDrag]="true" (rowMoved)="rows.set($event.rows)" [rows]="rows()" ... />
+```
+
+Une poignée (⋮⋮) en tête de chaque ligne. Glissez-la sur une autre ligne : un trait indique si la ligne sera placée avant (moitié haute) ou après (moitié basse). Au clavier, **Alt + ↑ / ↓** sur la poignée monte ou descend la ligne d'un cran. La zone défile toute seule quand on glisse près de son bord.
+
+- **La table ne réordonne pas vos données.** `(rowMoved)` donne `{row, target, position, fromIndex, toIndex, rows}` : `rows` est la liste complète dans le nouvel ordre, à réinjecter dans `[rows]`. Les éditions de cellules et les transactions déjà appliquées y sont comprises.
+- **Actif** en mode local, sans tri ni regroupement (l'ordre est alors celui de `[rows]`). Avec un filtre, l'ordre complet est calculé par rapport aux lignes visibles. Les lignes épinglées n'ont pas de poignée.
+- `moveRow(row, target, 'before' | 'after')` fait la même chose par programme. Un lecteur d'écran annonce la nouvelle position.
+
+### Étape 10duodecies — Barre d'état et panneau latéral
+
+```html
+<ng-table [statusBar]="true" [sidePanel]="true" [rangeSelection]="true" ... />
+```
+
+- **Barre d'état** : « 1 250 sur 10 000 lignes » (filtrées / total, en mode par blocs le total connu du serveur), lignes sélectionnées, et, pour une plage de cellules, nombre, somme, moyenne, min et max des valeurs numériques.
+- **Panneau latéral** : un bouton « Panneau » l'ouvre sur le côté. Onglet *Colonnes* (afficher / masquer) et onglet *Filtres* (filtres actifs, supprimables un par un ou tous). `[(sidePanelOpen)]` pilote l'ouverture, `toggleSidePanel('columns' | 'filters')` aussi. Échap le ferme.
+
 ### Étape 10undecies — Édition de cellules
 
 Des cellules modifiables au clavier ou à la souris, avec validation, annuler / rétablir et collage dans les cellules.
@@ -2526,6 +2658,9 @@ interface NgTableFilterConfig {
 | `virtualColumns`            | `boolean`                                                        | `false`   | Affichage partiel des colonnes (Étape 10septies).                                                                     |
 | `editOnPaste`               | `boolean`                                                        | `true`    | Un collage écrit dans les cellules éditables de la plage (Étape 10undecies).                                          |
 | `undoRedoLimit`             | `number`                                                         | `100`     | Taille de l'historique annuler / rétablir.                                                                            |
+| `rowDrag`                   | `boolean`                                                        | `false`   | Poignée de déplacement des lignes ; émet `(rowMoved)` (Étape 10terdecies).                                            |
+| `statusBar`                 | `boolean`                                                        | `false`   | Barre d'état : lignes, sélection, statistiques de la plage (Étape 10duodecies).                                       |
+| `sidePanel` / `[(sidePanelOpen)]` | `boolean`                                                  | `false`   | Panneau latéral colonnes / filtres.                                                                                   |
 | `rangeSelection`            | `boolean`                                                        | `false`   | Sélection d'une plage de cellules et copier-coller (Étape 10decies).                                                  |
 | `rangeCopyHeaders`          | `boolean`                                                        | `false`   | Ajoute les en-têtes de colonnes au texte copié.                                                                       |
 | `pinnedTopRows`             | `readonly T[]`                                                   | `[]`      | Lignes épinglées sous l'en-tête (Étape 10octies).                                                                    |

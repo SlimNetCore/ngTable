@@ -11,7 +11,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {By} from '@angular/platform-browser';
 import {MatCheckboxChange} from '@angular/material/checkbox';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRangePasteEvent, NgTableRemoteQuery, NgTableSelectionChangeEvent, NgTableSortChange, NgTableBlockRequest, NgTableBlockResult, NgTableRemoteDatasource} from './ng-table.component';
+import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRangePasteEvent, NgTableRemoteQuery, NgTableRowMoveEvent, NgTableSelectionChangeEvent, NgTableSortChange, NgTableBlockRequest, NgTableBlockResult, NgTableRemoteDatasource} from './ng-table.component';
 import {NG_TABLE_DEFAULT_LABELS, provideNgTableLabels} from './ng-table-labels';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
 import {MAX_SCROLL_HEIGHT} from './virtual-window';
@@ -1607,6 +1607,167 @@ describe('NgTableComponent', () => {
       component.pasteIntoRange('Zoé');
       await fixture.whenStable();
       expect(component.displayedRows()[0].nom).toBe('Charlie');
+    });
+  });
+
+  describe('barre d’état et panneau latéral', () => {
+    const el = (fixture: ComponentFixture<NgTableComponent>) => fixture.nativeElement as HTMLElement;
+    const statusText = (fixture: ComponentFixture<NgTableComponent>) =>
+      el(fixture).querySelector('.ngt-status-bar')?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+
+    it('la barre d’état n’existe que sur demande et compte les lignes filtrées', async () => {
+      const {fixture, setInput} = await createTable();
+      expect(statusText(fixture)).toBeNull();
+
+      await setInput('statusBar', true);
+      expect(statusText(fixture)).toBe('3 lignes');
+
+      await setInput('filters', {statut: 'VALIDEE'});
+      expect(statusText(fixture)).toBe('2 sur 3 lignes');
+    });
+
+    it('elle affiche nombre, somme, moyenne, min et max de la plage sélectionnée', async () => {
+      const {fixture, component, setInput} = await createTable({statusBar: true, rangeSelection: true});
+      await setInput('rangeSelection', true);
+      const mouse = (target: Element, type: string) => target.dispatchEvent(new MouseEvent(type, {bubbles: true, cancelable: true, button: 0}));
+      const cell = (row: number) => el(fixture).querySelectorAll('tr.data-row')[row].querySelector('td.mat-column-montant')!;
+
+      mouse(cell(0), 'mousedown');
+      mouse(cell(2), 'mousemove');
+      mouse(document.body, 'mouseup');
+      await fixture.whenStable();
+
+      expect(component.getSelectedRange()?.rows).toHaveLength(3);
+      const text = statusText(fixture)!;
+      expect(text).toContain('3 cellules');
+      expect(text).toContain('Somme : 600');
+      expect(text).toContain('Moyenne : 200');
+      expect(text).toContain('Min : 100');
+      expect(text).toContain('Max : 300');
+    });
+
+    it('un clic à l’extérieur ferme le panneau, sauf s’il est fixé à droite', async () => {
+      const {fixture, component} = await createTable({sidePanel: true});
+      component.toggleSidePanel();
+      await fixture.whenStable();
+      el(fixture).querySelector('.ngt-side-panel')!.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+      await fixture.whenStable();
+      expect(component.sidePanelOpen()).toBe(true); // clic dans le panneau
+
+      document.body.appendChild(document.createElement('p')).dispatchEvent(new MouseEvent('click', {bubbles: true}));
+      el(fixture).querySelector('tr.data-row')!.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+      await fixture.whenStable();
+      expect(component.sidePanelOpen()).toBe(false);
+
+      component.sidePanelPinned.set(true);
+      component.toggleSidePanel();
+      await fixture.whenStable();
+      expect(el(fixture).querySelector('.table-viewport--docked')).not.toBeNull();
+      el(fixture).querySelector('tr.data-row')!.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+      await fixture.whenStable();
+      expect(component.sidePanelOpen()).toBe(true);
+    });
+
+    it('le panneau propose une punaise par colonne, qui fixe la colonne à gauche', async () => {
+      const {fixture, component} = await createTable({sidePanel: true});
+      component.toggleSidePanel();
+      await fixture.whenStable();
+      const pins = el(fixture).querySelectorAll('.ngt-side-panel .reference-pin');
+      expect(pins).toHaveLength(4);
+      (pins[1] as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(component.referenceColumn()).toBe('montant');
+    });
+
+    it('les largeurs viennent d’un colgroup : colonne de poignées étroite même avec des en-têtes groupés', async () => {
+      const cols = columns().map((column) => (column.id === 'nom' ? {...column, headerGroup: 'G', widthPx: 200} : column));
+      const {fixture} = await createTable({columns: cols, rowDrag: true});
+      const widths = [...el(fixture).querySelectorAll('colgroup col')].map((col) => (col as HTMLElement).style.width);
+      expect(widths.slice(0, 2)).toEqual(['40px', '200px']);
+    });
+
+    it('le panneau latéral liste les colonnes et les filtres actifs, et se ferme', async () => {
+      const {fixture, component, setInput} = await createTable({sidePanel: true, filters: {statut: 'VALIDEE'}});
+      expect(el(fixture).querySelector('.ngt-side-panel')).toBeNull();
+
+      component.toggleSidePanel();
+      await fixture.whenStable();
+      expect(el(fixture).querySelectorAll('.ngt-side-panel__item')).toHaveLength(4);
+
+      component.toggleSidePanel('filters');
+      await fixture.whenStable();
+      expect(el(fixture).querySelector('.ngt-side-panel__body')?.textContent).toContain('Statut');
+      (el(fixture).querySelector('.ngt-side-panel__filter button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(el(fixture).querySelector('.ngt-side-panel__empty')).not.toBeNull();
+
+      (el(fixture).querySelector('.ngt-side-panel__close') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(el(fixture).querySelector('.ngt-side-panel')).toBeNull();
+      await setInput('sidePanel', false);
+    });
+  });
+
+  describe('glisser-déposer de lignes ([rowDrag])', () => {
+    const el = (fixture: ComponentFixture<NgTableComponent>) => fixture.nativeElement as HTMLElement;
+    const rowEl = (fixture: ComponentFixture<NgTableComponent>, index: number) => el(fixture).querySelectorAll('tr.data-row')[index] as HTMLElement;
+    const drag = (target: Element, type: string, clientY = 0) => {
+      const event = new Event(type, {bubbles: true, cancelable: true}) as DragEvent;
+      Object.defineProperties(event, {
+        clientY: {value: clientY},
+        dataTransfer: {value: {setData: () => undefined, setDragImage: () => undefined, effectAllowed: '', dropEffect: ''}},
+      });
+      target.dispatchEvent(event);
+      return event;
+    };
+
+    it('affiche une poignée par ligne seulement avec [rowDrag]', async () => {
+      const {fixture, setInput} = await createTable();
+      expect(el(fixture).querySelector('.ngt-row-handle')).toBeNull();
+      await setInput('rowDrag', true);
+      expect(el(fixture).querySelectorAll('.ngt-row-handle')).toHaveLength(3);
+    });
+
+    it('déposer une ligne émet (rowMoved) avec le nouvel ordre complet', async () => {
+      const {fixture, component} = await createTable({rowDrag: true});
+      const moves: NgTableRowMoveEvent<Row>[] = [];
+      component.rowMoved.subscribe((e) => moves.push(e));
+
+      drag(rowEl(fixture, 2).querySelector('.ngt-row-handle')!, 'dragstart');
+      const target = rowEl(fixture, 0);
+      target.getBoundingClientRect = () => ({top: 100, height: 40}) as DOMRect;
+      drag(target, 'dragover', 105); // moitié haute : avant
+      await fixture.whenStable();
+      expect(target.getAttribute('data-ngt-drop')).toBe('before');
+      drag(target, 'drop', 105);
+      await fixture.whenStable();
+
+      expect(moves).toHaveLength(1);
+      expect(moves[0].rows.map((r) => r.id)).toEqual(['3', '1', '2']);
+      expect(moves[0]).toMatchObject({fromIndex: 2, toIndex: 0, position: 'before'});
+      expect(target.getAttribute('data-ngt-drop')).toBeNull();
+    });
+
+    it('Alt + flèche sur la poignée déplace la ligne d’un cran', async () => {
+      const {fixture, component} = await createTable({rowDrag: true});
+      const moves: NgTableRowMoveEvent<Row>[] = [];
+      component.rowMoved.subscribe((e) => moves.push(e));
+
+      rowEl(fixture, 1).querySelector('.ngt-row-handle')!.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', altKey: true, bubbles: true, cancelable: true}));
+      expect(moves[0].rows.map((r) => r.id)).toEqual(['1', '3', '2']);
+
+      rowEl(fixture, 0).querySelector('.ngt-row-handle')!.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowUp', altKey: true, bubbles: true, cancelable: true}));
+      expect(moves).toHaveLength(1); // déjà en tête : rien à faire
+    });
+
+    it('est inactif avec un tri ou un regroupement : la poignée disparaît', async () => {
+      const {fixture, component, setInput} = await createTable({rowDrag: true});
+      component['onHeaderSort'](component.columns()[1]);
+      await fixture.whenStable();
+      expect(el(fixture).querySelector('.ngt-row-handle')).toBeNull();
+
+      await setInput('rowDrag', false);
+      expect(component.moveRow(ROWS[2], ROWS[0], 'before')).toBe(true);
     });
   });
 

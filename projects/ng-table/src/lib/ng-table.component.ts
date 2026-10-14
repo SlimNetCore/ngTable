@@ -47,7 +47,8 @@ import {
   syncGridTabStops,
 } from './grid-navigation';
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
-import {matchesAllFilters, searchText, SortLevel} from './row-pipeline';
+import {compileFilters} from './filter-compile';
+import {searchText, SortLevel} from './row-pipeline';
 import {buildConsecutiveGroups, buildGroups, computeAggregate, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
 import {
   ColumnWindow,
@@ -63,6 +64,12 @@ import {IncrementalPipeline, NgTableRowTransaction, NgTableTransactionResult, Ro
 
 /** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
 import {BlockCache, NgTableLoadingRow} from './block-cache';
+import {buildTreeIndex, flattenNested, layoutTree, TreeIndex, withAncestors} from './tree-data';
+import {chartDataFromRange, NgTableChartData} from './chart';
+import {NgTableSparklineComponent} from './ng-table-sparkline.component';
+import {NgTableSparklineOptions} from './sparkline';
+import {dropPositionFor, moveRow, RowDropPosition} from './row-drag';
+import {computeRangeStats, RangeStats} from './range-stats';
 import {draftFromValue, EditChange, EditHistory, EditRestore, editorKindFor, NgTableEditorKind, parseDraft, sameCellValue} from './cell-edit';
 import {buildHeaderGroupLevels, headerGroupPath} from './header-groups';
 
@@ -114,6 +121,7 @@ function defaultRowKey(row: unknown): unknown {
 const DEFAULT_MIN_COLUMN_WIDTH_PX = 120;
 /** Largeur de la colonne de cases à cocher. */
 const SELECTION_COLUMN_WIDTH_PX = 48;
+const ROW_DRAG_COLUMN_WIDTH_PX = 40;
 
 /** Espace insécable (U+00A0), voir `announce`. */
 const NBSP = String.fromCharCode(160);
@@ -226,6 +234,25 @@ export interface NgTableCellEditRejectedEvent<T> {
   /** Texte saisi. */
   value: string;
   error: string;
+}
+
+/** Un nœud de l'arbre vient d'être déplié ou replié. */
+export interface NgTableTreeToggleEvent<T> {
+  row: T;
+  expanded: boolean;
+}
+
+/** Une ligne vient d'être déplacée par glisser-déposer (ou Alt + flèches sur sa poignée). */
+export interface NgTableRowMoveEvent<T> {
+  row: T;
+  /** Ligne près de laquelle elle a été déposée. */
+  target: T;
+  position: RowDropPosition;
+  /** Position de la ligne avant et après, parmi toutes les lignes (filtrées ou non). */
+  fromIndex: number;
+  toIndex: number;
+  /** Toutes les lignes dans le nouvel ordre : à réinjecter dans `[rows]`. */
+  rows: T[];
 }
 
 export interface NgTableRangePasteEvent<T> {
@@ -376,6 +403,11 @@ export interface NgTableColumn<T> {
    * rouge à la baisse pour un nombre). Par défaut, suit `[flashCells]` de la table.
    */
   flashOnChange?: boolean;
+  /**
+   * Mini-graphique dans la cellule : `valueAccessor` renvoie alors une série de nombres
+   * (`[3, 5, 4, 8]`), tracée en courbe, zone ou barres. Pensez à `sortValueAccessor` pour trier.
+   */
+  sparkline?: NgTableSparklineOptions;
   /**
    * Cellule modifiable : `true`, ou une fonction par ligne. Double-clic, Entrée ou F2 (avec
    * `[cellNavigation]`), ou simplement taper un caractère ouvre l'éditeur. Sans
@@ -543,6 +575,7 @@ export interface NgTableViewsImportEvent {
     ColumnFilterRendererComponent,
     DynamicFilterHostComponent,
     TruncateTooltipDirective,
+    NgTableSparklineComponent,
   ],
   templateUrl: './ng-table.component.html',
   styleUrl: './ng-table.component.css',
@@ -757,6 +790,38 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly editOnPaste = input(true);
   /** Nombre d'opérations que Ctrl+Z peut défaire. */
   readonly undoRedoLimit = input(100);
+  /**
+   * Données arborescentes (mode local) : la première colonne affiche l'indentation et un bouton
+   * pour déplier / replier. Fournir `[treeChildren]` (lignes imbriquées) ou `[treeParent]`
+   * (lignes à plat, avec la clé du parent). Le tri se fait entre frères ; un filtre ou une
+   * recherche garde les lignes qui correspondent ET leurs ancêtres, dépliés. Le regroupement
+   * et le déplacement de lignes sont inactifs en mode arbre.
+   */
+  readonly treeData = input(false);
+  /** Enfants d'une ligne (lignes imbriquées) : `[rows]` ne contient alors que les racines. */
+  readonly treeChildren = input<((row: T) => readonly T[] | null | undefined) | null>(null);
+  /** Clé du parent d'une ligne (lignes à plat), `null` pour une racine. Utilise `[rowKeyAccessor]` comme clé. */
+  readonly treeParent = input<((row: T) => unknown) | null>(null);
+  /** Nœuds dépliés au départ : `true` tous, ou un nombre de niveaux (`1` = les racines seulement dépliées). */
+  readonly treeDefaultExpanded = input<boolean | number>(false);
+  /** Retrait par niveau, en pixels. */
+  readonly treeIndent = input(20);
+  /**
+   * Poignée de glisser-déposer en tête de chaque ligne. La table ne réordonne pas vos données :
+   * `(rowMoved)` donne le nouvel ordre complet à réinjecter dans `[rows]`. Actif en mode local,
+   * sans tri ni regroupement (l'ordre des lignes est alors celui de `[rows]`).
+   */
+  readonly rowDrag = input(false);
+  /**
+   * Barre d'état sous le tableau : nombre de lignes (filtrées / total), lignes sélectionnées,
+   * et, pour une plage de cellules, nombre, somme, moyenne, min et max.
+   */
+  readonly statusBar = input(false);
+  /** Panneau latéral (colonnes, filtres actifs) ouvert par un bouton de la barre d'actions. */
+  readonly sidePanel = input(false);
+  readonly sidePanelOpen = model(false);
+  /** Panneau fixé à droite du tableau : il ne recouvre plus les colonnes et ne se ferme plus au clic à l'extérieur. */
+  readonly sidePanelPinned = model(false);
   /** Ajoute une première ligne d'en-têtes de colonnes au texte copié. */
   readonly rangeCopyHeaders = input(false);
   /** Lignes par bloc demandé au serveur. */
@@ -916,6 +981,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly viewsImported = output<NgTableViewsImportEvent>();
   /** Lot de transactions asynchrones appliqué (une entrée par transaction). */
   readonly asyncTransactionsFlushed = output<NgTableTransactionResult<T>[]>();
+  /** Un nœud de l'arbre a été déplié ou replié. */
+  readonly treeToggle = output<NgTableTreeToggleEvent<T>>();
+  /** Une ligne a été déplacée : nouvel ordre complet dans `rows`. */
+  readonly rowMoved = output<NgTableRowMoveEvent<T>>();
   /** Une cellule vient d'être modifiée (saisie, collage, annuler, rétablir). */
   readonly cellEdited = output<NgTableCellEditEvent<T>>();
   /** Une saisie a été refusée à la validation : l'édition est abandonnée (perte de focus) ou reste ouverte (Entrée). */
@@ -1012,7 +1081,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return window ? (side === 'left' ? window.left : window.right) : 0;
   }
 
-  protected readonly displayedColumnIds = computed(
+  private readonly baseDisplayedColumnIds = computed(
     () => {
       // Colonne technique de selection injectee en tete quand activee.
       const ids = this.visibleColumns().map((column) => column.id);
@@ -1046,6 +1115,18 @@ export class NgTableComponent<T = any> implements OnDestroy {
     {equal: (a, b) => a.length === b.length && a.every((id, index) => id === b[index])},
   );
 
+  protected readonly rowDragColumnId = '__row_drag__';
+
+  /** Le glisser-déposer de lignes est actif : demandé, en mode local, sans tri ni regroupement. */
+  protected readonly rowDragActive = computed(
+    () => this.rowDrag() && this.dataMode() === 'local' && !this.treeActive() && !this.groupBy() && !this.sortStates().some((sort) => !!sort.direction),
+  );
+
+  protected readonly displayedColumnIds = computed(
+    () => (this.rowDragActive() ? [this.rowDragColumnId, ...this.baseDisplayedColumnIds()] : this.baseDisplayedColumnIds()),
+    {equal: (a, b) => a.length === b.length && a.every((id, index) => id === b[index])},
+  );
+
   /**
    * Lignes d'en-tête de groupe (`NgTableColumn.headerGroup`), de la plus externe à la plus
    * interne, pour les colonnes réellement affichées (sélection, espacements et vue
@@ -1059,7 +1140,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
         this.displayedColumnIds().map((id) => {
           const column = columns.get(id);
           if (!column) {
-            return {id, path: [], pin: id === this.selectionColumnId && leftEdge ? ('left' as const) : undefined};
+            return {id, path: [], pin: (id === this.selectionColumnId || id === this.rowDragColumnId) && leftEdge ? ('left' as const) : undefined};
           }
           return {id, path: headerGroupPath(column.headerGroup), pin: this.pinnedSide(column)};
         }),
@@ -1135,7 +1216,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const widths = this.columnWidths();
     const columnsTotal = this.visibleColumns().reduce(
       (total, column) => total + (widths[column.id] ?? column.widthPx ?? column.minWidthPx ?? DEFAULT_MIN_COLUMN_WIDTH_PX),
-      this.rowSelectionEnabled() ? SELECTION_COLUMN_WIDTH_PX : 0,
+      (this.rowSelectionEnabled() ? SELECTION_COLUMN_WIDTH_PX : 0) + (this.rowDragActive() ? ROW_DRAG_COLUMN_WIDTH_PX : 0),
     );
     return Math.max(this.minTableWidthPx(), columnsTotal);
   });
@@ -1259,7 +1340,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * lesquelles sont visibles et de leurs valeurs de filtre. Voir le
    * commentaire de `visibleColumnsUnordered`.
    */
-  private readonly filteredSortedRows = computed(() => {
+  private readonly pipelineRows = computed(() => {
     const store = this.syncedStore();
     this.dataVersion();
     const activeColumns = this.visibleColumnsUnordered();
@@ -1277,18 +1358,139 @@ export class NgTableComponent<T = any> implements OnDestroy {
         levels.push({column, factor: sort.direction === 'desc' ? -1 : 1});
       }
     }
+    // Les saisies de filtre sont lues une fois ici ; chaque ligne n'a plus qu'une comparaison à faire.
+    const columnFilter = compileFilters(activeColumns, filters);
+    const baseMatches = (row: T) =>
+      (!columnFilter || columnFilter(row)) && (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms));
+
+    // Arbre : une ligne reste affichée si elle correspond ou si un de ses descendants correspond.
+    // L'ensemble est recalculé à chaque changement de données ou de filtre, donc le pipeline
+    // repart de zéro (`deps`) : le mode arbre n'est pas incrémental.
+    const index = this.treeIndex();
+    let treeInclude: Set<unknown> | null = null;
+    if (index && this.treeFilterActive()) {
+      const matched: unknown[] = [];
+      for (const row of this.sourceRows()) {
+        if (baseMatches(row)) {
+          matched.push(this.rowKey(row));
+        }
+      }
+      treeInclude = withAncestors(matched, index);
+    }
+    const included = treeInclude;
+
     // Seules les lignes modifiées depuis le dernier passage sont refiltrées puis fusionnées
     // dans le résultat déjà trié ; tout est recalculé si filtres, tri ou colonnes changent.
     return this.pipeline.compute(store, {
-      matches: (row) =>
-        matchesAllFilters(row, activeColumns, filters) &&
-        (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms)),
+      matches: included ? (row) => included.has(this.rowKey(row)) : baseMatches,
       levels,
       collator: this.collator,
       sums,
-      deps: [store, activeColumns, filters, sorts, search, haystacks?.columns, sums],
+      deps: [store, activeColumns, filters, sorts, search, haystacks?.columns, sums, included],
     });
   });
+
+  /** Lignes affichables : le résultat du pipeline, ou, en mode arbre, ses nœuds visibles dans l'ordre de l'arbre. */
+  private readonly filteredSortedRows = computed(() => {
+    const rows = this.pipelineRows();
+    const index = this.treeIndex();
+    if (!index) {
+      return rows;
+    }
+    return layoutTree(rows, (row) => this.rowKey(row), index, this.treeExpansion());
+  });
+
+  // ------------------------------------------------------------------ données arborescentes
+
+  protected readonly treeActive = computed(
+    () => this.treeData() && this.dataMode() === 'local' && (!!this.treeChildren() || !!this.treeParent()),
+  );
+
+  /** Lignes imbriquées mises à plat (et leurs parents), ou `null` hors mode `[treeChildren]`. */
+  private readonly treeNested = computed(() => {
+    const children = this.treeChildren();
+    return this.treeActive() && children ? flattenNested(this.rows(), children, (row) => this.rowKey(row)) : null;
+  });
+
+  protected readonly treeIndex = computed<TreeIndex | null>(() => {
+    if (!this.treeActive()) {
+      return null;
+    }
+    const nested = this.treeNested();
+    const parentOf = this.treeParent();
+    const keyOf = (row: T) => this.rowKey(row);
+    return buildTreeIndex(this.sourceRows(), keyOf, nested ? (row) => nested.parents.get(keyOf(row)) : (row) => parentOf?.(row));
+  });
+
+  /** Un filtre ou une recherche est actif : l'arbre se déplie pour montrer les correspondances. */
+  private readonly treeFilterActive = computed(
+    () => Object.values(this.columnFilters()).some((value) => value.trim() !== '') || searchTerms(this.globalSearchTerm()).length > 0,
+  );
+
+  /** Nœuds dont l'état diffère de l'état par défaut (déplié ou replié par l'utilisateur). */
+  private readonly treeToggled = signal<ReadonlySet<unknown>>(new Set());
+  /** « Tout déplier » / « Tout replier » : prend le pas sur `[treeDefaultExpanded]` jusqu'au prochain changement de données. */
+  private readonly treeAll = signal<boolean | null>(null);
+
+  private readonly treeExpansion = computed(() => {
+    const toggled = this.treeToggled();
+    const all = this.treeAll();
+    const initial = this.treeDefaultExpanded();
+    const filtering = this.treeFilterActive();
+    return (key: unknown, depth: number): boolean => {
+      const base = filtering || (all ?? (initial === true || (typeof initial === 'number' && depth < initial)));
+      return toggled.has(key) ? !base : base;
+    };
+  });
+
+  protected treeDepth(row: T): number {
+    return this.treeIndex()?.depth.get(this.rowKey(row)) ?? 0;
+  }
+
+  protected treeHasChildren(row: T): boolean {
+    return (this.treeIndex()?.children.get(this.rowKey(row))?.length ?? 0) > 0;
+  }
+
+  protected isTreeExpanded(row: T): boolean {
+    const key = this.rowKey(row);
+    return this.treeExpansion()(key, this.treeIndex()?.depth.get(key) ?? 0);
+  }
+
+  /** `aria-expanded` d'une ligne d'arbre : seulement pour un nœud qui a des enfants. */
+  protected treeAriaExpanded(row: T): boolean | null {
+    return this.treeActive() && this.treeHasChildren(row) ? this.isTreeExpanded(row) : null;
+  }
+
+  protected onTreeToggle(event: Event, row: T): void {
+    event.stopPropagation();
+    this.setTreeExpanded(row, !this.isTreeExpanded(row));
+  }
+
+  /** Déplie ou replie un nœud. Sans effet pour une ligne sans enfants. */
+  setTreeExpanded(row: T, expanded: boolean): void {
+    if (!this.treeActive() || !this.treeHasChildren(row) || this.isTreeExpanded(row) === expanded) {
+      return;
+    }
+    const key = this.rowKey(row);
+    this.treeToggled.update((toggled) => {
+      const next = new Set(toggled);
+      if (!next.delete(key)) {
+        next.add(key);
+      }
+      return next;
+    });
+    this.treeToggle.emit({row, expanded});
+  }
+
+  expandAllTree(): void {
+    this.treeAll.set(true);
+    this.treeToggled.set(new Set());
+  }
+
+  collapseAllTree(): void {
+    this.treeAll.set(false);
+    this.treeToggled.set(new Set());
+  }
 
   /**
    * Colonnes `sum` / `avg` de la ligne de totaux : leurs sommes sont tenues par le
@@ -1316,12 +1518,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * pour qu'une transaction s'applique toujours après le dernier `[rows]` reçu.
    */
   private readonly syncedStore = computed(() => {
-    const rows = this.rows();
+    const rows = this.treeNested()?.rows ?? this.rows();
     const keyAccessor = this.rowKeyAccessor();
     if (keyAccessor !== this.storeKeyAccessor) {
       this.storeKeyAccessor = keyAccessor;
-      this.rowStore = new RowStore<T>((row) => this.rowKey(row));
-      this.pipeline = new IncrementalPipeline<T>((row) => this.rowKey(row));
+      // L'accesseur est lu une fois ici (pas un signal par ligne) : le magasin est recréé s'il change.
+      const keyOf = keyAccessor ?? defaultRowKey;
+      this.rowStore = new RowStore<T>(keyOf);
+      this.pipeline = new IncrementalPipeline<T>(keyOf);
     }
     untracked(() => this.recordFlashes(this.rowStore.replaceAll(rows)));
     return this.rowStore;
@@ -1379,7 +1583,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   private readonly groups = computed(() => {
     const column = this.groupColumn();
-    if (!column) {
+    if (!column || this.treeActive()) {
       return null;
     }
     if (this.dataMode() === 'remote') {
@@ -1597,6 +1801,106 @@ export class NgTableComponent<T = any> implements OnDestroy {
   });
 
   private readonly visibleColumnIndexes = computed(() => new Map(this.visibleColumns().map((column, index) => [column.id, index] as const)));
+
+  protected readonly sidePanelTab = signal<'columns' | 'filters'>('columns');
+  private readonly statusNumberFormat = new Intl.NumberFormat(undefined, {maximumFractionDigits: 2});
+
+  /** Lignes affichées après filtres, et lignes au total (hors lignes épinglées). */
+  protected readonly statusCounts = computed(() => {
+    if (this.blockMode()) {
+      this.blockVersion();
+      const total = this.blockCache.totalCount ?? 0;
+      return {shown: total, total};
+    }
+    if (this.dataMode() === 'remote') {
+      const total = this.totalCount() ?? this.rows().length;
+      return {shown: total, total};
+    }
+    return {shown: this.filteredSortedRows().length, total: this.syncedStore().size};
+  });
+
+  protected readonly statusRowsText = computed(() => {
+    const {shown, total} = this.statusCounts();
+    const labels = this.effectiveLabels();
+    const format = (n: number) => this.statusNumberFormat.format(n);
+    return shown === total
+      ? labels.statusRows.replace('{count}', format(shown))
+      : labels.statusRowsOf.replace('{count}', format(shown)).replace('{total}', format(total));
+  });
+
+  /** Statistiques de la plage sélectionnée (barre d'état) : `null` sans plage. */
+  protected readonly rangeStats = computed<RangeStats | null>(() => {
+    const bounds = this.statusBar() ? this.rangeBounds() : null;
+    if (!bounds) {
+      return null;
+    }
+    const rows = this.displayedRows().slice(bounds.row1, bounds.row2 + 1);
+    const columns = this.visibleColumns().slice(bounds.col1, bounds.col2 + 1);
+    const values: unknown[] = [];
+    for (const row of rows) {
+      for (const column of columns) {
+        values.push(column.valueAccessor(row));
+      }
+    }
+    return computeRangeStats(values);
+  });
+
+  /**
+   * Données de graphique de la plage sélectionnée (colonnes numériques en séries, première
+   * colonne de texte en catégories), ou `null`. À donner à `<ng-table-chart [data]="…">`.
+   */
+  readonly rangeChartData = computed<NgTableChartData | null>(() => {
+    const bounds = this.rangeBounds();
+    if (!bounds) {
+      return null;
+    }
+    const rows = this.displayedRows().slice(bounds.row1, bounds.row2 + 1);
+    return chartDataFromRange(rows, this.visibleColumns().slice(bounds.col1, bounds.col2 + 1));
+  });
+
+  protected formatStat(value: number | null): string {
+    return value === null ? '' : this.statusNumberFormat.format(value);
+  }
+
+  protected statusText(template: string, count: number): string {
+    return template.replace('{count}', this.statusNumberFormat.format(count));
+  }
+
+  /** Un clic à l'extérieur ferme le panneau, sauf s'il est fixé. */
+  protected onDocumentClick(event: MouseEvent): void {
+    if (!this.sidePanelOpen() || this.sidePanelPinned()) {
+      return;
+    }
+    const target = event.target as Element | null;
+    if (target?.closest('.ngt-side-panel, .ngt-side-panel-toggle') || !target?.isConnected) {
+      return; // dans le panneau, sur son bouton, ou sur un élément retiré du DOM par ce clic
+    }
+    this.sidePanelOpen.set(false);
+  }
+
+  /** Largeur imposée à une colonne affichée (`<colgroup>`), `null` = part du reste. */
+  protected colWidthFor(id: string): number | null {
+    if (id === this.selectionColumnId) {
+      return 56;
+    }
+    if (id === this.rowDragColumnId) {
+      return ROW_DRAG_COLUMN_WIDTH_PX;
+    }
+    if (id === '__colspacer_left__' || id === '__colspacer_right__') {
+      return this.columnSpacerWidth(id === '__colspacer_left__' ? 'left' : 'right');
+    }
+    const column = this.columns().find((candidate) => candidate.id === id);
+    return column ? this.columnWidthPx(column) : null;
+  }
+
+  toggleSidePanel(tab?: 'columns' | 'filters'): void {
+    const switching = !!tab && this.sidePanelTab() !== tab;
+    if (tab) {
+      this.sidePanelTab.set(tab);
+    }
+    // Un onglet différent de l'onglet affiché reste ouvert ; sinon on bascule ouvert / fermé.
+    this.sidePanelOpen.update((open) => (switching && open ? true : !open));
+  }
 
   /** Une colonne au moins est éditable : les cellules portent leur id de colonne (`data-ngt-col`). */
   protected readonly hasEditableColumns = computed(() => this.columns().some((column) => !!column.editable));
@@ -2562,6 +2866,15 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return;
     }
 
+    if (this.treeActive() && event.altKey && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
+      const node = this.tableRows().filter((item): item is T => isDataItem(item))[position.row];
+      if (node !== undefined) {
+        event.preventDefault();
+        this.setTreeExpanded(node, event.key === 'ArrowRight');
+        return;
+      }
+    }
+
     const rows = gridRows(table);
     const next = nextGridPosition(event.key, event.ctrlKey || event.metaKey, position, rows.length, cell.parentElement
       ? (cell.parentElement as HTMLTableRowElement).cells.length
@@ -2817,6 +3130,128 @@ export class NgTableComponent<T = any> implements OnDestroy {
   clearRangeSelection(): void {
     this.rangeAnchor.set(null);
     this.rangeFocus.set(null);
+  }
+
+  // ------------------------------------------------------------------ glisser-déposer de lignes
+
+  /** Ligne en cours de déplacement, et endroit où elle serait déposée. */
+  private readonly draggingRow = signal<{ key: unknown } | null>(null);
+  private readonly rowDrop = signal<{ key: unknown; position: RowDropPosition } | null>(null);
+
+  protected rowDropAttr(row: T): RowDropPosition | null {
+    const drop = this.rowDrop();
+    return drop && Object.is(drop.key, this.rowKey(row)) ? drop.position : null;
+  }
+
+  protected isRowDragging(row: T): boolean {
+    const dragging = this.draggingRow();
+    return !!dragging && Object.is(dragging.key, this.rowKey(row));
+  }
+
+  protected onRowDragStart(event: DragEvent, row: T): void {
+    const key = this.rowKey(row);
+    this.draggingRow.set({key});
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', `${key}`);
+      const tr = (event.currentTarget as HTMLElement).closest('tr');
+      if (tr) {
+        event.dataTransfer.setDragImage(tr, 16, 16);
+      }
+    }
+  }
+
+  protected onRowDragEnd(): void {
+    this.draggingRow.set(null);
+    this.rowDrop.set(null);
+  }
+
+  protected onRowDragOver(event: DragEvent, row: T): void {
+    const dragging = this.draggingRow();
+    if (!dragging || this.pinInfo(row)) {
+      return;
+    }
+    const key = this.rowKey(row);
+    if (Object.is(dragging.key, key)) {
+      this.rowDrop.set(null);
+      return;
+    }
+    event.preventDefault(); // autorise le dépôt
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+    const position = dropPositionFor(event.clientY, (event.currentTarget as HTMLElement).getBoundingClientRect());
+    const drop = this.rowDrop();
+    if (!drop || !Object.is(drop.key, key) || drop.position !== position) {
+      this.rowDrop.set({key, position});
+    }
+    this.autoScrollWhileDragging(event.clientY);
+  }
+
+  /** Fait défiler la zone quand on glisse près de son bord haut ou bas. */
+  private autoScrollWhileDragging(clientY: number): void {
+    const wrap = this.hostElement.nativeElement.querySelector<HTMLElement>('.table-wrap');
+    if (!wrap) {
+      return;
+    }
+    const rect = wrap.getBoundingClientRect();
+    const edge = 40;
+    if (clientY < rect.top + edge) {
+      wrap.scrollTop -= 20;
+    } else if (clientY > rect.bottom - edge) {
+      wrap.scrollTop += 20;
+    }
+  }
+
+  protected onRowDrop(event: DragEvent, row: T): void {
+    const dragging = this.draggingRow();
+    const drop = this.rowDrop();
+    if (!dragging) {
+      return;
+    }
+    event.preventDefault();
+    const key = this.rowKey(row);
+    const position = drop && Object.is(drop.key, key) ? drop.position : dropPositionFor(event.clientY, (event.currentTarget as HTMLElement).getBoundingClientRect());
+    this.onRowDragEnd();
+    this.commitRowMove(dragging.key, key, position);
+  }
+
+  /** Alt + flèche haut / bas sur la poignée : monte ou descend la ligne d'un cran dans l'affichage. */
+  protected onRowHandleKeydown(event: KeyboardEvent, row: T): void {
+    if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const displayed = this.displayedRows();
+    const index = displayed.indexOf(row);
+    const neighbour = displayed[index + (event.key === 'ArrowUp' ? -1 : 1)];
+    if (index >= 0 && neighbour !== undefined) {
+      this.commitRowMove(this.rowKey(row), this.rowKey(neighbour), event.key === 'ArrowUp' ? 'before' : 'after');
+    }
+  }
+
+  /** Déplace une ligne par programme : même effet qu'un glisser-déposer (`(rowMoved)` est émis). */
+  moveRow(row: T, target: T, position: RowDropPosition = 'before'): boolean {
+    return this.commitRowMove(this.rowKey(row), this.rowKey(target), position);
+  }
+
+  private commitRowMove(fromKey: unknown, targetKey: unknown, position: RowDropPosition): boolean {
+    const result = moveRow(this.syncedStore().rows(), (row) => this.rowKey(row), fromKey, targetKey, position);
+    if (!result) {
+      return false;
+    }
+    const store = this.syncedStore();
+    this.rowMoved.emit({
+      row: store.get(fromKey) as T,
+      target: store.get(targetKey) as T,
+      position,
+      fromIndex: result.fromIndex,
+      toIndex: result.toIndex,
+      rows: result.rows,
+    });
+    this.announce([this.effectiveLabels().announceRowMoved.replace('{position}', `${result.toIndex + 1}`)]);
+    return true;
   }
 
   // ------------------------------------------------------------------ édition de cellules

@@ -110,6 +110,10 @@ function addDays(isoDay: string, days: number): string {
       [pinnedBottomRows]="pinnedRows() ? pinnedBottom() : []"
       [rangeSelection]="rangeSelection()"
       [rangeCopyHeaders]="true"
+      [rowDrag]="rowDrag()"
+      (rowMoved)="onRowMoved($event.rows)"
+      [statusBar]="statusBar()"
+      [sidePanel]="sidePanel()"
       (rangeCopied)="rangeInfo.set($event.rowCount + ' × ' + $event.columnCount + ' cellules copiées')"
       (rangePasted)="rangeInfo.set('Collé : ' + $event.assignments.length + ' cellule(s) cible(s), ' + $event.values.length + ' ligne(s) × ' + ($event.values[0]?.length ?? 0) + ' colonne(s)')"
       (cellEdited)="editInfo.set($event.column.header + ' : ' + $event.oldValue + ' → ' + $event.newValue + ' (' + $event.source + ')')"
@@ -239,7 +243,18 @@ function addDays(isoDay: string, days: number): string {
 })
 export class AdvancedDemoComponent {
   protected readonly rowCount = signal(200);
-  protected readonly rows = computed(() => generateCommandes(this.rowCount()));
+  private readonly generated = computed(() => generateCommandes(this.rowCount()));
+  /** Ordre issu d'un glisser-déposer : valable tant que le jeu de données généré est le même. */
+  private readonly reordered = signal<{ base: Commande[]; rows: Commande[] } | null>(null);
+  protected readonly rows = computed(() => {
+    const base = this.generated();
+    const reordered = this.reordered();
+    return reordered && reordered.base === base ? reordered.rows : base;
+  });
+  protected readonly rowDrag = signal(true);
+  protected onRowMoved(rows: Commande[]): void {
+    this.reordered.set({base: this.generated(), rows});
+  }
   protected readonly exportFormat = signal<NgTableExportFormat>('csv');
 
   protected readonly pagination = signal<'integree' | 'personnalisee' | 'virtuelle' | 'aucune'>('integree');
@@ -255,6 +270,8 @@ export class AdvancedDemoComponent {
   protected readonly rangeSelection = signal(true);
   protected readonly rangeInfo = signal('');
   protected readonly cellEditing = signal(true);
+  protected readonly statusBar = signal(true);
+  protected readonly sidePanel = signal(true);
   protected readonly editInfo = signal('');
   protected readonly headerGroups = signal(true);
   protected readonly grouping = signal(true);
@@ -279,6 +296,9 @@ export class AdvancedDemoComponent {
     {label: 'Lignes épinglées', value: this.pinnedRows},
     {label: 'Sélection de plage', value: this.rangeSelection},
     {label: 'Édition de cellules', value: this.cellEditing},
+    {label: 'Déplacer les lignes', value: this.rowDrag},
+    {label: 'Barre d’état', value: this.statusBar},
+    {label: 'Panneau latéral', value: this.sidePanel},
     {label: 'En-têtes groupés', value: this.headerGroups},
     {label: 'Sélection', value: this.selection},
     {label: 'Ligne détail', value: this.detailRows},

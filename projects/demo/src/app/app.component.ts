@@ -41,5 +41,6 @@ export class AppComponent {
     {path: '/avance', label: 'Avancé', hint: 'toutes les options'},
     {path: '/expert', label: 'Expert', hint: 'serveur, contrôle, API'},
     {path: '/live', label: 'Live', hint: 'flux temps réel'},
+    {path: '/analyse', label: 'Analyse', hint: 'pivot, graphiques'},
   ];
 }
