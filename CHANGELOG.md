@@ -7,11 +7,18 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 ### Ajouté
 - Mode live : `applyTransaction()`, `applyTransactionAsync()` (lots regroupés pendant `[asyncTransactionWaitMillis]`), `flushAsyncTransactions()`, `(asyncTransactionsFlushed)`, types `NgTableRowTransaction` / `NgTableTransactionResult`.
 - Surbrillance des cellules modifiées : `[flashCells]`, `[flashDurationMs]`, `NgTableColumn.flashOnChange`, attribut `data-ngt-flash`, variables `--ngt-flash-up-bg`, `--ngt-flash-down-bg`, `--ngt-flash-change-bg`.
+- Modèle serveur par blocs (`[remoteDatasource]`, `NgTableRemoteDatasource` / `NgTableBlockRequest` / `NgTableBlockResult`) : défilement continu sur toutes les lignes du serveur, blocs chargés à la demande et mis en cache (`[cacheBlockSize]`, `[maxBlocksInCache]`, `[maxConcurrentBlockRequests]`), `refreshRemoteDatasource()`, `remoteRowCount()`, `(remoteBlockError)`. Label `blockLoadError`.
+- Affichage partiel des colonnes (`[virtualColumns]`) pour les tables très larges.
+- `scrollToIndex()`.
 - Démo : page **Live** (flux de cotations jusqu'à 50 000 mises à jour/s sur 100 000 instruments, compteurs de performance).
 
 ### Performance
 - Pipeline local incrémental : quand seules les données changent (transaction ou nouveau tableau `[rows]` comparé clé par clé), seules les lignes modifiées sont refiltrées et replacées dans le tri par recherche dichotomique. Sur 100 000 lignes triées et filtrées, un lot de 1 000 mises à jour coûte ~15 ms de pipeline au lieu de ~115 ms (mesuré sous jsdom).
 - Recherche globale : le texte de recherche des lignes inchangées reste en cache quand les données changent.
+- Ligne de totaux : sommes et moyennes tenues par différence en mode live.
+
+### Corrigé
+- Défilement virtuel sur de très longues listes : la fin de la liste était inatteignable au-delà du plafond de hauteur des navigateurs (~33 millions de px pour Chrome, ~17,9 millions pour Firefox). La barre de défilement est maintenant comprimée au-delà de 15 millions de px.
 
 ## [1.0.0] — 2026-09-25
 

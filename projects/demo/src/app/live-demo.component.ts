@@ -94,6 +94,13 @@ function makeQuote(id: number): Quote {
         </button>
         <mat-slide-toggle [checked]="flash()" (change)="flash.set($event.checked)">Surbrillance</mat-slide-toggle>
         <mat-slide-toggle [checked]="totals()" (change)="totals.set($event.checked)">Ligne de totaux</mat-slide-toggle>
+        <span>
+          <span class="setting-label">Colonnes</span>
+          <mat-button-toggle-group [value]="wide()" (change)="wide.set($event.value)">
+            <mat-button-toggle [value]="false">8</mat-button-toggle>
+            <mat-button-toggle [value]="true">108 (affichage partiel)</mat-button-toggle>
+          </mat-button-toggle-group>
+        </span>
       </div>
       <div class="metrics">
         <div><strong>{{ appliedPerSecond().toLocaleString('fr-FR') }}</strong><span>mises à jour appliquées / s</span></div>
@@ -109,6 +116,7 @@ function makeQuote(id: number): Quote {
       [rows]="rows()"
       [rowKeyAccessor]="rowKey"
       [virtualScroll]="true"
+      [virtualColumns]="wide()"
       [maxHeight]="'65vh'"
       [density]="'compact'"
       [flashCells]="flash()"
@@ -135,6 +143,8 @@ export class LiveDemoComponent {
   protected readonly running = signal(true);
   protected readonly flash = signal(true);
   protected readonly totals = signal(false);
+  /** 100 colonnes d'indicateurs en plus : seules celles visibles sont rendues (`[virtualColumns]`). */
+  protected readonly wide = signal(false);
   protected readonly rows = signal<Quote[]>(Array.from({length: 10_000}, (_, i) => makeQuote(i)));
 
   protected readonly appliedPerSecond = signal(0);
@@ -166,6 +176,15 @@ export class LiveDemoComponent {
     {id: 'ask', header: 'Vente', valueAccessor: (q) => q.ask, sortable: true},
     {id: 'volume', header: 'Volume', valueAccessor: (q) => q.volume, sortable: true, aggregate: 'sum'},
     {id: 'updatedAt', header: 'Heure', valueAccessor: (q) => q.updatedAt, flashOnChange: false},
+    ...(this.wide()
+      ? Array.from({length: 100}, (_, k): NgTableColumn<Quote> => ({
+          id: `ind${k}`,
+          header: `Indic. ${k + 1}`,
+          valueAccessor: (q) => round(q.price * (1 + (k - 50) / 1000)),
+          widthPx: 100,
+          sortable: true,
+        }))
+      : []),
   ]);
 
   constructor() {

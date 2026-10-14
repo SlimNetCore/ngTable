@@ -5,7 +5,7 @@
  */
 import type {NgTableAggregate, NgTableColumn} from './ng-table.component';
 import {toIsoDay} from './filter-matching';
-import {compareSortValues, getSortValue} from './row-pipeline';
+import {compareSortValues, getSortValue, numericValue} from './row-pipeline';
 
 export interface RowGroup<T> {
   /** Clé stable du groupe (valeur de la colonne, en texte). */
@@ -138,8 +138,8 @@ export function computeAggregate<T>(column: NgTableColumn<T>, rows: readonly T[]
   const numbers: number[] = [];
   for (const row of rows) {
     const raw = column.valueAccessor(row);
-    const value = typeof raw === 'number' ? raw : Number.parseFloat(`${raw ?? ''}`.replace(',', '.'));
-    if (Number.isFinite(value)) {
+    const value = numericValue(raw);
+    if (value !== null) {
       numbers.push(value);
     }
   }

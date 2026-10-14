@@ -561,7 +561,7 @@ Sans pagination, une table de 50 000 lignes crée 50 000 lignes dans le DOM : l'
 - **Hauteur** : la zone a une hauteur fixe, `[maxHeight]` (70vh par défaut). L'en-tête y est toujours fixe.
 - **Hauteur de ligne** : elle est **mesurée** sur la première ligne rendue, ce qui suit la densité compacte ou votre thème. Les lignes doivent avoir une **hauteur uniforme** : une ligne détail dépliée ou du texte sur plusieurs lignes (`textOverflow: 'wrap'`) décalent un peu la position.
 - **Compatibilité** : filtres, tri, recherche, regroupement, sélection (« tout sélectionner » porte sur toutes les lignes), export et navigation clavier (`cellNavigation`) fonctionnent comme sans défilement virtuel. `displayedRows()` renvoie toujours toutes les lignes.
-- **Limite des navigateurs** : un élément ne peut guère dépasser 30 millions de pixels de haut, soit environ 600 000 lignes de 52 px. Au-delà, préférez `dataMode='remote'` paginé.
+- **Très longues listes** : au-delà de 15 millions de px de hauteur (environ 290 000 lignes de 52 px), la barre de défilement est comprimée pour que la fin de la liste reste atteignable malgré le plafond des navigateurs (voir Étape 10sexies).
 
 ### Étape 10quinquies — Mode live (données temps réel)
 
@@ -592,6 +592,43 @@ socket.onmessage = (message) => this.table().applyTransactionAsync({update: JSON
 
 Combinez le mode live avec le défilement virtuel (`[virtualScroll]`) : seules les lignes visibles sont rendues. La page **Live** de la démo envoie jusqu'à 50 000 mises à jour par seconde sur 100 000 instruments, avec compteurs d'images par seconde et de temps par lot.
 
+### Étape 10sexies — Modèle serveur par blocs (défilement continu sur des millions de lignes)
+
+En mode `remote` avec pagination, l'utilisateur navigue page par page. Avec `[remoteDatasource]`, il fait défiler **toutes** les lignes du serveur d'un seul tenant. La table demande les blocs à afficher au fil du défilement. C'est l'équivalent du « Server-Side / Infinite Row Model » d'AG Grid.
+
+```ts
+readonly datasource: NgTableRemoteDatasource<Commande> = {
+  // Promesse ou Observable. `request.page` = {index: n° du bloc, size: taille du bloc} :
+  // un backend paginé existant (celui de l'Étape 17ter par exemple) convient tel quel.
+  getRows: (request) =>
+    this.http.post<{rows: Commande[]; total: number}>('/api/commandes', request)
+      .pipe(map((page) => ({rows: page.rows, totalCount: page.total}))),
+};
+```
+
+```html
+<ng-table [dataMode]="'remote'" [remoteDatasource]="datasource" [cacheBlockSize]="100" ... />
+```
+
+- **Ce qui est chargé.** Seuls les blocs de la zone affichée (plus une marge de 8 lignes) sont demandés. En attendant, des lignes grisées animées prennent leur place. Un défilement rapide ne demande pas les blocs intermédiaires.
+- **Le cache.** Il garde `[maxBlocksInCache]` blocs (50 par défaut) et oublie au-delà les moins récemment affichés. Il y a au plus `[maxConcurrentBlockRequests]` requêtes simultanées (2 par défaut).
+- **Tri, filtres, recherche.** Changer l'un d'eux purge le cache, revient en haut de la liste et redemande les blocs visibles. Une réponse arrivée après ce changement est ignorée. `getRows` reçoit la requête complète (`sort`, `sorts`, `filters`, `search`), plus `startRow` / `endRow`. `(remoteQueryChange)` n'est pas émis dans ce mode.
+- **Erreurs.** Un bloc en échec affiche « Chargement impossible » et émet `(remoteBlockError)`. Il n'est pas redemandé en boucle : `refreshRemoteDatasource()` relance le chargement, et sert aussi après une modification des données côté serveur, en gardant la position.
+- **Très longues listes.** Les navigateurs plafonnent la hauteur d'un élément (environ 33 millions de px pour Chrome, 17,9 millions pour Firefox) : sans précaution, la fin d'un million de lignes serait inatteignable. Au-delà de 15 millions de px, la barre de défilement est **comprimée**, comme dans AG Grid : sa position est convertie proportionnellement en position réelle. Cela vaut aussi pour `[virtualScroll]` en local. `scrollToIndex(n)` amène la ligne `n` en haut de la zone.
+- **Limites.** Pas de paginateur intégré ni de regroupement dans ce mode. La sélection et la navigation clavier portent sur les lignes chargées.
+
+La démo **Expert** (Navigation → « Défilement continu ») le montre sur 1 000 000 de commandes, avec le serveur simulé ou le backend Spring Boot.
+
+### Étape 10septies — Affichage partiel des colonnes (tables très larges)
+
+Avec des dizaines ou des centaines de colonnes, `[virtualColumns]="true"` ne rend que les colonnes de la zone visible, plus 300 px de marge de chaque côté. Les colonnes épinglées sont toujours rendues. Deux colonnes d'espacement donnent sa largeur à la barre de défilement horizontale. Chaque colonne prend une largeur fixe : `widthPx`, sinon `minWidthPx`, sinon 120 px.
+
+```html
+<ng-table [virtualColumns]="true" [virtualScroll]="true" [columns]="centColonnes" ... />
+```
+
+Le modèle de vue (valeurs, textes) n'est calculé que pour les colonnes rendues. L'export, le menu « Colonnes » et les vues portent toujours sur toutes les colonnes. Limite : la navigation clavier cellule par cellule (`cellNavigation`) ne parcourt que les colonnes rendues.
+
 ### Étape 10ter — Regroupement et totaux
 
 Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`), avec un en-tête par groupe : libellé, nombre de lignes et agrégats.
@@ -612,7 +649,7 @@ Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`),
 - **Ordre** : les groupes suivent l'ordre de leur valeur, décroissant si la table est triée à l'envers sur cette colonne. Dans un groupe, les lignes gardent le tri courant.
 - **Replier un groupe** : un clic sur son en-tête, ou Entrée / Espace au clavier. L'en-tête porte `aria-expanded`.
 - **Pagination** (mode local) : elle porte sur les lignes, et un groupe replié compte pour une ligne. Un groupe coupé entre deux pages garde son en-tête sur chaque page. Ses agrégats portent toujours sur **tout** le groupe. `(filteredCountChange)` suit ce même compte, pour un paginateur externe.
-- **Ligne de totaux** : `[showTotals]` affiche en bas de la table les agrégats sur toutes les lignes filtrées, avec ou sans regroupement.
+- **Ligne de totaux** : `[showTotals]` affiche en bas de la table les agrégats sur toutes les lignes filtrées, avec ou sans regroupement. En mode live, les sommes et moyennes sont tenues par différence à chaque lot, sans relire toutes les lignes.
 - **En mode `remote`**, la table n'a qu'une page de lignes. Regrouper cette page seule donnerait des groupes coupés et des totaux faux. Le travail est donc partagé avec le serveur :
   1. `groupBy` part dans `NgTableRemoteQuery.groupBy`. Le serveur renvoie les lignes triées **d'abord** par cette colonne, puis par `sorts`.
   2. La table dessine un en-tête à chaque changement de valeur dans la page reçue. Un groupe à cheval sur deux pages a son en-tête sur chacune.
@@ -2389,6 +2426,11 @@ interface NgTableFilterConfig {
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
 | `cellNavigation`            | `boolean`                                                        | `false`   | Navigation clavier cellule par cellule (motif « grid » WAI-ARIA), voir « Accessibilité ».                            |
+| `remoteDatasource`          | `NgTableRemoteDatasource<T> \| null`                            | `null`    | Modèle serveur par blocs : défilement continu, blocs chargés à la demande (Étape 10sexies).                          |
+| `cacheBlockSize`            | `number`                                                         | `100`     | Lignes par bloc demandé au serveur.                                                                                  |
+| `maxBlocksInCache`          | `number`                                                         | `50`      | Blocs gardés en mémoire.                                                                                             |
+| `maxConcurrentBlockRequests`| `number`                                                         | `2`       | Requêtes de blocs simultanées au plus.                                                                               |
+| `virtualColumns`            | `boolean`                                                        | `false`   | Affichage partiel des colonnes (Étape 10septies).                                                                     |
 | `flashCells`                | `boolean`                                                        | `false`   | Mode live : surligne les cellules dont la valeur change (voir Étape 10quinquies).                                   |
 | `flashDurationMs`           | `number`                                                         | `1000`    | Durée de la surbrillance (ms).                                                                                       |
 | `asyncTransactionWaitMillis`| `number`                                                         | `50`      | Délai de regroupement de `applyTransactionAsync()` (ms).                                                             |
@@ -2444,6 +2486,8 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `exportViews()`, `importViews(json, mode?)`, `downloadViews()` | Partager des vues. |
 | `openExportDialog()` | Lancer l'export, comme le bouton « Exporter ». |
 | `applyTransaction(tx)`, `applyTransactionAsync(tx, callback?)`, `flushAsyncTransactions()` | Mode live : ajouter, modifier, retirer des lignes (voir Étape 10quinquies). |
+| `scrollToIndex(n)` | Amène la ligne `n` en haut de la zone (défilement virtuel ou modèle par blocs). |
+| `refreshRemoteDatasource()`, `remoteRowCount()` | Modèle par blocs : recharger les blocs affichés, nombre total de lignes côté serveur. |
 | `expandAllGroups()`, `collapseAllGroups()` | Déplier / replier tous les groupes. |
 | `getQueryState()`, `applyQueryState(partiel)` | Lire / appliquer tri, filtres, recherche, page et regroupement (`NgTableQueryState`) en une fois. |
 

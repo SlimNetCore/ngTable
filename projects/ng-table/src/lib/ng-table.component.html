@@ -306,6 +306,7 @@
            [style.--ngt-flash-duration]="flashDurationMs() + 'ms'"
            [class.ngt-density-compact]="density() === 'compact'"
            [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
+           [style.width.px]="columnVirtualization() ? tableMinWidthPx() : null"
            [trackBy]="resolvedTrackBy"
            class="ng-table" mat-table multiTemplateDataRows>
       @if (rowSelectionEnabled()) {
@@ -573,8 +574,34 @@
 
       <!-- Défilement virtuel : espacement pour les lignes non rendues au-dessus / au-dessous. -->
       <ng-container matColumnDef="__spacer__">
-        <td *matCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="item.height" class="spacer-cell"
+        <td *matCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="spacerHeight(item.position)" class="spacer-cell"
             mat-cell></td>
+      </ng-container>
+
+      <!-- Virtualisation horizontale : largeur des colonnes non rendues, à gauche et à droite. -->
+      @for (side of columnSpacerSides; track side) {
+        <ng-container [matColumnDef]="'__colspacer_' + side + '__'">
+          <th *matHeaderCellDef [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
+              mat-header-cell></th>
+          <td *matCellDef="let row" [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
+              mat-cell></td>
+          <td *matFooterCellDef aria-hidden="true" class="col-spacer-cell" mat-footer-cell></td>
+        </ng-container>
+        <ng-container [matColumnDef]="'__group____colspacer_' + side + '__'">
+          <td *matCellDef="let item" aria-hidden="true" class="group-cell col-spacer-cell" mat-cell></td>
+        </ng-container>
+      }
+
+      <!-- Modèle par blocs : ligne en attente de son bloc (ou bloc en échec). -->
+      <ng-container matColumnDef="__loading__">
+        <td *matCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="loadingRowHeight()"
+            class="loading-cell" mat-cell>
+          @if (isFailedLoadingRow(item)) {
+            <span class="loading-failed">{{ effectiveLabels().blockLoadError }}</span>
+          } @else {
+            <span aria-hidden="true" class="loading-skeleton"></span>
+          }
+        </td>
       </ng-container>
 
       <ng-container matColumnDef="__detail_row__">
@@ -586,7 +613,8 @@
         </td>
       </ng-container>
 
-      <tr *matHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualScroll()" mat-header-row></tr>
+      <tr *matHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualActive()" mat-header-row></tr>
+      <tr *matRowDef="let item; columns: loadingColumns; when: loadingRowWhen" class="loading-row" mat-row></tr>
       <tr *matRowDef="let item; columns: spacerColumns; when: spacerRowWhen" aria-hidden="true" class="spacer-row"
           mat-row></tr>
       <tr
@@ -650,7 +678,7 @@
   }
   </div>
 
-  @if (paginator()) {
+  @if (paginator() && !blockMode()) {
     <mat-paginator
       (page)="onPage($event)"
       [length]="paginatorLength()"

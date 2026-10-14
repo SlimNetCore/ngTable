@@ -10,7 +10,7 @@
  *   trié, en O(n + k·log k) au lieu de O(n·log n) avec un appel aux accessors par
  *   comparaison. Il recalcule tout quand les filtres, le tri ou les colonnes changent.
  */
-import {compareSortKeys, SortLevel, sortKeysOf, SortValue} from './row-pipeline';
+import {compareSortKeys, numericValue, SortLevel, sortKeysOf, SortValue} from './row-pipeline';
 
 /** Transaction sur les lignes (même forme que la `RowDataTransaction` d'AG Grid). */
 export interface NgTableRowTransaction<T> {
@@ -209,7 +209,22 @@ export interface PipelineConfig<T> {
    * tout est recalculé.
    */
   deps: readonly unknown[];
+  /**
+   * Colonnes dont il faut tenir la somme et le nombre de valeurs numériques sur le
+   * résultat : mis à jour par différence à chaque fusion (totaux en direct).
+   * À inclure dans `deps` (une nouvelle liste recalcule tout).
+   */
+  sums?: readonly {id: string; value: (row: T) => unknown}[];
 }
+
+/** Somme et nombre de valeurs numériques d'une colonne sur le résultat. */
+export interface RunningTotal {
+  sum: number;
+  count: number;
+}
+
+/** Fusions entre deux recalculs complets des sommes (limite la dérive des additions flottantes). */
+const SUMS_RESYNC_EVERY = 200;
 
 interface ResultEntry<T> {
   key: unknown;
@@ -227,6 +242,8 @@ export class IncrementalPipeline<T> {
   private deps: readonly unknown[] | null = null;
   /** Nombre de recalculs complets / de fusions : pour les tests et le diagnostic. */
   readonly stats = {rebuilds: 0, merges: 0};
+  private totals = new Map<string, RunningTotal>();
+  private mergesSinceSums = 0;
 
   constructor(private readonly keyOf: (row: T) => unknown) {}
 
@@ -238,9 +255,45 @@ export class IncrementalPipeline<T> {
       this.rebuild(store, config);
     } else if (changes.keys.size > 0) {
       this.merge(store, config, changes.keys);
+      if (++this.mergesSinceSums >= SUMS_RESYNC_EVERY) {
+        this.resyncTotals(config);
+      }
     }
     this.deps = config.deps;
     return this.result;
+  }
+
+  /** Somme et nombre de valeurs de la colonne `id` (déclarée dans `config.sums`) sur le résultat. */
+  total(id: string): RunningTotal | undefined {
+    return this.totals.get(id);
+  }
+
+  private resyncTotals(config: PipelineConfig<T>): void {
+    this.totals = new Map();
+    this.mergesSinceSums = 0;
+    for (const {id, value} of config.sums ?? []) {
+      const total = {sum: 0, count: 0};
+      for (const row of this.result) {
+        const number = numericValue(value(row));
+        if (number !== null) {
+          total.sum += number;
+          total.count++;
+        }
+      }
+      this.totals.set(id, total);
+    }
+  }
+
+  /** Ajoute (`sign = 1`) ou retire (`-1`) une ligne des sommes courantes. */
+  private applyToTotals(row: T, sign: 1 | -1, config: PipelineConfig<T>): void {
+    for (const {id, value} of config.sums ?? []) {
+      const number = numericValue(value(row));
+      const total = this.totals.get(id);
+      if (number !== null && total) {
+        total.sum += sign * number;
+        total.count += sign;
+      }
+    }
   }
 
   private rebuild(store: RowStore<T>, config: PipelineConfig<T>): void {
@@ -258,6 +311,7 @@ export class IncrementalPipeline<T> {
     this.entries = entries;
     this.result = entries.map((entry) => entry.row);
     this.index = new Map(entries.map((entry) => [entry.key, entry]));
+    this.resyncTotals(config);
   }
 
   /**
@@ -275,6 +329,7 @@ export class IncrementalPipeline<T> {
       if (previous) {
         removed.push(this.positionOf(previous, config));
         this.index.delete(key);
+        this.applyToTotals(previous.row, -1, config);
       }
     }
     removed.sort((a, b) => a - b);
@@ -297,6 +352,7 @@ export class IncrementalPipeline<T> {
       const row = store.get(key);
       if (row !== undefined && config.matches(row)) {
         candidates.push({key, row, seq: store.seqOf(key), sortKeys: sortKeysOf(row, config.levels)});
+        this.applyToTotals(row, 1, config);
       }
     }
     if (candidates.length === 0) {

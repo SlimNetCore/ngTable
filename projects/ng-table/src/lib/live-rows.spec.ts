@@ -107,7 +107,8 @@ describe('live-rows', () => {
       const store = new RowStore(keyOf);
       const pipeline = new IncrementalPipeline(keyOf);
       // Filtre et tri sur le prix, avec des égalités et des prix vides pour éprouver le départage.
-      const cfg = config({matches: (q) => q.price === null || q.price % 7 !== 0});
+      const sums = [{id: 'price', value: (q: Quote) => q.price}];
+      const cfg = config({matches: (q) => q.price === null || q.price % 7 !== 0, sums, deps: [sums]});
       let rows: Quote[] = Array.from({length: 300}, (_, id) => ({id, symbol: `S${id}`, price: Math.floor(next() * 50)}));
       let nextId = rows.length;
       store.replaceAll(rows);
@@ -139,7 +140,11 @@ describe('live-rows', () => {
           store.replaceAll([...byId.values()]);
         }
         rows = store.rows();
-        expect(pipeline.compute(store, cfg).map(keyOf)).toEqual(reference(rows, cfg));
+        const result = pipeline.compute(store, cfg);
+        expect(result.map(keyOf)).toEqual(reference(rows, cfg));
+        // Somme courante, tenue par différence : identique à une somme recalculée.
+        const expected = result.filter((q) => q.price !== null);
+        expect(pipeline.total('price')).toEqual({sum: expected.reduce((sum, q) => sum + q.price!, 0), count: expected.length});
       }
       expect(pipeline.stats.merges).toBeGreaterThan(400);
     });

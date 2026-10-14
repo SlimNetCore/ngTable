@@ -12,6 +12,7 @@ import {
   NgTableExportFormat,
   NgTableQueryState,
   NgTableRemoteExportRequest,
+  NgTableRemoteDatasource,
   NgTableRemoteQuery,
   NgTableViewsStore,
 } from '@sbourahla/ng-table';
@@ -85,6 +86,16 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
         }
       </div>
       <div class="actions-row">
+        <span class="setting-label">Navigation</span>
+        <mat-button-toggle-group [value]="continuous()" (change)="setContinuous($event.value)">
+          <mat-button-toggle [value]="false">Pages</mat-button-toggle>
+          <mat-button-toggle [value]="true">Défilement continu (blocs)</mat-button-toggle>
+        </mat-button-toggle-group>
+        @if (continuous()) {
+          <span class="server">Blocs de 100 lignes chargés au fil du défilement (<code>[remoteDatasource]</code>) ; regroupement indisponible.</span>
+        }
+      </div>
+      <div class="actions-row">
         <span class="setting-label">Format d'export</span>
         <mat-button-toggle-group [value]="exportFormat()" (change)="exportFormat.set($event.value)">
           <mat-button-toggle value="csv">CSV</mat-button-toggle>
@@ -94,7 +105,11 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
       </div>
       <div class="perf">
         <div><strong>{{ total().toLocaleString('fr-FR') }}</strong><span>lignes correspondantes côté serveur</span></div>
-        <div><strong>{{ renderedRows() }}</strong><span>lignes rendues dans la table</span></div>
+        @if (continuous()) {
+          <div><strong>{{ blocksRequested() }}</strong><span>blocs demandés au serveur</span></div>
+        } @else {
+          <div><strong>{{ renderedRows() }}</strong><span>lignes rendues dans la table</span></div>
+        }
         <div><strong>{{ lastServerMs() }} ms</strong><span>{{ backend() === 'spring' ? 'aller-retour HTTP (Spring Boot + H2)' : 'calcul serveur (filtre, tri, résumés)' }}</span></div>
         <div><strong>{{ lastRenderMs() }} ms</strong><span>rendu de la table (réponse → écran)</span></div>
       </div>
@@ -116,7 +131,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           <mat-icon>deselect</mat-icon> Vider la sélection ({{ selectedKeys().length }})
         </button>
         <mat-slide-toggle [checked]="english()" (change)="english.set($event.checked)">Textes en anglais</mat-slide-toggle>
-        <mat-slide-toggle [checked]="grouping()" (change)="setGrouping($event.checked)">Regroupement (côté serveur)</mat-slide-toggle>
+        <mat-slide-toggle [checked]="grouping()" [disabled]="continuous()" (change)="setGrouping($event.checked)">Regroupement (côté serveur)</mat-slide-toggle>
       </div>
     </div>
 
@@ -136,7 +151,10 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           [(groupBy)]="groupBy"
           [groupSummaries]="groupSummaries()"
           [showActiveFiltersBar]="true"
-          [paginator]="true"
+          [paginator]="!continuous()"
+          [remoteDatasource]="continuous() ? datasource : null"
+          [maxHeight]="continuous() ? '60vh' : null"
+          (remoteBlockError)="showServerError($event.error)"
           [totalCount]="total()"
           [(pageIndex)]="pageIndex"
           [(pageSize)]="pageSize"
@@ -249,6 +267,27 @@ export class ExpertDemoComponent {
   protected readonly grouping = signal(false);
   protected readonly groupBy = signal<string | null>(null);
   protected readonly groupSummaries = signal<NgTableGroupSummary[] | null>(null);
+  /** Défilement continu : la table demande elle-même les blocs à afficher (`getRows`). */
+  protected readonly continuous = signal(false);
+  protected readonly blocksRequested = signal(0);
+
+  /**
+   * Source du modèle par blocs. Chaque bloc est une page pour le serveur (`page.index`,
+   * `page.size`) : le même backend (simulé ou Spring Boot) sert les deux modes.
+   */
+  protected readonly datasource: NgTableRemoteDatasource<Commande> = {
+    getRows: async (request) => {
+      this.log('getRows', `lignes ${request.startRow}–${request.endRow - 1}`);
+      this.lastQuery = request;
+      this.blocksRequested.update((count) => count + 1);
+      const page = await this.api.query(request);
+      this.serverError.set(false);
+      this.total.set(page.total);
+      this.lastServerMs.set(Math.round(page.serverMs));
+      this.serverStatus.set(`Serveur : ${page.total.toLocaleString('fr-FR')} commande(s) ; bloc ${request.page.index + 1} reçu.`);
+      return {rows: page.rows, totalCount: page.total};
+    },
+  };
 
   // État tenu par le parent (mode contrôlé).
   protected readonly pageIndex = signal(0);
@@ -312,6 +351,20 @@ export class ExpertDemoComponent {
     void this.load(this.lastQuery);
   }
 
+  /** Pages (le parent charge sur `remoteQueryChange`) ou défilement continu (la table charge par blocs). */
+  protected setContinuous(continuous: boolean): void {
+    this.continuous.set(continuous);
+    this.loading.set(false);
+    this.blocksRequested.set(0);
+    if (continuous) {
+      this.grouping.set(false);
+      this.groupBy.set(null);
+    } else {
+      this.pageIndex.set(0);
+      void this.load({...this.lastQuery, page: {index: 0, size: this.pageSize()}});
+    }
+  }
+
   /** Change la taille de la « base » du serveur et recharge la même requête. */
   protected setDatasetSize(size: number): void {
     this.datasetSize.set(size);
@@ -332,6 +385,10 @@ export class ExpertDemoComponent {
    */
   private switchApi(api: CommandesBackend): void {
     this.api = api;
+    if (this.continuous()) {
+      this.table().refreshRemoteDatasource();
+      return;
+    }
     this.table().applyQueryState({pageIndex: 0});
   }
 
@@ -375,7 +432,7 @@ export class ExpertDemoComponent {
     }
   }
 
-  private showServerError(error: unknown): void {
+  protected showServerError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     this.loading.set(false);
     this.rows.set([]);

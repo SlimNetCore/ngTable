@@ -11,9 +11,10 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {By} from '@angular/platform-browser';
 import {MatCheckboxChange} from '@angular/material/checkbox';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRemoteQuery, NgTableSelectionChangeEvent, NgTableSortChange} from './ng-table.component';
+import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRemoteQuery, NgTableSelectionChangeEvent, NgTableSortChange, NgTableBlockRequest, NgTableBlockResult, NgTableRemoteDatasource} from './ng-table.component';
 import {NG_TABLE_DEFAULT_LABELS, provideNgTableLabels} from './ng-table-labels';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
+import {MAX_SCROLL_HEIGHT} from './virtual-window';
 
 interface Row {
   id: string;
@@ -942,10 +943,216 @@ describe('NgTableComponent', () => {
       expect(events[0].selectedRows.map((r) => r.nom)).toEqual(['Charles']);
     });
 
+    it('ligne de totaux en direct : somme et moyenne suivent les transactions', async () => {
+      const cols = columns();
+      cols[1] = {...cols[1], aggregate: 'sum'};
+      const {component, fixture} = await createTable({columns: cols, showTotals: true});
+      const footer = () => (fixture.nativeElement as HTMLElement).querySelector('tr.totals-row td.mat-column-montant')!.textContent!.trim();
+      expect(footer()).toBe('Σ 600');
+
+      component.applyTransaction({update: [{...ROWS[0], montant: 1300}], remove: [{id: '2'} as Row]});
+      await fixture.whenStable();
+      expect(footer()).toMatch(/^Σ 1[\s\u202f]?500$/); // 1300 + 200
+
+      component['onFilterValue']('actif', 'true');
+      component.applyTransaction({update: [{...ROWS[2], montant: 0}]});
+      await fixture.whenStable();
+      expect(footer()).toMatch(/^Σ 1[\s\u202f]?300$/);
+    });
+
     it('mode remote : les transactions sont ignorées (le serveur est la source)', async () => {
       const {component} = await createTable({dataMode: 'remote'});
       expect(component.applyTransaction({remove: [ROWS[0]]})).toEqual({add: [], update: [], remove: []});
       expect(component.displayedRows()).toHaveLength(3);
+    });
+  });
+
+  describe('modèle serveur par blocs ([remoteDatasource])', () => {
+    const TOTAL = 1_000_000;
+    const rowAt = (i: number): Row => ({id: `${i}`, nom: `Client ${i}`, montant: i, statut: 'VALIDEE', actif: true, date: '2026-01-01'});
+
+    /** Source dont le test déclenche les réponses une par une. */
+    function controlledDatasource() {
+      const pending: {request: NgTableBlockRequest; resolve: (r: NgTableBlockResult<Row>) => void; reject: (e: unknown) => void}[] = [];
+      const datasource: NgTableRemoteDatasource<Row> = {
+        getRows: (request) => new Promise((resolve, reject) => pending.push({request, resolve, reject})),
+      };
+      const answer = async (index = 0, total = TOTAL) => {
+        const [call] = pending.splice(index, 1);
+        const rows = Array.from({length: Math.max(0, Math.min(call.request.endRow, total) - call.request.startRow)}, (_, k) => rowAt(call.request.startRow + k));
+        call.resolve({rows, totalCount: total});
+        await Promise.resolve();
+      };
+      return {datasource, pending, answer};
+    }
+
+    const dataRows = (fixture: ComponentFixture<NgTableComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLTableRowElement>('tr.data-row')];
+    const loadingRows = (fixture: ComponentFixture<NgTableComponent>) =>
+      (fixture.nativeElement as HTMLElement).querySelectorAll('tr.loading-row').length;
+
+    async function create(extra: Record<string, unknown> = {}) {
+      const source = controlledDatasource();
+      const table = await createTable({rows: [], dataMode: 'remote', remoteDatasource: source.datasource, ...extra});
+      return {...table, ...source};
+    }
+
+    it('demande le premier bloc, affiche des lignes d’attente, puis les lignes reçues', async () => {
+      const {fixture, pending, answer, component} = await create();
+      const queries: unknown[] = [];
+      component.remoteQueryChange.subscribe((q) => queries.push(q));
+
+      expect(pending.map((p) => [p.request.startRow, p.request.endRow, p.request.page])).toEqual([[0, 100, {index: 0, size: 100}]]);
+      expect(loadingRows(fixture)).toBeGreaterThan(0);
+
+      await answer();
+      await fixture.whenStable();
+
+      expect(dataRows(fixture)).toHaveLength(25); // zone de 800 px, lignes de 48 px, plus la marge
+      expect(component.remoteRowCount()).toBe(TOTAL);
+      // 1 000 000 × 48 px dépasse la hauteur maximale : barre comprimée, hauteur totale plafonnée.
+      const [top, bottom] = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('td.spacer-cell')].map((td) => parseFloat(td.style.height));
+      expect(top + 25 * 48 + bottom).toBe(MAX_SCROLL_HEIGHT);
+      expect(queries).toEqual([]); // la requête passe par getRows, pas par remoteQueryChange
+    });
+
+    it('au défilement, ne demande que les blocs de la zone affichée, sans les intermédiaires', async () => {
+      const {fixture, pending, answer, component} = await create();
+      await answer();
+      await fixture.whenStable();
+
+      component.scrollToIndex(450_000);
+      await fixture.whenStable();
+
+      expect(pending.map((p) => p.request.page.index)).toEqual([4499, 4500]); // la marge de 8 lignes déborde sur le bloc précédent
+      await answer();
+      await answer();
+      await fixture.whenStable();
+      expect(dataRows(fixture)[0].textContent).toContain('Client 449992');
+    });
+
+    it('limite les requêtes simultanées ; la suite part quand une réponse arrive', async () => {
+      const {fixture, pending, answer} = await create({cacheBlockSize: 5, maxConcurrentBlockRequests: 2});
+      expect(pending).toHaveLength(1); // total inconnu : un bloc
+      await answer();
+      await fixture.whenStable();
+
+      expect(pending.map((p) => p.request.page.index)).toEqual([1, 2]); // 25 lignes rendues = 5 blocs, 2 à la fois
+      await answer();
+      await fixture.whenStable();
+      expect(pending.map((p) => p.request.page.index)).toEqual([2, 3]);
+    });
+
+    it('un changement de tri purge le cache, remonte en haut et ignore les réponses périmées', async () => {
+      const {fixture, pending, answer, component} = await create();
+      await answer();
+      await fixture.whenStable();
+      component.scrollToIndex(5000);
+      await fixture.whenStable();
+      expect(pending).toHaveLength(2);
+
+      component['onHeaderSort'](component.columns()[1]);
+      await fixture.whenStable();
+
+      const fresh = pending.filter((p) => p.request.sort.columnId === 'montant');
+      expect(fresh.map((p) => p.request.page.index)).toEqual([0]);
+      await answer(0); // réponse de l'ancienne requête (bloc 49) : ignorée
+      await fixture.whenStable();
+      expect(dataRows(fixture)).toHaveLength(0);
+
+      await answer(pending.findIndex((p) => p.request.sort.columnId === 'montant'));
+      await fixture.whenStable();
+      expect(dataRows(fixture)[0].textContent).toContain('Client 0');
+    });
+
+    it('bloc en échec : message, événement, pas de nouvel essai avant refreshRemoteDatasource()', async () => {
+      const {fixture, pending, component} = await create();
+      const errors: unknown[] = [];
+      component.remoteBlockError.subscribe((e) => errors.push(e));
+
+      pending.shift()!.reject(new Error('503'));
+      await Promise.resolve();
+      await fixture.whenStable();
+
+      expect((fixture.nativeElement as HTMLElement).querySelector('.loading-failed')?.textContent).toContain('Chargement impossible');
+      expect(errors).toHaveLength(1);
+      expect(pending).toHaveLength(0);
+
+      component.refreshRemoteDatasource();
+      await fixture.whenStable();
+      expect(pending).toHaveLength(1);
+    });
+
+    it('pas de paginateur intégré en modèle par blocs', async () => {
+      const {fixture} = await create({paginator: true});
+      expect((fixture.nativeElement as HTMLElement).querySelector('mat-paginator')).toBeNull();
+    });
+  });
+
+  describe('virtualisation horizontale ([virtualColumns])', () => {
+    interface Wide {
+      id: string;
+      [key: string]: string;
+    }
+    const wideColumns: NgTableColumn<Wide>[] = Array.from({length: 100}, (_, i) => ({
+      id: `c${i}`,
+      header: `Col ${i}`,
+      valueAccessor: (row: Wide) => row[`c${i}`],
+      widthPx: 100,
+      ...(i === 0 ? {pinned: 'left' as const} : {}),
+    }));
+    const wideRows: Wide[] = Array.from({length: 3}, (_, r) =>
+      Object.fromEntries([['id', `${r}`], ...wideColumns.map((c) => [c.id, `${c.id}-r${r}`])]) as Wide,
+    );
+    const headerIds = (fixture: ComponentFixture<NgTableComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.mat-mdc-header-row th')].map(
+        (th) => [...th.classList].find((c) => c.startsWith('mat-column-'))!.replace('mat-column-', ''),
+      );
+
+    async function scrollLeft(fixture: ComponentFixture<NgTableComponent>, left: number) {
+      const wrap = fixture.nativeElement.querySelector('.table-wrap') as HTMLElement;
+      Object.defineProperty(wrap, 'scrollLeft', {value: left, configurable: true, writable: true});
+      wrap.dispatchEvent(new Event('scroll'));
+      await fixture.whenStable();
+    }
+
+    it('ne rend que les colonnes de la zone visible, la colonne épinglée toujours', async () => {
+      const {fixture, component} = await createTable({columns: wideColumns, rows: wideRows, virtualColumns: true});
+
+      // Zone supposée de 1 200 px + 300 px de marge : 15 colonnes libres (c1..c15), plus c0 épinglée.
+      const ids = headerIds(fixture);
+      expect(ids[0]).toBe('c0');
+      expect(ids).toContain('c15');
+      expect(ids).not.toContain('c16');
+      expect(ids.filter((id) => id.startsWith('c'))).toHaveLength(16);
+      expect(component['columnSpacerWidth']('left')).toBe(0);
+      expect(component['columnSpacerWidth']('right')).toBe((99 - 15) * 100);
+      // Largeur du tableau = toutes les colonnes : la barre de défilement couvre les 100.
+      expect((fixture.nativeElement.querySelector('table.ng-table') as HTMLElement).style.width).toBe('10000px');
+    });
+
+    it('suit le défilement horizontal, avec des espacements de la largeur des colonnes non rendues', async () => {
+      const {fixture, component} = await createTable({columns: wideColumns, rows: wideRows, virtualColumns: true});
+
+      await scrollLeft(fixture, 5000);
+
+      const ids = headerIds(fixture);
+      expect(ids[0]).toBe('c0'); // toujours là
+      expect(ids).toContain('c55');
+      expect(ids).not.toContain('c10');
+      const window = component['columnWindow']()!;
+      expect(component['columnSpacerWidth']('left') + (window.end - window.start) * 100 + component['columnSpacerWidth']('right')).toBe(9900);
+      expect((fixture.nativeElement as HTMLElement).querySelector('tr.data-row td.mat-column-c55')!.textContent).toContain('c55-r0');
+    });
+
+    it('le modèle de vue n’est calculé que pour les colonnes rendues ; l’export garde toutes les colonnes', async () => {
+      const accessor = vi.fn((row: Wide) => row['c90']);
+      const cols = wideColumns.map((c) => (c.id === 'c90' ? {...c, valueAccessor: accessor} : c));
+      const {component} = await createTable({columns: cols, rows: wideRows, virtualColumns: true});
+
+      component['rowViews']();
+      expect(accessor).not.toHaveBeenCalled(); // c90 hors de la zone visible
+      expect(component.visibleColumns()).toHaveLength(100);
     });
   });
 

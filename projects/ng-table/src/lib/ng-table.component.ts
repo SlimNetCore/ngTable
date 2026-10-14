@@ -18,6 +18,7 @@ import {
   input,
   output,
   signal,
+  Signal,
   viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
@@ -46,12 +47,22 @@ import {
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
 import {matchesAllFilters, searchText, SortLevel} from './row-pipeline';
 import {buildConsecutiveGroups, buildGroups, computeAggregate, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
-import {computeVirtualRange, NgTableSpacerRow, VirtualRange} from './virtual-window';
+import {
+  ColumnWindow,
+  computeColumnWindow,
+  computeVirtualLayout,
+  NgTableSpacerRow,
+  scrollTopForIndex,
+  VirtualLayout,
+  VirtualRange,
+} from './virtual-window';
 import {buildCellView, buildRowViews, copyText, NgTableCellView, NgTableRowClasses} from './row-view';
 import {IncrementalPipeline, NgTableRowTransaction, NgTableTransactionResult, RowStore, RowUpdate} from './live-rows';
 
 /** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
-type TableItem<T> = T | NgTableGroupRow<T> | NgTableSpacerRow;
+import {BlockCache, NgTableLoadingRow} from './block-cache';
+
+type TableItem<T> = T | NgTableGroupRow<T> | NgTableSpacerRow | NgTableLoadingRow;
 import {escapeCssToken, measureNaturalWidth} from './dom-utils';
 import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
 import {formatRangeValue, matchesSearchTerms, NgTableTextOperator, searchTerms} from './filter-matching';
@@ -94,7 +105,7 @@ const NBSP = String.fromCharCode(160);
 
 /** Ligne de l'application (ni en-tête de groupe, ni espacement du défilement virtuel). */
 function isDataItem<T>(item: TableItem<T>): item is T {
-  return !(item instanceof NgTableGroupRow) && !(item instanceof NgTableSpacerRow);
+  return !(item instanceof NgTableGroupRow) && !(item instanceof NgTableSpacerRow) && !(item instanceof NgTableLoadingRow);
 }
 
 /** Clé de la recherche globale dans le flux debouncé des saisies et dans la barre des filtres actifs. */
@@ -131,6 +142,33 @@ export interface NgTableGroupSummary {
   count?: number;
   /** Agrégats par id de colonne (nombre formaté par la table, ou texte affiché tel quel). */
   aggregates?: Record<string, unknown>;
+}
+
+/**
+ * Demande d'un bloc de lignes au serveur (modèle par blocs, `[remoteDatasource]`) : la
+ * requête habituelle (tri, filtres, recherche) plus la tranche voulue. `page` vaut
+ * `{index: n° du bloc, size: taille du bloc}` : un backend paginé existant convient tel quel.
+ */
+export interface NgTableBlockRequest extends NgTableRemoteQuery {
+  /** Première ligne demandée (incluse). */
+  startRow: number;
+  /** Dernière ligne demandée (exclue). */
+  endRow: number;
+}
+
+/** Réponse à `NgTableBlockRequest`. */
+export interface NgTableBlockResult<T> {
+  rows: readonly T[];
+  /** Nombre total de lignes correspondant à la requête (toutes pages confondues). */
+  totalCount: number;
+}
+
+/**
+ * Source de données du modèle serveur par blocs : la table l'appelle pour chaque bloc
+ * à afficher, au fil du défilement. Promesse ou Observable (seule la première valeur compte).
+ */
+export interface NgTableRemoteDatasource<T> {
+  getRows(request: NgTableBlockRequest): Promise<NgTableBlockResult<T>> | Observable<NgTableBlockResult<T>>;
 }
 
 export interface NgTableRemoteQuery {
@@ -589,6 +627,27 @@ export class NgTableComponent<T = any> implements OnDestroy {
    */
   readonly virtualScroll = input(false);
   /**
+   * Modèle serveur par blocs (mode `remote`) : défilement continu sur toutes les lignes du
+   * serveur, sans pagination. La table demande au fil du défilement les blocs à afficher
+   * (`getRows`), en garde un nombre limité en cache, et repart de zéro quand le tri, les
+   * filtres ou la recherche changent. Active le défilement virtuel ; `(remoteQueryChange)`
+   * n'est alors plus émis (c'est `getRows` qui reçoit la requête).
+   */
+  readonly remoteDatasource = input<NgTableRemoteDatasource<T> | null>(null);
+  /**
+   * Affichage partiel des colonnes (virtualisation horizontale) : seules les colonnes de
+   * la zone visible (plus une marge) sont rendues, les colonnes épinglées toujours. Pour
+   * les tables très larges (des dizaines ou centaines de colonnes). Chaque colonne prend
+   * une largeur fixe : `widthPx`, sinon `minWidthPx`, sinon 120 px.
+   */
+  readonly virtualColumns = input(false);
+  /** Lignes par bloc demandé au serveur. */
+  readonly cacheBlockSize = input(100);
+  /** Blocs gardés en mémoire ; au-delà, les moins récemment affichés sont oubliés. */
+  readonly maxBlocksInCache = input(50);
+  /** Requêtes de blocs simultanées au plus. */
+  readonly maxConcurrentBlockRequests = input(2);
+  /**
    * Mode live : surligne les cellules dont la valeur change, après une transaction ou un
    * nouveau tableau `[rows]`. Colonne par colonne : `NgTableColumn.flashOnChange`.
    */
@@ -739,6 +798,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly viewsImported = output<NgTableViewsImportEvent>();
   /** Lot de transactions asynchrones appliqué (une entrée par transaction). */
   readonly asyncTransactionsFlushed = output<NgTableTransactionResult<T>[]>();
+  /** Modèle par blocs : le chargement d'un bloc a échoué (erreur renvoyée par `getRows`). */
+  readonly remoteBlockError = output<{ request: NgTableBlockRequest; error: unknown }>();
   /** Emitted whenever a view becomes active (user switch, or auto-activation on load). */
   readonly viewActivated = output<NgTableView | null>();
   /** Emitted when an activated view carries pagination — apply it to your own paginator. */
@@ -768,11 +829,77 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.dataMode() === 'remote' ? (this.totalCount() ?? this.rows().length) : this.pageableCount(),
   );
 
+  /** Virtualisation horizontale effective (pas en vue mobile, où les colonnes sont déjà réduites). */
+  protected readonly columnVirtualization = computed(() => this.virtualColumns() && !this.isMobileView());
+  private readonly scrollLeft = signal(0);
+  private readonly viewportWidth = signal(0);
+
+  /** Largeur fixe de chaque colonne visible en virtualisation horizontale. */
+  private readonly fixedColumnWidths = computed(() => {
+    const widths = this.columnWidths();
+    return new Map(
+      this.visibleColumns().map((column) => [column.id, widths[column.id] ?? column.widthPx ?? column.minWidthPx ?? DEFAULT_MIN_COLUMN_WIDTH_PX]),
+    );
+  });
+
+  /**
+   * Colonnes libres (non épinglées) rendues et largeurs des espacements. Ne change que si
+   * la fenêtre change : défiler de quelques pixels ne reconstruit pas les colonnes.
+   */
+  private readonly columnWindow = computed<(ColumnWindow & { free: NgTableColumn<T>[] }) | null>(
+    () => {
+      if (!this.columnVirtualization()) {
+        return null;
+      }
+      const sides = this.pinnedSides();
+      const widths = this.fixedColumnWidths();
+      const free = this.visibleColumns().filter((column) => !sides.has(column.id));
+      return {free, ...computeColumnWindow(free.map((column) => widths.get(column.id)!), this.scrollLeft(), this.viewportWidth())};
+    },
+    {
+      equal: (a, b) =>
+        a === b || (!!a && !!b && a.free === b.free && a.start === b.start && a.end === b.end && a.left === b.left && a.right === b.right),
+    },
+  );
+
+  /** Colonnes réellement rendues : toutes les visibles, ou la fenêtre en virtualisation horizontale. */
+  protected readonly renderedColumns = computed(() => {
+    const window = this.columnWindow();
+    if (!window) {
+      return this.visibleColumns();
+    }
+    const sides = this.pinnedSides();
+    const visible = this.visibleColumns();
+    return [
+      ...visible.filter((column) => sides.get(column.id) === 'left'),
+      ...window.free.slice(window.start, window.end),
+      ...visible.filter((column) => sides.get(column.id) === 'right'),
+    ];
+  });
+
+  /** Largeur d'une colonne d'espacement de la virtualisation horizontale. */
+  protected columnSpacerWidth(side: 'left' | 'right'): number {
+    const window = this.columnWindow();
+    return window ? (side === 'left' ? window.left : window.right) : 0;
+  }
+
   protected readonly displayedColumnIds = computed(
     () => {
       // Colonne technique de selection injectee en tete quand activee.
       const ids = this.visibleColumns().map((column) => column.id);
       if (!this.isMobileView()) {
+        const window = this.columnWindow();
+        if (window) {
+          const sides = this.pinnedSides();
+          const rendered = [
+            ...ids.filter((id) => sides.get(id) === 'left'),
+            '__colspacer_left__',
+            ...window.free.slice(window.start, window.end).map((column) => column.id),
+            '__colspacer_right__',
+            ...ids.filter((id) => sides.get(id) === 'right'),
+          ];
+          return this.rowSelectionEnabled() ? [this.selectionColumnId, ...rendered] : rendered;
+        }
         return this.rowSelectionEnabled() ? [this.selectionColumnId, ...ids] : ids;
       }
 
@@ -988,6 +1115,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const filters = this.columnFilters();
     const sorts = this.sortStates();
     const search = this.globalSearchTerm();
+    const sums = this.runningSums();
     const terms = searchTerms(search);
     const haystacks = terms.length > 0 ? this.searchHaystacks() : null;
 
@@ -1006,9 +1134,22 @@ export class NgTableComponent<T = any> implements OnDestroy {
         (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms)),
       levels,
       collator: this.collator,
-      deps: [store, activeColumns, filters, sorts, search, haystacks?.columns],
+      sums,
+      deps: [store, activeColumns, filters, sorts, search, haystacks?.columns, sums],
     });
   });
+
+  /**
+   * Colonnes `sum` / `avg` de la ligne de totaux : leurs sommes sont tenues par le
+   * pipeline, par différence à chaque lot, au lieu de relire toutes les lignes.
+   */
+  private readonly runningSums = computed(() =>
+    this.showTotals() && this.dataMode() === 'local'
+      ? this.columns()
+          .filter((column) => column.aggregate === 'sum' || column.aggregate === 'avg')
+          .map((column) => ({id: column.id, value: column.valueAccessor}))
+      : [],
+  );
 
   /**
    * Lignes de la table indexées par clé (mode local) : alimentées par `[rows]` (comparé
@@ -1110,7 +1251,13 @@ export class NgTableComponent<T = any> implements OnDestroy {
   /** Nombre d'éléments paginés : lignes filtrées, ou unités quand les lignes sont regroupées. */
   protected readonly pageableCount = computed(() => this.groupUnits()?.length ?? this.filteredSortedRows().length);
 
-  readonly displayedRows = computed(() => {
+  readonly displayedRows: Signal<T[]> = computed<T[]>(() => {
+    if (this.blockMode()) {
+      // Lignes chargées de la zone rendue : ce que l'utilisateur voit (sélection, clavier).
+      this.blockVersion();
+      const range = this.virtualRange();
+      return range ? this.blockCache.loadedRows(range.start, range.end) : [];
+    }
     if (this.dataMode() === 'remote') {
       // Regroupées ou non, les lignes restent dans l'ordre renvoyé par le serveur.
       // Le serveur a déjà filtré/trié/paginé — on affiche tel quel.
@@ -1146,7 +1293,17 @@ export class NgTableComponent<T = any> implements OnDestroy {
   });
 
   /** Hauteur max. de la zone de défilement : `[maxHeight]`, ou 70vh en défilement virtuel. */
-  protected readonly effectiveMaxHeight = computed(() => this.maxHeight() ?? (this.virtualScroll() ? '70vh' : null));
+  /** Modèle serveur par blocs actif (mode remote + `[remoteDatasource]`). */
+  protected readonly blockMode = computed(() => this.dataMode() === 'remote' && !!this.remoteDatasource());
+  /** Défilement virtuel effectif : demandé, ou imposé par le modèle par blocs. */
+  protected readonly virtualActive = computed(() => this.virtualScroll() || this.blockMode());
+
+  private blockCache = new BlockCache<T>(100, 50);
+  /** Incrémenté quand un bloc arrive ou que le cache est purgé. */
+  private readonly blockVersion = signal(0);
+  private blocksInFlight = 0;
+
+  protected readonly effectiveMaxHeight = computed(() => this.maxHeight() ?? (this.virtualActive() ? '70vh' : null));
 
   private readonly scrollTop = signal(0);
   private readonly viewportHeight = signal(0);
@@ -1157,34 +1314,77 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * Tranche rendue en défilement virtuel. Ne change que lorsque ses bornes changent :
    * défiler de quelques pixels ne recrée pas la source de données de la table.
    */
-  private readonly virtualRange = computed<VirtualRange | null>(
-    () =>
-      this.virtualScroll()
-        ? computeVirtualRange(this.pageItems().length, this.scrollTop(), this.viewportHeight(), this.rowHeight())
-        : null,
+  /** Tranche rendue et hauteurs des espacements (barre comprimée au-delà de `MAX_SCROLL_HEIGHT`). */
+  private readonly virtualLayout: Signal<VirtualLayout | null> = computed<VirtualLayout | null>(() =>
+    this.virtualActive()
+      ? computeVirtualLayout(this.virtualCount(), this.scrollTop(), this.viewportHeight(), this.rowHeight())
+      : null,
+  );
+
+  private readonly virtualRange: Signal<VirtualRange | null> = computed<VirtualRange | null>(
+    () => {
+      const layout = this.virtualLayout();
+      return layout ? {start: layout.start, end: layout.end} : null;
+    },
     {equal: (a, b) => a === b || (!!a && !!b && a.start === b.start && a.end === b.end)},
   );
 
+  /**
+   * Hauteur d'un espacement, lue par le template : défiler change ces hauteurs (barre
+   * comprimée) sans recréer la source de données de la table tant que la tranche est la même.
+   */
+  protected spacerHeight(position: 'top' | 'bottom'): number {
+    const layout = this.virtualLayout();
+    return layout ? (position === 'top' ? layout.top : layout.bottom) : 0;
+  }
+
+  /**
+   * Fait défiler pour amener la ligne `index` (0-based, dans l'ordre affiché) en haut de la
+   * zone, comme `ensureIndexVisible` d'AG Grid. Défilement virtuel ou modèle par blocs.
+   */
+  scrollToIndex(index: number): void {
+    const wrap = this.tableWrapElement()?.nativeElement;
+    if (!this.virtualActive() || !wrap) {
+      return;
+    }
+    const top = scrollTopForIndex(index, this.virtualCount(), this.viewportHeight(), this.rowHeight());
+    wrap.scrollTop = top;
+    this.scrollTop.set(top);
+  }
+
+  /** Nombre d'éléments à faire défiler : total serveur en modèle par blocs, sinon éléments de la page. */
+  private readonly virtualCount: Signal<number> = computed<number>(() => {
+    if (this.blockMode()) {
+      this.blockVersion();
+      return this.blockCache.rowCount;
+    }
+    return this.pageItems().length;
+  });
+
   /** Source de données de la table : éléments de la page, fenêtrés en défilement virtuel. */
   protected readonly tableRows = computed<TableItem<T>[]>(() => {
-    const items = this.pageItems();
     const range = this.virtualRange();
+    if (this.blockMode() && range) {
+      this.blockVersion();
+      const items: TableItem<T>[] = [new NgTableSpacerRow('top', 0)];
+      for (let index = range.start; index < range.end; index++) {
+        items.push(this.blockCache.rowAt(index) ?? new NgTableLoadingRow(index));
+      }
+      items.push(new NgTableSpacerRow('bottom', 0));
+      return items;
+    }
+    const items = this.pageItems();
     if (!range) {
       return items;
     }
-    const height = this.rowHeight();
-    return [
-      new NgTableSpacerRow('top', range.start * height),
-      ...items.slice(range.start, range.end),
-      new NgTableSpacerRow('bottom', (items.length - range.end) * height),
-    ];
+    return [new NgTableSpacerRow('top', 0), ...items.slice(range.start, range.end), new NgTableSpacerRow('bottom', 0)];
   });
 
   /** Nombre de lignes de données avant la tranche rendue : position DOM → index dans `displayedRows()`. */
   private readonly renderedRowOffset = computed(() => {
     const range = this.virtualRange();
-    if (!range) {
-      return 0;
+    if (!range || this.blockMode()) {
+      return 0; // modèle par blocs : `displayedRows()` ne contient déjà que la zone rendue
     }
     if (!this.groupUnits()) {
       return range.start; // pas d'en-tête de groupe : une ligne par élément
@@ -1206,8 +1406,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
    */
   private readonly rowViews = computed(() =>
     buildRowViews(
-      this.tableRows().filter((item): item is T => !(item instanceof NgTableGroupRow) && !(item instanceof NgTableSpacerRow)),
-      this.visibleColumns(),
+      this.tableRows().filter((item): item is T => isDataItem(item)),
+      this.renderedColumns(),
       this.rowClassFn(),
       this.flashes.size > 0 ? this.flashClassFn(performance.now()) : null,
     ),
@@ -1236,11 +1436,24 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return null;
     }
     const columns = this.columns().filter((column) => column.aggregate);
-    return columns.length > 0 ? this.aggregateTexts(columns, this.filteredSortedRows()) : null;
+    if (columns.length === 0) {
+      return null;
+    }
+    const rows = this.filteredSortedRows();
+    const values: Record<string, unknown> = {};
+    for (const column of columns) {
+      const running = column.aggregate === 'sum' || column.aggregate === 'avg' ? this.pipeline.total(column.id) : undefined;
+      if (running) {
+        values[column.id] = running.count === 0 ? null : column.aggregate === 'sum' ? running.sum : running.sum / running.count;
+      } else {
+        values[column.id] = computeAggregate(column, rows); // min, max, nombre, agrégat personnalisé
+      }
+    }
+    return this.formatAggregates(columns, values);
   });
 
   /** Colonne qui porte le libellé d'un en-tête de groupe / de la ligne de totaux : la première affichée. */
-  protected readonly leadColumnId = computed(() => this.visibleColumns()[0]?.id ?? null);
+  protected readonly leadColumnId = computed(() => this.renderedColumns()[0]?.id ?? null);
 
   protected readonly groupRowColumns = computed(() => this.displayedColumnIds().map((id) => `__group__${id}`));
 
@@ -1460,7 +1673,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
     // Défilement virtuel : mesure la zone visible et la hauteur réelle d'une ligne.
     afterRenderEffect(() => {
-      if (!this.virtualScroll()) {
+      if (!this.virtualActive() && !this.columnVirtualization()) {
         return;
       }
       this.tableRows();
@@ -1469,6 +1682,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
         return;
       }
       untracked(() => {
+        if (wrap.clientWidth !== this.viewportWidth()) {
+          this.viewportWidth.set(wrap.clientWidth);
+        }
         if (wrap.clientHeight !== this.viewportHeight()) {
           this.viewportHeight.set(wrap.clientHeight);
         }
@@ -1495,6 +1711,29 @@ export class NgTableComponent<T = any> implements OnDestroy {
         }
         this.lastGroupBy = current;
       });
+    });
+
+    // Modèle par blocs : nouvelle source ou nouveaux réglages de cache → on repart de zéro.
+    effect(() => {
+      this.remoteDatasource();
+      const size = Math.max(1, this.cacheBlockSize());
+      const maxBlocks = Math.max(1, this.maxBlocksInCache());
+      untracked(() => {
+        this.blockCache = new BlockCache<T>(size, maxBlocks);
+        this.blocksInFlight = 0;
+        this.blockVersion.update((version) => version + 1);
+      });
+    });
+
+    // Modèle par blocs : à chaque déplacement de la zone rendue ou arrivée d'un bloc,
+    // on demande les blocs manquants de la zone.
+    effect(() => {
+      const range = this.virtualRange();
+      this.blockVersion();
+      if (!this.blockMode() || !range) {
+        return;
+      }
+      untracked(() => this.loadVisibleBlocks(range));
     });
 
     // Un seul point d'émission de `queryStateChange`, quelle que soit l'origine du
@@ -1951,6 +2190,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   protected columnWidthPx(column: NgTableColumn<T>): number | null {
+    if (this.columnVirtualization()) {
+      return this.fixedColumnWidths().get(column.id) ?? null; // largeurs fixes : les espacements en dépendent
+    }
     const width = this.columnWidths()[column.id] ?? column.widthPx;
     return width && width > 0 ? width : null;
   }
@@ -2430,7 +2672,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       this.pageIndex.set(0);
     }
     if (this.dataMode() === 'remote') {
-      this.remoteQueryChange.emit(this.buildRemoteQuery(this.pageIndex(), this.pageSize()));
+      this.emitRemoteQuery(this.buildRemoteQuery(this.pageIndex(), this.pageSize()));
     }
   }
 
@@ -2675,7 +2917,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
         this.pageIndex.set(lastPage);
       }
     }
-    this.remoteQueryChange.emit(this.buildRemoteQuery(this.pageIndex(), size));
+    this.emitRemoteQuery(this.buildRemoteQuery(this.pageIndex(), size));
   }
 
   /** Libellé de la valeur d'un groupe : libellé d'option du filtre s'il existe, sinon la valeur. */
@@ -2734,7 +2976,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.pageSize.set(event.pageSize);
     this.pageIndex.set(event.pageIndex);
     if (this.dataMode() === 'remote') {
-      this.remoteQueryChange.emit(this.buildRemoteQuery(event.pageIndex, event.pageSize));
+      this.emitRemoteQuery(this.buildRemoteQuery(event.pageIndex, event.pageSize));
     }
   }
 
@@ -2973,7 +3215,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   protected onTableWrapScroll(event: Event): void {
     this.requestFilterPositionUpdate();
-    if (this.virtualScroll()) {
+    if (this.columnVirtualization()) {
+      this.scrollLeft.set((event.target as HTMLElement).scrollLeft);
+    }
+    if (this.virtualActive()) {
       this.scrollTop.set((event.target as HTMLElement).scrollTop);
     }
   }
@@ -3033,6 +3278,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (row instanceof NgTableSpacerRow) {
       return `__spacer__${row.position}`;
     }
+    if (row instanceof NgTableLoadingRow) {
+      return `__loading__${row.index}`;
+    }
     return this.trackByRow(index, row);
   };
 
@@ -3044,6 +3292,23 @@ export class NgTableComponent<T = any> implements OnDestroy {
   protected spacerRowWhen = (_: number, row: TableItem<T>): boolean => row instanceof NgTableSpacerRow;
 
   protected readonly spacerColumns = ['__spacer__'];
+
+  protected loadingRowWhen = (_: number, row: TableItem<T>): boolean => row instanceof NgTableLoadingRow;
+
+  protected readonly loadingColumns = ['__loading__'];
+
+  protected readonly columnSpacerSides = ['left', 'right'] as const;
+
+  /** Ligne d'attente d'un bloc en échec plutôt qu'en chargement. */
+  protected isFailedLoadingRow(row: NgTableLoadingRow): boolean {
+    this.blockVersion();
+    return this.blockCache.blockState(Math.floor(row.index / this.blockCache.blockSize)) === 'failed';
+  }
+
+  /** Hauteur des lignes d'attente : celle, mesurée, des lignes de données. */
+  protected loadingRowHeight(): number {
+    return this.rowHeight();
+  }
 
   protected dataRowWhen = (_: number, row: TableItem<T>): boolean => isDataItem(row);
 
@@ -3159,7 +3424,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       if (this.paginator() && this.pageIndex() !== 0) {
         this.pageIndex.set(0);
       }
-      this.remoteQueryChange.emit(this.buildRemoteQuery(0, this.pageSize()));
+      this.emitRemoteQuery(this.buildRemoteQuery(0, this.pageSize()));
       return;
     }
     const count = this.filteredSortedRows().length;
@@ -3181,6 +3446,92 @@ export class NgTableComponent<T = any> implements OnDestroy {
     }
     // Un texte identique ne modifie pas le DOM, donc n'est pas relu : on alterne un espace insécable.
     this.liveAnnouncement.update((previous) => (previous === text ? text + NBSP : text));
+  }
+
+  /**
+   * La requête serveur a changé (tri, filtres, recherche, page...). En modèle par blocs,
+   * le cache repart de zéro et les blocs visibles sont redemandés ; sinon, le parent est
+   * prévenu par `(remoteQueryChange)`.
+   */
+  private emitRemoteQuery(query: NgTableRemoteQuery): void {
+    if (this.blockMode()) {
+      this.resetBlocks(false);
+      return;
+    }
+    this.remoteQueryChange.emit(query);
+  }
+
+  /**
+   * Modèle par blocs : oublie les blocs chargés et redemande ceux affichés (par exemple
+   * après une modification des données côté serveur). Garde la position de défilement.
+   */
+  refreshRemoteDatasource(): void {
+    this.resetBlocks(true);
+  }
+
+  /** Nombre total de lignes côté serveur en modèle par blocs (`null` avant la première réponse). */
+  remoteRowCount(): number | null {
+    this.blockVersion();
+    return this.blockCache.totalCount;
+  }
+
+  private resetBlocks(keepPosition: boolean): void {
+    this.blockCache.purge(keepPosition);
+    this.blocksInFlight = 0;
+    if (!keepPosition) {
+      const wrap = this.tableWrapElement()?.nativeElement;
+      if (wrap) {
+        wrap.scrollTop = 0;
+      }
+      this.scrollTop.set(0);
+    }
+    this.blockVersion.update((version) => version + 1);
+  }
+
+  /** Demande les blocs manquants de la zone rendue, sans dépasser le nombre de requêtes simultanées. */
+  private loadVisibleBlocks(range: VirtualRange): void {
+    const datasource = this.remoteDatasource();
+    if (!datasource) {
+      return;
+    }
+    const size = this.blockCache.blockSize;
+    for (const blockIndex of this.blockCache.missingBlocks(range.start, range.end)) {
+      if (this.blocksInFlight >= Math.max(1, this.maxConcurrentBlockRequests())) {
+        return; // la suite partira quand une réponse libérera une place
+      }
+      const generation = this.blockCache.generation;
+      const request: NgTableBlockRequest = {
+        ...this.buildRemoteQuery(blockIndex, size),
+        page: {index: blockIndex, size},
+        groupBy: null,
+        collapsedGroups: [],
+        startRow: blockIndex * size,
+        endRow: (blockIndex + 1) * size,
+      };
+      this.blockCache.markLoading(blockIndex);
+      this.blocksInFlight++;
+      const result = datasource.getRows(request);
+      const promise = result instanceof Promise ? result : firstValueFrom(result);
+      promise.then(
+        (response) => this.onBlockSettled(generation, () => this.blockCache.resolve(generation, blockIndex, response.rows, response.totalCount)),
+        (error: unknown) =>
+          this.onBlockSettled(generation, () => {
+            this.blockCache.reject(generation, blockIndex);
+            this.remoteBlockError.emit({request, error});
+            return true;
+          }),
+      );
+    }
+  }
+
+  private onBlockSettled(generation: number, apply: () => boolean): void {
+    if (generation !== this.blockCache.generation) {
+      return; // réponse d'une requête périmée (tri, filtres... ont changé entre-temps)
+    }
+    this.blocksInFlight = Math.max(0, this.blocksInFlight - 1);
+    if (apply()) {
+      this.blockVersion.update((version) => version + 1);
+    }
   }
 
   /** `page.size` vaut `0` quand la pagination n'est pas suivie (= tout). */
@@ -3300,7 +3651,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (!hasSavedPagination) {
       this.onQueryStateChanged();
     } else if (this.dataMode() === 'remote') {
-      this.remoteQueryChange.emit({
+      this.emitRemoteQuery({
         ...this.buildRemoteQuery(state.pageIndex!, state.pageSize!),
         page: {index: state.pageIndex!, size: state.pageSize!},
       });
@@ -3332,7 +3683,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       this.internalSelectedKeys.set(next);
     }
 
-    const source = this.dataMode() === 'local' ? this.sourceRows() : this.rows();
+    const source = this.dataMode() === 'local' ? this.sourceRows() : this.blockMode() ? this.displayedRows() : this.rows();
     const selectedRows = source.filter((item) => next.has(this.rowKey(item)));
     this.selectionChange.emit({
       row,

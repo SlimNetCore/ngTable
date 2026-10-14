@@ -81,6 +81,12 @@ export function searchText<T>(row: T, columns: readonly NgTableColumn<T>[]): str
     .join('\n');
 }
 
+/** Valeur numérique d'une cellule pour les agrégats (nombre, ou texte numérique, virgule acceptée) ; `null` sinon. */
+export function numericValue(raw: unknown): number | null {
+  const value = typeof raw === 'number' ? raw : Number.parseFloat(`${raw ?? ''}`.replace(',', '.'));
+  return Number.isFinite(value) ? value : null;
+}
+
 export function getSortValue<T>(row: T, column: NgTableColumn<T>): SortValue {
   if (column.sortValueAccessor) {
     return column.sortValueAccessor(row) ?? null;

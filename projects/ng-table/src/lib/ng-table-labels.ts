@@ -123,6 +123,8 @@ export interface NgTableLabels {
   aggregateCount: string;
   /** Libellé de la ligne de totaux (`[showTotals]`). */
   totalsLabel: string;
+  /** Modèle par blocs : texte des lignes dont le bloc n'a pas pu être chargé. */
+  blockLoadError: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -197,6 +199,7 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   aggregateMax: 'Max',
   aggregateCount: 'Nb',
   totalsLabel: 'Total',
+  blockLoadError: 'Chargement impossible',
 };
 
 /**
@@ -279,6 +282,7 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   aggregateMax: 'Max',
   aggregateCount: 'Count',
   totalsLabel: 'Total',
+  blockLoadError: 'Could not load rows',
 };
 
 /**
