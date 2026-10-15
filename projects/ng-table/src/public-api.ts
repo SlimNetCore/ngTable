@@ -47,3 +47,5 @@ export {toStyledXlsx} from './lib/xlsx-styled';
 export type {StyledXlsxCell, StyledXlsxColumn, StyledXlsxOptions} from './lib/xlsx-styled';
 export type {SetFilterValue} from './lib/set-filter';
 export {NgTableSetFilterComponent} from './lib/ng-table-set-filter.component';
+export {resolveSelectionActions} from './lib/selection-actions';
+export type {NgTableSelectionAction, NgTableSelectionActionEvent, NgTableSelectionBarContext, ResolvedSelectionAction} from './lib/selection-actions';

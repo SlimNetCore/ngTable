@@ -1874,3 +1874,196 @@ button.ngt-tree-toggle:focus-visible {
   height: 16px;
   font-size: 16px;
 }
+
+/* --- Barre d'actions flottante de la sélection -------------------------------
+   Ancre sans hauteur, collée au bas de la fenêtre (sticky) tant que le bas du tableau n'est pas visible ; la barre flotte
+   au-dessus des lignes sans les décaler. Elle est « inversée » : fond sombre en thème clair, clair en thème sombre. */
+.ngt-action-dock {
+  position: sticky;
+  bottom: 20px;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  height: 0;
+  pointer-events: none;
+}
+
+.ngt-action-bar {
+  --bar-bg: var(--ngt-text, var(--app-text, #14212b));
+  --bar-fg: var(--ngt-surface, var(--app-surface, #ffffff));
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: calc(100% - 24px);
+  padding: 7px 8px 7px 12px;
+  overflow-x: auto;
+  border-radius: calc(var(--ngt-radius-card, 16px) + 4px);
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  font-size: 0.84rem;
+  white-space: nowrap;
+  box-shadow:
+    0 22px 44px -14px rgba(15, 23, 42, 0.55),
+    0 3px 8px rgba(15, 23, 42, 0.22),
+    inset 0 0 0 1px color-mix(in srgb, var(--bar-fg) 14%, transparent);
+  pointer-events: auto;
+  animation: ngt-bar-in 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  scrollbar-width: none;
+}
+
+.ngt-action-bar:focus {
+  outline: none;
+}
+
+.ngt-action-bar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes ngt-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ngt-action-bar {
+    animation: none;
+  }
+}
+
+.ngt-action-bar__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 2px;
+  font-weight: 600;
+}
+
+.ngt-action-bar__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  color: var(--ngt-on-primary, #ffffff);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ngt-action-bar__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: color-mix(in srgb, var(--bar-fg) 70%, transparent);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.ngt-action-bar__clear:hover {
+  background: color-mix(in srgb, var(--bar-fg) 16%, transparent);
+  color: var(--bar-fg);
+}
+
+.ngt-action-bar__clear ng-table-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.ngt-action-bar__link {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--bar-fg) 72%, transparent);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--bar-fg) 35%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ngt-action-bar__link:hover {
+  color: var(--bar-fg);
+}
+
+.ngt-action-bar__sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: color-mix(in srgb, var(--bar-fg) 20%, transparent);
+}
+
+.ngt-action-bar__action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--ngt-radius-button, 999px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.ngt-action-bar__action:hover:not(.ngt-action-bar__action--disabled) {
+  background: color-mix(in srgb, var(--bar-fg) 16%, transparent);
+}
+
+.ngt-action-bar__action:active:not(.ngt-action-bar__action--disabled) {
+  transform: scale(0.97);
+}
+
+.ngt-action-bar__action ng-table-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+.ngt-action-bar__action--primary {
+  background: var(--bar-fg);
+  color: var(--bar-bg);
+}
+
+.ngt-action-bar__action--primary:hover:not(.ngt-action-bar__action--disabled) {
+  background: color-mix(in srgb, var(--bar-fg) 88%, var(--bar-bg));
+}
+
+.ngt-action-bar__action--danger {
+  color: color-mix(in srgb, var(--ngt-danger, #b3261e) 38%, var(--bar-fg));
+}
+
+.ngt-action-bar__action--disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.ngt-action-bar button:focus-visible {
+  outline: 2px solid var(--bar-fg);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .ngt-action-bar__count-text {
+    display: none;
+  }
+}

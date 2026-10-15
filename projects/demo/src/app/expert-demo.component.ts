@@ -324,7 +324,8 @@ export class ExpertDemoComponent {
       sortable: true,
       groupable: true,
       editable: this.backend() === 'spring',
-      filter: {type: 'enum', options: CLIENTS.map((client) => ({value: client, label: client}))},
+      // Filtre par ensemble de valeurs : en mode serveur la table n'a qu'une page, les valeurs viennent donc de options.
+      filter: {type: 'set', options: CLIENTS.map((client) => ({value: client, label: client}))},
     },
     {
       id: 'statut',

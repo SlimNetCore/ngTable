@@ -223,7 +223,8 @@ export class FakeCommandesApi implements CommandesBackend {
   private filter(query: NgTableRemoteQuery): Uint32Array {
     const f = query.filters;
     const reference = f['reference'] ? normalize(f['reference']) : '';
-    const clients = f['client'] ? new Set(f['client'].split(',')) : null;
+    // Filtre « ensemble de valeurs » : tableau JSON des clients cochés (comme le serveur Spring).
+    const clients = f['client'] ? new Set<string>(JSON.parse(f['client']) as string[]) : null;
     const statuts = f['statut'] ? new Set(f['statut'].split(',')) : null;
     const [montantMin, montantMax] = f['montant'] ? range(f['montant']).map((v) => (v ? Number(v) : null)) : [null, null];
     const [dateFrom, dateTo] = f['dateCommande'] ? range(f['dateCommande']) : ['', ''];

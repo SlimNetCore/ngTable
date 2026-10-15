@@ -2,7 +2,7 @@
  * Côté fil principal du calcul en Web Worker (voir `worker-compute.ts`) : envoie les colonnes de valeurs une seule fois par
  * jeu de données, puis ne transmet plus que les réglages de chaque calcul.
  */
-import {FromWorker, packValues, RAW_PREFIX, SEARCH_KEY, SORT_PREFIX, sortValueReader, ToWorker, WorkerRequest, WorkerValues} from './worker-compute';
+import {FromWorker, isPackedStrings, packValues, RAW_PREFIX, SEARCH_KEY, SORT_PREFIX, sortValueReader, ToWorker, WorkerRequest, WorkerValues} from './worker-compute';
 import type {NgTableColumn} from './ng-table.component';
 import type {SortLevel} from './row-pipeline';
 import {NG_TABLE_WORKER_SOURCE} from './worker-source.generated';
@@ -87,7 +87,7 @@ export class ComputeWorkerClient {
     }
     if (Object.keys(entries).length > 0 || !this.announced) {
       this.announced = true;
-      const transfer = Object.values(entries).flatMap((values) => (values instanceof Float64Array ? [values.buffer] : []));
+      const transfer = Object.values(entries).flatMap((values) => (values instanceof Float64Array ? [values.buffer] : isPackedStrings(values) ? [values.packedStrings.buffer] : []));
       worker.postMessage({type: 'data', dataset: this.dataset, count: rows.length, entries}, transfer);
     }
 

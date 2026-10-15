@@ -18,6 +18,7 @@ export type NgTableIconName =
   | 'file_upload'
   | 'filter_alt'
   | 'filter_alt_off'
+  | 'more_horiz'
   | 'north'
   | 'push_pin'
   | 'radio_button_checked'
@@ -102,6 +103,9 @@ export type NgTableIconName =
         }
         @case ('filter_alt_off') {
           <path d="M4.6 5.5h14.8a.6.6 0 0 1 .46 1L14 13.3V19l-4 1.5v-7.2L4.14 6.5a.6.6 0 0 1 .46-1z"/><path d="M3.5 3.5l17 17"/>
+        }
+        @case ('more_horiz') {
+          <g fill="currentColor" stroke="none"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></g>
         }
         @case ('north') {
           <path d="M12 19.5V5M6.5 10.5L12 5l5.5 5.5"/>

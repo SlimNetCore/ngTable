@@ -149,6 +149,14 @@ export interface NgTableLabels {
   statusRows: string;
   statusRowsOf: string;
   statusSelected: string;
+  /** Barre d'actions de sélection : nom accessible, nombre de lignes, désélection, tout sélectionner, autres actions. */
+  selectionBarLabel: string;
+  /** Texte à côté du nombre de lignes (le nombre est dans la pastille) : « ligne sélectionnée » / « lignes sélectionnées ». */
+  selectionCountOne: string;
+  selectionCountMany: string;
+  selectionClear: string;
+  selectionSelectAll: string;
+  selectionMore: string;
   statusCells: string;
   statusSum: string;
   statusAvg: string;
@@ -268,6 +276,12 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   statusRows: '{count} lignes',
   statusRowsOf: '{count} sur {total} lignes',
   statusSelected: '{count} sélectionnée(s)',
+  selectionBarLabel: 'Actions sur la sélection',
+  selectionCountOne: 'ligne sélectionnée',
+  selectionCountMany: 'lignes sélectionnées',
+  selectionClear: 'Tout désélectionner',
+  selectionSelectAll: 'Tout sélectionner ({count})',
+  selectionMore: 'Autres actions',
   statusCells: '{count} cellules',
   statusSum: 'Somme',
   statusAvg: 'Moyenne',
@@ -391,6 +405,12 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   statusRows: '{count} rows',
   statusRowsOf: '{count} of {total} rows',
   statusSelected: '{count} selected',
+  selectionBarLabel: 'Actions on the selection',
+  selectionCountOne: 'row selected',
+  selectionCountMany: 'rows selected',
+  selectionClear: 'Clear selection',
+  selectionSelectAll: 'Select all ({count})',
+  selectionMore: 'More actions',
   statusCells: '{count} cells',
   statusSum: 'Sum',
   statusAvg: 'Average',

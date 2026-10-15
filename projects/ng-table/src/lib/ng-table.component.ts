@@ -90,6 +90,7 @@ import {
 } from './cell-range';
 import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
 import {ComputeWorkerClient, ComputeWorkerLike, createDefaultComputeWorker} from './compute-worker-client';
+import {NgTableSelectionAction, NgTableSelectionActionEvent, NgTableSelectionBarContext, resolveSelectionActions, ResolvedSelectionAction} from './selection-actions';
 import {StyledXlsxCell, StyledXlsxColumn, StyledXlsxOptions, toStyledXlsx} from './xlsx-styled';
 import {formatRangeValue, matchesSearchTerms, NgTableTextOperator, searchTerms} from './filter-matching';
 import {
@@ -918,10 +919,32 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly inlineFilterColumnIds = input<readonly string[] | null>(null);
   /** Show a summary bar of the active filters below the list. */
   readonly showActiveFiltersBar = input(false);
+  /**
+   * Barre d'actions flottante en bas du tableau, affichée quand des lignes sont sélectionnées (avec `[rowSelectionEnabled]`) :
+   * le nombre de lignes, un bouton pour tout désélectionner, et les `[selectionActions]`. S'utilise seule ou avec le menu
+   * contextuel (`[rowContextMenuEnabled]`) : ce sont deux façons indépendantes d'agir sur les lignes.
+   */
+  readonly selectionBar = input(false);
+  /**
+   * Actions de la barre. Chacune peut déclarer une règle métier sur la sélection (`when`, `minRows`, `maxRows`) et, si elle
+   * n'est pas respectée, disparaître ou être grisée avec sa raison. Voir `NgTableSelectionAction`.
+   */
+  readonly selectionActions = input<readonly NgTableSelectionAction<T>[]>([]);
+  /**
+   * Règle métier d'affichage de la barre : elle n'apparaît que si la sélection la satisfait (ex. uniquement des commandes
+   * à traiter). Sans règle, la barre apparaît dès qu'une ligne est sélectionnée.
+   */
+  readonly selectionBarWhen = input<((rows: readonly T[]) => boolean) | null>(null);
+  /** Nombre d'actions montrées dans la barre ; les suivantes passent dans le menu « Autres actions ». */
+  readonly selectionBarMaxActions = input(4);
+  /** Contenu libre ajouté dans la barre, après le compteur (`NgTableSelectionBarContext`). */
+  readonly selectionBarTemplate = input<TemplateRef<NgTableSelectionBarContext<T>> | null>(null);
+  /** Une action de la barre a été choisie. */
+  readonly selectionAction = output<NgTableSelectionActionEvent<T>>();
   /** Enable right-click contextual menu on data rows. */
   readonly rowContextMenuEnabled = input(false);
   /** Context menu content provided by parent component. */
-  readonly rowContextMenuTemplate = input<TemplateRef<{ $implicit: T; row: T }> | null>(null);
+  readonly rowContextMenuTemplate = input<TemplateRef<{ $implicit: T; row: T; selectedRows: readonly T[] }> | null>(null);
 
   /**
    * `local` (défaut): tri/filtres appliqués sur `rows()` côté client.
@@ -3934,6 +3957,117 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return count > 0 && count < this.displayedRows().length;
   });
 
+  // ------------------------------------------------------------------ barre d'actions de sélection
+
+  /** Lignes déjà vues quand elles ont été sélectionnées : en mode distant, la page courante ne les contient pas toutes. */
+  private readonly selectedRowCache = new Map<unknown, T>();
+
+  /** Lignes sélectionnées, dans l'ordre d'arrivée (local) ou d'affichage (distant). Calculées seulement si la barre est active. */
+  protected readonly selectedRowsList = computed<readonly T[]>(() => {
+    if (!this.selectionBar() || !this.rowSelectionEnabled()) {
+      return [];
+    }
+    const keys = this.selectedKeysSet();
+    if (keys.size === 0) {
+      return [];
+    }
+    if (this.dataMode() === 'local') {
+      const store = this.syncedStore();
+      this.dataVersion();
+      const rows: T[] = [];
+      for (const key of keys) {
+        const row = store.get(key);
+        if (row !== undefined) {
+          rows.push(row);
+        }
+      }
+      return rows;
+    }
+    const shown = new Map(this.displayedRows().map((row) => [this.rowKey(row), row] as const));
+    const rows: T[] = [];
+    for (const key of keys) {
+      const row = shown.get(key) ?? this.selectedRowCache.get(key);
+      if (row !== undefined) {
+        rows.push(row);
+      }
+    }
+    return rows;
+  });
+
+  /** Lignes sélectionnées, pour un menu contextuel qui agit sur la sélection (selectedRows dans son contexte). */
+  protected readonly contextSelectedRows = computed<readonly T[]>(() => {
+    this.dataVersion();
+    const keys = this.selectedKeysSet();
+    if (!this.rowSelectionEnabled() || keys.size === 0) {
+      return [];
+    }
+    return this.dataMode() === 'local'
+      ? [...keys].map((key) => this.syncedStore().get(key)).filter((row): row is T => row !== undefined)
+      : this.displayedRows().filter((row) => keys.has(this.rowKey(row)));
+  });
+
+  /** La barre est visible : une sélection non vide qui satisfait la règle d'affichage. */
+  protected readonly selectionBarVisible = computed(() => {
+    if (!this.selectionBar() || !this.rowSelectionEnabled() || this.selectedRowsCount() === 0) {
+      return false;
+    }
+    const rule = this.selectionBarWhen();
+    if (!rule) {
+      return true;
+    }
+    try {
+      return rule(this.selectedRowsList());
+    } catch {
+      return false;
+    }
+  });
+
+  private readonly resolvedSelectionActions = computed(() => resolveSelectionActions(this.selectionActions(), this.selectedRowsList()));
+  protected readonly shownSelectionActions = computed(() => this.resolvedSelectionActions().slice(0, Math.max(1, this.selectionBarMaxActions())));
+  protected readonly moreSelectionActions = computed(() => this.resolvedSelectionActions().slice(Math.max(1, this.selectionBarMaxActions())));
+
+  protected readonly selectionCountLabel = computed(() => {
+    const labels = this.effectiveLabels();
+    const count = this.selectedRowsCount();
+    return count === 1 ? labels.selectionCountOne : labels.selectionCountMany;
+  });
+
+  /** « Tout sélectionner » : proposé tant que des lignes filtrées ne sont pas sélectionnées (mode local). */
+  protected readonly selectableTotal = computed(() => (this.dataMode() === 'local' ? this.filteredSortedRows().length : 0));
+
+  protected readonly selectionContext = computed<NgTableSelectionBarContext<T>>(() => ({
+    $implicit: this.selectedRowsList(),
+    rows: this.selectedRowsList(),
+    count: this.selectedRowsCount(),
+    clear: () => this.clearSelection(),
+  }));
+
+  protected onSelectionAction(item: ResolvedSelectionAction<T>): void {
+    if (!item.enabled) {
+      return;
+    }
+    const rows = [...this.selectedRowsList()];
+    item.action.run?.(rows);
+    this.selectionAction.emit({action: item.action, rows});
+  }
+
+  /** Désélectionne toutes les lignes (la barre disparaît). */
+  clearSelection(): void {
+    if (this.selectedKeysSet().size === 0) {
+      return;
+    }
+    this.selectedRowCache.clear();
+    this.commitSelection(new Set(), null, false);
+    this.announce([this.effectiveLabels().selectionClear]);
+  }
+
+  /** Sélectionne toutes les lignes filtrées (mode local), pas seulement la page affichée. */
+  selectAllFiltered(): void {
+    if (this.dataMode() !== 'local') {
+      return;
+    }
+    this.commitSelection(new Set(this.filteredSortedRows().map((row) => this.rowKey(row))), null, true);
+  }
   protected onToggleRowSelection(event: NgTableCheckboxChange, row: T): void {
     const checked = !!event.checked;
     const key = this.rowKey(row);
@@ -5255,6 +5389,16 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
     const source = this.dataMode() === 'local' ? this.sourceRows() : this.blockMode() ? this.displayedRows() : this.rows();
     const selectedRows = source.filter((item) => next.has(this.rowKey(item)));
+    if (this.dataMode() !== 'local') {
+      for (const key of [...this.selectedRowCache.keys()]) {
+        if (!next.has(key)) {
+          this.selectedRowCache.delete(key);
+        }
+      }
+      for (const item of selectedRows) {
+        this.selectedRowCache.set(this.rowKey(item), item);
+      }
+    }
     this.selectionChange.emit({
       row,
       selected,

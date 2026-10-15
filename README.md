@@ -338,7 +338,7 @@ Pour une colonne qui a peu de valeurs distinctes (statut, client, zone), le filt
 - Les valeurs viennent des lignes elles-mêmes (mode local), triées naturellement, **cellules vides comprises** (« (Vides) ») ; une date est représentée par son jour `YYYY-MM-DD`. Au-delà de 10 000 valeurs distinctes la liste est tronquée et la recherche prend le relais (300 cases affichées à la fois).
 - Tout cocher revient à ne pas filtrer. La valeur du filtre est un **tableau JSON** des clés cochées (`["Nord","Sud, Est",""]`) : une valeur peut contenir une virgule, contrairement à l'`enum` (CSV). `[]` ne garde aucune ligne.
 - La barre des filtres actifs résume le choix (`Dupont SA, Martin SARL, Petit Commerce +2`).
-- En mode `remote`, la table n'a qu'une page : fournissez les valeurs par `filter.options` (ou `optionsLoader`) ; elles s'affichent sans effectif, et le serveur reçoit la valeur JSON dans `NgTableRemoteQuery.filters`.
+- En mode `remote`, la table n'a qu'une page : fournissez les valeurs par `filter.options` (ou `optionsLoader`) ; elles s'affichent sans effectif, et le serveur reçoit la valeur JSON dans `NgTableRemoteQuery.filters`. Côté Spring, déclarez la colonne `NgTableColumn.of("client").filter(SET)` : `NgTableJpaSearch` lit le tableau JSON (`IN (...)`, plus `IS NULL` pour la valeur vide ; `[]` ne garde rien ; autre chose qu'un tableau de chaînes : 400).
 - Pour un filtre sur mesure, `compileSetMatcher`, `parseSetFilter`, `serializeSetFilter` et `distinctSetValues` sont dans `set-filter.ts` ; le composant est exporté (`NgTableSetFilterComponent`).
 - Textes : `labels.selectAll`, `labels.blanks`, `labels.setFilterTruncated`.
 ### Étape 4 — Filtres en ligne (inline) vs en menu
@@ -764,6 +764,7 @@ Au-delà de quelques centaines de milliers de lignes, un tri de texte ou un filt
 - **S'applique** en mode local, sans données arborescentes, quand le nombre de lignes atteint `[workerThreshold]` (100 000 par défaut). Un filtre à `filterPredicate` (fonction) se calcule sur le fil principal.
 - **Données vivantes** : chaque transaction recalcule tout dans le worker. Pour un flux d'écritures fréquentes, gardez le calcul sur le fil principal (pipeline incrémental) : il fusionne 1 000 mises à jour sur 1 000 000 de lignes en quelques millisecondes.
 - **Échec** (CSP interdisant les `Blob`, plantage du worker) : la table revient d'elle-même au fil principal, avec un avertissement dans la console. Avec une politique de sécurité stricte, fournissez votre worker par `[computeWorkerFactory]` : il doit exécuter `ng-table.worker` (le fichier est dans les sources de la bibliothèque).
+- **Coût sur le fil principal**, mesuré sur 1 000 000 de lignes (Node, machine de développement) : extraire et empaqueter une colonne numérique ~40 ms, une colonne de textes ~155 ms (les textes partent en **un seul tampon** UTF-8 transféré sans copie ; les copier un par un coûtait ~560 ms), puis reconstituer les lignes triées ~20 à 80 ms. Le tri lui-même (0,2 à 2,5 s selon la colonne et le nombre de valeurs distinctes) se fait dans le worker ; un second tri sur une colonne déjà envoyée ne coûte plus que ses ~80 ms. La page `/benchmark` a un banc « Calcul en Web Worker » qui mesure le gel du fil principal avec et sans worker.
 - Le worker est livré **empaqueté dans la bibliothèque** (une source JavaScript de 12 Ko chargée dans un `Blob`, générée par `npm run worker:bundle`) : aucune configuration de l'application.
 ### Étape 10sexdecies — Performances sur de gros volumes
 
@@ -1093,6 +1094,36 @@ onSelectionChange(event: NgTableSelectionChangeEvent<Commande>): void {
 
 `rowKeyAccessor` est recommandé dès que la sélection est utilisée, pour une clé de ligne fiable (ici `row.id`, mais utile si votre backend n'expose pas toujours un `id` stable). Mode contrôlé disponible via `[selectedRowKeys]`, symétrique au pattern de la visibilité des colonnes.
 
+### Barre d'actions flottante sur la sélection
+
+Quand l'utilisateur coche des lignes, une **barre flottante** apparaît en bas du tableau avec le nombre de lignes et les actions possibles. Elle s'active **seule ou avec le menu contextuel** (étape 14) : ce sont deux manières indépendantes d'agir sur les lignes (`[selectionBar]` et `[rowContextMenuEnabled]`).
+
+```html
+<ng-table [columns]="columns" [rows]="rows" [rowSelectionEnabled]="true"
+          [selectionBar]="true" [selectionActions]="actions" (selectionAction)="onAction($event)"/>
+```
+
+```ts
+actions: NgTableSelectionAction<Commande>[] = [
+  {id: 'valider', label: 'Valider', icon: 'check', appearance: 'primary',
+   when: (rows) => rows.every((c) => c.statut === 'BROUILLON'),                 // règle métier sur la sélection
+   otherwise: 'disable', disabledReason: 'Seules les commandes en brouillon peuvent être validées',
+   run: (rows) => this.api.valider(rows)},                                      // exécutée au clic
+  {id: 'exporter', label: 'Exporter', icon: 'download'},                         // toujours possible
+  {id: 'modifier', label: 'Modifier', icon: 'content_copy', maxRows: 1},         // une seule ligne : sinon masquée
+  {id: 'annuler', label: 'Annuler', icon: 'close', appearance: 'danger',
+   when: (rows) => rows.every((c) => c.statut !== 'EXPEDIEE')},
+];
+```
+
+- **Règles métier par action** : `when(rows)` (prédicat sur les lignes sélectionnées), `minRows` (défaut 1) et `maxRows`. Une règle non respectée **masque** l'action (défaut) ou, avec `otherwise: 'disable'`, la **grise** et affiche `disabledReason` (texte ou fonction de la sélection) en info-bulle. Une règle qui lève une exception compte comme non respectée.
+- **Règle d'affichage de la barre** : `[selectionBarWhen]="(rows) => rows.every(...)"` : la barre n'apparaît que si la sélection la satisfait (sinon dès qu'une ligne est cochée).
+- **Apparence** : pastille « inversée » (sombre en thème clair, claire en thème sombre) qui flotte au bas de la fenêtre tant que le bas du tableau n'est pas visible, sans décaler les lignes. `appearance: 'primary'` donne un bouton plein, `'danger'` une action destructrice. Elle se règle par les jetons `--ngt-*` (rayon, accent, texte, surface) ; `prefers-reduced-motion` coupe l'animation.
+- **Dans la barre** : le compteur, ✕ « Tout désélectionner » (aussi la touche Échap dans la barre), « Tout sélectionner (N) » (toutes les lignes filtrées, mode local), puis les actions. Au-delà de `[selectionBarMaxActions]` (4 par défaut), les suivantes passent dans le menu « Autres actions ». `[selectionBarTemplate]` ajoute du contenu libre (contexte : `rows`, `count`, `clear()`).
+- **Retour** : `(selectionAction)` émet `{action, rows}` ; `clearSelection()` et `selectAllFiltered()` sont publiques. `icon` est un nom de `ng-table-icon` (`check`, `download`, `delete`, `close`, `file_upload`, `content_copy`...).
+- **Menu contextuel** : le gabarit reçoit aussi `selectedRows` (`let-row` + `let-selectedRows="selectedRows"`) pour une action « sur la sélection ».
+- **Mode distant** : les lignes sélectionnées sont celles de la page courante plus celles déjà vues quand elles ont été cochées ; une clé fournie en `[selectedRowKeys]` mais jamais affichée n'a pas de ligne associée.
+- Accessibilité : `role="toolbar"` nommé, compteur annoncé (`aria-live`), action grisée en `aria-disabled` avec sa raison en info-bulle. Textes : `labels.selectionBarLabel`, `selectionCountOne`, `selectionCountMany`, `selectionClear`, `selectionSelectAll`, `selectionMore`.
 ### Étape 13 — Ligne détail (master/detail)
 
 Affichez le détail d'une commande (ses lignes) en dépliant la ligne au clic — mode non contrôlé, le plus simple :

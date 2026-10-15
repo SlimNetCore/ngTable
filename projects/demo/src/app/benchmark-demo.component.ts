@@ -9,6 +9,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import {DecimalPipe} from '@angular/common';
 import {AllCommunityModule, ColDef, createGrid, GridApi, ModuleRegistry} from 'ag-grid-community';
 import {NgTableColumn, NgTableComponent} from '@sbourahla/ng-table';
 
@@ -54,10 +55,41 @@ interface Adapter {
 }
 
 class NgTableAdapter implements Adapter {
-  readonly name = 'ng-table';
+  readonly name: string;
   private ref: ComponentRef<NgTableComponent<Row>> | null = null;
+  /** Un calcul en worker est en cours (jamais vrai hors mode worker). */
+  private busy = false;
+  /** Résultat du worker au moment de expectCompute() : un résultat différent signale la fin du calcul attendu. */
+  private resultBefore: unknown = null;
 
-  constructor(private readonly injector: EnvironmentInjector, private readonly appRef: ApplicationRef) {}
+  constructor(
+    private readonly injector: EnvironmentInjector,
+    private readonly appRef: ApplicationRef,
+    private readonly worker = false,
+  ) {
+    this.name = worker ? 'ng-table (worker)' : 'ng-table';
+  }
+
+  /** Résolu quand le résultat de la dernière opération est affiché (hors mode worker : tout de suite). */
+  async idle(expectCompute = false): Promise<void> {
+    await macrotask();
+    await macrotask();
+    // (computing) passe par la détection de changements : un calcul court peut y passer sans jamais apparaître. On attend
+    // donc un nouveau résultat (le signal du worker), pas un drapeau.
+    const deadline = performance.now() + 120_000;
+    while ((this.busy || (this.worker && expectCompute && this.workerResult() === this.resultBefore)) && performance.now() < deadline) {
+      await macrotask();
+    }
+  }
+
+  /** À appeler juste avant une opération qui lance un calcul en worker. */
+  expectCompute(): void {
+    this.resultBefore = this.workerResult();
+  }
+
+  private workerResult(): unknown {
+    return (this.ref!.instance as unknown as Record<string, () => unknown>)['workerResult']();
+  }
 
   mount(host: HTMLElement, rows: Row[]): void {
     const columns: NgTableColumn<Row>[] = [
@@ -77,10 +109,12 @@ class NgTableAdapter implements Adapter {
       maxHeight: '480px',
       density: 'compact',
       multiSort: true,
+      ...(this.worker ? {workerCompute: true, workerThreshold: 1} : {}),
     };
     for (const [name, value] of Object.entries(inputs)) {
       this.ref.setInput(name, value);
     }
+    this.ref.instance.computing.subscribe((busy) => (this.busy = busy));
     this.appRef.attachView(this.ref.hostView);
   }
 
@@ -224,6 +258,49 @@ const SCENARIOS: Scenario[] = [
   },
 ];
 
+
+/** Scénarios du banc « calcul en worker » : les trois opérations les plus lourdes pour le fil principal. */
+const WORKER_SCENARIOS = SCENARIOS.filter((scenario) => ['sort-number', 'sort-text', 'filter-text'].includes(scenario.id));
+
+interface WorkerMeasure {
+  /** Plus longue période sans que le fil principal réponde, 1re fois puis ensuite (médiane). */
+  freezeCold: number;
+  freezeWarm: number;
+  /** Temps jusqu'au résultat affiché, 1re fois puis ensuite (médiane). */
+  totalCold: number;
+  totalWarm: number;
+}
+
+interface WorkerResult {
+  size: number;
+  modes: Record<string, Record<string, WorkerMeasure>>;
+  finishedAt: string;
+}
+
+/**
+ * Pendant `operation`, relève la plus longue durée entre deux tours de la boucle d'événements : c'est le gel perçu par
+ * l'utilisateur (saisie, défilement, animations).
+ */
+async function withFreezeProbe(operation: () => Promise<void>): Promise<{freeze: number; total: number}> {
+  let stop = false;
+  let longest = 0;
+  let last = performance.now();
+  const beat = (async () => {
+    while (!stop) {
+      await macrotask();
+      const now = performance.now();
+      longest = Math.max(longest, now - last);
+      last = now;
+    }
+  })();
+  const started = performance.now();
+  last = started;
+  await operation();
+  const total = performance.now() - started;
+  stop = true;
+  await beat;
+  return {freeze: longest, total};
+}
 /** Médiane en millisecondes de chaque scénario (de l’appel à l’image suivante affichée). */
 type Measure = Record<string, number>;
 
@@ -296,6 +373,7 @@ const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floo
 @Component({
   selector: 'app-benchmark-demo',
   standalone: true,
+  imports: [DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-bottom: 12px; }
@@ -373,6 +451,38 @@ const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floo
     </div>
 
     <div class="demo-card" style="margin-top: 16px">
+      <h2>Calcul en Web Worker</h2>
+      <p class="hint">
+        Compare ng-table sur le fil principal et avec <code>[workerCompute]</code> : le <b>gel</b> est la plus longue durée sans
+        réponse du fil principal pendant l'opération (ce que l'utilisateur ressent), le <b>total</b> le temps jusqu'au résultat affiché.
+        Chaque cellule donne la 1re fois (avec l'envoi des colonnes au worker) puis la médiane des suivantes.
+      </p>
+      <div class="controls">
+        <button (click)="startWorker()" [disabled]="running()" type="button">{{ running() ? 'Mesure en cours…' : 'Mesurer le worker' }}</button>
+      </div>
+      @if (workerResult(); as w) {
+        <table class="results">
+          <thead>
+            <tr><th>Opération ({{ w.size.toLocaleString('fr-FR') }} lignes)</th><th>Gel, fil principal</th><th>Gel, worker</th><th>Total, fil principal</th><th>Total, worker</th></tr>
+          </thead>
+          <tbody>
+            @for (row of workerRows(); track row.id) {
+              <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.main.freezeCold | number: '1.0-0' }} / {{ row.main.freezeWarm | number: '1.0-0' }} ms</td>
+                <td [class.win]="row.worker.freezeWarm < row.main.freezeWarm">{{ row.worker.freezeCold | number: '1.0-0' }} / {{ row.worker.freezeWarm | number: '1.0-0' }} ms</td>
+                <td>{{ row.main.totalCold | number: '1.0-0' }} / {{ row.main.totalWarm | number: '1.0-0' }} ms</td>
+                <td>{{ row.worker.totalCold | number: '1.0-0' }} / {{ row.worker.totalWarm | number: '1.0-0' }} ms</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <button (click)="copyWorker()" type="button">Copier le rapport (Markdown)</button>
+        <pre class="report">{{ workerReport() }}</pre>
+      }
+    </div>
+
+    <div class="demo-card" style="margin-top: 16px">
       <h2>Grille mesurée</h2>
       <div #stage class="stage" aria-hidden="true"></div>
     </div>
@@ -388,7 +498,34 @@ export class BenchmarkDemoComponent {
   protected readonly running = signal(false);
   protected readonly progress = signal('');
   protected readonly result = signal<Result | null>(null);
-
+  protected readonly workerResult = signal<WorkerResult | null>(null);
+  protected readonly workerRows = computed(() => {
+    const r = this.workerResult();
+    if (!r) {
+      return [];
+    }
+    return WORKER_SCENARIOS.map((scenario) => {
+      const main = r.modes['ng-table'][scenario.id];
+      const worker = r.modes['ng-table (worker)'][scenario.id];
+      const f = (value: number) => Math.round(value).toLocaleString('fr-FR');
+      return {id: scenario.id, label: scenario.label, main, worker, text: `| ${scenario.label} | ${f(main.freezeCold)} / ${f(main.freezeWarm)} | ${f(worker.freezeCold)} / ${f(worker.freezeWarm)} | ${f(main.totalCold)} / ${f(main.totalWarm)} | ${f(worker.totalCold)} / ${f(worker.totalWarm)} |`};
+    });
+  });
+  protected readonly workerReport = computed(() => {
+    const r = this.workerResult();
+    if (!r) {
+      return '';
+    }
+    return [
+      `Calcul en worker — ng-table, ${r.size.toLocaleString('fr-FR')} lignes, ${r.finishedAt}`,
+      `Navigateur : ${navigator.userAgent} — ${navigator.hardwareConcurrency} coeurs logiques`,
+      'Chaque cellule : 1re fois / ensuite (médiane). Gel = plus longue durée sans réponse du fil principal ; total = jusqu\'au résultat affiché.',
+      '',
+      '| Opération | Gel, fil principal (ms) | Gel, worker (ms) | Total, fil principal (ms) | Total, worker (ms) |',
+      '|---|---:|---:|---:|---:|',
+      ...this.workerRows().map((row) => row.text),
+    ].join('\n');
+  });
   protected readonly table = computed(() => {
     const r = this.result();
     if (!r) {
@@ -432,6 +569,71 @@ export class BenchmarkDemoComponent {
 
   protected async copy(): Promise<void> {
     await navigator.clipboard?.writeText(this.report());
+  }
+
+  /** Gel du fil principal et temps total d'un tri / filtre, avec et sans worker, sur les mêmes lignes. */
+  protected async startWorker(): Promise<void> {
+    if (this.running()) {
+      return;
+    }
+    this.running.set(true);
+    settleMode = await detectSettleMode();
+    const size = this.size();
+    const rows = makeRows(size);
+    const stage = document.querySelector<HTMLElement>('.stage')!;
+    const modes: WorkerResult['modes'] = {};
+    const adapters = [new NgTableAdapter(this.injector, this.appRef), new NgTableAdapter(this.injector, this.appRef, true)];
+    try {
+      for (const adapter of adapters) {
+        this.progress.set(`Worker : ${adapter.name} : chargement…`);
+        stage.replaceChildren();
+        const host = document.createElement('div');
+        host.style.height = '100%';
+        stage.appendChild(host);
+        await settle();
+        adapter.mount(host, rows);
+        await settle();
+        modes[adapter.name] = {};
+        for (const scenario of WORKER_SCENARIOS) {
+          this.progress.set(`Worker : ${adapter.name} : ${scenario.label}…`);
+          const freezes: number[] = [];
+          const totals: number[] = [];
+          for (let run = 0; run < this.runs; run++) {
+            scenario.reset?.(adapter);
+            await adapter.idle();
+            await settle();
+            const probe = await withFreezeProbe(async () => {
+              adapter.expectCompute();
+              scenario.run(adapter, {rows, size, run});
+              await adapter.idle(true);
+              await settle();
+            });
+            freezes.push(probe.freeze);
+            totals.push(probe.total);
+          }
+          modes[adapter.name][scenario.id] = {
+            freezeCold: freezes[0],
+            freezeWarm: median(freezes.slice(1)),
+            totalCold: totals[0],
+            totalWarm: median(totals.slice(1)),
+          };
+        }
+        adapter.destroy();
+        stage.replaceChildren();
+        await settle();
+      }
+      this.workerResult.set({size, modes, finishedAt: new Date().toLocaleString('fr-FR')});
+      this.progress.set('Terminé.');
+    } catch (error) {
+      this.progress.set(`Erreur : ${error instanceof Error ? error.message : String(error)}`);
+      adapters.forEach((adapter) => adapter.destroy());
+    } finally {
+      this.running.set(false);
+    }
+  }
+
+  protected async copyWorker(): Promise<void> {
+    await navigator.clipboard?.writeText(this.workerReport());
   }
 
   protected async start(): Promise<void> {

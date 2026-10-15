@@ -16,8 +16,19 @@ import {buildSortOrder} from './fast-sort';
 import {getSortValue, SortLevel, sortRows} from './row-pipeline';
 import type {NgTableColumn} from './ng-table.component';
 
-/** Valeurs d'une colonne, une par ligne : des nombres compacts quand tout est numérique, sinon un tableau. */
-export type WorkerValues = Float64Array | unknown[];
+/**
+ * Valeurs d'une colonne, une par ligne : des nombres compacts quand tout est numérique, du texte encodé en un seul tampon quand
+ * tout est du texte, sinon un tableau. Le tampon se transfère sans copie, alors que copier un million de chaînes bloque le fil
+ * principal plusieurs centaines de millisecondes.
+ */
+export type WorkerValues = Float64Array | PackedStrings | unknown[];
+
+/** Chaînes séparées par un caractère nul, encodées en UTF-8. */
+export interface PackedStrings {
+  packedStrings: Uint8Array;
+}
+
+const STRING_SEPARATOR = '\u0000';
 
 /** Préfixes des colonnes envoyées : `v:id` valeurs brutes (filtre), `s:id` valeurs de tri, `h` textes de recherche. */
 export const RAW_PREFIX = 'v:';
@@ -47,16 +58,17 @@ export type FromWorker = {type: 'done'; job: number; order: Uint32Array} | {type
 
 /** Colonnes d'un jeu de données et calcul de l'ordre des lignes retenues. */
 export class WorkerComputeCore {
-  private datasets = new Map<number, {count: number; columns: Map<string, WorkerValues>}>();
+  private datasets = new Map<number, {count: number; columns: Map<string, Float64Array | unknown[]>}>();
 
   addData(dataset: number, count: number, entries: Record<string, WorkerValues>): void {
+    const decoder = new TextDecoder();
     let data = this.datasets.get(dataset);
     if (!data) {
       data = {count, columns: new Map()};
       this.datasets.set(dataset, data);
     }
     for (const [key, values] of Object.entries(entries)) {
-      data.columns.set(key, values);
+      data.columns.set(key, isPackedStrings(values) ? decoder.decode(values.packedStrings).split(STRING_SEPARATOR) : values);
     }
   }
 
@@ -70,7 +82,7 @@ export class WorkerComputeCore {
     if (!data) {
       throw new Error(`Jeu de données inconnu : ${dataset}`);
     }
-    const column = (key: string): WorkerValues => {
+    const column = (key: string): Float64Array | unknown[] => {
       const values = data.columns.get(key);
       if (!values) {
         throw new Error(`Colonne non envoyée : ${key}`);
@@ -136,7 +148,17 @@ export function packValues(rows: readonly unknown[], read: (row: never) => unkno
       numeric = false;
     }
   }
-  return numeric ? Float64Array.from(values as number[]) : values;
+  if (numeric) {
+    return Float64Array.from(values as number[]);
+  }
+  if (count > 1000 && values.every((value) => typeof value === 'string' && !value.includes(STRING_SEPARATOR))) {
+    return {packedStrings: new TextEncoder().encode((values as string[]).join(STRING_SEPARATOR))};
+  }
+  return values;
+}
+
+export function isPackedStrings(values: WorkerValues): values is PackedStrings {
+  return !Array.isArray(values) && !(values instanceof Float64Array);
 }
 
 /** Valeur de tri d'une ligne pour un niveau : celle que calculerait le fil principal. */

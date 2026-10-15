@@ -10,6 +10,8 @@ import {
   NgTableCopyEvent,
   NgTableExportFormat,
   NgTableFilterOption,
+  NgTableSelectionAction,
+  NgTableSelectionActionEvent,
 } from '@sbourahla/ng-table';
 import {NgTableUrlStateDirective} from '@sbourahla/ng-table/router';
 import {PageBarComponent} from './page-bar.component';
@@ -129,6 +131,10 @@ function addDays(isoDay: string, days: number): string {
       [pageSizeOptions]="[10, 25, 100]"
       (filteredCountChange)="filteredTotal.set($event)"
       [rowSelectionEnabled]="selection()"
+      [selectionBar]="actionBar()"
+      [selectionActions]="selectionActions"
+      [selectionBarMaxActions]="4"
+      (selectionAction)="onSelectionAction($event)"
       [columnsMenuEnabled]="columnsMenu()"
       [referenceColumnSelectable]="true"
       [density]="compact() ? 'compact' : 'default'"
@@ -278,7 +284,8 @@ export class AdvancedDemoComponent {
   protected readonly grouping = signal(true);
   protected readonly worker = signal(false);
   protected readonly groupBy = signal<string | null>(null);
-  protected readonly selection = signal(false);
+  protected readonly selection = signal(true);
+  protected readonly actionBar = signal(true);
   protected readonly detailRows = signal(true);
   protected readonly contextMenu = signal(true);
   protected readonly columnsMenu = signal(true);
@@ -304,6 +311,7 @@ export class AdvancedDemoComponent {
     {label: 'Panneau latéral', value: this.sidePanel},
     {label: 'En-têtes groupés', value: this.headerGroups},
     {label: 'Sélection', value: this.selection},
+    {label: 'Barre d’actions de sélection', value: this.actionBar},
     {label: 'Ligne détail', value: this.detailRows},
     {label: 'Menu contextuel', value: this.contextMenu},
     {label: 'Bouton Colonnes', value: this.columnsMenu},
@@ -314,6 +322,31 @@ export class AdvancedDemoComponent {
     {label: 'Loader personnalisé', value: this.customLoader},
     {label: 'Textes en anglais', value: this.english},
   ];
+
+  /** Règles métier : chaque action n'est possible que pour les commandes qui s'y prêtent. */
+  protected readonly selectionActions: NgTableSelectionAction<Commande>[] = [
+    {
+      id: 'valider', label: 'Valider', icon: 'check', appearance: 'primary',
+      when: (rows) => rows.every((row) => row.statut === 'BROUILLON'),
+      otherwise: 'disable', disabledReason: 'Seules les commandes en brouillon peuvent être validées',
+    },
+    {
+      id: 'expedier', label: 'Expédier', icon: 'file_upload',
+      when: (rows) => rows.every((row) => row.statut === 'VALIDEE'),
+      otherwise: 'disable', disabledReason: 'Seules les commandes validées peuvent être expédiées',
+    },
+    {id: 'exporter', label: 'Exporter', icon: 'download'},
+    {
+      id: 'annuler', label: 'Annuler', icon: 'close', appearance: 'danger',
+      when: (rows) => rows.every((row) => row.statut !== 'ANNULEE' && row.statut !== 'EXPEDIEE'),
+      otherwise: 'disable', disabledReason: 'Une commande expédiée ou déjà annulée ne peut plus l’être',
+    },
+    {id: 'dupliquer', label: 'Dupliquer', icon: 'content_copy', maxRows: 1}, // au-delà de 4 actions : menu « Autres actions »
+  ];
+
+  protected onSelectionAction(event: NgTableSelectionActionEvent<Commande>): void {
+    this.lastClicked.set(`${event.action.label} : ${event.rows.length} commande(s)`);
+  }
 
   protected readonly selectedCount = signal(0);
   protected readonly lastClicked = signal('');

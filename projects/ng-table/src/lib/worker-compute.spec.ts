@@ -4,7 +4,7 @@ import {compileFilters} from './filter-compile';
 import {matchesSearchTerms, searchTerms} from './filter-matching';
 import {sortRows} from './row-pipeline';
 import type {NgTableColumn} from './ng-table.component';
-import {FromWorker, packValues, ToWorker, WorkerComputeCore} from './worker-compute';
+import {FromWorker, isPackedStrings, packValues, ToWorker, WorkerComputeCore} from './worker-compute';
 
 interface Row {
   id: number;
@@ -79,6 +79,19 @@ describe('calcul en worker', () => {
     expect(packValues([{v: 1}, {v: 2.5}], (r) => (r as {v: number}).v)).toBeInstanceOf(Float64Array);
     expect(packValues([{v: 1}, {v: null}], (r) => (r as {v: number | null}).v)).toBeInstanceOf(Array);
     expect(packValues([{v: 'a'}], (r) => (r as {v: string}).v)).toEqual(['a']);
+  });
+
+  it('packValues : une grande colonne de textes part en un seul tampon, et revient identique dans le worker', () => {
+    const texts = rows.map((row) => row.name);
+    const packed = packValues(rows, ((row: Row) => row.name) as (row: never) => unknown);
+    expect(isPackedStrings(packed)).toBe(true);
+    const core = new WorkerComputeCore();
+    core.addData(9, rows.length, {'s:name': packed});
+    const order = core.run(9, {filters: {}, filterSpecs: {}, levels: [{columnId: 'name', factor: 1}], terms: [], collator: {options: collatorOptions}});
+    expect([...order].map((index) => texts[index])).toEqual([...texts].sort((a, b) => collator.compare(a, b)));
+    // Une valeur contenant le séparateur, ou une valeur vide, garde le tableau d'origine.
+    expect(isPackedStrings(packValues([...rows.slice(0, 1500).map(() => 'a'), 'b\u0000c'].map((value) => ({value})), (r) => (r as {value: string}).value))).toBe(false);
+    expect(isPackedStrings(packValues([...rows.slice(0, 1500).map(() => 'a'), null].map((value) => ({value})), (r) => (r as {value: string | null}).value))).toBe(false);
   });
 
   const scenarios: {label: string; filters: Record<string, string>; levels: {column: NgTableColumn<Row>; factor: 1 | -1}[]; search?: string}[] = [

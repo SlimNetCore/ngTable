@@ -112,6 +112,15 @@ const MARGIN = 8;
       cursor: default;
     }
 
+    .ngt-menu-panel [ngt-menu-item][aria-disabled='true'] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .ngt-menu-panel .ngt-menu-item--danger {
+      color: var(--ngt-danger, #b3261e);
+    }
+
     .ngt-menu-panel [role='menuitemradio'][aria-checked='true'] {
       font-weight: 600;
     }

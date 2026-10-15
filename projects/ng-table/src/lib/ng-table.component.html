@@ -13,7 +13,7 @@
 
     <ng-table-menu #contextMenu (closed)="onRowContextMenuClosed()">
       @if (contextMenuRow(); as row) {
-        <ng-container *ngTemplateOutlet="rowContextMenuTemplate()!; context: { $implicit: row, row: row }"/>
+        <ng-container *ngTemplateOutlet="rowContextMenuTemplate()!; context: { $implicit: row, row: row, selectedRows: contextSelectedRows() }"/>
       }
     </ng-table-menu>
   }
@@ -914,6 +914,79 @@
   }
   </div>
 
+  @if (selectionBarVisible()) {
+    <!-- Ancre sans hauteur, collée au bas de la fenêtre tant que le bas du tableau n'est pas visible : la barre flotte sans décaler les lignes. -->
+    <div class="ngt-action-dock">
+      <div
+        (keydown.escape)="clearSelection()"
+        [attr.aria-label]="effectiveLabels().selectionBarLabel"
+        class="ngt-action-bar"
+        role="toolbar"
+        tabindex="-1"
+      >
+        <span aria-live="polite" class="ngt-action-bar__count">
+          <span aria-hidden="true" class="ngt-action-bar__badge">{{ selectedRowsCount() }}</span>
+          <span class="ngt-action-bar__count-text"><span class="ngt-visually-hidden">{{ selectedRowsCount() }} </span>{{ selectionCountLabel() }}</span>
+        </span>
+        <button
+          (click)="clearSelection()"
+          [attr.aria-label]="effectiveLabels().selectionClear"
+          [ngTableTooltip]="effectiveLabels().selectionClear"
+          class="ngt-action-bar__clear"
+          type="button"
+        >
+          <ng-table-icon aria-hidden="true" name="close"/>
+        </button>
+
+        @if (selectableTotal() > selectedRowsCount()) {
+          <button (click)="selectAllFiltered()" class="ngt-action-bar__link" type="button">
+            {{ effectiveLabels().selectionSelectAll.replace('{count}', '' + selectableTotal()) }}
+          </button>
+        }
+
+        @if (selectionBarTemplate()) {
+          <span aria-hidden="true" class="ngt-action-bar__sep"></span>
+          <ng-container *ngTemplateOutlet="selectionBarTemplate()!; context: selectionContext()"/>
+        }
+
+        @if (shownSelectionActions().length > 0 || moreSelectionActions().length > 0) {
+          <span aria-hidden="true" class="ngt-action-bar__sep"></span>
+        }
+        @for (item of shownSelectionActions(); track item.action.id) {
+          <button
+            (click)="onSelectionAction(item)"
+            [attr.aria-disabled]="item.enabled ? null : 'true'"
+            [class.ngt-action-bar__action--danger]="item.action.appearance === 'danger'"
+            [class.ngt-action-bar__action--disabled]="!item.enabled"
+            [class.ngt-action-bar__action--primary]="item.action.appearance === 'primary'"
+            [ngTableTooltip]="item.reason"
+            class="ngt-action-bar__action"
+            type="button"
+          >
+            @if (item.action.icon) {
+              <ng-table-icon aria-hidden="true" [name]="item.action.icon"/>
+            }
+            {{ item.action.label }}
+          </button>
+        }
+        @if (moreSelectionActions().length > 0) {
+          <button [attr.aria-label]="effectiveLabels().selectionMore" [ngTableMenuTriggerFor]="selectionMoreMenu" class="ngt-action-bar__action" type="button">
+            <ng-table-icon aria-hidden="true" name="more_horiz"/>
+          </button>
+          <ng-table-menu #selectionMoreMenu class="ngt-action-bar-menu">
+            @for (item of moreSelectionActions(); track item.action.id) {
+              <button (click)="onSelectionAction(item)" [attr.aria-disabled]="item.enabled ? null : 'true'" [class.ngt-menu-item--danger]="item.action.appearance === 'danger'" [ngTableTooltip]="item.reason" ngt-menu-item type="button">
+                @if (item.action.icon) {
+                  <ng-table-icon aria-hidden="true" [name]="item.action.icon"/>
+                }
+                {{ item.action.label }}
+              </button>
+            }
+          </ng-table-menu>
+        }
+      </div>
+    </div>
+  }
   @if (statusBar()) {
     <div [attr.aria-label]="effectiveLabels().statusBarLabel" class="ngt-status-bar" role="status">
       <span class="ngt-status-bar__item">{{ statusRowsText() }}</span>
