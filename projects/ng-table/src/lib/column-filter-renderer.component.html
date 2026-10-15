@@ -1,55 +1,33 @@
 @if (type() === 'date') {
-  <mat-form-field appearance="outline" class="date-field">
-    <mat-label>{{ filterByPlaceholder() }}</mat-label>
+  <div [class.active]="isActive()" class="field-shell">
     <input
-      (dateChange)="onSingleDateChange($event.value)"
-      [matDatepicker]="singlePicker"
-      [placeholder]="placeholder() || filterByPlaceholder()"
-      [value]="draftDate()"
-      matInput
+      (change)="onSingleDateChange($any($event.target).value)"
+      [attr.aria-label]="placeholder() || filterByPlaceholder()"
+      [value]="singleDate()"
+      class="col-filter col-filter--date"
+      type="date"
     />
-    <mat-datepicker-toggle [for]="singlePicker" matIconSuffix></mat-datepicker-toggle>
-    <mat-datepicker #singlePicker/>
-  </mat-form-field>
+  </div>
 } @else if (type() === 'range') {
-  <mat-form-field appearance="outline" class="date-range-field">
-    <mat-label>{{ filterByPlaceholder() }}</mat-label>
-    <mat-date-range-input [rangePicker]="picker" [separator]="'–'">
-      <input
-        (dateChange)="onDraftDateRangeChange('from', $event.value)"
-        (dateInput)="onDraftDateRangeChange('from', $event.value)"
-        (keydown.enter)="applyDateRange()"
-        [placeholder]="labels().dateStart"
-        [value]="draftDateRange().from"
-        matStartDate
-      />
-      <input
-        (dateChange)="onDraftDateRangeChange('to', $event.value)"
-        (dateInput)="onDraftDateRangeChange('to', $event.value)"
-        (keydown.enter)="applyDateRange()"
-        [placeholder]="labels().dateEnd"
-        [value]="draftDateRange().to"
-        matEndDate
-      />
-    </mat-date-range-input>
-    <mat-datepicker-toggle [for]="picker" matIconSuffix></mat-datepicker-toggle>
-    <mat-date-range-picker #picker (opened)="syncDraftDateRange()">
-      <mat-date-range-picker-actions>
-        <button (click)="cancelDateRange()" ngt-button matDateRangePickerCancel type="button">
-          {{ labels().cancel }}
-        </button>
-        <button
-          (click)="applyDateRange()"
-          color="primary"
-          ngt-flat-button
-          matDateRangePickerApply
-          type="button"
-        >
-          {{ labels().ok }}
-        </button>
-      </mat-date-range-picker-actions>
-    </mat-date-range-picker>
-  </mat-form-field>
+  <div [class.active]="isActive()" class="field-shell date-range">
+    <input
+      (change)="onDateRangeChange('from', $any($event.target).value)"
+      [attr.aria-label]="filterByPlaceholder() + ' — ' + labels().dateStart"
+      [attr.max]="dateRangeBounds().to || null"
+      [value]="dateRangeBounds().from"
+      class="col-filter col-filter--date"
+      type="date"
+    />
+    <span aria-hidden="true" class="date-range__separator">–</span>
+    <input
+      (change)="onDateRangeChange('to', $any($event.target).value)"
+      [attr.aria-label]="filterByPlaceholder() + ' — ' + labels().dateEnd"
+      [attr.min]="dateRangeBounds().from || null"
+      [value]="dateRangeBounds().to"
+      class="col-filter col-filter--date"
+      type="date"
+    />
+  </div>
 } @else if (type() === 'numberRange') {
   <div [class.active]="isActive()" class="number-range">
     <div class="field-shell">

@@ -17,133 +17,6 @@
   width: 100%;
 }
 
-.date-range-field,
-.date-field {
-  flex: 1 1 auto;
-  width: 100%;
-  min-width: 0;
-  margin: 0;
-  align-self: center;
-  --mat-form-field-container-height: 40px;
-  --mat-form-field-container-vertical-padding: 8px;
-}
-
-/* Type `date` (jour unique) — même habillage que la période, en plus simple :
-   un seul input, pas de séparateur ni de double borne à répartir. */
-:host ::ng-deep .date-field .mat-mdc-text-field-wrapper {
-  background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
-  border-radius: 12px;
-}
-
-:host ::ng-deep .date-field .mat-mdc-form-field-infix {
-  min-height: 40px;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  display: flex;
-  align-items: center;
-}
-
-:host ::ng-deep .date-field input.mat-mdc-input-element,
-:host ::ng-deep .date-field input.mat-mdc-input-element::placeholder {
-  font-family: var(--filter-font-family);
-  font-size: var(--filter-font-size);
-  font-weight: var(--filter-font-weight);
-  text-overflow: ellipsis;
-}
-
-:host ::ng-deep .date-field input.mat-mdc-input-element::placeholder {
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
-  text-transform: none;
-}
-
-:host ::ng-deep .date-range-field .mat-mdc-text-field-wrapper {
-  background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
-  border-radius: 12px;
-}
-
-:host ::ng-deep .date-range-field .mat-mdc-form-field-flex,
-:host ::ng-deep .date-range-field .mat-date-range-input-container,
-:host ::ng-deep .date-range-field .mat-date-range-input-wrapper {
-  align-items: center;
-  justify-content: center;
-}
-
-:host ::ng-deep .date-range-field .mat-mdc-form-field-infix {
-  min-height: 40px;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-:host ::ng-deep .date-range-field input.mat-start-date,
-:host ::ng-deep .date-range-field input.mat-end-date,
-:host ::ng-deep .date-range-field .mat-date-range-input-separator,
-:host ::ng-deep .date-range-field input.mat-mdc-input-element,
-:host ::ng-deep .date-range-field input.mat-mdc-input-element::placeholder {
-  font-family: var(--filter-font-family);
-  font-size: var(--filter-font-size);
-  font-weight: var(--filter-font-weight);
-  text-align: center;
-}
-
-/* Les deux champs de date sont alignés au début, pas centrés : quand la largeur
-   disponible est juste (panneau étroit, filtre inline dans une colonne serrée), un
-   texte centré est rogné des DEUX côtés et c'est le début de la date qui disparaît.
-   Aligné au début, la date reste lisible depuis son premier caractère. */
-:host ::ng-deep .date-range-field input.mat-start-date,
-:host ::ng-deep .date-range-field input.mat-end-date,
-:host ::ng-deep .date-range-field input.mat-start-date::placeholder,
-:host ::ng-deep .date-range-field input.mat-end-date::placeholder {
-  text-align: start;
-  text-overflow: ellipsis;
-}
-
-:host ::ng-deep .date-range-field input.mat-mdc-input-element::placeholder {
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
-  text-transform: none;
-}
-
-:host ::ng-deep .date-range-field .mat-date-range-input-separator {
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
-  min-width: 16px;
-}
-
-/* Angular Material fixe l'infix de `mat-date-range-input` à une largeur CODÉE EN DUR de
-   200px (`.mat-mdc-form-field-type-mat-date-range-input .mat-mdc-form-field-infix`),
-   quelle que soit la place réellement disponible — deux dates au format JJ/MM/AAAA
-   (10 caractères chacune) ne tiennent pas dans 200px partagés en deux. On le laisse
-   suivre la largeur de son conteneur flex (`.date-range-field`, déjà à 100%) au lieu de
-   rester bridé à 200px. */
-:host ::ng-deep .date-range-field.mat-mdc-form-field-type-mat-date-range-input .mat-mdc-form-field-infix {
-  width: auto;
-}
-
-/* L'infix élargi ne sert à rien si son contenu direct (la rangée date-séparateur-date)
-   ne s'étire pas pour en profiter — sans `width: 100%` explicite, ce conteneur reste
-   dimensionné à son propre contenu et se retrouve simplement centré dans l'infix. */
-:host ::ng-deep .date-range-field .mat-date-range-input-container {
-  width: 100%;
-}
-
-/* Chaque moitié de la plage est elle-même bridée à `max-width: calc(50% - 4px)` de cet
-   infix, avec `overflow: hidden` — une fois l'infix élargi, ce plafond redevenait le
-   goulot suivant. On laisse les deux moitiés se partager l'espace à parts égales
-   (`flex: 1 1 0`), sans plafond artificiel : les deux dates ont le même format, donc
-   pas de risque qu'une moitié n'accapare tout au détriment de l'autre. */
-:host ::ng-deep .date-range-field .mat-date-range-input-wrapper {
-  max-width: none;
-  flex: 1 1 0;
-}
-
-:host ::ng-deep .date-range-field .mat-mdc-form-field-hint-wrapper,
-:host ::ng-deep .date-range-field .mat-mdc-form-field-hint,
-:host ::ng-deep .date-range-field .mat-mdc-form-field-bottom-align::before {
-  font-size: 11px;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
-}
-
 /* Plage numérique : deux champs min/max côte à côte. */
 .number-range {
   display: flex;
@@ -242,16 +115,7 @@
   pointer-events: none;
 }
 
-/* Une plage de dates affiche deux dates + un séparateur + le sélecteur : c'est le
-   filtre le plus gourmand en largeur. On lui rend de la place en compactant la
-   gouttière et le bouton d'effacement, pour éviter que les dates soient tronquées. */
-:host:has(.date-range-field),
-:host:has(.date-field) {
-  gap: 6px;
-}
-
-:host:has(.date-range-field) .clear-filter,
-:host:has(.date-field) .clear-filter {
+.clear-filter {
   width: 32px;
   height: 32px;
   min-width: 32px;
@@ -301,19 +165,6 @@
   padding-inline: 8px;
 }
 
-/* Material fixe la largeur interne d'un champ à 180 px : dans une colonne plus étroite,
-   le texte passait sous l'icône du calendrier au lieu d'être tronqué. */
-:host-context(.inline-filter) ::ng-deep .date-field .mat-mdc-form-field-infix {
-  width: auto;
-  min-width: 0;
-}
-
-:host-context(.inline-filter) .date-range-field,
-:host-context(.inline-filter) .date-field,
-:host-context(.inline-filter) .select-filter-field {
-  width: 100%;
-}
-
 .clear-filter:hover {
   background: var(--ngt-hover-surface, var(--app-hover-surface, #f6fbff));
   transform: translateY(-1px);
@@ -327,16 +178,34 @@
   margin: 0;
 }
 
-/* Le libellé d'un champ date (« Filtrer par Date ») est placé par Material dans
-   l'encoche du contour, qui couvre toute la largeur du champ, icône du calendrier
-   comprise : dans un champ étroit, le texte passait sous l'icône. On borne l'encoche à
-   la zone de saisie (largeur moins l'icône et les marges), le libellé s'y tronque. */
-:host ::ng-deep .date-field .mdc-notched-outline__notch,
-:host ::ng-deep .date-range-field .mdc-notched-outline__notch {
-  max-width: calc(100% - 72px) !important;
+/* Champs date natifs (`<input type="date">`) : un jour, ou une période (deux champs et un séparateur). */
+.col-filter--date {
+  min-width: 0;
+  color-scheme: inherit;
 }
 
-:host ::ng-deep .date-field .mdc-floating-label,
-:host ::ng-deep .date-range-field .mdc-floating-label {
-  text-overflow: ellipsis;
+.date-range {
+  gap: 6px;
+}
+
+.date-range__separator {
+  flex: 0 0 auto;
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+}
+
+:host:has(.date-range),
+:host:has(.col-filter--date) {
+  gap: 6px;
+}
+
+:host:has(.date-range) .clear-filter,
+:host:has(.col-filter--date) .clear-filter {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+}
+
+:host-context(.inline-filter) .date-range,
+:host-context(.inline-filter) .field-shell:has(.col-filter--date) {
+  padding-inline: 8px;
 }
