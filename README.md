@@ -629,6 +629,18 @@ Avec des dizaines ou des centaines de colonnes, `[virtualColumns]="true"` ne ren
 
 Le modèle de vue (valeurs, textes) n'est calculé que pour les colonnes rendues. L'export, le menu « Colonnes » et les vues portent toujours sur toutes les colonnes. Limite : la navigation clavier cellule par cellule (`cellNavigation`) ne parcourt que les colonnes rendues.
 
+### Étape 10septdecies — Branché sur le backend Spring Boot
+
+Tout ce qui précède se démontre aussi sur un vrai serveur : `examples/spring-boot-backend` (H2 en mémoire, JPA). Lancez-le (`mvnw.cmd spring-boot:run`), puis dans la démo :
+
+| Page | Ce que Spring Boot fournit |
+|------|----------------------------|
+| **Expert** → *Spring Boot* | Pages et **modèle par blocs** (`POST /api/commandes/search`), export, **édition de cellules** (`PATCH /api/commandes/{id}` : le serveur valide le montant et le statut, la table se recharge avec sa valeur), mini-graphiques (`tendance`), barre d'état, panneau latéral, plage de cellules |
+| **Live** → *Spring Boot (SSE)* | Instantané `GET /api/quotes?size=N`, puis flux de transactions en Server-Sent Events `GET /api/quotes/stream?size=N&rate=R` (un paquet toutes les 100 ms), appliquées par `applyTransactionAsync` |
+| **Analyse** → *Spring Boot* | **Pivot calculé par la base** (`POST /api/commandes/pivot` : un `GROUP BY` JPA, totaux recombinés), arbre de 5 096 dossiers à plat (`GET /api/dossiers`, `[treeParent]`), commandes avec mini-graphiques |
+
+Le pivot serveur reçoit exactement `PivotServerRequest` (`rows`, `columns`, `values`, `columnSort`, `filters`) : les champs sont désignés par leur identifiant et validés contre une liste blanche (`client`, `statut`, `mois`, `urgent` ; mesure `montant`), jamais utilisés tels quels dans une requête. Les filtres et la recherche de la table restreignent le pivot aux mêmes lignes. Au-delà de 20 000 groupes le serveur répond 400. Détail des classes dans `examples/spring-boot-backend/README.md`.
+
 ### Étape 10sexdecies — Performances sur de gros volumes
 
 Mesures sur **1 000 000 de lignes** en mémoire (poste de développement ; `PERF_ROWS=1000000 npm run test:ci` les rejoue, 200 000 lignes par défaut). Chaque temps comprend le chargement des lignes dans la table (de 300 à 500 ms à lui seul pour un million) :
@@ -691,7 +703,7 @@ pivot: PivotConfig<Vente> = {
 };
 ```
 
-Colonnes groupées sous l'en-tête de la colonne pivot, colonne « Total », ligne de total général épinglée en bas. Tri, filtres, recherche, export et `[statusBar]` fonctionnent comme sur toute table. Le pivot se recalcule quand `[rows]` ou `[config]` changent. Les moyennes se calculent sur les lignes, pas sur des moyennes de moyennes. Pour brancher le pivot sur votre propre `ng-table`, `buildPivotModel(rows, config)` renvoie `{columns, rows, pinnedBottom}`; `computePivot` donne le résultat brut.
+**Plusieurs champs en colonnes** : `columns: [annee, statut]` (ou en glissant plusieurs champs dans « Colonnes ») donne une colonne par combinaison, les valeurs du champ externe coiffant celles du champ interne ; les totaux couvrent toutes les colonnes. Colonnes groupées sous l'en-tête de la colonne pivot, colonne « Total », ligne de total général épinglée en bas. Tri, filtres, recherche, export et `[statusBar]` fonctionnent comme sur toute table. Le pivot se recalcule quand `[rows]` ou `[config]` changent. Les moyennes se calculent sur les lignes, pas sur des moyennes de moyennes. Pour brancher le pivot sur votre propre `ng-table`, `buildPivotModel(rows, config)` renvoie `{columns, rows, pinnedBottom}`; `computePivot` donne le résultat brut.
 
 **Graphiques** — `<ng-table-chart>` dessine barres, courbes, zones, secteurs ou anneau :
 
@@ -718,15 +730,17 @@ Colonnes groupées sous l'en-tête de la colonne pivot, colonne « Total », lig
 <ng-table-pivot [rows]="ventes()" [(config)]="pivot" [dimensions]="dimensions" [measures]="mesures" [configurator]="true" />
 ```
 
-`dimensions` : les champs qui peuvent être lignes ou colonne ; `measures` : ceux qu'on peut agréger. Une dimension ne va pas dans « Valeurs », une mesure ne va pas en « Lignes » ; « Colonnes » n'accepte qu'un champ ; lâcher un champ sur « Champs » le retire. Au clavier : chaque zone a une liste « + » pour ajouter un champ, « × » pour le retirer. Les règles de composition sont des fonctions pures (`placeInLayout`, `removeFromLayout`, `configFromLayout`).
+`dimensions` : les champs qui peuvent être lignes ou colonne ; `measures` : ceux qu'on peut agréger. Une dimension ne va pas dans « Valeurs », une mesure ne va pas en « Lignes » ; « Colonnes » n'accepte qu'un champ ; lâcher un champ sur « Champs » le retire. Au clavier : chaque zone a une liste « + » pour ajouter un champ, « × » pour le retirer. **Depuis la table** : l'en-tête d'une colonne de `ng-table` se glisse directement dans une zone du pivot (son identifiant est celui du champ ; les colonnes qui ne sont pas des champs du pivot sont refusées au survol, une mesure n'entre pas dans « Lignes »). Les règles de composition sont des fonctions pures (`placeInLayout`, `removeFromLayout`, `configFromLayout`).
 
 **Pivot calculé par le serveur.** Pour de gros volumes, c'est la base de données qui agrège :
 
 ```ts
 pivotServeur: PivotDatasource = (request, {signal}) =>
   fetch('/api/pivot', {method: 'POST', body: JSON.stringify(request), signal}).then((r) => r.json());
-// request : {rows: ['region'], column: 'annee', values: [{id: 'montant', aggregate: 'sum'}], columnSort: 'asc', filters?}
-// réponse : {columnKeys?: ['2025', '2026'], rows: [{labels: ['Nord'], cells: {'2025': {montant: 10}, '2026': {montant: 30}}, totals: {montant: 40}}], grandTotal: {cells, totals}}
+// request : {rows: ['region'], columns: ['annee', 'statut'], values: [{id: 'montant', aggregate: 'sum'}], columnSort: 'asc', filters?}
+// réponse : {columns?: [['2025', 'Validée'], ['2026', 'Validée']],   // un chemin par colonne
+//            rows: [{labels: ['Nord'], cells: {'2025\u001fValidée': {montant: 10}, ...}, totals: {montant: 40}}], grandTotal: {cells, totals}}
+// les cellules d'une ligne sont rangées sous chemin.join(PIVOT_PATH_SEPARATOR), soit « \u001f »
 ```
 ```html
 <ng-table-pivot [datasource]="pivotServeur" [(config)]="pivot" [dimensions]="dimensions" [measures]="mesures" [configurator]="true" [filters]="filtres" />
