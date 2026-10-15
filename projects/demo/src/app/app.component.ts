@@ -42,5 +42,6 @@ export class AppComponent {
     {path: '/expert', label: 'Expert', hint: 'serveur, contrôle, API'},
     {path: '/live', label: 'Live', hint: 'flux temps réel'},
     {path: '/analyse', label: 'Analyse', hint: 'pivot, graphiques'},
+    {path: '/benchmark', label: 'Benchmark', hint: 'face à AG Grid'},
   ];
 }

@@ -10,6 +10,7 @@ const routes: Routes = [
   {path: 'avance', title: 'ng-table — avancé', loadComponent: () => import('./app/advanced-demo.component').then((m) => m.AdvancedDemoComponent)},
   {path: 'expert', title: 'ng-table — expert', loadComponent: () => import('./app/expert-demo.component').then((m) => m.ExpertDemoComponent)},
   {path: 'analyse', title: 'ng-table — analyse', loadComponent: () => import('./app/analytics-demo.component').then((m) => m.AnalyticsDemoComponent)},
+  {path: 'benchmark', title: 'ng-table — benchmark', loadComponent: () => import('./app/benchmark-demo.component').then((m) => m.BenchmarkDemoComponent)},
   {path: 'live', title: 'ng-table — live', loadComponent: () => import('./app/live-demo.component').then((m) => m.LiveDemoComponent)},
   {path: '**', redirectTo: 'simple'},
 ];

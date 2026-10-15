@@ -1,0 +1,8 @@
+{
+  "name": "ng-table-benchmarks",
+  "private": true,
+  "description": "Dépendances du benchmark comparatif (page /benchmark de la démo). Séparées du reste du dépôt : rien de ceci n'est livré avec la bibliothèque.",
+  "devDependencies": {
+    "ag-grid-community": "^34.0.0"
+  }
+}

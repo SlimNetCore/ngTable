@@ -629,6 +629,58 @@ Avec des dizaines ou des centaines de colonnes, `[virtualColumns]="true"` ne ren
 
 Le modèle de vue (valeurs, textes) n'est calculé que pour les colonnes rendues. L'export, le menu « Colonnes » et les vues portent toujours sur toutes les colonnes. Limite : la navigation clavier cellule par cellule (`cellNavigation`) ne parcourt que les colonnes rendues.
 
+### Étape 10novodecies — Thème : jetons CSS et thème sombre
+
+Tous les styles de la bibliothèque lisent des **jetons de conception** `--ngt-*`. Redéfinissez-en un sur n'importe quel ancêtre (`:root`, un conteneur, l'élément `ng-table` lui-même) et il s'applique, y compris aux menus et filtres qui s'ouvrent en surcouche :
+
+```css
+:root {
+  --ngt-primary: #7c3aed;        /* accent : tri actif, focus, sélection */
+  --ngt-surface: #fffdf8;        /* fond du tableau et des panneaux */
+  --ngt-border: rgba(0, 0, 0, .1);
+}
+```
+
+| Jeton | Rôle | Clair | Sombre |
+|-------|------|-------|--------|
+| `--ngt-primary` | Accent | `#3a7ca5` | `#7fb4d6` |
+| `--ngt-primary-soft`, `--ngt-primary-outline` | Fond léger / contour de l'accent | | |
+| `--ngt-text`, `--ngt-text-muted` | Texte principal / secondaire | `#0d1d26`, `#4f6573` | `#e6edf3`, `#9fb0bf` |
+| `--ngt-border`, `--ngt-border-strong` | Séparateurs / contours des champs | | |
+| `--ngt-surface`, `--ngt-surface-alt`, `--ngt-surface-soft` | Fonds du tableau, des lignes épinglées et totaux, des zones légères | `#ffffff`, `#f1f5f9`, `#f7fbfe` | `#141b22`, `#1c252e`, `#18222b` |
+| `--ngt-hover-surface`, `--ngt-field-bg`, `--ngt-field-hover-bg`, `--ngt-filter-panel-bg` | Survol, champs, panneaux de filtre | | |
+| `--ngt-shadow-soft` | Ombre des cartes | | |
+| `--ngt-danger` | Erreurs de saisie | `#b3261e` | `#f2b8b5` |
+
+La liste complète, avec les descriptions, est exportée : `NG_TABLE_TOKENS`. Les anciens noms `--app-*` (et `--mat-sys-error`) restent lus en repli : une application qui les définissait n'a rien à changer.
+
+**Thème sombre**, de trois façons :
+- `[theme]="'dark'"` sur `<ng-table>`, `<ng-table-pivot>`, `<ng-table-chart>` ou `<ng-table-sparkline>` ; `'auto'` suit `prefers-color-scheme` ; `'light'` force le clair ; `null` (défaut) ne force rien.
+- La classe `ngt-dark` sur `<html>` ou `<body>` : c'est la façon de thémer **toute l'application**, y compris les menus et filtres ouverts en surcouche (ils sont rattachés à `<body>`, pas à la table).
+- Appliquer `NG_TABLE_THEME_DARK` (un objet `{'--ngt-primary': '#7fb4d6', ...}`) sur le conteneur de votre choix.
+
+En thème sombre, les composants Angular Material de la table (cellules, menus, pagination, cases à cocher) lisent leurs couleurs dans `--mat-sys-*` : ces variables suivent les jetons `--ngt-*` (`NG_TABLE_MATERIAL_BRIDGE`). En thème clair elles gardent le thème Material de votre application.
+
+Les règles du thème sombre sont dans `projects/ng-table/src/lib/theme.css`, **généré** depuis la table de jetons (`npm run theme:css`) ; `npm run theme:check` échoue si le fichier n'est pas à jour.
+
+**Limites.** Angular Material reste une dépendance obligatoire : seuls les styles et les couleurs sont découplés, pas encore les composants (tableau, menu, pagination, cases à cocher, sélecteur de date). Les remplacer un à un est le chantier suivant.
+
+### Étape 10octodecies — Benchmark face à AG Grid Community
+
+La page `/benchmark` de la démo met `ng-table` et AG Grid Community (34.x, installé à part dans `benchmarks/`, il n'est pas livré avec la bibliothèque) côte à côte, dans le **même navigateur**, **une grille à la fois**, sur les **mêmes données** (10 000, 100 000 ou 1 000 000 de lignes) :
+
+```bash
+cd benchmarks && npm install        # une fois : installe ag-grid-community
+npm start                           # à la racine, puis ouvrez http://localhost:4200/benchmark
+```
+
+Opérations mesurées : chargement, tri numérique, tri texte (valeurs distinctes), tri sur deux niveaux, filtre texte, filtre numérique, saut à 90 % de la liste, lot de 1 000 mises à jour. Chaque mesure va de l'appel de l'opération à la **fin de la deuxième image peinte** qui suit : le rendu est compté, pas seulement le calcul. On garde la médiane de 5 passages. Aucun réglage particulier pour l'une ou l'autre grille (défilement virtuel, lignes compactes, pas d'animation), et le bouton « Copier le rapport » produit un tableau Markdown avec le navigateur et le nombre de cœurs.
+
+À savoir pour des chiffres honnêtes :
+- **Gardez la fenêtre au premier plan.** Un onglet masqué ne peint pas d'images et ralentit les minuteurs ; la page détecte ce cas et mesure alors seulement jusqu'à la mise en page (le rapport l'indique), ce qui n'est comparable à rien d'autre.
+- Les résultats dépendent de la machine : comparez les deux colonnes entre elles, pas avec un autre poste.
+- Ce sont les réglages par défaut de chaque grille. AG Grid propose des options de réglage (tampon de lignes, `suppressAnimationFrame`...) que ce benchmark n'explore pas ; si vous publiez des chiffres, indiquez la version, le navigateur et la machine.
+
 ### Étape 10septdecies — Branché sur le backend Spring Boot
 
 Tout ce qui précède se démontre aussi sur un vrai serveur : `examples/spring-boot-backend` (H2 en mémoire, JPA). Lancez-le (`mvnw.cmd spring-boot:run`), puis dans la démo :
