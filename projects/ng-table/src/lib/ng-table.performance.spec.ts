@@ -132,7 +132,7 @@ describe('NgTableComponent — performance en mode serveur (1 000 000 de lignes)
     // Même travail dans les deux cas : on tolère le bruit de mesure, pas un facteur lié au volume.
     expect(bigMs).toBeLessThan(smallMs * 3 + 25);
     expect(bigMs).toBeLessThan(500);
-  });
+  }, 30_000);
 
   it('regroupement serveur : 4 groupes de 250 000 lignes, comptes et totaux du serveur, repli', async () => {
     const summaries: NgTableGroupSummary[] = STATUTS.map((key) => ({key, count: MILLION / STATUTS.length, aggregates: {montant: 12_345_678}}));

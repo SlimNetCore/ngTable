@@ -47,6 +47,12 @@ describe('buildPivotModel', () => {
     expect(model.rows.map((r) => model.columns[1].valueAccessor(r))).toEqual([40, 5.5]);
   });
 
+  it('plusieurs champs en colonnes : les valeurs externes coiffent les internes', () => {
+    const model = buildPivotModel(SALES, config({columns: [{id: 'year', header: 'Année', accessor: (s) => s.year}, {id: 'region', header: 'Région', accessor: (s) => s.region}]}));
+    const headers = model.columns.map((c) => `${(c.headerGroup as string[] | undefined)?.join('>') ?? ''}|${c.header}`);
+    expect(headers).toEqual(['|Région', '2025|Nord', '2025|Sud', '2026|Nord', 'Total|Total']);
+  });
+
   it('rowTotals: false retire la colonne de total ; grandTotal: false retire la ligne', () => {
     const model = buildPivotModel(SALES, config({rowTotals: false, grandTotal: false}));
     expect(model.columns.map((c) => c.header)).toEqual(['Région', '2025', '2026']);

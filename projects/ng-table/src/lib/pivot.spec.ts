@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {computePivot, PivotConfig, pivotCellKey, pivotTotalKey} from './pivot';
+import {computePivot, PivotConfig, pivotCellKey, pivotColumnFields, pivotTotalKey, PIVOT_PATH_SEPARATOR} from './pivot';
 
 interface Sale {
   region: string;
@@ -79,6 +79,38 @@ describe('pivot', () => {
     const empty = computePivot([], config());
     expect(empty.rows).toEqual([]);
     expect(empty.grandTotal).toBeNull();
+  });
+
+  describe('plusieurs champs en colonnes', () => {
+    const multi = (extra: Partial<PivotConfig<Sale>> = {}) => config({columns: [field('year'), field('product')], ...extra});
+    const key = (...path: string[]) => path.join(PIVOT_PATH_SEPARATOR);
+
+    it('chaque combinaison de valeurs est une colonne, triée champ par champ', () => {
+      const pivot = computePivot(SALES, multi());
+      expect(pivot.columnPaths).toEqual([['2025', 'A'], ['2025', 'B'], ['2026', 'A'], ['2026', 'B']]);
+      expect(pivot.columnKeys).toEqual(pivot.columnPaths.map((path) => path.join(PIVOT_PATH_SEPARATOR)));
+      expect(cell(pivot.rows[0], key('2025', 'A'))).toBe(10); // Nord, 2025, produit A
+      expect(cell(pivot.rows[0], key('2025', 'B'))).toBe(20);
+      expect(cell(pivot.rows[0], key('2026', 'A'))).toBe(30);
+      expect(cell(pivot.rows[0], key('2026', 'B'))).toBeNull();
+      expect(cell(pivot.rows[1], key('2026', 'B'))).toBe(15); // Sud
+    });
+
+    it('les totaux de ligne et le total général couvrent toutes les colonnes', () => {
+      const pivot = computePivot(SALES, multi());
+      expect(pivot.rows[0].cells[pivotTotalKey('amount')]).toBe(60);
+      expect(pivot.grandTotal!.cells[pivotTotalKey('amount')]).toBe(80);
+      expect(cell(pivot.grandTotal!, key('2025', 'A'))).toBe(15);
+    });
+
+    it('l’ordre des colonnes peut être inversé ; un champ seul en tableau donne la même chose qu’un champ', () => {
+      expect(computePivot(SALES, multi({columnSort: 'desc'})).columnPaths[0]).toEqual(['2026', 'B']);
+      const single = computePivot(SALES, config());
+      const asArray = computePivot(SALES, config({columns: [field('year')]}));
+      expect(asArray).toEqual(single);
+      expect(pivotColumnFields(config())).toHaveLength(1);
+      expect(pivotColumnFields(config({columns: null}))).toEqual([]);
+    });
   });
 
   it('les nombres dans les libellés se trient comme des nombres', () => {

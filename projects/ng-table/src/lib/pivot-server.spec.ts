@@ -2,9 +2,12 @@ import {describe, expect, it} from 'vitest';
 import {
   computePivot,
   configFromLayout,
+  PIVOT_PATH_SEPARATOR,
   PivotConfig,
+  PivotField,
   PivotLayout,
   pivotCellKey,
+  pivotColumnFields,
   pivotFromServer,
   pivotRequestFor,
   pivotToServerResult,
@@ -36,12 +39,12 @@ describe('pivot serveur', () => {
   it('la requête décrit les champs par leur identifiant, sans les fonctions', () => {
     expect(pivotRequestFor(config, {region: 'Nord'})).toEqual({
       rows: ['region'],
-      column: 'year',
+      columns: ['year'],
       values: [{id: 'amount', aggregate: 'sum'}],
       columnSort: 'asc',
       filters: {region: 'Nord'},
     });
-    expect(pivotRequestFor({...config, columns: null, columnSort: 'desc'}).column).toBeNull();
+    expect(pivotRequestFor({...config, columns: null, columnSort: 'desc'}).columns).toEqual([]);
     expect('filters' in pivotRequestFor(config, {})).toBe(false);
   });
 
@@ -62,19 +65,34 @@ describe('pivot serveur', () => {
     expect(result.grandTotal).toBeNull(); // pas de total envoyé
   });
 
+  it('plusieurs champs en colonnes : chemins, clés et aller-retour', () => {
+    const multi: PivotConfig<Sale> = {...config, columns: [config.columns as PivotField<Sale>, {id: 'product', header: 'Produit', accessor: () => 'A'}]};
+    expect(pivotRequestFor(multi).columns).toEqual(['year', 'product']);
+    const server = {
+      columns: [['2025', 'A'], ['2026', 'B']],
+      rows: [{labels: ['Nord'], cells: {[`2025${PIVOT_PATH_SEPARATOR}A`]: {amount: 1}, [`2026${PIVOT_PATH_SEPARATOR}B`]: {amount: 2}}, totals: {amount: 3}}],
+    };
+    const result = pivotFromServer(server, multi);
+    expect(result.columnPaths).toEqual([['2025', 'A'], ['2026', 'B']]);
+    expect(result.rows[0].cells[pivotCellKey(`2026${PIVOT_PATH_SEPARATOR}B`, 'amount')]).toBe(2);
+    // Sans `columns` envoyé par le serveur, les chemins sont déduits des clés.
+    expect(pivotFromServer({rows: server.rows}, multi).columnPaths).toEqual([['2025', 'A'], ['2026', 'B']]);
+    expect(pivotToServerResult(result, multi as PivotConfig<unknown>).columns).toEqual([['2025', 'A'], ['2026', 'B']]);
+  });
+
   it('une cellule absente vaut null ; sans colonne pivot, le total de ligne est la valeur', () => {
     const noColumn: PivotConfig<Sale> = {...config, columns: null};
     const result = pivotFromServer({rows: [{labels: ['Sud'], cells: {'': {amount: 5}}}]}, noColumn);
     expect(result.columnKeys).toEqual(['']);
     expect(result.rows[0].cells[pivotTotalKey('amount')]).toBe(5);
-    const sparse = pivotFromServer({columnKeys: ['2025', '2026'], rows: [{labels: ['Sud'], cells: {'2025': {amount: 5}}, totals: {amount: 5}}]}, config);
+    const sparse = pivotFromServer({columns: [['2025'], ['2026']], rows: [{labels: ['Sud'], cells: {'2025': {amount: 5}}, totals: {amount: 5}}]}, config);
     expect(sparse.rows[0].cells[pivotCellKey('2026', 'amount')]).toBeNull();
   });
 });
 
 describe('composition par glisser-déposer', () => {
-  const empty: PivotLayout = {rows: [], column: null, values: []};
-  const place = (layout: PivotLayout, id: string, zone: 'rows' | 'column' | 'values', kind: 'dimension' | 'measure', index?: number) =>
+  const empty: PivotLayout = {rows: [], columns: [], values: []};
+  const place = (layout: PivotLayout, id: string, zone: 'rows' | 'columns' | 'values', kind: 'dimension' | 'measure', index?: number) =>
     placeInLayout(layout, id, zone, kind, index)!;
 
   it('place les dimensions en lignes ou en colonne et les mesures en valeurs, pas autrement', () => {
@@ -84,12 +102,16 @@ describe('composition par glisser-déposer', () => {
     expect(place(empty, 'amount', 'values', 'measure').values).toEqual([{id: 'amount', aggregate: 'sum'}]);
   });
 
-  it('un champ n’est que dans une zone ; la colonne n’en a qu’un', () => {
+  it('un champ n’est que dans une zone ; les colonnes comme les lignes peuvent en avoir plusieurs, dans l’ordre', () => {
     let layout = place(empty, 'region', 'rows', 'dimension');
-    layout = place(layout, 'region', 'column', 'dimension');
-    expect(layout).toEqual({rows: [], column: 'region', values: []});
-    layout = place(layout, 'year', 'column', 'dimension');
-    expect(layout.column).toBe('year');
+    layout = place(layout, 'region', 'columns', 'dimension');
+    expect(layout).toEqual({rows: [], columns: ['region'], values: []});
+    layout = place(layout, 'year', 'columns', 'dimension');
+    expect(layout.columns).toEqual(['region', 'year']);
+    layout = place(layout, 'year', 'columns', 'dimension', 0); // réordonner dans la zone
+    expect(layout.columns).toEqual(['year', 'region']);
+    layout = place(layout, 'year', 'rows', 'dimension'); // changer de zone
+    expect(layout).toMatchObject({rows: ['year'], columns: ['region']});
   });
 
   it('l’ordre des lignes se règle par la position de dépôt', () => {
@@ -102,17 +124,17 @@ describe('composition par glisser-déposer', () => {
   });
 
   it('retire un champ, change un agrégat, et produit une configuration', () => {
-    let layout: PivotLayout = {rows: ['region'], column: 'year', values: [{id: 'amount', aggregate: 'sum'}]};
+    let layout: PivotLayout = {rows: ['region'], columns: ['year'], values: [{id: 'amount', aggregate: 'sum'}]};
     layout = setLayoutAggregate(layout, 'amount', 'avg');
-    const dimensions = [config.rows[0], config.columns!];
+    const dimensions = [config.rows[0], ...pivotColumnFields(config)];
     const measures = config.values;
     const built = configFromLayout(layout, dimensions, measures, {totalLabel: 'Tout'});
     expect(built.rows.map((f) => f.id)).toEqual(['region']);
-    expect(built.columns?.id).toBe('year');
+    expect(built.columns).toEqual(pivotColumnFields(config));
     expect(built.values[0]).toMatchObject({id: 'amount', aggregate: 'avg'});
     expect(built.totalLabel).toBe('Tout');
-    expect(removeFromLayout(layout, 'year').column).toBeNull();
+    expect(removeFromLayout(layout, 'year').columns).toEqual([]);
     expect(removeFromLayout(layout, 'amount').values).toEqual([]);
-    expect(configFromLayout({rows: ['inconnu'], column: 'nope', values: [{id: 'x', aggregate: 'sum'}]}, dimensions, measures)).toMatchObject({rows: [], columns: null, values: []});
+    expect(configFromLayout({rows: ['inconnu'], columns: ['nope'], values: [{id: 'x', aggregate: 'sum'}]}, dimensions, measures)).toMatchObject({rows: [], columns: [], values: []});
   });
 });

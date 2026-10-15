@@ -1,5 +1,6 @@
 import {TestBed} from '@angular/core/testing';
 import {describe, expect, it, vi} from 'vitest';
+import {draggedTableColumn} from './column-drag';
 import {NgTablePivotComponent} from './ng-table-pivot.component';
 import {computePivot, PivotConfig, PivotDatasource, PivotField, pivotToServerResult} from './pivot';
 
@@ -29,7 +30,7 @@ const fakeServer =
     const fields = new Map([REGION, YEAR, AMOUNT].map((field) => [field.id, field]));
     const config: PivotConfig<Sale> = {
       rows: request.rows.map((id) => fields.get(id)!),
-      columns: request.column ? fields.get(request.column)! : null,
+      columns: request.columns.map((id) => fields.get(id)!),
       values: request.values.map((value) => ({...fields.get(value.id)!, aggregate: value.aggregate})),
       columnSort: request.columnSort,
     };
@@ -53,7 +54,7 @@ describe('NgTablePivotComponent : serveur', () => {
     await fixture.whenStable();
 
     const root = fixture.nativeElement as HTMLElement;
-    expect(JSON.parse(log[0])).toMatchObject({rows: ['region'], column: 'year', values: [{id: 'amount', aggregate: 'sum'}]});
+    expect(JSON.parse(log[0])).toMatchObject({rows: ['region'], columns: ['year'], values: [{id: 'amount', aggregate: 'sum'}]});
     expect(headers(root)).toContain('2025');
     expect(root.querySelectorAll('tr.data-row')).toHaveLength(3); // Nord, Sud + total
     expect(root.querySelector('td.mat-column-pivot-row-0')?.textContent?.trim()).toBe('Nord');
@@ -76,7 +77,7 @@ describe('NgTablePivotComponent : serveur', () => {
     expect(signals[0].aborted).toBe(true);
 
     const current = fakeServer();
-    resolvers[1](await current({rows: ['region'], column: null, values: [{id: 'amount', aggregate: 'sum'}], columnSort: 'asc'}, {signal: signals[1]}));
+    resolvers[1](await current({rows: ['region'], columns: [], values: [{id: 'amount', aggregate: 'sum'}], columnSort: 'asc'}, {signal: signals[1]}));
     resolvers[0]({rows: [{labels: ['PÉRIMÉ'], cells: {}}]}); // arrive après : ne doit rien changer
     await settle(fixture);
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('PÉRIMÉ');
@@ -151,11 +152,11 @@ describe('NgTablePivotComponent : configurateur', () => {
     const year = root.querySelector('.ngt-pivot-zone--fields .ngt-pivot-chip') as HTMLElement;
 
     year.dispatchEvent(dragEvent('dragstart'));
-    zone(root, 'column').dispatchEvent(dragEvent('dragover'));
-    zone(root, 'column').dispatchEvent(dragEvent('drop'));
+    zone(root, 'columns').dispatchEvent(dragEvent('dragover'));
+    zone(root, 'columns').dispatchEvent(dragEvent('drop'));
     await fixture.whenStable();
 
-    expect(fixture.componentInstance.config().columns?.id).toBe('year');
+    expect(fixture.componentInstance.config().columns).toEqual([YEAR]);
     expect(headers(root)).toContain('2026');
   });
 
@@ -172,15 +173,38 @@ describe('NgTablePivotComponent : configurateur', () => {
     expect(ok.defaultPrevented).toBe(true);
   });
 
+  it('une colonne glissée depuis ng-table se dépose dans une zone : lignes, colonnes (plusieurs), valeurs', async () => {
+    const fixture = await create({rows: [REGION], columns: [], values: []});
+    const root = fixture.nativeElement as HTMLElement;
+    const dropTableColumn = async (id: string, zoneId: string) => {
+      draggedTableColumn.set(id); // ce que fait ng-table au début du glisser
+      const over = dragEvent('dragover');
+      zone(root, zoneId).dispatchEvent(over);
+      zone(root, zoneId).dispatchEvent(dragEvent('drop'));
+      await fixture.whenStable();
+      draggedTableColumn.set(null);
+      return over.defaultPrevented;
+    };
+
+    expect(await dropTableColumn('year', 'columns')).toBe(true);
+    expect(fixture.componentInstance.config().columns).toEqual([YEAR]);
+    expect(await dropTableColumn('amount', 'values')).toBe(true);
+    expect(fixture.componentInstance.config().values[0]).toMatchObject({id: 'amount', aggregate: 'sum'});
+    // Une mesure ne se dépose pas en colonnes ; une colonne inconnue du pivot n'est acceptée nulle part.
+    expect(await dropTableColumn('amount', 'columns')).toBe(false);
+    expect(await dropTableColumn('inconnue', 'rows')).toBe(false);
+    expect(fixture.componentInstance.config().rows).toEqual([REGION]);
+  });
+
   it('au clavier : la liste « + » ajoute un champ, « × » le retire, l’agrégat se change', async () => {
     const fixture = await create({rows: [REGION], columns: null, values: [{...AMOUNT, aggregate: 'sum'}]});
     const root = fixture.nativeElement as HTMLElement;
 
-    const add = zone(root, 'column').querySelector('select.ngt-pivot-add') as HTMLSelectElement;
+    const add = zone(root, 'columns').querySelector('select.ngt-pivot-add') as HTMLSelectElement;
     add.value = 'year';
     add.dispatchEvent(new Event('change', {bubbles: true}));
     await fixture.whenStable();
-    expect(fixture.componentInstance.config().columns?.id).toBe('year');
+    expect(fixture.componentInstance.config().columns).toEqual([YEAR]);
 
     const aggregate = zone(root, 'values').querySelector('select.ngt-pivot-agg') as HTMLSelectElement;
     aggregate.value = 'max';

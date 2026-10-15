@@ -47,6 +47,7 @@ import {
   syncGridTabStops,
 } from './grid-navigation';
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
+import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {compileFilters} from './filter-compile';
 import {searchText, SortLevel} from './row-pipeline';
 import {buildConsecutiveGroups, buildGroups, computeAggregate, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
@@ -4219,9 +4220,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return;
     }
     this.draggingColumnId.set(column.id);
+    // Une zone de dépôt hors de la table (le pivot) peut accepter la colonne : son identifiant est publié.
+    draggedTableColumn.set(column.id);
     event.dataTransfer?.setData('text/plain', column.id);
+    event.dataTransfer?.setData(NG_TABLE_COLUMN_DRAG_TYPE, column.id);
     if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.effectAllowed = 'copyMove';
     }
   }
 
@@ -4256,6 +4260,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   protected onColumnDragEnd(): void {
+    draggedTableColumn.set(null);
     this.draggingColumnId.set(null);
     this.dragOverColumnId.set(null);
   }

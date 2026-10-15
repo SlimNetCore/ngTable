@@ -1,4 +1,5 @@
 import {ChangeDetectionStrategy, Component, computed, effect, input, model, output, signal, untracked, ViewEncapsulation} from '@angular/core';
+import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {NgTableColumn, NgTableComponent} from './ng-table.component';
 import {
   computePivot,
@@ -12,6 +13,7 @@ import {
   PivotRow,
   PivotZone,
   pivotCellKey,
+  pivotColumnFields,
   pivotFromServer,
   pivotRequestFor,
   pivotTotalKey,
@@ -49,7 +51,7 @@ export function buildPivotModel<T>(rows: readonly T[], config: PivotConfig<T>): 
 
 /** Comme `buildPivotModel`, à partir d'un résultat déjà calculé (par exemple par le serveur). */
 export function buildPivotModelFromResult<T>(result: PivotResult, config: PivotConfig<T>): NgTablePivotModel {
-  const columnField = config.columns ?? null;
+  const columnFields = pivotColumnFields(config);
   const totalLabel = config.totalLabel ?? 'Total';
   const single = config.values.length === 1;
   const columns: NgTableColumn<NgTablePivotRow>[] = [];
@@ -75,20 +77,26 @@ export function buildPivotModelFromResult<T>(result: PivotResult, config: PivotC
     exportValueAccessor: (row) => round(row.cells[key] ?? null),
   });
 
-  for (const columnKey of result.columnKeys) {
+  // En-têtes d'une colonne du pivot. Un seul champ en colonne : son libellé coiffe les valeurs. Plusieurs : les
+  // valeurs des champs externes coiffent celles des champs internes. Plusieurs valeurs agrégées : elles se
+  // répartissent sous la dernière valeur du chemin.
+  const prefix = columnFields.length === 1 ? [columnFields[0].header] : [];
+  result.columnKeys.forEach((columnKey, position) => {
+    const path = (result.columnPaths[position] ?? []).map((label) => label || '—');
     for (const value of config.values) {
-      const group = columnField ? [columnField.header] : [];
-      // Une seule valeur : l'en-tête est la valeur de la colonne pivot ; sinon un groupe par valeur de la colonne pivot.
-      if (columnField && !single) {
-        columns.push(valueColumn(`pivot:${columnKey}:${value.id}`, value.header, pivotCellKey(columnKey, value.id), [columnField.header, columnKey || '—']));
+      const id = `pivot:${columnKey}:${value.id}`;
+      const key = pivotCellKey(columnKey, value.id);
+      if (columnFields.length === 0) {
+        columns.push(valueColumn(id, value.header, key, []));
+      } else if (single) {
+        columns.push(valueColumn(id, path[path.length - 1], key, [...prefix, ...path.slice(0, -1)]));
       } else {
-        const header = columnField ? columnKey || '—' : value.header;
-        columns.push(valueColumn(`pivot:${columnKey}:${value.id}`, header, pivotCellKey(columnKey, value.id), group));
+        columns.push(valueColumn(id, value.header, key, [...prefix, ...path]));
       }
     }
-  }
+  });
 
-  if (columnField && config.rowTotals !== false) {
+  if (columnFields.length > 0 && config.rowTotals !== false) {
     for (const value of config.values) {
       columns.push(valueColumn(`pivot:total:${value.id}`, single ? totalLabel : value.header, pivotTotalKey(value.id), [totalLabel]));
     }
@@ -106,7 +114,7 @@ export function buildPivotModelFromResult<T>(result: PivotResult, config: PivotC
 export interface NgTablePivotLabels {
   fields: string;
   rows: string;
-  column: string;
+  columns: string;
   values: string;
   dropHere: string;
   remove: string;
@@ -121,7 +129,7 @@ export interface NgTablePivotLabels {
 export const NG_TABLE_PIVOT_LABELS_FR: NgTablePivotLabels = {
   fields: 'Champs',
   rows: 'Lignes',
-  column: 'Colonnes',
+  columns: 'Colonnes',
   values: 'Valeurs',
   dropHere: 'Glissez un champ ici',
   remove: 'Retirer {field}',
@@ -136,7 +144,7 @@ export const NG_TABLE_PIVOT_LABELS_FR: NgTablePivotLabels = {
 export const NG_TABLE_PIVOT_LABELS_EN: NgTablePivotLabels = {
   fields: 'Fields',
   rows: 'Rows',
-  column: 'Columns',
+  columns: 'Columns',
   values: 'Values',
   dropHere: 'Drop a field here',
   remove: 'Remove {field}',
@@ -358,7 +366,7 @@ export class NgTablePivotComponent<T> {
   readonly pivotError = output<unknown>();
 
   protected readonly aggregates = AGGREGATES;
-  protected readonly zones: { id: PivotZone }[] = [{id: 'rows'}, {id: 'column'}, {id: 'values'}];
+  protected readonly zones: { id: PivotZone }[] = [{id: 'rows'}, {id: 'columns'}, {id: 'values'}];
   protected readonly texts = computed(() => ({...NG_TABLE_PIVOT_LABELS_FR, ...this.labels()}));
 
   // ---------------------------------------------------------------- calcul serveur
@@ -426,7 +434,7 @@ export class NgTablePivotComponent<T> {
     const config = this.config();
     if (this.datasource()) {
       const result = this.serverResult();
-      return result ? buildPivotModelFromResult(result, config) : {columns: [], rows: [], pinnedBottom: [], result: {columnKeys: [], rows: [], grandTotal: null}};
+      return result ? buildPivotModelFromResult(result, config) : {columns: [], rows: [], pinnedBottom: [], result: {columnKeys: [], columnPaths: [], rows: [], grandTotal: null}};
     }
     return buildPivotModel(this.rows(), config);
   });
@@ -439,7 +447,7 @@ export class NgTablePivotComponent<T> {
     const config = this.config();
     return {
       rows: config.rows.map((field) => field.id),
-      column: config.columns?.id ?? null,
+      columns: pivotColumnFields(config).map((field) => field.id),
       values: config.values.map((value) => ({id: value.id, aggregate: value.aggregate ?? 'sum'})),
     };
   });
@@ -451,13 +459,13 @@ export class NgTablePivotComponent<T> {
 
   protected readonly unusedFields = computed(() => {
     const layout = this.layout();
-    const used = new Set([...layout.rows, ...(layout.column ? [layout.column] : []), ...layout.values.map((value) => value.id)]);
+    const used = new Set([...layout.rows, ...layout.columns, ...layout.values.map((value) => value.id)]);
     return this.allFields().filter(({field}) => !used.has(field.id)).map(({field}) => field);
   });
 
   protected zoneLabel(zone: PivotZone | 'fields'): string {
     const texts = this.texts();
-    return zone === 'rows' ? texts.rows : zone === 'column' ? texts.column : zone === 'values' ? texts.values : texts.fields;
+    return zone === 'rows' ? texts.rows : zone === 'columns' ? texts.columns : zone === 'values' ? texts.values : texts.fields;
   }
 
   protected zoneItems(zone: PivotZone): { field: PivotField<T>; aggregate: PivotAggregate }[] {
@@ -466,9 +474,8 @@ export class NgTablePivotComponent<T> {
     if (zone === 'rows') {
       return layout.rows.flatMap((id) => find(id) ?? []).map((field) => ({field, aggregate: 'sum' as const}));
     }
-    if (zone === 'column') {
-      const field = layout.column ? find(layout.column) : undefined;
-      return field ? [{field, aggregate: 'sum' as const}] : [];
+    if (zone === 'columns') {
+      return layout.columns.flatMap((id) => find(id) ?? []).map((field) => ({field, aggregate: 'sum' as const}));
     }
     return layout.values.flatMap((value) => {
       const field = find(value.id);
@@ -515,27 +522,42 @@ export class NgTablePivotComponent<T> {
 
   protected onDragEnd(): void {
     this.dragging = null;
+    draggedTableColumn.set(null);
     this.overZone.set(null);
   }
 
+  /** Champ glissé en ce moment : un chip du configurateur, ou l'en-tête d'une colonne de `ng-table`. */
+  private draggedField(): string | null {
+    return this.dragging ?? draggedTableColumn();
+  }
+
   protected onZoneDragOver(event: DragEvent, zone: PivotZone | 'fields'): void {
-    const kind = this.dragging ? this.kindOf(this.dragging) : null;
+    const dragged = this.draggedField();
+    const kind = dragged ? this.kindOf(dragged) : null;
     const allowed = zone === 'fields' ? kind !== null : kind !== null && (zone === 'values') === (kind === 'measure');
     if (allowed) {
       event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = this.dragging ? 'move' : 'copy'; // une colonne de la table reste dans la table
+      }
       this.overZone.set(zone);
     }
   }
 
   protected onZoneDrop(event: DragEvent, zone: PivotZone, index?: number): void {
     event.preventDefault();
-    const id = this.dragging;
+    const id = this.droppedField(event);
     const kind = id ? this.kindOf(id) : null;
     this.onDragEnd();
     if (id && kind) {
       const existing = this.layout().values.find((value) => value.id === id);
       this.apply(placeInLayout(this.layout(), id, zone, kind, index, existing?.aggregate));
     }
+  }
+
+  /** Champ déposé : celui d'un chip, ou une colonne de `ng-table` (son identifiant est celui du champ). */
+  private droppedField(event: DragEvent): string | null {
+    return this.dragging ?? draggedTableColumn() ?? event.dataTransfer?.getData(NG_TABLE_COLUMN_DRAG_TYPE) ?? null;
   }
 
   /** Lâcher un champ sur « Champs » le retire du pivot. */

@@ -30,3 +30,5 @@ export type {PivotDatasource, PivotLayout, PivotServerRequest, PivotServerResult
 export {decimateIndices, panRange, rangeFromBrush, zoomRange} from './lib/chart-zoom';
 export type {ViewRange} from './lib/chart-zoom';
 export type {ZoomLabels} from './lib/ng-table-chart.component';
+export {PIVOT_PATH_SEPARATOR, pivotCellKey, pivotColumnFields, pivotTotalKey} from './lib/pivot';
+export {NG_TABLE_COLUMN_DRAG_TYPE} from './lib/column-drag';

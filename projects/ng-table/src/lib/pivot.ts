@@ -21,8 +21,11 @@ export interface PivotValue<T> extends PivotField<T> {
 export interface PivotConfig<T> {
   /** Colonnes qui définissent les lignes du pivot (une ou plusieurs, de la plus externe à la plus interne). */
   rows: PivotField<T>[];
-  /** Colonne dont chaque valeur distincte devient une colonne du pivot. Sans elle : une colonne par valeur agrégée. */
-  columns?: PivotField<T> | null;
+  /**
+   * Champ(s) dont chaque combinaison de valeurs devient une colonne du pivot : un champ, ou plusieurs
+   * (de l'externe à l'interne : « Année » puis « Statut »). Sans eux : une colonne par valeur agrégée.
+   */
+  columns?: PivotField<T> | readonly PivotField<T>[] | null;
   /** Valeurs à agréger. */
   values: PivotValue<T>[];
   /** Colonne « Total » à droite (avec `columns`). `true` par défaut. */
@@ -43,9 +46,20 @@ export interface PivotRow {
   cells: Record<string, number | null>;
 }
 
+/** Sépare les valeurs d'un chemin de colonne dans une clé (`2026` + `Validée` → `2026\u001fValidée`). */
+export const PIVOT_PATH_SEPARATOR = '\u001f';
+
+/** Champs en colonnes d'une configuration, quelle que soit la forme donnée à `columns`. */
+export function pivotColumnFields<T>(config: Pick<PivotConfig<T>, 'columns'>): readonly PivotField<T>[] {
+  const columns = config.columns;
+  return !columns ? [] : Array.isArray(columns) ? (columns as readonly PivotField<T>[]) : [columns as PivotField<T>];
+}
+
 export interface PivotResult {
-  /** Valeurs distinctes de la colonne pivot, triées ; `['']` sans colonne pivot. */
+  /** Combinaisons de valeurs des champs en colonnes, triées, sous forme de clés ; `['']` sans champ en colonne. */
   columnKeys: string[];
+  /** Les mêmes combinaisons, une valeur par champ (`[]` sans champ en colonne). */
+  columnPaths: string[][];
   rows: PivotRow[];
   grandTotal: PivotRow | null;
 }
@@ -121,7 +135,7 @@ const labelOf = (value: unknown): string => (value === null || value === undefin
  */
 export function computePivot<T>(rows: readonly T[], config: PivotConfig<T>): PivotResult {
   const collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
-  const columnField = config.columns ?? null;
+  const columnFields = pivotColumnFields(config);
   const valueCount = config.values.length;
 
   interface Group {
@@ -132,9 +146,12 @@ export function computePivot<T>(rows: readonly T[], config: PivotConfig<T>): Piv
   const groups = new Map<string, Group>();
   const columnIndex = new Map<string, number>();
   const columnList: string[] = [];
+  const pathByKey = new Map<string, string[]>();
 
   const rowAccessors = config.rows.map((field) => field.accessor ?? (() => undefined));
-  const columnAccessor = columnField?.accessor ?? (() => undefined);
+  const columnAccessors = columnFields.map((field) => field.accessor ?? (() => undefined));
+  const columnCount = columnAccessors.length;
+  const pathBuffer: string[] = new Array<string>(columnCount);
   const valueAccessors = config.values.map((value) => value.accessor ?? (() => undefined));
   const fieldCount = rowAccessors.length;
   const labelBuffer: string[] = new Array<string>(fieldCount);
@@ -155,12 +172,21 @@ export function computePivot<T>(rows: readonly T[], config: PivotConfig<T>): Piv
       groups.set(groupKey, group);
     }
 
-    const columnKey = columnField ? labelOf(columnAccessor(row)) : '';
+    let columnKey = '';
+    if (columnCount === 1) {
+      columnKey = pathBuffer[0] = labelOf(columnAccessors[0](row));
+    } else {
+      for (let field = 0; field < columnCount; field++) {
+        const label = (pathBuffer[field] = labelOf(columnAccessors[field](row)));
+        columnKey += field === 0 ? label : `${PIVOT_PATH_SEPARATOR}${label}`;
+      }
+    }
     let column = columnIndex.get(columnKey);
     if (column === undefined) {
       column = columnList.length;
       columnList.push(columnKey);
       columnIndex.set(columnKey, column);
+      pathByKey.set(columnKey, pathBuffer.slice());
     }
     const base = column * valueCount;
     for (let value = 0; value < valueCount; value++) {
@@ -169,7 +195,7 @@ export function computePivot<T>(rows: readonly T[], config: PivotConfig<T>): Piv
   }
 
   const direction = config.columnSort === 'desc' ? -1 : 1;
-  const sortedColumns = [...columnList].sort((a, b) => direction * collator.compare(a, b));
+  const sortedColumns = [...columnList].sort((a, b) => direction * comparePaths(pathByKey.get(a)!, pathByKey.get(b)!, collator));
   const aggregates = config.values.map((value) => value.aggregate ?? 'sum');
 
   /** Ligne du pivot : ses cellules, et ses totaux déduits des accumulateurs de toutes ses colonnes. */
@@ -218,7 +244,18 @@ export function computePivot<T>(rows: readonly T[], config: PivotConfig<T>): Piv
     grandTotal = toRow('\u0001grand-total', [totalLabel, ...config.rows.slice(1).map(() => '')], merged);
   }
 
-  return {columnKeys: sortedColumns, rows: pivotRows, grandTotal};
+  return {columnKeys: sortedColumns, columnPaths: sortedColumns.map((key) => pathByKey.get(key)!), rows: pivotRows, grandTotal};
+}
+
+/** Compare deux chemins de colonne champ par champ (nombres par valeur, casse ignorée). */
+function comparePaths(a: readonly string[], b: readonly string[], collator: Intl.Collator): number {
+  for (let index = 0; index < Math.min(a.length, b.length); index++) {
+    const compared = collator.compare(a[index], b[index]);
+    if (compared !== 0) {
+      return compared;
+    }
+  }
+  return a.length - b.length;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -229,8 +266,8 @@ export function computePivot<T>(rows: readonly T[], config: PivotConfig<T>): Piv
 export interface PivotServerRequest {
   /** Identifiants des champs en lignes, du plus externe au plus interne. */
   rows: string[];
-  /** Identifiant du champ dont chaque valeur devient une colonne, ou `null`. */
-  column: string | null;
+  /** Identifiants des champs dont chaque combinaison de valeurs devient une colonne, de l'externe à l'interne (vide : aucun). */
+  columns: string[];
   values: { id: string; aggregate: PivotAggregate }[];
   columnSort: 'asc' | 'desc';
   /** Filtres de la table (colonne → valeur saisie), pour que le serveur pivote les mêmes lignes. */
@@ -239,8 +276,11 @@ export interface PivotServerRequest {
 
 /** Réponse du serveur : pour chaque ligne, une valeur par colonne pivot (`cells[colonne][valeur]`) et ses totaux. */
 export interface PivotServerResult {
-  /** Valeurs de la colonne pivot, dans l'ordre voulu. Déduites des lignes (triées) si absentes. */
-  columnKeys?: string[];
+  /**
+   * Colonnes du pivot, dans l'ordre voulu : un chemin (une valeur par champ en colonne) par colonne.
+   * Les cellules d'une ligne sont rangées sous `chemin.join('\u001f')`. Déduites des lignes (triées) si absentes.
+   */
+  columns?: string[][];
   rows: PivotServerRow[];
   /** Ligne de total général. */
   grandTotal?: Omit<PivotServerRow, 'labels'>;
@@ -260,7 +300,7 @@ export type PivotDatasource = (request: PivotServerRequest, options: { signal: A
 export function pivotRequestFor<T>(config: PivotConfig<T>, filters?: Record<string, string>): PivotServerRequest {
   return {
     rows: config.rows.map((field) => field.id),
-    column: config.columns?.id ?? null,
+    columns: pivotColumnFields(config).map((field) => field.id),
     values: config.values.map((value) => ({id: value.id, aggregate: value.aggregate ?? 'sum'})),
     columnSort: config.columnSort ?? 'asc',
     ...(filters && Object.keys(filters).length > 0 ? {filters} : {}),
@@ -273,9 +313,14 @@ const keyOfRow = (labels: readonly string[]): string => labels.join('\u0001');
 export function pivotFromServer<T>(server: PivotServerResult, config: PivotConfig<T>): PivotResult {
   const collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
   const direction = config.columnSort === 'desc' ? -1 : 1;
-  const columnKeys = config.columns
-    ? (server.columnKeys ?? [...new Set(server.rows.flatMap((row) => Object.keys(row.cells)))].sort((a, b) => direction * collator.compare(a, b)))
-    : [''];
+  const hasColumns = pivotColumnFields(config).length > 0;
+  const columnPaths: string[][] = hasColumns
+    ? (server.columns ??
+      [...new Set(server.rows.flatMap((row) => Object.keys(row.cells)))]
+        .map((key) => key.split(PIVOT_PATH_SEPARATOR))
+        .sort((a, b) => direction * comparePaths(a, b, collator)))
+    : [[]];
+  const columnKeys = columnPaths.map((path) => path.join(PIVOT_PATH_SEPARATOR));
 
   const convert = (key: string, labels: string[], row: Omit<PivotServerRow, 'labels'>): PivotRow => {
     const cells: Record<string, number | null> = {};
@@ -285,13 +330,14 @@ export function pivotFromServer<T>(server: PivotServerResult, config: PivotConfi
       }
     }
     for (const value of config.values) {
-      cells[pivotTotalKey(value.id)] = row.totals?.[value.id] ?? (config.columns ? null : (row.cells[''] ?? {})[value.id] ?? null);
+      cells[pivotTotalKey(value.id)] = row.totals?.[value.id] ?? (hasColumns ? null : (row.cells[''] ?? {})[value.id] ?? null);
     }
     return {key, labels, cells};
   };
 
   return {
     columnKeys,
+    columnPaths,
     rows: server.rows.map((row) => convert(keyOfRow(row.labels), row.labels, row)),
     grandTotal:
       config.grandTotal === false || !server.grandTotal
@@ -317,7 +363,7 @@ export function pivotToServerResult(result: PivotResult, config: PivotConfig<unk
     return {cells, totals};
   };
   return {
-    columnKeys: result.columnKeys,
+    columns: result.columnPaths,
     rows: result.rows.map((row) => ({labels: row.labels, ...toRow(row)})),
     ...(result.grandTotal ? {grandTotal: toRow(result.grandTotal)} : {}),
   };
@@ -327,12 +373,13 @@ export function pivotToServerResult(result: PivotResult, config: PivotConfig<unk
 // Configuration par glisser-déposer des champs
 // ---------------------------------------------------------------------------------------------
 
-export type PivotZone = 'rows' | 'column' | 'values';
+export type PivotZone = 'rows' | 'columns' | 'values';
 
 /** Ce que l'utilisateur a composé : champs en lignes, champ en colonne, valeurs avec leur agrégat. */
 export interface PivotLayout {
   rows: string[];
-  column: string | null;
+  /** Champs en colonnes, de l'externe à l'interne. */
+  columns: string[];
   values: { id: string; aggregate: PivotAggregate }[];
 }
 
@@ -340,7 +387,7 @@ export interface PivotLayout {
 export function removeFromLayout(layout: PivotLayout, fieldId: string): PivotLayout {
   return {
     rows: layout.rows.filter((id) => id !== fieldId),
-    column: layout.column === fieldId ? null : layout.column,
+    columns: layout.columns.filter((id) => id !== fieldId),
     values: layout.values.filter((value) => value.id !== fieldId),
   };
 }
@@ -348,7 +395,7 @@ export function removeFromLayout(layout: PivotLayout, fieldId: string): PivotLay
 /**
  * Place un champ dans une zone, à la position `index` (fin par défaut). Un champ n'est que dans une
  * zone à la fois ; une dimension ne va pas dans les valeurs, une mesure ne va pas en lignes ou en
- * colonne. La zone « colonne » n'a qu'un champ : le précédent est retiré. `null` si c'est interdit.
+ * colonne. La zone « colonne » comme « lignes » accepte plusieurs champs, dans l'ordre de dépôt. `null` si c'est interdit.
  */
 export function placeInLayout(
   layout: PivotLayout,
@@ -362,8 +409,10 @@ export function placeInLayout(
     return null;
   }
   const base = removeFromLayout(layout, fieldId);
-  if (zone === 'column') {
-    return {...base, column: fieldId};
+  if (zone === 'columns') {
+    const columns = [...base.columns];
+    columns.splice(index ?? columns.length, 0, fieldId);
+    return {...base, columns};
   }
   if (zone === 'rows') {
     const rows = [...base.rows];
@@ -391,7 +440,7 @@ export function configFromLayout<T>(
   return {
     ...base,
     rows: layout.rows.flatMap((id) => dimension(id) ?? []),
-    columns: layout.column ? (dimension(layout.column) ?? null) : null,
+    columns: layout.columns.flatMap((id) => dimension(id) ?? []),
     values: layout.values.flatMap((value) => {
       const field = measures.find((candidate) => candidate.id === value.id);
       return field ? [{...field, aggregate: value.aggregate}] : [];
