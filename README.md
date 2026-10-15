@@ -238,7 +238,7 @@ Chaque type de filtre s'active via `filter: {type: ...}`.
 {id: 'client', header: 'Client', valueAccessor: (c) => c.client, filter: {type: 'text'}}
 ```
 
-**Énuméré** (`enum`, options statiques — rendu en `<mat-select>`) :
+**Énuméré** (`enum`, options statiques — rendu en `<ng-table-select>`, avec recherche) :
 
 ```ts
 {
@@ -638,7 +638,8 @@ Le paginateur intégré (`<ng-table-paginator>`) et les cases à cocher (`<ng-ta
 - **Icônes** : `<ng-table-icon name="close"/>`, 29 icônes en SVG dessinées au trait, à la couleur du texte (`font-size` et `color` les règlent). Plus besoin de charger la police Material Icons pour la table ; le style est un peu plus « fil de fer » que les glyphes pleins de Material.
 - **Boutons** : de simples `<button>` avec l'attribut `ngt-button`, `ngt-stroked-button`, `ngt-flat-button` ou `ngt-icon-button`, habillés par les jetons de thème (`buttons.css`).
 - **Info-bulle** : `NgTableTooltipDirective` (`[ngTableTooltip]="'texte'"`), une bulle `role="tooltip"` posée dans `<body>`, ouverte au survol (300 ms) et au focus, fermée à Échap, au défilement et à la destruction ; la bulle de troncature en dérive. Les variables `--ngt-tooltip-*` n'ont pas changé ; la classe `.mat-mdc-tooltip-surface` n'existe plus, la bulle est `.ngt-tooltip`.
-- Il reste à remplacer : le tableau (`mat-table`), le menu, le champ de saisie et le sélecteur de liste, le sélecteur de date.
+- **Liste déroulante** (étape 3) : `<ng-table-select>` remplace `<mat-select>` + `<mat-option>` dans les filtres énumérés et booléens. Sélection simple ou multiple (`[multiple]`), recherche intégrée (`[searchable]`), option « tout » en tête (`[allLabel]`), motif ARIA combobox + listbox (`aria-expanded`, `aria-activedescendant`, `aria-selected`), clavier complet (flèches, Début/Fin, Entrée, Espace, Échap, Tab). Le panneau est posé dans `<body>` (il échappe aux `overflow`), s'ouvre vers le haut quand il manque de place et se ferme au clic extérieur, au défilement et au redimensionnement. Le champ de recherche de `ng-table-select-filter` (basé sur `mat-form-field`) est supprimé : la recherche est dans le panneau. Les classes `.mat-mdc-select-*`, `.column-filter-select-panel` et `.panel-filter-*` n'existent plus ; le déclencheur est `.ngt-select__trigger`, le panneau `.ngt-select__panel`.
+- Il reste à remplacer : le tableau (`mat-table`), le menu, le sélecteur de date.
 
 ### Étape 10novodecies — Thème : jetons CSS et thème sombre
 

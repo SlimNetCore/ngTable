@@ -7,14 +7,13 @@ import {
   output,
   signal,
 } from '@angular/core';
-import {MatNativeDateModule, MatOptionSelectionChange} from '@angular/material/core';
+import {MatNativeDateModule} from '@angular/material/core';
 import {MatDatepickerModule} from '@angular/material/datepicker';
 import {MatFormFieldModule} from '@angular/material/form-field';
 import {NgTableIconComponent} from './ng-table-icon.component';
 import {MatInputModule} from '@angular/material/input';
-import {MatSelectModule} from '@angular/material/select';
 import {NG_TABLE_DEFAULT_LABELS, NgTableLabels} from './ng-table-labels';
-import {SelectFilterComponent} from './select-filter.component';
+import {NgTableSelectComponent} from './ng-table-select.component';
 
 export type ColumnFilterType =
   | 'text'
@@ -67,8 +66,7 @@ export type ColumnFilterType =
     NgTableIconComponent,
     MatInputModule,
     MatNativeDateModule,
-    MatSelectModule,
-    SelectFilterComponent,
+    NgTableSelectComponent,
   ],
   templateUrl: './column-filter-renderer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -90,15 +88,12 @@ export class ColumnFilterRendererComponent {
   readonly valueChange = output<string>();
   /** Demande au parent d'effacer le filtre. */
   readonly clear = output<void>();
-  protected readonly panelFilterOptionValue = '__PANEL_FILTER_OPTION__';
-  protected readonly panelFilter = signal('');
   protected readonly draftDateRange = signal<{ from: Date | null; to: Date | null }>({
     from: null,
     to: null,
   });
   /** Brouillon du type `date` (jour unique) — distinct de la période `range`. */
   protected readonly draftDate = signal<Date | null>(null);
-  private previousType: ColumnFilterType | null = null;
 
   constructor() {
     effect(() => {
@@ -106,12 +101,6 @@ export class ColumnFilterRendererComponent {
       const currentValue = this.value();
       this.syncDraftDateRange(currentType, currentValue);
       this.syncDraftDate(currentType, currentValue);
-
-      if (this.previousType !== null && this.previousType !== currentType) {
-        this.panelFilter.set('');
-      }
-
-      this.previousType = currentType;
     });
   }
 
@@ -164,25 +153,17 @@ export class ColumnFilterRendererComponent {
     return this.labels().filterBy.replace('{field}', this.label());
   }
 
-  onMatSelect(value: string | string[]): void {
-    // Enum multi-select => serialisation CSV pour rester compatible avec le moteur de filtre parent.
-    if (Array.isArray(value)) {
-      this.valueChange.emit(value.filter((v) => !!v && v !== this.panelFilterOptionValue).join(','));
-      return;
-    }
-    if (value === this.panelFilterOptionValue) {
-      return;
-    }
-    this.valueChange.emit(value ?? '');
+  /** Valeur choisie dans la liste : l'énuméré (multiple) est sérialisé en CSV pour rester compatible avec le moteur de filtre. */
+  onSelect(value: string | string[]): void {
+    this.valueChange.emit(Array.isArray(value) ? value.filter((v) => !!v).join(',') : (value ?? ''));
   }
 
   selectedValues(): string[] | string {
-    // Deserialise CSV -> tableau pour le multi-select Angular Material.
     if (!this.isMultiSelect()) return this.value() ?? '';
     return (this.value() ?? '')
       .split(',')
       .map((v) => v.trim())
-      .filter((v) => !!v && v !== this.panelFilterOptionValue);
+      .filter((v) => !!v);
   }
 
   onInput(event: Event): void {
@@ -194,22 +175,6 @@ export class ColumnFilterRendererComponent {
 
   isMultiSelect(): boolean {
     return this.type() === 'enum';
-  }
-
-  onPanelFilterOptionSelection(event: MatOptionSelectionChange): void {
-    if (!event?.isUserInput) return;
-    // Keep this row as a non-selectable interactive header for panel filtering.
-    event.source?.deselect?.();
-  }
-
-  onPanelFilterChange(value: string): void {
-    this.panelFilter.set(value ?? '');
-  }
-
-  isPanelOptionVisible(label: string): boolean {
-    const query = (this.panelFilter() ?? '').trim().toLowerCase();
-    if (!query) return true;
-    return (label ?? '').toLowerCase().includes(query);
   }
 
   onDraftDateRangeChange(bound: 'from' | 'to', value: Date | null): void {

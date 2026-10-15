@@ -174,39 +174,17 @@
 }
 
 .select-filter-field {
+  flex: 1 1 auto;
   width: 100%;
+  min-width: 0;
   margin: 0;
-  --mat-form-field-container-height: 40px;
-  --mat-form-field-container-vertical-padding: 8px;
+  font-family: var(--filter-font-family);
+  font-size: var(--filter-font-size);
+  font-weight: var(--filter-font-weight);
 }
 
-
-:host ::ng-deep .select-filter-field .mat-mdc-form-field-infix {
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-}
-
-:host ::ng-deep .select-filter-field .mat-mdc-select-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-}
-
-:host ::ng-deep .select-filter-field .mat-mdc-select-value,
-:host ::ng-deep .select-filter-field .mat-mdc-select-placeholder,
-:host ::ng-deep .select-filter-field .mat-mdc-select-value-text,
-:host ::ng-deep .select-filter-field .mat-mdc-select-min-line {
-  text-align: center;
-}
-
-.select-filter-field.active {
-  --mdc-outlined-text-field-outline-color: var(--ngt-primary-outline, var(--app-primary-outline, rgba(58, 124, 165, 0.34)));
-}
-
-.panel-filter-content {
-  width: 100%;
+.select-filter-field.active ::ng-deep .ngt-select__trigger {
+  border-color: var(--ngt-primary-outline, var(--app-primary-outline, rgba(58, 124, 165, 0.34)));
 }
 
 .field-shell:hover {
@@ -249,30 +227,6 @@
   text-align: center;
   color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   text-transform: none;
-}
-
-:host ::ng-deep .select-filter-field .mat-mdc-select-value,
-:host ::ng-deep .select-filter-field .mat-mdc-select-placeholder,
-:host ::ng-deep .select-filter-field .mat-mdc-select-value-text,
-:host ::ng-deep .select-filter-field .mat-mdc-select-min-line {
-  font-family: var(--filter-font-family) !important;
-  font-size: var(--filter-font-size) !important;
-  font-weight: var(--filter-font-weight) !important;
-  text-transform: none !important;
-}
-
-.select-filter {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  cursor: pointer;
-  text-align-last: center;
-  padding-right: 24px;
-}
-
-.select-filter option {
-  background: var(--ngt-surface, var(--app-surface-solid, #ffffff));
-  color: var(--ngt-text, var(--app-text, #0d1d26));
 }
 
 .field-icon {
@@ -349,8 +303,7 @@
 
 /* Material fixe la largeur interne d'un champ à 180 px : dans une colonne plus étroite,
    le texte passait sous l'icône du calendrier au lieu d'être tronqué. */
-:host-context(.inline-filter) ::ng-deep .date-field .mat-mdc-form-field-infix,
-:host-context(.inline-filter) ::ng-deep .select-filter-field .mat-mdc-form-field-infix {
+:host-context(.inline-filter) ::ng-deep .date-field .mat-mdc-form-field-infix {
   width: auto;
   min-width: 0;
 }

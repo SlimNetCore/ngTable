@@ -77,55 +77,22 @@
   </div>
 } @else {
   @if (isSelectType()) {
-    <mat-form-field
+    <ng-table-select
+      (valueChange)="onSelect($event)"
+      [allLabel]="isMultiSelect() ? null : labels().all"
+      [ariaLabel]="filterByPlaceholder()"
       [class.active]="isActive()"
-      appearance="outline"
+      [clearLabel]="labels().clearFilter"
+      [emptyLabel]="labels().noData"
+      [multiple]="isMultiSelect()"
+      [options]="type() === 'boolean' ? booleanOptions() : options()"
+      [panelWidth]="280"
+      [placeholder]="placeholder() || filterByPlaceholder()"
+      [searchLabel]="labels().search"
+      [searchable]="true"
+      [value]="selectedValues()"
       class="select-filter-field"
-    >
-      <mat-select
-        (selectionChange)="onMatSelect($event.value)"
-        [multiple]="isMultiSelect()"
-        [panelWidth]="'360px'"
-        [placeholder]="placeholder() || filterByPlaceholder()"
-        [value]="selectedValues()"
-        panelClass="column-filter-select-panel"
-      >
-        <mat-option
-          (onSelectionChange)="onPanelFilterOptionSelection($event)"
-          [value]="panelFilterOptionValue"
-          class="panel-filter-option"
-        >
-          <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
-          <div
-            (click)="$event.stopPropagation()"
-            (mousedown)="$event.stopPropagation()"
-            class="panel-filter-content"
-          >
-            <ng-table-select-filter
-              (valueChange)="onPanelFilterChange($event)"
-              [clearLabel]="labels().clearFilter"
-              [placeholder]="labels().search"
-            />
-          </div>
-        </mat-option>
-        @if (!isMultiSelect()) {
-          <mat-option value="">{{ labels().all }}</mat-option>
-        }
-        @if (type() === 'boolean') {
-          @for (o of booleanOptions(); track o.value) {
-            @if (isPanelOptionVisible(o.label)) {
-              <mat-option [value]="o.value">{{ o.label }}</mat-option>
-            }
-          }
-        } @else {
-          @for (o of options(); track o.value) {
-            @if (isPanelOptionVisible(o.label)) {
-              <mat-option [value]="o.value">{{ o.label }}</mat-option>
-            }
-          }
-        }
-      </mat-select>
-    </mat-form-field>
+    />
   } @else {
     <div [class.active]="isActive()" class="field-shell">
       <input
