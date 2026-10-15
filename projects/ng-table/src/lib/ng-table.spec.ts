@@ -125,7 +125,7 @@ describe('NgTableComponent', () => {
       const withOverflow = columns();
       withOverflow[0] = {...withOverflow[0], textOverflow: 'wrap'};
       const {fixture} = await createTable({columns: withOverflow});
-      const cells = fixture.nativeElement.querySelectorAll('td.mat-mdc-cell');
+      const cells = fixture.nativeElement.querySelectorAll('td.cdk-cell');
 
       expect(cells[0].querySelector('.cell-text--wrap')).toBeTruthy();
       expect(cells[0].querySelector('.cell-text--truncate')).toBeFalsy();
@@ -134,7 +134,7 @@ describe('NgTableComponent', () => {
 
     it('porte la tooltip de troncature sur le libellé d’en-tête, avec le texte de la colonne', async () => {
       const {fixture} = await createTable();
-      const headerLabelEl = fixture.debugElement.query(By.css('th.mat-mdc-header-cell .header-label'));
+      const headerLabelEl = fixture.debugElement.query(By.css('th.cdk-header-cell .header-label'));
       const directive = headerLabelEl.injector.get(TruncateTooltipDirective);
 
       expect(directive.text).toBe('Nom');
@@ -144,10 +144,8 @@ describe('NgTableComponent', () => {
       const {fixture} = await createTable();
       const table = fixture.nativeElement.querySelector('table.ng-table');
 
-      // `[fixedLayout]="true"` : Material pose `table-layout: auto` sur
-      // `.mat-mdc-table`, de même spécificité que `.ng-table` — cette classe
-      // (déclarée après dans sa feuille) garantit le layout fixe.
-      expect(table.classList.contains('mat-table-fixed-layout')).toBe(true);
+      // `[fixedLayout]="true"` : le CdkTable pose sa classe de layout fixe, en plus de la règle `.ng-table`.
+      expect(table.classList.contains('cdk-table-fixed-layout')).toBe(true);
     });
 
     it('tronque par défaut le rendu d’un cellTemplate, comme pour valueAccessor, sauf textOverflow: "wrap" explicite', async () => {
@@ -169,11 +167,11 @@ describe('NgTableComponent', () => {
       withWrap[1] = {...withWrap[1], cellTemplate: template, textOverflow: 'wrap'};
 
       const {fixture: defaultFixture} = await createTable({columns: withDefault});
-      const defaultCells = defaultFixture.nativeElement.querySelectorAll('td.mat-mdc-cell');
+      const defaultCells = defaultFixture.nativeElement.querySelectorAll('td.cdk-cell');
       expect(defaultCells[0].querySelector('.cell-text--truncate')).toBeTruthy();
 
       const {fixture: wrapFixture} = await createTable({columns: withWrap});
-      const wrapCells = wrapFixture.nativeElement.querySelectorAll('td.mat-mdc-cell');
+      const wrapCells = wrapFixture.nativeElement.querySelectorAll('td.cdk-cell');
       expect(wrapCells[1].querySelector('.cell-text--wrap')).toBeTruthy();
       expect(wrapCells[1].querySelector('.cell-text--truncate')).toBeFalsy();
     });
@@ -907,7 +905,7 @@ describe('NgTableComponent', () => {
       const cell = (rowId: string, column: string) =>
         [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')]
           .find((tr) => tr.textContent?.includes(ROWS.find((r) => r.id === rowId)!.nom))!
-          .querySelector(`td.mat-column-${column}`)!;
+          .querySelector(`td.cdk-column-${column}`)!;
 
       component.applyTransaction({update: [{...ROWS[0], montant: 350}, {...ROWS[1], montant: 50}]});
       await fixture.whenStable();
@@ -929,7 +927,7 @@ describe('NgTableComponent', () => {
       await fixture.whenStable();
 
       const flashed = [...(fixture.nativeElement as HTMLElement).querySelectorAll('td[data-ngt-flash]')];
-      expect(flashed.map((td) => [...td.classList].find((c) => c.startsWith('mat-column-')))).toEqual(['mat-column-montant']);
+      expect(flashed.map((td) => [...td.classList].find((c) => c.startsWith('cdk-column-')))).toEqual(['cdk-column-montant']);
     });
 
     it('la sélection renvoie les lignes à jour après une transaction', async () => {
@@ -947,7 +945,7 @@ describe('NgTableComponent', () => {
       const cols = columns();
       cols[1] = {...cols[1], aggregate: 'sum'};
       const {component, fixture} = await createTable({columns: cols, showTotals: true});
-      const footer = () => (fixture.nativeElement as HTMLElement).querySelector('tr.totals-row td.mat-column-montant')!.textContent!.trim();
+      const footer = () => (fixture.nativeElement as HTMLElement).querySelector('tr.totals-row td.cdk-column-montant')!.textContent!.trim();
       expect(footer()).toBe('Σ 600');
 
       component.applyTransaction({update: [{...ROWS[0], montant: 1300}], remove: [{id: '2'} as Row]});
@@ -1105,8 +1103,8 @@ describe('NgTableComponent', () => {
       Object.fromEntries([['id', `${r}`], ...wideColumns.map((c) => [c.id, `${c.id}-r${r}`])]) as Wide,
     );
     const headerIds = (fixture: ComponentFixture<NgTableComponent>) =>
-      [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.mat-mdc-header-row th')].map(
-        (th) => [...th.classList].find((c) => c.startsWith('mat-column-'))!.replace('mat-column-', ''),
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.cdk-header-row th')].map(
+        (th) => [...th.classList].find((c) => c.startsWith('cdk-column-'))!.replace('cdk-column-', ''),
       );
 
     async function scrollLeft(fixture: ComponentFixture<NgTableComponent>, left: number) {
@@ -1142,7 +1140,7 @@ describe('NgTableComponent', () => {
       expect(ids).not.toContain('c10');
       const window = component['columnWindow']()!;
       expect(component['columnSpacerWidth']('left') + (window.end - window.start) * 100 + component['columnSpacerWidth']('right')).toBe(9900);
-      expect((fixture.nativeElement as HTMLElement).querySelector('tr.data-row td.mat-column-c55')!.textContent).toContain('c55-r0');
+      expect((fixture.nativeElement as HTMLElement).querySelector('tr.data-row td.cdk-column-c55')!.textContent).toContain('c55-r0');
     });
 
     it('le modèle de vue n’est calculé que pour les colonnes rendues ; l’export garde toutes les colonnes', async () => {
@@ -1161,7 +1159,7 @@ describe('NgTableComponent', () => {
     const BOTTOM: Row = {id: 'total', nom: 'Total', montant: 600, statut: 'VALIDEE', actif: true, date: '2026-01-01'};
     const trs = (fixture: ComponentFixture<NgTableComponent>) =>
       [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLTableRowElement>('tr.data-row')];
-    const names = (fixture: ComponentFixture<NgTableComponent>) => trs(fixture).map((tr) => tr.querySelector('td.mat-column-nom')?.textContent?.replace('content_copy', '').trim());
+    const names = (fixture: ComponentFixture<NgTableComponent>) => trs(fixture).map((tr) => tr.querySelector('td.cdk-column-nom')?.textContent?.replace('content_copy', '').trim());
 
     it('rend les lignes épinglées avant et après le corps, avec leur côté et leur rang', async () => {
       const {fixture, component} = await createTable({pinnedTopRows: [TOP], pinnedBottomRows: [BOTTOM, {...BOTTOM, id: 't2', nom: 'Moyenne'}]});
@@ -1253,7 +1251,7 @@ describe('NgTableComponent', () => {
       const {fixture} = await createTable({columns: grouped()});
 
       expect(groupRowsOf(fixture)).toEqual(['Client×3 Finance×1 ·×1', 'Identité×2 Suivi×1 ·×2']);
-      const headerRows = [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.mat-mdc-header-row')].map((tr) => tr.className.includes('header-group-row') ? 'groupe' : 'colonnes');
+      const headerRows = [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.cdk-header-row')].map((tr) => tr.className.includes('header-group-row') ? 'groupe' : 'colonnes');
       expect(headerRows).toEqual(['groupe', 'groupe', 'colonnes']);
     });
 
@@ -1291,14 +1289,14 @@ describe('NgTableComponent', () => {
 
       expect(groupRowsOf(fixture)[0]).toBe('Client×1 Client×2 Finance×1 ·×1');
       const first = (fixture.nativeElement as HTMLElement).querySelector('tr.header-group-row th')!;
-      expect(first.classList).toContain('mat-mdc-table-sticky');
+      expect(first.classList).toContain('cdk-table-sticky');
     });
   });
 
   describe('sélection de plage et presse-papiers ([rangeSelection])', () => {
     // Colonnes visibles : nom (0), montant (1), statut (2), actif (3).
     const cell = (fixture: ComponentFixture<NgTableComponent>, row: number, columnId: string) =>
-      (fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')[row].querySelector(`td.mat-column-${columnId}`) as HTMLTableCellElement;
+      (fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')[row].querySelector(`td.cdk-column-${columnId}`) as HTMLTableCellElement;
     const mouse = (target: Element, type: string, init: MouseEventInit = {}) =>
       target.dispatchEvent(new MouseEvent(type, {bubbles: true, cancelable: true, button: 0, ...init}));
     const inRange = (fixture: ComponentFixture<NgTableComponent>) =>
@@ -1488,7 +1486,7 @@ describe('NgTableComponent', () => {
         return setters[column.id] ? {...column, editable: true, valueSetter: setters[column.id]} : column;
       });
     const cell = (fixture: ComponentFixture<NgTableComponent>, row: number, columnId: string) =>
-      (fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')[row].querySelector(`td.mat-column-${columnId}`) as HTMLTableCellElement;
+      (fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')[row].querySelector(`td.cdk-column-${columnId}`) as HTMLTableCellElement;
     const editor = (fixture: ComponentFixture<NgTableComponent>) =>
       (fixture.nativeElement as HTMLElement).querySelector('.ngt-editor') as HTMLInputElement | null;
     const type = async (fixture: ComponentFixture<NgTableComponent>, value: string) => {
@@ -1630,7 +1628,7 @@ describe('NgTableComponent', () => {
       const {fixture, component, setInput} = await createTable({statusBar: true, rangeSelection: true});
       await setInput('rangeSelection', true);
       const mouse = (target: Element, type: string) => target.dispatchEvent(new MouseEvent(type, {bubbles: true, cancelable: true, button: 0}));
-      const cell = (row: number) => el(fixture).querySelectorAll('tr.data-row')[row].querySelector('td.mat-column-montant')!;
+      const cell = (row: number) => el(fixture).querySelectorAll('tr.data-row')[row].querySelector('td.cdk-column-montant')!;
 
       mouse(cell(0), 'mousedown');
       mouse(cell(2), 'mousemove');
@@ -2766,7 +2764,7 @@ describe('NgTableComponent', () => {
     it('restaure les styles inline après la mesure d’auto-fit', async () => {
       const {component, fixture} = await createTable({columns: resizableColumns()});
       // `measureNaturalWidth` cible en priorité `.header-button` dans l'en-tête
-      const measured = fixture.nativeElement.querySelector('.mat-column-nom .header-button') as HTMLElement | null;
+      const measured = fixture.nativeElement.querySelector('.cdk-column-nom .header-button') as HTMLElement | null;
       expect(measured).not.toBeNull();
 
       component['onResizeAutoFit'](mouseEvent(), component.columns()[0]);

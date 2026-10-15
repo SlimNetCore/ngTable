@@ -1,6 +1,6 @@
 /** Petits utilitaires DOM du composant (mesure et sélecteurs), sans dépendance Angular. */
 
-/** Échappe un id de colonne pour l'utiliser dans un sélecteur CSS (`.mat-column-<id>`). */
+/** Échappe un id de colonne pour l'utiliser dans un sélecteur CSS (`.cdk-column-<id>`). */
 export function escapeCssToken(value: string): string {
   const raw = value ?? '';
   // `CSS.escape` gère correctement tous les cas (chiffre en tête, unicode...) ;

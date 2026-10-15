@@ -116,33 +116,35 @@
   border-top: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
 }
 
-/* Densité compacte : on passe par les tokens de Material plutôt que de forcer des
-   hauteurs, pour rester cohérent avec le reste du thème. */
-.ng-table.ngt-density-compact {
-  --mat-table-row-item-container-height: 36px;
-  --mat-table-header-container-height: 44px;
+/* Densité compacte : lignes de 36 px et en-têtes de 44 px (52 et 56 par défaut). */
+.ng-table.ngt-density-compact td.cdk-cell {
+  height: 36px;
 }
 
-.ng-table.ngt-density-compact td.mat-mdc-cell {
+.ng-table.ngt-density-compact th.cdk-header-cell {
+  height: 44px;
+}
+
+.ng-table.ngt-density-compact td.cdk-cell {
   padding-top: 2px;
   padding-bottom: 2px;
 }
 
 /* Cellules figées (en-tête sticky, colonnes épinglées) : fond opaque, sinon les
    lignes qui défilent dessous restent visibles à travers. */
-.ng-table .mat-mdc-table-sticky {
+.ng-table .cdk-table-sticky {
   background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
-.ng-table .mat-mdc-table-sticky-border-elem-left {
+.ng-table .cdk-table-sticky-border-elem-left {
   box-shadow: 6px 0 8px -6px rgba(15, 23, 42, 0.18);
 }
 
-.ng-table .mat-mdc-table-sticky-border-elem-right {
+.ng-table .cdk-table-sticky-border-elem-right {
   box-shadow: -6px 0 8px -6px rgba(15, 23, 42, 0.18);
 }
 
-.ng-table .mat-mdc-table-sticky-border-elem-top {
+.ng-table .cdk-table-sticky-border-elem-top {
   box-shadow: 0 6px 8px -6px rgba(15, 23, 42, 0.18);
 }
 
@@ -177,7 +179,7 @@
  * cellule en `white-space: nowrap` élargit sa colonne pour contenir tout le
  * texte — plus rien ne déborde, donc plus aucun "…" possible.
  *
- * Material pose `.mat-mdc-table { table-layout: auto; white-space: normal; }`,
+ * Material pose `.cdk-table { table-layout: auto; white-space: normal; }`,
  * de MÊME spécificité (0,1,0) que `.ng-table` : selon l'ordre d'injection des
  * feuilles de style, c'est Material qui gagnait et le layout repassait en
  * `auto`. D'où la double ceinture : `[fixedLayout]="true"` côté template (le
@@ -186,18 +188,50 @@
  * l'ordre.
  */
 .ng-table,
-.ng-table.mat-mdc-table {
+.ng-table.cdk-table {
   width: 100%;
   table-layout: fixed;
 }
 
-.ng-table .mat-mdc-header-cell,
-.ng-table .mat-mdc-header-row,
-.ng-table .mat-mdc-row {
+/*
+ * Styles de base du tableau, autrefois fournis par Angular Material. Écrits avec `:where()` (spécificité nulle) :
+ * toute règle de la bibliothèque ou de l'application les surcharge sans surenchère.
+ */
+:where(.ng-table) {
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
+  color: var(--ngt-text, var(--app-text, #0d1d26));
+  font-size: 0.875rem;
+  line-height: 20px;
+  white-space: normal;
+}
+
+:where(.ng-table) :where(td.cdk-cell, th.cdk-header-cell, td.cdk-footer-cell) {
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
+  color: inherit;
+  text-align: start;
+  vertical-align: middle;
+}
+
+:where(.ng-table) :where(td.cdk-cell, td.cdk-footer-cell) {
+  height: 52px;
+}
+
+:where(.ng-table) :where(th.cdk-header-cell) {
+  height: 56px;
+  font-weight: 500;
+}
+.ng-table .cdk-header-cell,
+.ng-table .cdk-header-row,
+.ng-table .cdk-row {
   overflow: visible;
 }
 
-.ng-table .mat-mdc-header-cell {
+.ng-table .cdk-header-cell {
   position: relative;
   overflow: visible;
 }
@@ -207,11 +241,11 @@
    d'une voisine), et sans découpe le contenu se superposerait à la colonne suivante.
    Exclut la ligne de détail et la ligne d'actions mobile, qui occupent toute la
    largeur et doivent rester libres. */
-.ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell):not(.group-cell--lead) {
+.ng-table td.cdk-cell:not(.detail-row):not(.mobile-actions-cell):not(.group-cell--lead) {
   overflow: hidden;
 }
 
-.ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell) .cell-content {
+.ng-table td.cdk-cell:not(.detail-row):not(.mobile-actions-cell) .cell-content {
   max-width: 100%;
   min-width: 0;
 }
@@ -264,8 +298,8 @@
   height: 16px;
 }
 
-.ng-table .mat-mdc-header-cell:hover .drag-handle,
-.ng-table .mat-mdc-header-cell:focus-within .drag-handle {
+.ng-table .cdk-header-cell:hover .drag-handle,
+.ng-table .cdk-header-cell:focus-within .drag-handle {
   opacity: 1;
 }
 
@@ -291,11 +325,11 @@
 /* Native HTML5 drag-and-drop: header cell being dragged / hovered as a drop target.
    No live sibling reflow is attempted (that's what broke the table layout with CDK's
    transform-based approach) — columns simply swap once, on drop. */
-.ng-table .mat-mdc-header-cell.column-dragging {
+.ng-table .cdk-header-cell.column-dragging {
   opacity: 0.4;
 }
 
-.ng-table .mat-mdc-header-cell.column-drag-over {
+.ng-table .cdk-header-cell.column-drag-over {
   box-shadow: inset 2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5));
   background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
 }
@@ -782,13 +816,13 @@
 }
 
 /*
- * Spécificité renforcée (`.ng-table td.mat-mdc-cell ...`, même niveau que la
+ * Spécificité renforcée (`.ng-table td.cdk-cell ...`, même niveau que la
  * règle d'`overflow` sur le `<td>` plus haut) : les styles de typographie
- * internes de Material sur `.mat-mdc-cell` (ex. `white-space`) sont sinon
+ * internes de Material sur `.cdk-cell` (ex. `white-space`) sont sinon
  * prioritaires selon l'ordre d'injection des styles, et l'ellipsis ne
  * s'affichait jamais malgré des règles correctes en apparence.
  */
-.ng-table td.mat-mdc-cell .cell-text--truncate {
+.ng-table td.cdk-cell .cell-text--truncate {
   display: block;
   min-width: 0;
   max-width: 100%;
@@ -798,7 +832,7 @@
   cursor: default;
 }
 
-.ng-table td.mat-mdc-cell .cell-text--wrap {
+.ng-table td.cdk-cell .cell-text--wrap {
   display: block;
   min-width: 0;
   white-space: normal;
@@ -888,7 +922,7 @@
   padding: 16px;
 }
 
-.mobile-actions-row .mat-mdc-cell {
+.mobile-actions-row .cdk-cell {
   padding-top: 8px;
   padding-bottom: 10px;
   border-top: 0;
@@ -899,7 +933,7 @@
   width: 100%;
 }
 
-.detail-row-container .mat-mdc-cell {
+.detail-row-container .cdk-cell {
   padding: 0;
   border-top: 0;
   border-bottom: 0;
@@ -939,39 +973,24 @@
   margin-inline: auto;
 }
 
-.inline-filter .mat-mdc-form-field {
-  width: 100%;
-  font-size: 0.8rem;
-}
-
-.inline-filter .mat-mdc-form-field-infix {
-  min-height: 36px;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-}
-
-.inline-filter .mat-mdc-form-field-subscript-wrapper {
-  display: none;
-}
-
-.ng-table .mat-mdc-header-cell:has(.inline-filter) {
+.ng-table .cdk-header-cell:has(.inline-filter) {
   vertical-align: top;
   padding-top: 8px;
   padding-right: 16px;
 }
 
-.ng-table .mat-mdc-header-cell:has(.inline-filter) .th-wrap {
+.ng-table .cdk-header-cell:has(.inline-filter) .th-wrap {
   width: 100%;
   min-width: 0;
   justify-content: center;
 }
 
-.ng-table .mat-mdc-header-cell:has(.inline-filter) .header-button {
+.ng-table .cdk-header-cell:has(.inline-filter) .header-button {
   width: 100%;
   justify-content: center;
 }
 
-.ng-table .mat-mdc-header-cell:has(.inline-filter) .header-label {
+.ng-table .cdk-header-cell:has(.inline-filter) .header-label {
   text-align: center;
 }
 
@@ -1161,7 +1180,7 @@
 }
 
 /* Navigation cellule par cellule : cellule active bien visible au clavier. */
-.ng-table[role='grid'] td.mat-mdc-cell:focus-visible {
+.ng-table[role='grid'] td.cdk-cell:focus-visible {
   outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
   outline-offset: -2px;
 }
@@ -1178,11 +1197,11 @@
 
 /* Les cellules épinglées ont un fond opaque (blanc) pour masquer ce qui défile dessous :
    dans une ligne de groupe, elles prennent la couleur de la ligne. */
-.ng-table tr.group-row td.mat-mdc-table-sticky {
+.ng-table tr.group-row td.cdk-table-sticky {
   background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
 }
 
-.ng-table tr.group-row:hover td.mat-mdc-table-sticky {
+.ng-table tr.group-row:hover td.cdk-table-sticky {
   background: var(--ngt-hover-surface, var(--app-hover-surface, #e8f0f8));
 }
 
@@ -1339,7 +1358,7 @@
 /* Une colonne épinglée à gauche / à droite reste au-dessus des cellules qui défilent.
    Material pose `z-index: 1` en style inline sur les cellules de colonne figée : seul
    `!important` passe devant, et la ligne épinglée doit dépasser les colonnes figées du corps. */
-.ng-table tr[data-ngt-pin] td.mat-mdc-table-sticky {
+.ng-table tr[data-ngt-pin] td.cdk-table-sticky {
   z-index: 3 !important;
 }
 
@@ -1373,7 +1392,7 @@
 }
 
 /* --- Sélection d'une plage de cellules ---------------------------------- */
-.ng-table.ngt-range-enabled td.mat-mdc-cell {
+.ng-table.ngt-range-enabled td.cdk-cell {
   user-select: none;
   cursor: cell;
 }
@@ -1390,12 +1409,12 @@
 .ng-table td[data-ngt-range~='left'] { --ngt-rs-l: inset 2px 0 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
 
 /* Les cellules épinglées ont un fond opaque : la teinte de la plage s'y mélange à ce fond. */
-.ng-table td.mat-mdc-table-sticky[data-ngt-range~='in'] {
+.ng-table td.cdk-table-sticky[data-ngt-range~='in'] {
   background-color: color-mix(in srgb, var(--ngt-surface, var(--app-surface, #ffffff)) 86%, var(--ngt-primary, var(--app-primary, #3a7ca5)));
 }
 
 /* La cellule active (navigation clavier) garde son contour de focus par-dessus celui de la plage. */
-.ng-table[role='grid'] td.mat-mdc-cell:focus-visible[data-ngt-range~='in'] {
+.ng-table[role='grid'] td.cdk-cell:focus-visible[data-ngt-range~='in'] {
   outline-offset: -2px;
 }
 

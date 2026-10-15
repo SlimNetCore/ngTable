@@ -28,7 +28,7 @@ import {NgTableIconComponent} from './ng-table-icon.component';
 import {NgTableMenuComponent, NgTableMenuTriggerDirective} from './ng-table-menu';
 import {NgTableCheckboxChange, NgTableCheckboxComponent} from './ng-table-checkbox.component';
 import {NgTablePageEvent, NgTablePaginatorComponent} from './ng-table-paginator.component';
-import {MatTableModule} from '@angular/material/table';
+import {CdkTableModule} from '@angular/cdk/table';
 import {NgTableTooltipDirective} from './tooltip.directive';
 import {firstValueFrom, Observable, Subject, timer} from 'rxjs';
 import {debounce, groupBy, mergeMap} from 'rxjs/operators';
@@ -566,7 +566,7 @@ export interface NgTableViewsImportEvent {
   standalone: true,
   imports: [
     CommonModule,
-    MatTableModule,
+    CdkTableModule,
     NgTableMenuComponent,
     NgTableMenuTriggerDirective,
     NgTablePaginatorComponent,
@@ -2222,7 +2222,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       }
       untracked(() => {
         // Toutes les lignes d'en-tête (groupes compris) : les lignes épinglées se placent sous leur total.
-        const header = [...wrap.querySelectorAll('tr.mat-mdc-header-row')].reduce((sum, row) => sum + row.getBoundingClientRect().height, 0);
+        const header = [...wrap.querySelectorAll('tr.cdk-header-row')].reduce((sum, row) => sum + row.getBoundingClientRect().height, 0);
         if (header > 0 && Math.abs(header - this.headerHeight()) > 0.5) {
           this.headerHeight.set(header);
         }
@@ -2681,7 +2681,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return;
     }
 
-    const selector = `.mat-column-${escapeCssToken(column.id)}`;
+    const selector = `.cdk-column-${escapeCssToken(column.id)}`;
     const cells = Array.from(table.querySelectorAll<HTMLElement>(selector));
     if (cells.length === 0) {
       return;
@@ -3636,7 +3636,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
         continue;
       }
       const headerCell = table.querySelector<HTMLElement>(
-        `th.mat-column-${escapeCssToken(candidate.id)}`,
+        `th.cdk-column-${escapeCssToken(candidate.id)}`,
       );
       const width = headerCell?.getBoundingClientRect().width ?? 0;
       if (width > 0) {

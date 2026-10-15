@@ -92,6 +92,6 @@ body {
 .statut--ANNULEE { background: #fdeaea; color: #a3261e; }
 
 /* Ligne mise en avant par rowClassFn */
-.row-urgent td.mat-mdc-cell:first-child {
+.row-urgent td.cdk-cell:first-child {
   box-shadow: inset 3px 0 0 #c98a00;
 }

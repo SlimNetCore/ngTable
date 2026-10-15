@@ -4,7 +4,6 @@
 
 export * from './lib/ng-table.component';
 export * from './lib/ng-table-labels';
-export * from './lib/ng-table-paginator-intl';
 // Apparaît dans l'API publique (`NgTableFilterConfig.type`) : doit être importable.
 export type {ColumnFilterType} from './lib/column-filter-renderer.component';
 export type {NgTableTextOperator} from './lib/filter-matching';
@@ -41,3 +40,6 @@ export type {NgTablePageEvent} from './lib/ng-table-paginator.component';
 export {NgTableIconComponent} from './lib/ng-table-icon.component';
 export type {NgTableIconName} from './lib/ng-table-icon.component';
 export {NgTableTooltipDirective} from './lib/tooltip.directive';
+export {NgTableSelectComponent} from './lib/ng-table-select.component';
+export type {NgTableSelectOption} from './lib/ng-table-select.component';
+export {NgTableMenuComponent, NgTableMenuTriggerDirective} from './lib/ng-table-menu';

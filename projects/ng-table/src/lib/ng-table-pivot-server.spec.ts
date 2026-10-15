@@ -43,7 +43,7 @@ const settle = async (fixture: { whenStable: () => Promise<unknown> }) => {
   await fixture.whenStable();
 };
 
-const headers = (root: HTMLElement) => [...root.querySelectorAll('tr.mat-mdc-header-row')].pop()!.textContent?.replace(/\s+/g, ' ').trim();
+const headers = (root: HTMLElement) => [...root.querySelectorAll('tr.cdk-header-row')].pop()!.textContent?.replace(/\s+/g, ' ').trim();
 
 describe('NgTablePivotComponent : serveur', () => {
   it('affiche le pivot calculé par le serveur, sans lire [rows]', async () => {
@@ -57,7 +57,7 @@ describe('NgTablePivotComponent : serveur', () => {
     expect(JSON.parse(log[0])).toMatchObject({rows: ['region'], columns: ['year'], values: [{id: 'amount', aggregate: 'sum'}]});
     expect(headers(root)).toContain('2025');
     expect(root.querySelectorAll('tr.data-row')).toHaveLength(3); // Nord, Sud + total
-    expect(root.querySelector('td.mat-column-pivot-row-0')?.textContent?.trim()).toBe('Nord');
+    expect(root.querySelector('td.cdk-column-pivot-row-0')?.textContent?.trim()).toBe('Nord');
   });
 
   it('une réponse périmée est ignorée, et la requête précédente est annulée', async () => {

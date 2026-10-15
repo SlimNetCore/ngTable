@@ -31,7 +31,7 @@ describe('colonne sparkline', () => {
     await fixture.whenStable();
 
     const root = fixture.nativeElement as HTMLElement;
-    const cells = [...root.querySelectorAll('tr.data-row')].map((tr) => tr.querySelector('td.mat-column-trend')!);
+    const cells = [...root.querySelectorAll('tr.data-row')].map((tr) => tr.querySelector('td.cdk-column-trend')!);
     expect(cells[0].querySelectorAll('svg.ngt-sparkline')).toHaveLength(1);
     expect(cells[0].querySelector('svg')?.getAttribute('width')).toBe('80');
     expect(cells[0].querySelector('path.ngt-sparkline__area')).not.toBeNull();
@@ -50,7 +50,7 @@ describe('graphique de plage', () => {
     const component = fixture.componentInstance;
     expect(component.rangeChartData()).toBeNull();
 
-    const cell = (row: number, id: string) => (fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')[row].querySelector(`td.mat-column-${id}`)!;
+    const cell = (row: number, id: string) => (fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')[row].querySelector(`td.cdk-column-${id}`)!;
     const mouse = (target: Element, type: string) => target.dispatchEvent(new MouseEvent(type, {bubbles: true, cancelable: true, button: 0}));
     mouse(cell(0, 'name'), 'mousedown');
     mouse(cell(1, 'amount'), 'mousemove');

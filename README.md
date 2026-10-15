@@ -1,10 +1,10 @@
-﻿# @sbourahla/ng-table
+# @sbourahla/ng-table
 
 [![npm version](https://img.shields.io/npm/v/@sbourahla/ng-table)](https://www.npmjs.com/package/@sbourahla/ng-table)
 [![npm downloads](https://img.shields.io/npm/dm/@sbourahla/ng-table)](https://www.npmjs.com/package/@sbourahla/ng-table)
 [![license](https://img.shields.io/npm/l/@sbourahla/ng-table)](https://github.com/SlimNetCore/ngTable)
 
-**A powerful and configurable Angular Material data table component built for modern Angular applications.**
+**A powerful and configurable Angular data table component built for modern Angular applications — no Angular Material required.**
 
 `@sbourahla/ng-table` provides a complete, flexible data-table experience with sorting, filtering, pagination, row selection, expandable detail rows, column resizing and reordering, saved views, context menus, responsive layouts, and local or remote data modes.
 
@@ -22,7 +22,7 @@ npm install @sbourahla/ng-table
 
 - `@angular/core`
 - `@angular/common`
-- `@angular/material`
+- `@angular/cdk` (table du CDK, sans Angular Material)
 - `rxjs`
 
 No additional i18n or business dependency is required.
@@ -192,7 +192,7 @@ export class CommandeListComponent {
 
 ### Étape 2 — Tri
 
-Ajoutez `sortable: true` sur les colonnes triables. Le clic sur l'en-tête bascule asc → desc → aucun tri, un `mat-icon` indique l'état.
+Ajoutez `sortable: true` sur les colonnes triables. Le clic sur l'en-tête bascule asc → desc → aucun tri, une icône indique l'état.
 
 ```ts
 readonly columns: NgTableColumn<Commande>[] = [
@@ -632,7 +632,7 @@ Le modèle de vue (valeurs, textes) n'est calculé que pour les colonnes rendues
 ### Étape 10vicies — Premiers composants sans Angular Material
 
 Le paginateur intégré (`<ng-table-paginator>`) et les cases à cocher (`<ng-table-checkbox>`, un vrai `<input type="checkbox">`) ne sont plus ceux de Material. Conséquences à connaître en migrant :
-- **Paginateur** : ses textes viennent de `[labels]` (français par défaut, `NG_TABLE_LABELS_EN` pour l'anglais) et non plus de `MatPaginatorIntl`. `provideNgTablePaginatorIntl()` ne concerne plus que *votre propre* `<mat-paginator>` placé ailleurs (déprécié pour le paginateur intégré). `getPaginator()` du harnais renvoie un `NgTablePaginatorHarness`.
+- **Paginateur** : ses textes viennent de `[labels]` (français par défaut, `NG_TABLE_LABELS_EN` pour l'anglais) et non plus de `MatPaginatorIntl`. `NgTablePaginatorIntl` et `provideNgTablePaginatorIntl()` ont été retirés. `getPaginator()` du harnais renvoie un `NgTablePaginatorHarness`.
 - **Cases à cocher** : `(checkedChange)` à la place de `(change)` quand vous utilisez `<ng-table-checkbox>` ; le harnais n'a rien changé (il lit déjà l'`<input>`).
 - Les deux composants sont exportés et se thèment par les jetons `--ngt-*`.
 - **Icônes** : `<ng-table-icon name="close"/>`, 29 icônes en SVG dessinées au trait, à la couleur du texte (`font-size` et `color` les règlent). Plus besoin de charger la police Material Icons pour la table ; le style est un peu plus « fil de fer » que les glyphes pleins de Material.
@@ -641,7 +641,8 @@ Le paginateur intégré (`<ng-table-paginator>`) et les cases à cocher (`<ng-ta
 - **Liste déroulante** (étape 3) : `<ng-table-select>` remplace `<mat-select>` + `<mat-option>` dans les filtres énumérés et booléens. Sélection simple ou multiple (`[multiple]`), recherche intégrée (`[searchable]`), option « tout » en tête (`[allLabel]`), motif ARIA combobox + listbox (`aria-expanded`, `aria-activedescendant`, `aria-selected`), clavier complet (flèches, Début/Fin, Entrée, Espace, Échap, Tab). Le panneau est posé dans `<body>` (il échappe aux `overflow`), s'ouvre vers le haut quand il manque de place et se ferme au clic extérieur, au défilement et au redimensionnement. Le champ de recherche de `ng-table-select-filter` (basé sur `mat-form-field`) est supprimé : la recherche est dans le panneau. Les classes `.mat-mdc-select-*`, `.column-filter-select-panel` et `.panel-filter-*` n'existent plus ; le déclencheur est `.ngt-select__trigger`, le panneau `.ngt-select__panel`.
 - **Menu** (étape 4) : `<ng-table-menu>` + `[ngTableMenuTriggerFor]` remplacent `<mat-menu>` + `[matMenuTriggerFor]` (colonnes, regroupement, vues, export, filtres de colonne, menu contextuel de ligne). Le panneau (`role="menu"`) est posé dans `<body>` et dans la « top layer » du navigateur (API Popover) : il passe au-dessus de tout `z-index`. Il suit son déclencheur, se ferme au clic extérieur, à `Échap`, quand le focus le quitte et quand le déclencheur est détruit ; flèches, Début et Fin parcourent les éléments. Un clic sur un `ngt-menu-item` ferme le menu sauf s'il est arrêté (`$event.stopPropagation()`). Dans vos modèles de **menu contextuel de ligne** (`[rowContextMenu]`), remplacez `mat-menu-item` par `ngt-menu-item` ; l'ancien attribut reste stylé et fonctionnel, mais n'a plus besoin de `MatMenuModule`. L'API du déclencheur reste `openMenu()`, `closeMenu()`, `menuOpen`, `updatePosition()`, `(menuOpened)`, `(menuClosed)` ; `(closed)` sur le menu. Les classes `.mat-mdc-menu-panel` / `.mat-mdc-menu-content` / `.mat-mdc-menu-item` deviennent `.ngt-menu-panel` / `.ngt-menu-content` / `[ngt-menu-item]`. Les panneaux copient l'attribut `data-ngt-theme` de leur tableau : `[theme]="'dark'"` s'applique aussi aux menus et listes.
 - **Dates** (étape 5) : les filtres `date` et `range` sont des `<input type="date">` natifs (comme dans AG Grid) : calendrier, clavier et accessibilité du navigateur, format d'affichage de la langue du système, valeur toujours sérialisée `YYYY-MM-DD` / `YYYY-MM-DD..YYYY-MM-DD`. La période s'applique dès qu'une borne change (plus de boutons OK / Annuler) ; deux bornes inversées sont remises dans l'ordre, et `min` / `max` empêchent d'en choisir. Plus besoin de `MatNativeDateModule` ni de `MAT_DATE_LOCALE`. Les libellés `ok` et `cancel` de `NgTableLabels` ne sont plus utilisés par la table.
-- Il reste à remplacer : le tableau (`mat-table`).
+- **Tableau** (étape 6) : le moteur est le `CdkTable` du CDK (`<table cdk-table>`, `cdkColumnDef`, `cdkRowDef`...) au lieu de `mat-table` : même API, mêmes colonnes figées et en-têtes collants. Les styles de base du tableau (hauteurs de ligne 52 px / en-tête 56 px, bordures, fond) sont désormais ceux de la bibliothèque, en `:where()` pour rester surchargeables. Les classes changent : `mat-mdc-cell` → `cdk-cell`, `mat-mdc-header-cell` → `cdk-header-cell`, `mat-mdc-row` → `cdk-row`, `mat-mdc-header-row` → `cdk-header-row`, `mat-column-<id>` → `cdk-column-<id>`, `mat-mdc-table-sticky` → `cdk-table-sticky`. `@angular/material` n'est plus un peer dependency ; `NgTablePaginatorIntl` et `provideNgTablePaginatorIntl()` sont retirés de l'API publique.
+- **Il ne reste aucun composant Angular Material dans la bibliothèque.**
 
 ### Étape 10novodecies — Thème : jetons CSS et thème sombre
 
@@ -673,11 +674,11 @@ La liste complète, avec les descriptions, est exportée : `NG_TABLE_TOKENS`. Le
 - La classe `ngt-dark` sur `<html>` ou `<body>` : c'est la façon de thémer **toute l'application**, y compris les menus et filtres ouverts en surcouche (ils sont rattachés à `<body>`, pas à la table).
 - Appliquer `NG_TABLE_THEME_DARK` (un objet `{'--ngt-primary': '#7fb4d6', ...}`) sur le conteneur de votre choix.
 
-En thème sombre, les composants Angular Material de la table (cellules, menus, pagination, cases à cocher) lisent leurs couleurs dans `--mat-sys-*` : ces variables suivent les jetons `--ngt-*` (`NG_TABLE_MATERIAL_BRIDGE`). En thème clair elles gardent le thème Material de votre application.
+Les composants de la table lisent directement les jetons `--ngt-*`. `NG_TABLE_MATERIAL_BRIDGE` (variables `--mat-sys-*`) ne sert plus qu'aux composants Angular Material de *votre* application placés dans un conteneur sombre.
 
 Les règles du thème sombre sont dans `projects/ng-table/src/lib/theme.css`, **généré** depuis la table de jetons (`npm run theme:css`) ; `npm run theme:check` échoue si le fichier n'est pas à jour.
 
-**Limites.** Angular Material reste une dépendance obligatoire : seuls les styles et les couleurs sont découplés, pas encore les composants (tableau, menu, pagination, cases à cocher, sélecteur de date). Les remplacer un à un est le chantier suivant.
+**Dépendances.** `ng-table` n'a plus besoin d'Angular Material : ni paquet, ni thème, ni police d'icônes. Il utilise le CDK Angular (`@angular/cdk/table`) pour le moteur de tableau.
 
 ### Étape 10octodecies — Benchmark face à AG Grid Community
 
@@ -1087,19 +1088,19 @@ onDetailToggle(event: NgTableDetailToggleEvent<Commande>): void {
 <ng-table [rowContextMenuEnabled]="true" [rowContextMenuTemplate]="rowMenu" (rowContextMenu)="onRowContextMenu($event)" ... />
 
 <ng-template #rowMenu let-row>
-  <button mat-menu-item (click)="viewOrder(row)">
-    <mat-icon>visibility</mat-icon><span>Voir</span>
+  <button ngt-menu-item (click)="viewOrder(row)">
+    <ng-table-icon name="visibility"/><span>Voir</span>
   </button>
-  <button mat-menu-item (click)="duplicateOrder(row)">
-    <mat-icon>content_copy</mat-icon><span>Dupliquer</span>
+  <button ngt-menu-item (click)="duplicateOrder(row)">
+    <ng-table-icon name="content_copy"/><span>Dupliquer</span>
   </button>
-  <button mat-menu-item [disabled]="row.statut === 'ANNULEE'" (click)="cancelOrder(row)">
-    <mat-icon>cancel</mat-icon><span>Annuler</span>
+  <button ngt-menu-item [disabled]="row.statut === 'ANNULEE'" (click)="cancelOrder(row)">
+    <ng-table-icon name="cancel"/><span>Annuler</span>
   </button>
 </ng-template>
 ```
 
-Le menu Material s'ouvre exactement au point de clic. `(rowContextMenu)` est émis en plus, si vous avez besoin de connaître la ligne/position en dehors du template (analytics, par exemple).
+Le menu s'ouvre exactement au point de clic. `(rowContextMenu)` est émis en plus, si vous avez besoin de connaître la ligne/position en dehors du template (analytics, par exemple).
 
 ### Étape 15 — Colonne d'action mobile et responsive
 
@@ -2413,41 +2414,9 @@ Dépendance à ajouter pour le XLSX :
 - **Performances** : trois requêtes par chargement (page, total, résumés). Indexez les colonnes filtrées, triées et regroupées. Une recherche `LIKE '%mot%'` n'utilise pas d'index B-tree : sur de gros volumes, préférez un index trigramme (`pg_trgm`) ou une recherche plein texte.
 - **Associations** : un attribut imbriqué (`NgTableColumn.of("client", "client.nom")`) passe par une jointure implicite, donc interne. Les lignes sans client disparaissent : déclarez une jointure externe si besoin.
 
-### Étape 17bis — Traduire votre `<mat-paginator>`
+### Étape 17bis — Pagination et traduction
 
-`ng-table` ne rend pas de pagination lui-même (voir les Étapes 16/17) — vous branchez votre propre `<mat-paginator>`. Son i18n est un mécanisme **entièrement séparé** de `labels`/`provideNgTableLabels()` : sans rien faire, ses textes ("Items per page", "of"...) restent en anglais même si le reste de la table est traduit. `NgTablePaginatorIntl` fournit une traduction française prête à l'emploi :
-
-```ts
-// Pour toute l'application (app.config.ts)
-import {provideNgTablePaginatorIntl} from '@sbourahla/ng-table';
-
-export const appConfig: ApplicationConfig = {
-  providers: [provideNgTablePaginatorIntl(), /* ... */],
-};
-```
-
-```ts
-// Ou juste pour le composant qui affiche le <mat-paginator>
-@Component({
-  providers: [provideNgTablePaginatorIntl()],
-  // ...
-})
-export class CommandeListComponent {}
-```
-
-Pour ne changer qu'un texte ponctuellement, étendez la classe plutôt que d'utiliser d'autres clés :
-
-```ts
-import {NgTablePaginatorIntl} from '@sbourahla/ng-table';
-import {MatPaginatorIntl} from '@angular/material/paginator';
-
-class MyPaginatorIntl extends NgTablePaginatorIntl {
-  override itemsPerPageLabel = 'Lignes par page';
-}
-
-// providers du composant :
-providers: [{provide: MatPaginatorIntl, useClass: MyPaginatorIntl}]
-```
+Le paginateur intégré (`[paginator]="true"`) tire ses textes de `[labels]` : rien d'autre à traduire. `NgTablePaginatorIntl` et `provideNgTablePaginatorIntl()` ont été retirés avec la dépendance à Angular Material ; si vous utilisez votre propre `<mat-paginator>` ailleurs, fournissez votre `MatPaginatorIntl`.
 
 ### Étape 18 — Vues sauvegardées
 
@@ -3236,7 +3205,7 @@ Non contrôlé par défaut (checkbox interne + case "tout sélectionner"). Contr
 ```html
 <ng-table [rowContextMenuEnabled]="true" [rowContextMenuTemplate]="rowMenu" (rowContextMenu)="onRowContextMenu($event)" />
 <ng-template #rowMenu let-row>
-  <button mat-menu-item (click)="openDetails(row)"><mat-icon>visibility</mat-icon><span>Voir</span></button>
+  <button ngt-menu-item (click)="openDetails(row)"><ng-table-icon name="visibility"/><span>Voir</span></button>
 </ng-template>
 ```
 

@@ -391,7 +391,7 @@
            [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
            [style.width.px]="columnVirtualization() ? tableMinWidthPx() : null"
            [trackBy]="resolvedTrackBy"
-           class="ng-table" mat-table multiTemplateDataRows>
+           class="ng-table" cdk-table multiTemplateDataRows>
       <!-- Largeurs des colonnes : en `table-layout: fixed` elles viennent de la première ligne, qui est une ligne
            d'en-têtes groupés (sans largeur) dès qu'il y en a. Le `<colgroup>` les donne indépendamment des lignes. -->
       <colgroup>
@@ -400,10 +400,10 @@
         }
       </colgroup>
       @if (rowDragActive()) {
-        <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__row_drag__">
-          <th *matHeaderCellDef class="row-drag-cell" mat-header-cell></th>
-          <td *matFooterCellDef class="totals-cell" mat-footer-cell></td>
-          <td *matCellDef="let row" class="row-drag-cell" mat-cell>
+        <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_drag__">
+          <th *cdkHeaderCellDef class="row-drag-cell" cdk-header-cell></th>
+          <td *cdkFooterCellDef class="totals-cell" cdk-footer-cell></td>
+          <td *cdkCellDef="let row" class="row-drag-cell" cdk-cell>
             @if (!pinInfo(row)) {
               <button (click)="$event.stopPropagation()" (dragend)="onRowDragEnd()" (dragstart)="onRowDragStart($event, row)"
                       (keydown)="onRowHandleKeydown($event, row)" [attr.aria-label]="effectiveLabels().rowDragHandle"
@@ -416,8 +416,8 @@
       }
 
       @if (rowSelectionEnabled()) {
-        <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__row_selection__">
-          <th *matHeaderCellDef class="selection-header-cell" mat-header-cell>
+        <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_selection__">
+          <th *cdkHeaderCellDef class="selection-header-cell" cdk-header-cell>
             <ng-table-checkbox
               (checkedChange)="onToggleAllDisplayedRows($event)"
               [ariaLabel]="effectiveLabels().selectAllRows"
@@ -425,8 +425,8 @@
               [indeterminate]="hasPartiallySelectedDisplayedRows()"
             />
           </th>
-          <td *matFooterCellDef class="totals-cell" mat-footer-cell></td>
-          <td *matCellDef="let row; let rowIndex = dataIndex" class="selection-cell" mat-cell>
+          <td *cdkFooterCellDef class="totals-cell" cdk-footer-cell></td>
+          <td *cdkCellDef="let row; let rowIndex = dataIndex" class="selection-cell" cdk-cell>
             @if (!pinInfo(row)) {
               <ng-table-checkbox
                 (checkedChange)="onToggleRowSelection($event, row)"
@@ -440,17 +440,17 @@
       }
 
       @for (column of columns(); track trackByColumn($index, column)) {
-        <ng-container [matColumnDef]="column.id" [sticky]="pinnedSide(column) === 'left'"
+        <ng-container [cdkColumnDef]="column.id" [sticky]="pinnedSide(column) === 'left'"
                       [stickyEnd]="pinnedSide(column) === 'right'">
           <th (dragleave)="onColumnDragLeave(column)"
               (dragover)="onColumnDragOver($event, column)"
               (drop)="onColumnDrop($event, column)"
-              *matHeaderCellDef
+              *cdkHeaderCellDef
               [attr.aria-sort]="ariaSortValue(column)"
               [class.column-drag-over]="dragOverColumnId() === column.id"
               [class.column-dragging]="draggingColumnId() === column.id"
               [style.max-width.px]="column.maxWidthPx ?? null" [style.min-width.px]="column.minWidthPx ?? null"
-              [style.width.px]="columnWidthPx(column)" mat-header-cell>
+              [style.width.px]="columnWidthPx(column)" cdk-header-cell>
             <div class="th-wrap">
               <span
                 (dragend)="onColumnDragEnd()"
@@ -603,22 +603,22 @@
             }
           </th>
 
-          <td *matFooterCellDef [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="columnWidthPx(column)"
-              class="totals-cell" mat-footer-cell>
+          <td *cdkFooterCellDef [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="columnWidthPx(column)"
+              class="totals-cell" cdk-footer-cell>
             @if (totals()?.[column.id]; as total) {
               {{ total }}
             } @else if (column.id === leadColumnId()) {
               <span class="totals-label">{{ effectiveLabels().totalsLabel }}</span>
             }
           </td>
-          <td *matCellDef="let row; let rowIndex = dataIndex" [attr.data-ngt-flash]="cellView(row, column).flash || null"
+          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.data-ngt-flash]="cellView(row, column).flash || null"
               [attr.aria-selected]="cellRangeSelected(row, column)"
               [attr.data-ngt-col]="cellsTagged() ? column.id : null"
               [attr.data-ngt-editable]="hasEditableColumns() && isEditable(row, column) ? '' : null"
               (dblclick)="onCellDoubleClick($event, row, column)"
               [attr.data-ngt-range]="cellRangeAttr(row, column)"
               [style.max-width.px]="column.maxWidthPx ?? null"
-              [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
+              [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" cdk-cell>
             @let cell = cellView(row, column);
             @if (isEditing(row, column)) {
               <div class="cell-editor">
@@ -699,16 +699,16 @@
       }
 
       <!-- En-têtes de groupe : une cellule par colonne affichée, pour aligner les agrégats. -->
-      <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__group____row_selection__">
-        <td *matCellDef="let item" class="group-cell" mat-cell></td>
+      <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__group____row_selection__">
+        <td *cdkCellDef="let item" class="group-cell" cdk-cell></td>
       </ng-container>
-      <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__group____row_drag__">
-        <td *matCellDef="let item" class="group-cell" mat-cell></td>
+      <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__group____row_drag__">
+        <td *cdkCellDef="let item" class="group-cell" cdk-cell></td>
       </ng-container>
       @for (column of columns(); track trackByColumn($index, column)) {
-        <ng-container [matColumnDef]="'__group__' + column.id" [sticky]="pinnedSide(column) === 'left'"
+        <ng-container [cdkColumnDef]="'__group__' + column.id" [sticky]="pinnedSide(column) === 'left'"
                       [stickyEnd]="pinnedSide(column) === 'right'">
-          <td *matCellDef="let item" [class.group-cell--lead]="column.id === leadColumnId()" class="group-cell" mat-cell>
+          <td *cdkCellDef="let item" [class.group-cell--lead]="column.id === leadColumnId()" class="group-cell" cdk-cell>
             @if (column.id === leadColumnId()) {
               <span class="group-label">
                 @if (groupsCollapsible()) {
@@ -729,8 +729,8 @@
         </ng-container>
       }
 
-      <ng-container matColumnDef="__mobile_actions__">
-        <td *matCellDef="let row" [attr.colspan]="mobileActionsColspan()" class="mobile-actions-cell" mat-cell>
+      <ng-container cdkColumnDef="__mobile_actions__">
+        <td *cdkCellDef="let row" [attr.colspan]="mobileActionsColspan()" class="mobile-actions-cell" cdk-cell>
           @if (actionColumn()?.cellTemplate && mobileActionsCellContext(row); as context) {
             <ng-container *ngTemplateOutlet="actionColumn()!.cellTemplate; context: context"/>
           }
@@ -738,40 +738,40 @@
       </ng-container>
 
       <!-- Défilement virtuel : espacement pour les lignes non rendues au-dessus / au-dessous. -->
-      <ng-container matColumnDef="__spacer__">
-        <td *matCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="spacerHeight(item.position)" class="spacer-cell"
-            mat-cell></td>
+      <ng-container cdkColumnDef="__spacer__">
+        <td *cdkCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="spacerHeight(item.position)" class="spacer-cell"
+            cdk-cell></td>
       </ng-container>
 
       <!-- En-têtes de colonnes groupés : une ligne par niveau, cellules fusionnées par `colspan`. -->
       @for (level of headerGroupLevels(); track $index) {
         @for (run of level.runs; track run.key) {
-          <ng-container [matColumnDef]="run.key" [sticky]="run.pin === 'left'" [stickyEnd]="run.pin === 'right'">
-            <th *matHeaderCellDef [attr.colspan]="run.span" [class.header-group-cell--empty]="!run.label"
-                class="header-group-cell" mat-header-cell scope="colgroup">{{ run.label }}</th>
+          <ng-container [cdkColumnDef]="run.key" [sticky]="run.pin === 'left'" [stickyEnd]="run.pin === 'right'">
+            <th *cdkHeaderCellDef [attr.colspan]="run.span" [class.header-group-cell--empty]="!run.label"
+                class="header-group-cell" cdk-header-cell scope="colgroup">{{ run.label }}</th>
           </ng-container>
         }
-        <tr *matHeaderRowDef="level.ids; sticky: stickyHeader() || virtualActive()" class="header-group-row" mat-header-row></tr>
+        <tr *cdkHeaderRowDef="level.ids; sticky: stickyHeader() || virtualActive()" class="header-group-row" cdk-header-row></tr>
       }
 
       <!-- Virtualisation horizontale : largeur des colonnes non rendues, à gauche et à droite. -->
       @for (side of columnSpacerSides; track side) {
-        <ng-container [matColumnDef]="'__colspacer_' + side + '__'">
-          <th *matHeaderCellDef [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
-              mat-header-cell></th>
-          <td *matCellDef="let row" [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
-              mat-cell></td>
-          <td *matFooterCellDef aria-hidden="true" class="col-spacer-cell" mat-footer-cell></td>
+        <ng-container [cdkColumnDef]="'__colspacer_' + side + '__'">
+          <th *cdkHeaderCellDef [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
+              cdk-header-cell></th>
+          <td *cdkCellDef="let row" [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
+              cdk-cell></td>
+          <td *cdkFooterCellDef aria-hidden="true" class="col-spacer-cell" cdk-footer-cell></td>
         </ng-container>
-        <ng-container [matColumnDef]="'__group____colspacer_' + side + '__'">
-          <td *matCellDef="let item" aria-hidden="true" class="group-cell col-spacer-cell" mat-cell></td>
+        <ng-container [cdkColumnDef]="'__group____colspacer_' + side + '__'">
+          <td *cdkCellDef="let item" aria-hidden="true" class="group-cell col-spacer-cell" cdk-cell></td>
         </ng-container>
       }
 
       <!-- Modèle par blocs : ligne en attente de son bloc (ou bloc en échec). -->
-      <ng-container matColumnDef="__loading__">
-        <td *matCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="loadingRowHeight()"
-            class="loading-cell" mat-cell>
+      <ng-container cdkColumnDef="__loading__">
+        <td *cdkCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="loadingRowHeight()"
+            class="loading-cell" cdk-cell>
           @if (isFailedLoadingRow(item)) {
             <span class="loading-failed">{{ effectiveLabels().blockLoadError }}</span>
           } @else {
@@ -780,32 +780,32 @@
         </td>
       </ng-container>
 
-      <ng-container matColumnDef="__detail_row__">
-        <td *matCellDef="let row; let rowIndex = dataIndex" [attr.colspan]="detailRowColspan()" class="detail-row"
-            mat-cell>
+      <ng-container cdkColumnDef="__detail_row__">
+        <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.colspan]="detailRowColspan()" class="detail-row"
+            cdk-cell>
           @if (detailRowTemplate() && isDetailExpanded(rowIndex, row)) {
             <ng-container *ngTemplateOutlet="detailRowTemplate()!; context: { $implicit: row, row: row }"/>
           }
         </td>
       </ng-container>
 
-      <tr *matHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualActive()" mat-header-row></tr>
-      <tr *matRowDef="let item; columns: loadingColumns; when: loadingRowWhen" class="loading-row" mat-row></tr>
-      <tr *matRowDef="let item; columns: spacerColumns; when: spacerRowWhen" aria-hidden="true" class="spacer-row"
-          mat-row></tr>
+      <tr *cdkHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualActive()" cdk-header-row></tr>
+      <tr *cdkRowDef="let item; columns: loadingColumns; when: loadingRowWhen" class="loading-row" cdk-row></tr>
+      <tr *cdkRowDef="let item; columns: spacerColumns; when: spacerRowWhen" aria-hidden="true" class="spacer-row"
+          cdk-row></tr>
       <tr
         (click)="toggleGroup(item.group)"
         (keydown.enter)="toggleGroup(item.group)"
         (keydown.space)="$event.preventDefault(); toggleGroup(item.group)"
-        *matRowDef="let item; columns: groupRowColumns(); when: groupRowWhen"
+        *cdkRowDef="let item; columns: groupRowColumns(); when: groupRowWhen"
         [attr.aria-expanded]="groupsCollapsible() ? !item.collapsed : null"
         [attr.tabindex]="groupsCollapsible() ? 0 : null"
         [class.group-row--static]="!groupsCollapsible()"
         class="group-row"
-        mat-row
+        cdk-row
       ></tr>
       @if (totals()) {
-        <tr *matFooterRowDef="displayedColumnIds(); sticky: stickyHeader()" class="totals-row" mat-footer-row></tr>
+        <tr *cdkFooterRowDef="displayedColumnIds(); sticky: stickyHeader()" class="totals-row" cdk-footer-row></tr>
       }
       <tr
         (click)="onRowClick(row)"
@@ -813,7 +813,7 @@
         (dragover)="onRowDragOver($event, row)"
         (drop)="onRowDrop($event, row)"
         (keydown)="onRowKeydown($event, row)"
-        *matRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
+        *cdkRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
         [attr.aria-expanded]="detailRowTemplate() && !pinInfo(row) ? isDetailExpanded(rowIndex, row) : treeAriaExpanded(row)"
         [attr.aria-level]="treeActive() ? treeDepth(row) + 1 : null"
         [attr.data-ngt-drop]="rowDropAttr(row)"
@@ -826,22 +826,22 @@
         [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
         [ngClass]="rowClasses(row)"
         class="data-row"
-        mat-row
+        cdk-row
       ></tr>
       <tr
-        *matRowDef="let row; let rowIndex = dataIndex; columns: detailRowColumns; when: detailRowRenderWhen"
+        *cdkRowDef="let row; let rowIndex = dataIndex; columns: detailRowColumns; when: detailRowRenderWhen"
         [class.detail-row-collapsed]="!isDetailExpanded(rowIndex, row)"
         class="detail-row-container"
-        mat-row
+        cdk-row
       ></tr>
       <tr
-        *matRowDef="let row; columns: mobileActionRowColumns(); when: mobileActionsRowWhen"
+        *cdkRowDef="let row; columns: mobileActionRowColumns(); when: mobileActionsRowWhen"
         [attr.data-mobile-row-key]="mobileRowKey(row)"
         class="mobile-actions-row"
-        mat-row
+        cdk-row
       ></tr>
-      <tr *matNoDataRow class="mat-mdc-row">
-        <td [attr.colspan]="displayedColumnIds().length || 1" class="mat-mdc-cell no-data-cell">
+      <tr *cdkNoDataRow class="cdk-row">
+        <td [attr.colspan]="displayedColumnIds().length || 1" class="cdk-cell no-data-cell">
           {{ resolvedEmptyLabel() }}
         </td>
       </tr>

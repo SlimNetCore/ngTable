@@ -67,7 +67,7 @@ export type NgTableHarnessSortDirection = 'asc' | 'desc' | '';
 
 /** Une cellule d'en-tête de `<ng-table>`. */
 export class NgTableHeaderCellHarness extends ComponentHarness {
-  static hostSelector = 'tr.mat-mdc-header-row th.mat-mdc-header-cell';
+  static hostSelector = 'tr.cdk-header-row th.cdk-header-cell';
 
   private readonly label = this.locatorForOptional('.header-label');
   private readonly sortButton = this.locatorForOptional('.header-button');
@@ -102,7 +102,7 @@ export class NgTableHeaderCellHarness extends ComponentHarness {
 export class NgTableRowHarness extends ComponentHarness {
   static hostSelector = 'tr.data-row';
 
-  private readonly cellTexts = this.locatorForAll('td.mat-mdc-cell:not(.selection-cell) .cell-text');
+  private readonly cellTexts = this.locatorForAll('td.cdk-cell:not(.selection-cell) .cell-text');
   private readonly checkbox = this.locatorForOptional('td.selection-cell input[type="checkbox"]');
 
   /** Textes des cellules, dans l'ordre des colonnes (hors case de sélection). */

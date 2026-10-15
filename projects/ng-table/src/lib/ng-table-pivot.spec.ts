@@ -68,7 +68,7 @@ describe('NgTablePivotComponent', () => {
     await fixture.whenStable();
 
     const root = fixture.nativeElement as HTMLElement;
-    const headers = [...root.querySelectorAll('th.mat-mdc-header-cell')].map((th) => th.textContent?.replace(/\s+/g, ' ').trim());
+    const headers = [...root.querySelectorAll('th.cdk-header-cell')].map((th) => th.textContent?.replace(/\s+/g, ' ').trim());
     expect(headers.join('|')).toContain('Région');
     expect(root.querySelectorAll('tr.data-row')).toHaveLength(3); // Nord, Sud + total épinglé
 

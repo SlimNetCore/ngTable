@@ -43,7 +43,7 @@ const create = async (inputs: Record<string, unknown> = {}): Promise<ComponentFi
 };
 
 const names = (fixture: ComponentFixture<unknown>) =>
-  [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row td.mat-column-name .cell-text')].map((el) => el.textContent?.trim());
+  [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row td.cdk-column-name .cell-text')].map((el) => el.textContent?.trim());
 
 const toggle = async (fixture: ComponentFixture<unknown>, rowIndex: number) => {
   const button = (fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')[rowIndex].querySelector('button.ngt-tree-toggle') as HTMLButtonElement;
@@ -187,6 +187,6 @@ describe('maître / détail imbriqué', () => {
     const nested = root.querySelectorAll('ng-table ng-table');
     expect(nested).toHaveLength(1);
     expect(nested[0].querySelectorAll('tr.data-row')).toHaveLength(2);
-    expect(nested[0].querySelector('td.mat-column-sku')?.textContent?.trim()).toBe('A');
+    expect(nested[0].querySelector('td.cdk-column-sku')?.textContent?.trim()).toBe('A');
   });
 });
