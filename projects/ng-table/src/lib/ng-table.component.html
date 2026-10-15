@@ -21,7 +21,7 @@
   <div class="list-actions">
     @if (globalSearchEnabled()) {
       <div class="global-search" role="search">
-        <mat-icon aria-hidden="true" class="global-search__icon">search</mat-icon>
+        <ng-table-icon aria-hidden="true" class="global-search__icon" name="search"/>
         <input
           (input)="onGlobalSearchInput($any($event.target).value)"
           (keydown.enter)="applyGlobalSearchNow()"
@@ -38,18 +38,18 @@
             [attr.aria-label]="effectiveLabels().clearGlobalSearch"
             [title]="effectiveLabels().clearGlobalSearch"
             class="global-search__clear"
-            mat-icon-button
+            ngt-icon-button
             type="button"
           >
-            <mat-icon aria-hidden="true">close</mat-icon>
+            <ng-table-icon aria-hidden="true" name="close"/>
           </button>
         }
       </div>
     }
 
     @if (columnsMenuEnabled()) {
-      <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">view_column</mat-icon>
+      <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="view_column"/>
         {{ effectiveLabels().columnsButton }}
       </button>
 
@@ -76,10 +76,10 @@
                 [disabled]="!isColumnVisible(column.id)"
                 [title]="isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn.replace('{column}', column.header) : effectiveLabels().setReferenceColumn.replace('{column}', column.header)"
                 class="reference-pin"
-                mat-icon-button
+                ngt-icon-button
                 type="button"
               >
-                <mat-icon aria-hidden="true">push_pin</mat-icon>
+                <ng-table-icon aria-hidden="true" name="push_pin"/>
               </button>
             }
           </div>
@@ -89,15 +89,15 @@
 
     @if (sidePanel()) {
       <button (click)="toggleSidePanel()" [attr.aria-expanded]="sidePanelOpen()" class="ngt-side-panel-toggle" [attr.aria-pressed]="sidePanelOpen()"
-              mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">dock_to_left</mat-icon>
+              ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="dock_to_left"/>
         {{ effectiveLabels().sidePanelButton }}
       </button>
     }
 
     @if (groupingEnabled()) {
-      <button [matMenuTriggerFor]="groupMenu" mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">account_tree</mat-icon>
+      <button [matMenuTriggerFor]="groupMenu" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="account_tree"/>
         {{ effectiveLabels().groupButton }}
         @if (groupColumn(); as grouped) {
           <span class="active-view-chip">{{ grouped.header }}</span>
@@ -106,24 +106,24 @@
 
       <mat-menu #groupMenu="matMenu">
         <button (click)="groupBy.set(null)" [attr.aria-checked]="!groupColumn()" mat-menu-item role="menuitemradio" type="button">
-          <mat-icon aria-hidden="true">{{ groupColumn() ? 'radio_button_unchecked' : 'radio_button_checked' }}</mat-icon>
+          <ng-table-icon aria-hidden="true" [name]="groupColumn() ? 'radio_button_unchecked' : 'radio_button_checked'"/>
           {{ effectiveLabels().groupNone }}
         </button>
         @for (column of groupableColumns(); track column.id) {
           <button (click)="groupBy.set(column.id)" [attr.aria-checked]="groupBy() === column.id" mat-menu-item
                   role="menuitemradio" type="button">
-            <mat-icon aria-hidden="true">{{ groupBy() === column.id ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+            <ng-table-icon aria-hidden="true" [name]="groupBy() === column.id ? 'radio_button_checked' : 'radio_button_unchecked'"/>
             {{ column.header }}
           </button>
         }
         @if (groupColumn() && groupsCollapsible()) {
           <div class="views-divider"></div>
           <button (click)="expandAllGroups()" mat-menu-item type="button">
-            <mat-icon aria-hidden="true">unfold_more</mat-icon>
+            <ng-table-icon aria-hidden="true" name="unfold_more"/>
             {{ effectiveLabels().expandAllGroups }}
           </button>
           <button (click)="collapseAllGroups()" mat-menu-item type="button">
-            <mat-icon aria-hidden="true">unfold_less</mat-icon>
+            <ng-table-icon aria-hidden="true" name="unfold_less"/>
             {{ effectiveLabels().collapseAllGroups }}
           </button>
         }
@@ -131,8 +131,8 @@
     }
 
     @if (viewsEnabled()) {
-      <button (menuOpened)="viewsImportFeedback.set('')" [matMenuTriggerFor]="viewsMenu" mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">bookmark</mat-icon>
+      <button (menuOpened)="viewsImportFeedback.set('')" [matMenuTriggerFor]="viewsMenu" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="bookmark"/>
         {{ effectiveLabels().viewsButton }}
         @if (activeView(); as av) {
           <span class="active-view-chip">{{ av.name }}</span>
@@ -156,11 +156,11 @@
               [attr.aria-label]="effectiveLabels().saveView"
               [disabled]="!newViewName().trim()"
               class="views-save-btn"
-              mat-icon-button
+              ngt-icon-button
               [title]="effectiveLabels().saveView"
               type="button"
             >
-              <mat-icon aria-hidden="true">save</mat-icon>
+              <ng-table-icon aria-hidden="true" name="save"/>
             </button>
           </div>
 
@@ -170,7 +170,7 @@
               <div [class.active]="view.id === activeViewId()" class="view-row">
                 <button (click)="activateView(view)" [attr.aria-current]="view.id === activeViewId() ? 'true' : null"
                         class="view-row-label" type="button">
-                  <mat-icon aria-hidden="true">{{ view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" [name]="view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked'"/>
                   <span>{{ view.name }}</span>
                 </button>
                 <button (click)="toggleDefaultView(view)"
@@ -179,22 +179,22 @@
                         [class.view-row-default--on]="isDefaultView(view)"
                         [title]="isDefaultView(view) ? effectiveLabels().unsetDefaultView : effectiveLabels().setDefaultView"
                         class="view-row-default"
-                        mat-icon-button
+                        ngt-icon-button
                         type="button">
-                  <mat-icon aria-hidden="true">{{ isDefaultView(view) ? 'star' : 'star_outline' }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" [name]="isDefaultView(view) ? 'star' : 'star_outline'"/>
                 </button>
                 <button (click)="updateView(view)" [attr.aria-label]="effectiveLabels().updateView"
                         [title]="effectiveLabels().updateView" class="view-row-update"
                         [class.view-row-update--done]="viewUpdateIconName(view) === 'check'"
-                        mat-icon-button
+                        ngt-icon-button
                         type="button">
-                  <mat-icon aria-hidden="true">{{ viewUpdateIconName(view) }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" [name]="viewUpdateIconName(view)"/>
                 </button>
                 <button (click)="deleteView(view)" [attr.aria-label]="effectiveLabels().deleteView"
                         [title]="effectiveLabels().deleteView" class="view-row-delete"
-                        mat-icon-button
+                        ngt-icon-button
                         type="button">
-                  <mat-icon aria-hidden="true">delete</mat-icon>
+                  <ng-table-icon aria-hidden="true" name="delete"/>
                 </button>
               </div>
             }
@@ -205,12 +205,12 @@
           @if (viewsImportExportEnabled()) {
             <div class="views-divider"></div>
             <div class="views-transfer-row">
-              <button (click)="downloadViews()" [disabled]="viewsList().length === 0" mat-button type="button">
-                <mat-icon aria-hidden="true">file_download</mat-icon>
+              <button (click)="downloadViews()" [disabled]="viewsList().length === 0" ngt-button type="button">
+                <ng-table-icon aria-hidden="true" name="file_download"/>
                 {{ effectiveLabels().exportViews }}
               </button>
-              <button (click)="viewsFileInput.click()" mat-button type="button">
-                <mat-icon aria-hidden="true">file_upload</mat-icon>
+              <button (click)="viewsFileInput.click()" ngt-button type="button">
+                <ng-table-icon aria-hidden="true" name="file_upload"/>
                 {{ effectiveLabels().importViews }}
               </button>
               <input #viewsFileInput (change)="onViewsFileSelected(viewsFileInput)" accept="application/json,.json"
@@ -228,10 +228,10 @@
       <button
         (click)="openExportDialog()"
         [matMenuTriggerFor]="exportMode() === 'local' && exportTotalPages() > 1 ? exportMenu : null"
-        mat-stroked-button
+        ngt-stroked-button
         type="button"
       >
-        <mat-icon aria-hidden="true">download</mat-icon>
+        <ng-table-icon aria-hidden="true" name="download"/>
         {{ effectiveLabels().exportButton }}
       </button>
 
@@ -265,8 +265,8 @@
             </label>
           </div>
 
-          <button (click)="confirmExportDialog()" class="export-confirm-btn" mat-flat-button type="button">
-            <mat-icon aria-hidden="true">download</mat-icon>
+          <button (click)="confirmExportDialog()" class="export-confirm-btn" ngt-flat-button type="button">
+            <ng-table-icon aria-hidden="true" name="download"/>
             {{ effectiveLabels().exportConfirm }}
           </button>
         </div>
@@ -277,7 +277,7 @@
   @if (showActiveFiltersBar() && activeFilterSummaries().length > 0) {
     <div class="active-filters-bar">
       <span class="active-filters-bar__label">
-        <mat-icon aria-hidden="true">filter_alt</mat-icon>
+        <ng-table-icon aria-hidden="true" name="filter_alt"/>
         {{ effectiveLabels().activeFilters }}
       </span>
 
@@ -290,17 +290,17 @@
               (click)="clearFilter(summary.columnId)"
               [attr.aria-label]="effectiveLabels().clearFilter"
               class="active-filter-chip__clear"
-              mat-icon-button
+              ngt-icon-button
               type="button"
             >
-              <mat-icon aria-hidden="true">close</mat-icon>
+              <ng-table-icon aria-hidden="true" name="close"/>
             </button>
           </span>
         }
       </div>
 
-      <button (click)="clearAllFilters()" class="active-filters-bar__reset" mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+      <button (click)="clearAllFilters()" class="active-filters-bar__reset" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="filter_alt_off"/>
         {{ effectiveLabels().resetFiltersButton }}
       </button>
     </div>
@@ -327,11 +327,11 @@
         <button (click)="sidePanelPinned.set(!sidePanelPinned())" [attr.aria-label]="effectiveLabels().sidePanelPin"
                 [attr.aria-pressed]="sidePanelPinned()" [class.ngt-side-panel__pin--on]="sidePanelPinned()"
                 [title]="effectiveLabels().sidePanelPin" class="ngt-side-panel__pin" type="button">
-          <mat-icon aria-hidden="true">push_pin</mat-icon>
+          <ng-table-icon aria-hidden="true" name="push_pin"/>
         </button>
         <button (click)="sidePanelOpen.set(false)" [attr.aria-label]="effectiveLabels().sidePanelClose"
                 [title]="effectiveLabels().sidePanelClose" class="ngt-side-panel__close" type="button">
-          <mat-icon aria-hidden="true">close</mat-icon>
+          <ng-table-icon aria-hidden="true" name="close"/>
         </button>
       </div>
       <div class="ngt-side-panel__body" role="tabpanel">
@@ -347,8 +347,8 @@
                       [attr.aria-pressed]="isReferenceColumn(column)" [class.reference-pin--on]="isReferenceColumn(column)"
                       [disabled]="!isColumnVisible(column.id)"
                       [title]="(isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn : effectiveLabels().setReferenceColumn).replace('{column}', column.header)"
-                      class="reference-pin" mat-icon-button type="button">
-                <mat-icon aria-hidden="true">push_pin</mat-icon>
+                      class="reference-pin" ngt-icon-button type="button">
+                <ng-table-icon aria-hidden="true" name="push_pin"/>
               </button>
             </div>
           }
@@ -358,16 +358,16 @@
               <span class="active-filter-chip__field">{{ summary.label }}</span>
               <span class="active-filter-chip__value">{{ summary.value }}</span>
               <button (click)="clearFilter(summary.columnId)" [attr.aria-label]="effectiveLabels().clearFilter"
-                      class="active-filter-chip__clear" mat-icon-button type="button">
-                <mat-icon aria-hidden="true">close</mat-icon>
+                      class="active-filter-chip__clear" ngt-icon-button type="button">
+                <ng-table-icon aria-hidden="true" name="close"/>
               </button>
             </div>
           } @empty {
             <p class="ngt-side-panel__empty">{{ effectiveLabels().sidePanelNoFilters }}</p>
           }
           @if (activeFilterSummaries().length > 0) {
-            <button (click)="clearAllFilters()" mat-stroked-button type="button">
-              <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+            <button (click)="clearAllFilters()" ngt-stroked-button type="button">
+              <ng-table-icon aria-hidden="true" name="filter_alt_off"/>
               {{ effectiveLabels().resetFiltersButton }}
             </button>
           }
@@ -408,7 +408,7 @@
               <button (click)="$event.stopPropagation()" (dragend)="onRowDragEnd()" (dragstart)="onRowDragStart($event, row)"
                       (keydown)="onRowHandleKeydown($event, row)" [attr.aria-label]="effectiveLabels().rowDragHandle"
                       [title]="effectiveLabels().rowDragHandle" class="ngt-row-handle" draggable="true" type="button">
-                <mat-icon aria-hidden="true">drag_indicator</mat-icon>
+                <ng-table-icon aria-hidden="true" name="drag_indicator"/>
               </button>
             }
           </td>
@@ -463,7 +463,7 @@
                 role="button"
                 tabindex="0"
               >
-                <mat-icon aria-hidden="true">drag_indicator</mat-icon>
+                <ng-table-icon aria-hidden="true" name="drag_indicator"/>
               </span>
               <button
                 (click)="onHeaderSort(column, $event)"
@@ -475,7 +475,7 @@
               >
                 <span [ngTableTruncateTooltip]="column.header" class="header-label">{{ column.header }}</span>
                 @if (column.sortable) {
-                  <mat-icon aria-hidden="true" class="sort-icon">{{ currentSortIcon(column) }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" class="sort-icon" [name]="currentSortIcon(column)"/>
                   @if (sortPriority(column); as priority) {
                     <span aria-hidden="true" class="sort-priority">{{ priority }}</span>
                   }
@@ -492,10 +492,10 @@
                     [class.filter-active]="isFilterActive(column.id)"
                     [matMenuTriggerFor]="menu"
                     class="filter-button"
-                    mat-icon-button
+                    ngt-icon-button
                     type="button"
                   >
-                    <mat-icon aria-hidden="true">{{ isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off' }}</mat-icon>
+                    <ng-table-icon aria-hidden="true" [name]="isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off'"/>
                   </button>
 
                   <mat-menu #menu="matMenu" class="ngt-filter-menu-panel">
@@ -507,7 +507,7 @@
                     >
                       @if (filterMenuTitle(column); as menuTitle) {
                         <div class="filter-menu-title">
-                          <mat-icon aria-hidden="true">filter_alt</mat-icon>
+                          <ng-table-icon aria-hidden="true" name="filter_alt"/>
                           <span>{{ menuTitle }}</span>
                         </div>
                       }
@@ -661,7 +661,7 @@
                   <button (click)="onTreeToggle($event, row)" [attr.aria-expanded]="isTreeExpanded(row)"
                           [attr.aria-label]="isTreeExpanded(row) ? effectiveLabels().treeCollapse : effectiveLabels().treeExpand"
                           class="ngt-tree-toggle" type="button">
-                    <mat-icon aria-hidden="true">{{ isTreeExpanded(row) ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                    <ng-table-icon aria-hidden="true" [name]="isTreeExpanded(row) ? 'expand_more' : 'chevron_right'"/>
                   </button>
                 } @else {
                   <span aria-hidden="true" class="ngt-tree-toggle"></span>
@@ -685,12 +685,12 @@
                 <button
                   (click)="onCopyCellValue($event, column, row, rowIndex)"
                   [attr.aria-label]="copyTooltip(column)"
-                  [matTooltip]="copyTooltip(column)"
+                  [ngTableTooltip]="copyTooltip(column)"
                   class="copy-action-btn"
-                  mat-icon-button
+                  ngt-icon-button
                   type="button"
                 >
-                  <mat-icon aria-hidden="true">{{ copyIconName(column, row, rowIndex) }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" [name]="copyIconName(column, row, rowIndex)"/>
                 </button>
               }
             </div>
@@ -712,7 +712,7 @@
             @if (column.id === leadColumnId()) {
               <span class="group-label">
                 @if (groupsCollapsible()) {
-                  <mat-icon aria-hidden="true" class="group-chevron">{{ item.collapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" class="group-chevron" [name]="item.collapsed ? 'chevron_right' : 'expand_more'"/>
                 }
                 <!-- Espaces DANS les textes : Angular retire ceux entre les balises, et le nom lu
                      par un lecteur d'écran deviendrait « Statut :Brouillon1 ligne(s) ». -->

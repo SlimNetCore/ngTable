@@ -367,7 +367,7 @@
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
-.clear-filter mat-icon {
+.clear-filter ng-table-icon {
   font-size: 15px;
   width: 15px;
   height: 15px;

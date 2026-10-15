@@ -1,0 +1,81 @@
+/*
+ * Boutons de ng-table : des <button> natifs habillés par les jetons de thème (remplacent les directives
+ * `mat-button`, `mat-stroked-button`, `mat-flat-button` et `mat-icon-button` d'Angular Material).
+ *
+ *   ngt-button          texte seul        ngt-stroked-button  contour
+ *   ngt-flat-button     fond plein        ngt-icon-button     rond, une icône
+ */
+[ngt-button],
+[ngt-stroked-button],
+[ngt-flat-button],
+[ngt-icon-button] {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  font: inherit;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[ngt-button],
+[ngt-stroked-button],
+[ngt-flat-button] {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+}
+
+[ngt-stroked-button] {
+  border-color: var(--ngt-primary-outline, var(--app-primary-outline, rgba(58, 124, 165, 0.34)));
+}
+
+[ngt-flat-button] {
+  background: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-surface, var(--app-surface, #ffffff));
+}
+
+[ngt-icon-button] {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--ngt-text-muted, var(--app-muted, var(--app-text-muted, #4f6573)));
+}
+
+[ngt-button]:hover:not(:disabled),
+[ngt-stroked-button]:hover:not(:disabled),
+[ngt-icon-button]:hover:not(:disabled) {
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+}
+
+[ngt-flat-button]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 88%, black);
+}
+
+[ngt-button]:focus-visible,
+[ngt-stroked-button]:focus-visible,
+[ngt-flat-button]:focus-visible,
+[ngt-icon-button]:focus-visible {
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  outline-offset: 2px;
+}
+
+[ngt-button]:disabled,
+[ngt-stroked-button]:disabled,
+[ngt-flat-button]:disabled,
+[ngt-icon-button]:disabled {
+  cursor: default;
+  opacity: 0.38;
+}

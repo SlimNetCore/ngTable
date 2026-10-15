@@ -680,9 +680,9 @@ describe('NgTableComponent', () => {
       const button = [...fixture.nativeElement.querySelectorAll('.list-actions button')].find((b: Element) => b.textContent?.includes('Grouper')) as HTMLButtonElement;
       button.click();
       await fixture.whenStable();
-      const items = [...document.querySelectorAll('.mat-mdc-menu-panel [role="menuitemradio"]')].map((el) => text(el));
-      expect(items).toEqual(['radio_button_checked Aucun regroupement', 'radio_button_unchecked Nom', 'radio_button_unchecked Montant',
-        'radio_button_unchecked Statut', 'radio_button_unchecked Actif']);
+      const entries = [...document.querySelectorAll('.mat-mdc-menu-panel [role="menuitemradio"]')];
+      expect(entries.map((el) => text(el))).toEqual(['Aucun regroupement', 'Nom', 'Montant', 'Statut', 'Actif']);
+      expect(entries.map((el) => el.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false']);
 
       component.groupBy.set('actif');
       component.saveCurrentAsView('Par activité');

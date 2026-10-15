@@ -24,13 +24,12 @@ import {
   viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {MatButtonModule} from '@angular/material/button';
-import {MatIconModule} from '@angular/material/icon';
+import {NgTableIconComponent} from './ng-table-icon.component';
 import {MatMenuModule, MatMenuTrigger} from '@angular/material/menu';
 import {NgTableCheckboxChange, NgTableCheckboxComponent} from './ng-table-checkbox.component';
 import {NgTablePageEvent, NgTablePaginatorComponent} from './ng-table-paginator.component';
 import {MatTableModule} from '@angular/material/table';
-import {MatTooltipModule} from '@angular/material/tooltip';
+import {NgTableTooltipDirective} from './tooltip.directive';
 import {firstValueFrom, Observable, Subject, timer} from 'rxjs';
 import {debounce, groupBy, mergeMap} from 'rxjs/operators';
 import {ColumnFilterRendererComponent, ColumnFilterType} from './column-filter-renderer.component';
@@ -570,17 +569,16 @@ export interface NgTableViewsImportEvent {
     MatTableModule,
     MatMenuModule,
     NgTablePaginatorComponent,
-    MatButtonModule,
     NgTableCheckboxComponent,
-    MatIconModule,
-    MatTooltipModule,
+    NgTableIconComponent,
+    NgTableTooltipDirective,
     ColumnFilterRendererComponent,
     DynamicFilterHostComponent,
     TruncateTooltipDirective,
     NgTableSparklineComponent,
   ],
   templateUrl: './ng-table.component.html',
-  styleUrls: ['./theme.css', './ng-table.component.css'],
+  styleUrls: ['./theme.css', './buttons.css', './ng-table.component.css'],
   host: {'[attr.data-ngt-theme]': 'theme()'},
   // Tout l'état interne passe par des signals : `OnPush` suffit et évite de re-vérifier
   // la vue (et ses centaines de cellules) à chaque cycle de détection global.

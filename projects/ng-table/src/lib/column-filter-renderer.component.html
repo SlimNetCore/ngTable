@@ -35,13 +35,13 @@
     <mat-datepicker-toggle [for]="picker" matIconSuffix></mat-datepicker-toggle>
     <mat-date-range-picker #picker (opened)="syncDraftDateRange()">
       <mat-date-range-picker-actions>
-        <button (click)="cancelDateRange()" mat-button matDateRangePickerCancel type="button">
+        <button (click)="cancelDateRange()" ngt-button matDateRangePickerCancel type="button">
           {{ labels().cancel }}
         </button>
         <button
           (click)="applyDateRange()"
           color="primary"
-          mat-flat-button
+          ngt-flat-button
           matDateRangePickerApply
           type="button"
         >
@@ -139,7 +139,7 @@
       />
 
       @if (showsTrailingIcon()) {
-        <mat-icon aria-hidden="true" class="field-icon">{{ trailingIcon() }}</mat-icon>
+        <ng-table-icon aria-hidden="true" class="field-icon" [name]="trailingIcon()"/>
       }
     </div>
   }
@@ -150,9 +150,9 @@
     (click)="clear.emit()"
     [attr.aria-label]="labels().clearFilter"
     class="clear-filter"
-    mat-icon-button
+    ngt-icon-button
     type="button"
   >
-    <mat-icon aria-hidden="true">close</mat-icon>
+    <ng-table-icon aria-hidden="true" name="close"/>
   </button>
 }

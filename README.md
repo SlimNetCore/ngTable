@@ -635,7 +635,10 @@ Le paginateur intégré (`<ng-table-paginator>`) et les cases à cocher (`<ng-ta
 - **Paginateur** : ses textes viennent de `[labels]` (français par défaut, `NG_TABLE_LABELS_EN` pour l'anglais) et non plus de `MatPaginatorIntl`. `provideNgTablePaginatorIntl()` ne concerne plus que *votre propre* `<mat-paginator>` placé ailleurs (déprécié pour le paginateur intégré). `getPaginator()` du harnais renvoie un `NgTablePaginatorHarness`.
 - **Cases à cocher** : `(checkedChange)` à la place de `(change)` quand vous utilisez `<ng-table-checkbox>` ; le harnais n'a rien changé (il lit déjà l'`<input>`).
 - Les deux composants sont exportés et se thèment par les jetons `--ngt-*`.
-- Il reste à remplacer : le tableau (`mat-table`), le menu, l'info-bulle, les boutons et icônes, le champ et le sélecteur de date.
+- **Icônes** : `<ng-table-icon name="close"/>`, 29 icônes en SVG dessinées au trait, à la couleur du texte (`font-size` et `color` les règlent). Plus besoin de charger la police Material Icons pour la table ; le style est un peu plus « fil de fer » que les glyphes pleins de Material.
+- **Boutons** : de simples `<button>` avec l'attribut `ngt-button`, `ngt-stroked-button`, `ngt-flat-button` ou `ngt-icon-button`, habillés par les jetons de thème (`buttons.css`).
+- **Info-bulle** : `NgTableTooltipDirective` (`[ngTableTooltip]="'texte'"`), une bulle `role="tooltip"` posée dans `<body>`, ouverte au survol (300 ms) et au focus, fermée à Échap, au défilement et à la destruction ; la bulle de troncature en dérive. Les variables `--ngt-tooltip-*` n'ont pas changé ; la classe `.mat-mdc-tooltip-surface` n'existe plus, la bulle est `.ngt-tooltip`.
+- Il reste à remplacer : le tableau (`mat-table`), le menu, le champ de saisie et le sélecteur de liste, le sélecteur de date.
 
 ### Étape 10novodecies — Thème : jetons CSS et thème sombre
 
@@ -3049,7 +3052,7 @@ La tooltip affichée au survol d'une cellule tronquée (`textOverflow: 'truncate
 
 ⚠️ **À déclarer globalement** (`:root`, `html`, `body`...), **pas** sur l'élément `<ng-table>` : la tooltip est rendue par le CDK dans son conteneur d'overlay, à la racine du `<body>`, donc hors de l'arbre DOM de la table — des variables posées sur `<ng-table>` ne l'atteindraient jamais.
 
-Pour un contrôle total au-delà de ces variables, la bulle porte la classe `.ngt-truncate-tooltip` (la surface visible étant `.ngt-truncate-tooltip .mat-mdc-tooltip-surface`).
+Pour un contrôle total au-delà de ces variables, la bulle est un `div.ngt-tooltip.ngt-truncate-tooltip` (`role="tooltip"`) posé dans `<body>`.
 
 ## Mode local / distant
 

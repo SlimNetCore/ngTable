@@ -1,5 +1,5 @@
 <mat-form-field appearance="outline" class="select-filter-input">
-  <mat-icon aria-hidden="true" matPrefix>search</mat-icon>
+  <ng-table-icon aria-hidden="true" matPrefix name="search"/>
   <input
     #searchInput
     (input)="valueChange.emit(searchInput.value)"
@@ -12,11 +12,11 @@
     <button
       (click)="onClear(searchInput)"
       [attr.aria-label]="clearLabel"
-      mat-icon-button
+      ngt-icon-button
       matSuffix
       type="button"
     >
-      <mat-icon aria-hidden="true">close</mat-icon>
+      <ng-table-icon aria-hidden="true" name="close"/>
     </button>
   }
 </mat-form-field>

@@ -7,11 +7,10 @@ import {
   output,
   signal,
 } from '@angular/core';
-import {MatButtonModule} from '@angular/material/button';
 import {MatNativeDateModule, MatOptionSelectionChange} from '@angular/material/core';
 import {MatDatepickerModule} from '@angular/material/datepicker';
 import {MatFormFieldModule} from '@angular/material/form-field';
-import {MatIconModule} from '@angular/material/icon';
+import {NgTableIconComponent} from './ng-table-icon.component';
 import {MatInputModule} from '@angular/material/input';
 import {MatSelectModule} from '@angular/material/select';
 import {NG_TABLE_DEFAULT_LABELS, NgTableLabels} from './ng-table-labels';
@@ -63,10 +62,9 @@ export type ColumnFilterType =
   standalone: true,
   imports: [
     CommonModule,
-    MatButtonModule,
     MatDatepickerModule,
     MatFormFieldModule,
-    MatIconModule,
+    NgTableIconComponent,
     MatInputModule,
     MatNativeDateModule,
     MatSelectModule,

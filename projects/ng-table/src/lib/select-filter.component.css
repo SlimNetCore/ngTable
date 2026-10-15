@@ -22,7 +22,7 @@
   font-weight: 600;
 }
 
-:host ::ng-deep .select-filter-input .mat-icon {
+:host ::ng-deep .select-filter-input .ng-table-icon {
   font-family: 'Material Icons', sans-serif;
   font-size: 18px;
   line-height: 1;

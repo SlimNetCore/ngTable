@@ -38,3 +38,6 @@ export {NgTableCheckboxComponent} from './lib/ng-table-checkbox.component';
 export type {NgTableCheckboxChange} from './lib/ng-table-checkbox.component';
 export {NgTablePaginatorComponent} from './lib/ng-table-paginator.component';
 export type {NgTablePageEvent} from './lib/ng-table-paginator.component';
+export {NgTableIconComponent} from './lib/ng-table-icon.component';
+export type {NgTableIconName} from './lib/ng-table-icon.component';
+export {NgTableTooltipDirective} from './lib/tooltip.directive';

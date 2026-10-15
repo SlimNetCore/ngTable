@@ -1,8 +1,7 @@
 import {CommonModule} from '@angular/common';
 import {ChangeDetectionStrategy, Component, EventEmitter, Input, Output} from '@angular/core';
-import {MatButtonModule} from '@angular/material/button';
 import {MatFormFieldModule} from '@angular/material/form-field';
-import {MatIconModule} from '@angular/material/icon';
+import {NgTableIconComponent} from './ng-table-icon.component';
 import {MatInputModule} from '@angular/material/input';
 
 /** Usage interne uniquement — non exporté par `public-api.ts`. */
@@ -13,8 +12,7 @@ import {MatInputModule} from '@angular/material/input';
     CommonModule,
     MatFormFieldModule,
     MatInputModule,
-    MatIconModule,
-    MatButtonModule,
+    NgTableIconComponent,
   ],
   templateUrl: './select-filter.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
