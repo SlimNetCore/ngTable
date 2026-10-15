@@ -4,6 +4,7 @@ import {MatButtonToggleModule} from '@angular/material/button-toggle';
 import {MatIconModule} from '@angular/material/icon';
 import {MatSlideToggleModule} from '@angular/material/slide-toggle';
 import {NgTableColumn, NgTableComponent} from '@sbourahla/ng-table';
+import {fetchQuotes, openQuoteStream, UNREACHABLE} from './spring-commandes-api';
 
 interface Quote {
   id: number;
@@ -61,6 +62,8 @@ function makeQuote(id: number): Quote {
     .up { color: #15803d; font-variant-numeric: tabular-nums; }
     .down { color: #b91c1c; font-variant-numeric: tabular-nums; }
     .num { font-variant-numeric: tabular-nums; }
+    .error { color: #b3261e; font-weight: 600; }
+    .hint { margin: 8px 0 0; color: #4f6573; }
   `,
   template: `
     <p class="demo-intro">
@@ -73,6 +76,13 @@ function makeQuote(id: number): Quote {
       <h2>Flux</h2>
       <div class="controls">
         <span>
+          <span class="setting-label">Source du flux</span>
+          <mat-button-toggle-group [value]="source()" (change)="setSource($event.value)">
+            <mat-button-toggle value="local">Navigateur (simulé)</mat-button-toggle>
+            <mat-button-toggle value="spring">Spring Boot (SSE)</mat-button-toggle>
+          </mat-button-toggle-group>
+        </span>
+        <span>
           <span class="setting-label">Instruments</span>
           <mat-button-toggle-group [value]="size()" (change)="setSize($event.value)">
             <mat-button-toggle [value]="1000">1 000</mat-button-toggle>
@@ -82,7 +92,7 @@ function makeQuote(id: number): Quote {
         </span>
         <span>
           <span class="setting-label">Mises à jour / s</span>
-          <mat-button-toggle-group [value]="rate()" (change)="rate.set($event.value)">
+          <mat-button-toggle-group [value]="rate()" (change)="setRate($event.value)">
             <mat-button-toggle [value]="100">100</mat-button-toggle>
             <mat-button-toggle [value]="1000">1 000</mat-button-toggle>
             <mat-button-toggle [value]="10000">10 000</mat-button-toggle>
@@ -102,6 +112,17 @@ function makeQuote(id: number): Quote {
           </mat-button-toggle-group>
         </span>
       </div>
+      @if (error()) {
+        <p class="error" role="alert">
+          {{ error() }}. Lancez le backend : <code>cd examples/spring-boot-backend</code> puis <code>./mvnw spring-boot:run</code>
+          (<code>mvnw.cmd</code> sous Windows).
+        </p>
+      } @else if (source() === 'spring') {
+        <p class="hint">
+          Le serveur simule le marché : instantané par <code>GET /api/quotes</code>, puis des transactions en Server-Sent Events
+          (<code>/api/quotes/stream</code>, un paquet toutes les 100 ms) appliquées par <code>applyTransactionAsync</code>.
+        </p>
+      }
       <div class="metrics">
         <div><strong>{{ appliedPerSecond().toLocaleString('fr-FR') }}</strong><span>mises à jour appliquées / s</span></div>
         <div [class.bad]="fps() < 50"><strong>{{ fps() }}</strong><span>images / s (navigateur)</span></div>
@@ -138,6 +159,10 @@ export class LiveDemoComponent {
   private readonly changeCell = viewChild<TemplateRef<unknown>>('changeCell');
   private readonly zone = inject(NgZone);
 
+  /** D'où vient le flux : généré dans le navigateur, ou envoyé par le backend Spring Boot (SSE). */
+  protected readonly source = signal<'local' | 'spring'>('local');
+  protected readonly error = signal('');
+  private closeStream: (() => void) | null = null;
   protected readonly size = signal(10_000);
   protected readonly rate = signal(10_000);
   protected readonly running = signal(true);
@@ -207,6 +232,7 @@ export class LiveDemoComponent {
         this.applied = 0;
       }, 1000);
       destroyRef.onDestroy(() => {
+        this.closeStream?.();
         clearInterval(feed);
         clearInterval(meter);
         cancelAnimationFrame(rafId);
@@ -216,13 +242,74 @@ export class LiveDemoComponent {
 
   protected setSize(size: number): void {
     this.size.set(size);
+    if (this.source() === 'spring') {
+      void this.connect();
+      return;
+    }
     const rows = Array.from({length: size}, (_, i) => makeQuote(i));
     this.quotes = [...rows];
     this.rows.set(rows);
   }
 
+  protected setRate(rate: number): void {
+    this.rate.set(rate);
+    if (this.source() === 'spring' && this.running()) {
+      void this.connect(); // le débit est un paramètre du flux : on le rouvre
+    }
+  }
+
+  protected setSource(source: 'local' | 'spring'): void {
+    this.source.set(source);
+    this.error.set('');
+    if (source === 'spring') {
+      void this.connect();
+    } else {
+      this.closeStream?.();
+      this.closeStream = null;
+      this.setSize(this.size());
+    }
+  }
+
   protected toggleRunning(): void {
     this.running.update((running) => !running);
+    if (this.source() === 'spring') {
+      if (this.running()) {
+        void this.connect();
+      } else {
+        this.closeStream?.(); // pause : on coupe le flux, la table garde son état
+        this.closeStream = null;
+      }
+    }
+  }
+
+  /** Charge l'instantané du marché du serveur, puis ouvre le flux de transactions. */
+  private async connect(): Promise<void> {
+    this.closeStream?.();
+    this.closeStream = null;
+    const size = this.size();
+    try {
+      const snapshot = await fetchQuotes(size);
+      if (this.source() !== 'spring' || size !== this.size()) {
+        return; // l'utilisateur a changé de source ou de taille pendant le chargement
+      }
+      this.quotes = [...snapshot];
+      this.rows.set(snapshot);
+      this.error.set('');
+      if (!this.running()) {
+        return;
+      }
+      this.closeStream = openQuoteStream(
+        size,
+        this.rate(),
+        (transaction) => {
+          this.applied += transaction.update.length;
+          this.table().applyTransactionAsync({update: transaction.update});
+        },
+        () => this.error.set(UNREACHABLE),
+      );
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : UNREACHABLE);
+    }
   }
 
   protected onFlushed(): void {
@@ -233,7 +320,7 @@ export class LiveDemoComponent {
 
   /** Un paquet du flux : `rate / 50` cotations bougent. */
   private tick(): void {
-    if (!this.running()) {
+    if (!this.running() || this.source() !== 'local') {
       return;
     }
     const count = Math.max(1, Math.round(this.rate() / (1000 / TICK_MS)));

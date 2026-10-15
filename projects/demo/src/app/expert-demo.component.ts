@@ -6,6 +6,7 @@ import {MatIconModule} from '@angular/material/icon';
 import {MatSlideToggleModule} from '@angular/material/slide-toggle';
 import {
   NG_TABLE_LABELS_EN,
+  NgTableCellEditEvent,
   NgTableColumn,
   NgTableComponent,
   NgTableGroupSummary,
@@ -17,7 +18,7 @@ import {
   NgTableViewsStore,
 } from '@sbourahla/ng-table';
 import {CLIENTS, Commande, CommandeStatut, STATUT_LABELS, STATUT_OPTIONS} from './demo-data';
-import {CommandesBackend, FakeCommandesApi} from './fake-commandes-api';
+import {CommandePatch, CommandesBackend, FakeCommandesApi} from './fake-commandes-api';
 import {SpringCommandesApi, UNREACHABLE} from './spring-commandes-api';
 import {MontantPresetFilterComponent} from './montant-preset-filter.component';
 
@@ -185,6 +186,11 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           (globalSearchChange)="log('globalSearchChange', $event)"
           (pageIndexChange)="log('pageIndexChange', $event)"
           (rowClick)="log('rowClick', $event.reference)"
+          [statusBar]="true"
+          [sidePanel]="true"
+          [rangeSelection]="!continuous()"
+          (cellEdited)="onCellEdited($event)"
+          (cellEditRejected)="log('cellEditRejected', $event.error)"
         />
         <p [class.server--error]="serverError()" class="demo-meta server">{{ serverStatus() }}</p>
       </div>
@@ -226,6 +232,9 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
         <li>Export généré côté serveur (<code>exportMode='remote'</code>) : <code>(remoteExportRequested)</code> porte la
           requête, les colonnes affichées (dans l'ordre), le format et le nom de fichier ; Spring Boot renvoie le CSV ou le
           XLSX de toutes les lignes.</li>
+        <li>Avec Spring Boot : cellules éditables (client, statut, montant) — chaque modification part en
+          <code>PATCH /api/commandes/&#123;id&#125;</code>, le serveur valide (montant positif, statut connu) puis la table se recharge ;
+          barre d'état, panneau latéral, sélection de plage et mini-graphiques sur les données du serveur.</li>
         <li>Colonne de référence choisie avec la punaise du menu « Colonnes » (<code>referenceColumnSelectable</code>).</li>
         <li>Textes traduits via <code>[labels]</code> (<code>NG_TABLE_LABELS_EN</code>).</li>
         <li>En test : <code>NgTableHarness</code> (<code>&#64;sbourahla/ng-table/testing</code>) pilote cette table comme
@@ -314,6 +323,7 @@ export class ExpertDemoComponent {
       valueAccessor: (c) => c.client,
       sortable: true,
       groupable: true,
+      editable: this.backend() === 'spring',
       filter: {type: 'enum', options: CLIENTS.map((client) => ({value: client, label: client}))},
     },
     {
@@ -323,6 +333,7 @@ export class ExpertDemoComponent {
       sortable: true,
       groupable: true,
       cellTemplate: this.statutCell() as CellTemplate,
+      editable: this.backend() === 'spring',
       filter: {type: 'enum', options: STATUT_OPTIONS},
     },
     {
@@ -332,6 +343,9 @@ export class ExpertDemoComponent {
       sortable: true,
       groupable: false,
       aggregate: 'sum', // somme calculée par le serveur (groupSummaries)
+      editable: this.backend() === 'spring',
+      editor: 'number',
+      validate: (value) => ((value as number | null) !== null && (value as number) < 0 ? 'Le montant doit être positif' : null),
       filter: {type: 'numberRange', label: 'Tranche de montant', component: MontantPresetFilterComponent},
     },
     {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, groupable: true, filter: {type: 'range'}},
@@ -343,6 +357,7 @@ export class ExpertDemoComponent {
       groupable: false,
       filter: {type: 'boolean'},
     },
+    {id: 'tendance', header: 'Tendance', valueAccessor: (c) => c.tendance, sparkline: {type: 'area', width: 90}, groupable: false, widthPx: 120},
     {id: 'description', header: 'Description', valueAccessor: (c) => c.description, widthPx: 260},
   ]);
 
@@ -419,6 +434,28 @@ export class ExpertDemoComponent {
     afterNextRender(() => this.lastRenderMs.set(Math.round(performance.now() - received)), {injector: this.injector});
     this.lastServerMs.set(Math.round(page.serverMs));
     this.serverStatus.set(`Serveur : ${page.total.toLocaleString('fr-FR')} commande(s) correspondent, page ${query.page.index + 1} reçue.`);
+  }
+
+  /** Une cellule a été modifiée : le serveur valide et enregistre, puis la page se recharge avec la valeur du serveur. */
+  protected async onCellEdited(event: NgTableCellEditEvent<Commande>): Promise<void> {
+    this.log('cellEdited', `${event.column.header} : ${String(event.oldValue)} → ${String(event.newValue)}`);
+    if (!this.api.update) {
+      return;
+    }
+    try {
+      await this.api.update(event.row.id, {[event.column.id]: event.newValue} as CommandePatch);
+      this.serverError.set(false);
+      this.serverStatus.set(`Commande ${event.row.reference} enregistrée par le serveur (${event.column.header}).`);
+    } catch (error) {
+      this.serverError.set(true);
+      this.serverStatus.set(`Modification refusée : ${error instanceof Error ? error.message : String(error)}.`);
+    }
+    // Quoi qu'il arrive, la table reprend ce que le serveur a : la valeur acceptée ou l'ancienne.
+    if (this.continuous()) {
+      this.table().refreshRemoteDatasource();
+    } else {
+      void this.load(this.lastQuery);
+    }
   }
 
   protected async exportOnServer(request: NgTableRemoteExportRequest): Promise<void> {
