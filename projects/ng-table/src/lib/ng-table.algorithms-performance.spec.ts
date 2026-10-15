@@ -67,7 +67,7 @@ const time = <V>(label: string, run: () => V): {ms: number; value: V} => {
 const compute = (config: {filters?: Record<string, string>; sorts?: {id: string; desc?: boolean}[]}) => {
   const store = new RowStore<Row>((r) => r.id);
   store.replaceAll(ROWS);
-  const pipeline = new IncrementalPipeline<Row>((r) => r.id);
+  const pipeline = new IncrementalPipeline<Row>();
   const filters = config.filters ?? {};
   const levels: SortLevel<Row>[] = (config.sorts ?? []).map((s) => ({column: by(s.id), factor: s.desc ? -1 : 1}));
   return pipeline.compute(store, {

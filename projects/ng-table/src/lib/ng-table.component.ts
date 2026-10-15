@@ -1517,7 +1517,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * à la version précédente, clé par clé) et par les transactions.
    */
   private rowStore = new RowStore<T>((row) => this.rowKey(row));
-  private pipeline = new IncrementalPipeline<T>((row) => this.rowKey(row));
+  private pipeline = new IncrementalPipeline<T>();
   /** Incrémenté à chaque transaction appliquée. */
   private readonly dataVersion = signal(0);
 
@@ -1533,7 +1533,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       // L'accesseur est lu une fois ici (pas un signal par ligne) : le magasin est recréé s'il change.
       const keyOf = keyAccessor ?? defaultRowKey;
       this.rowStore = new RowStore<T>(keyOf);
-      this.pipeline = new IncrementalPipeline<T>(keyOf);
+      this.pipeline = new IncrementalPipeline<T>();
     }
     untracked(() => this.recordFlashes(this.rowStore.replaceAll(rows)));
     return this.rowStore;

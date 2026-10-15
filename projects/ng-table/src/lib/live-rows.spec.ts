@@ -80,7 +80,7 @@ describe('live-rows', () => {
   describe('IncrementalPipeline', () => {
     it('fusionne une mise à jour au lieu de tout recalculer', () => {
       const store = new RowStore(keyOf);
-      const pipeline = new IncrementalPipeline(keyOf);
+      const pipeline = new IncrementalPipeline<Quote>();
       const rows = [1, 2, 3, 4].map((id) => ({id, symbol: `${id}`, price: id * 10}));
       store.replaceAll(rows);
       const cfg = config();
@@ -93,7 +93,7 @@ describe('live-rows', () => {
 
     it('recalcule tout quand la configuration change', () => {
       const store = new RowStore(keyOf);
-      const pipeline = new IncrementalPipeline(keyOf);
+      const pipeline = new IncrementalPipeline<Quote>();
       store.replaceAll([{id: 1, symbol: 'B', price: 1}, {id: 2, symbol: 'A', price: 2}]);
       pipeline.compute(store, config({deps: ['prix']}));
 
@@ -105,7 +105,7 @@ describe('live-rows', () => {
     it('donne exactement le même résultat qu’un recalcul complet, sur 500 lots aléatoires', () => {
       const next = random(42);
       const store = new RowStore(keyOf);
-      const pipeline = new IncrementalPipeline(keyOf);
+      const pipeline = new IncrementalPipeline<Quote>();
       // Filtre et tri sur le prix, avec des égalités et des prix vides pour éprouver le départage.
       const sums = [{id: 'price', value: (q: Quote) => q.price}];
       const cfg = config({matches: (q) => q.price === null || q.price % 7 !== 0, sums, deps: [sums]});
@@ -147,6 +147,48 @@ describe('live-rows', () => {
         expect(pipeline.total('price')).toEqual({sum: expected.reduce((sum, q) => sum + q.price!, 0), count: expected.length});
       }
       expect(pipeline.stats.merges).toBeGreaterThan(400);
+    });
+
+    it('sans tri : mêmes lignes et mêmes sommes qu’un recalcul complet, sur 500 lots (remplacement sur place compris)', () => {
+      const next = random(7);
+      const store = new RowStore(keyOf);
+      const pipeline = new IncrementalPipeline<Quote>();
+      const sums = [{id: 'price', value: (q: Quote) => q.price}];
+      const cfg = config({matches: (q) => q.price === null || q.price % 5 !== 0, levels: [], sums, deps: [sums]});
+      let rows: Quote[] = Array.from({length: 200}, (_, id) => ({id, symbol: `S${id}`, price: Math.floor(next() * 40)}));
+      let nextId = rows.length;
+      store.replaceAll(rows);
+      pipeline.compute(store, cfg);
+      let previous = pipeline.compute(store, cfg);
+      let snapshot = previous.slice();
+
+      for (let batch = 0; batch < 500; batch++) {
+        const update: Quote[] = [];
+        const remove: Quote[] = [];
+        const add: Quote[] = [];
+        // Surtout des mises à jour qui ne changent pas l'appartenance au résultat (chemin sur place), parfois autre chose.
+        for (let k = 0; k < 1 + Math.floor(next() * 10); k++) {
+          const target = rows[Math.floor(next() * rows.length)];
+          const roll = next();
+          if (roll < 0.8) {
+            update.push({...target, price: next() < 0.05 ? null : Math.floor(next() * 40)});
+          } else if (roll < 0.9) {
+            remove.push(target);
+          } else {
+            add.push({id: nextId++, symbol: `S${nextId}`, price: Math.floor(next() * 40)});
+          }
+        }
+        store.applyTransaction({update, remove, add});
+        rows = store.rows();
+        const result = pipeline.compute(store, cfg);
+        expect(result).toEqual(rows.filter(cfg.matches));
+        const expected = result.filter((q) => q.price !== null);
+        expect(pipeline.total('price')).toEqual({sum: expected.reduce((sum, q) => sum + q.price!, 0), count: expected.length});
+        // Le tableau précédent n'est jamais modifié sur place : un lecteur qui le garde le retrouve intact.
+        expect(previous).toEqual(snapshot);
+        previous = result;
+        snapshot = result.slice();
+      }
     });
   });
 });

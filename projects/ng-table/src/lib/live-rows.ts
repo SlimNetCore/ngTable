@@ -53,6 +53,10 @@ export class RowStore<T> {
   private entries = new Map<unknown, StoreEntry<T>>();
   private nextSeq = 0;
   private pendingKeys = new Set<unknown>();
+  /** Version (ligne et seq) de chaque clé touchée avant sa première modification depuis la dernière lecture ; 
+ull : clé nouvelle. */
+  private pendingPrevious = new Map<unknown, {row: T; seq: number} | null>();
+  private drainedPrevious = new Map<unknown, {row: T; seq: number} | null>();
   private pendingReset = true;
   private cachedRows: T[] | null = [];
   private cachedSeqs: number[] = [];
@@ -153,6 +157,7 @@ export class RowStore<T> {
     } else {
       for (const key of changed) {
         this.pendingKeys.add(key);
+        this.remember(key, this.entries.get(key));
       }
     }
     this.entries = next;
@@ -169,6 +174,7 @@ export class RowStore<T> {
       const key = this.keyOf(row);
       const entry = this.entries.get(key);
       if (entry) {
+        this.remember(key, entry);
         this.entries.delete(key);
         this.pendingKeys.add(key);
         result.remove.push(entry.row);
@@ -177,6 +183,7 @@ export class RowStore<T> {
     const upsert = (row: T, asAdd: boolean) => {
       const key = this.keyOf(row);
       const entry = this.entries.get(key);
+      this.remember(key, entry);
       if (entry) {
         // `Map.set` sur une clé existante garde sa position : l'ordre d'arrivée ne bouge pas.
         this.entries.set(key, {row, seq: entry.seq});
@@ -207,9 +214,27 @@ export class RowStore<T> {
   drain(): PendingChanges {
     const reset = this.pendingReset || this.pendingKeys.size > Math.max(64, this.entries.size / 4);
     const keys = this.pendingKeys;
+    this.drainedPrevious = this.pendingPrevious;
+    this.pendingPrevious = new Map();
     this.pendingKeys = new Set();
     this.pendingReset = false;
     return {reset, keys};
+  }
+
+  /** Retient la version d'une clé avant sa première modification depuis la dernière lecture. */
+  private remember(key: unknown, entry: StoreEntry<T> | undefined): void {
+    if (!this.pendingPrevious.has(key)) {
+      this.pendingPrevious.set(key, entry ? {row: entry.row, seq: entry.seq} : null);
+    }
+  }
+
+  /**
+   * Version de la clé avant le lot lu par le dernier drain() : la ligne que le pipeline avait alors, avec son seq.
+   * 
+ull : la clé est nouvelle dans ce lot ; undefined : la clé n'a pas été touchée.
+   */
+  previous(key: unknown): {row: T; seq: number} | null | undefined {
+    return this.drainedPrevious.get(key);
   }
 
   private markChanged(changed: boolean): void {
@@ -248,24 +273,14 @@ export interface RunningTotal {
 const SUMS_RESYNC_EVERY = 200;
 
 interface ResultEntry<T> {
-  key: unknown;
   row: T;
   seq: number;
   sortKeys: SortValue[];
 }
 
 export class IncrementalPipeline<T> {
-  /** Résultat trié (ordre total : clés de tri puis `seq`). */
+  /** Résultat trié (ordre total : clés de tri puis `seq`) et `seq` de chacune de ses lignes, dans le même ordre. */
   private result: T[] = [];
-  /**
-   * Entrées du résultat (clé, ligne, `seq`, clés de tri), en parallèle de `result`, et entrée de
-   * chaque clé. Elles ne servent qu'aux fusions : un recalcul complet ne les construit pas, la
-   * première fusion qui suit les construit (une fois, en O(n)). Avec un million de lignes, cela
-   * retire l'essentiel du coût d'un tri ou d'un filtre.
-   */
-  private entries: ResultEntry<T>[] | null = [];
-  private index: Map<unknown, ResultEntry<T>> | null = new Map();
-  /** `seq` de chaque ligne de `result` pendant que `entries` n'est pas construit. */
   private seqs: number[] = [];
   private deps: readonly unknown[] | null = null;
   /** Nombre de recalculs complets / de fusions : pour les tests et le diagnostic. */
@@ -273,7 +288,12 @@ export class IncrementalPipeline<T> {
   private totals = new Map<string, RunningTotal>();
   private mergesSinceSums = 0;
 
-  constructor(private readonly keyOf: (row: T) => unknown) {}
+  /**
+   * Le pipeline ne garde que `result` et `seqs` : ni entrée par ligne, ni index par clé. Les clés de tri d'une ligne
+   * se recalculent à la demande, pour les O(log n) lignes qu'une recherche dichotomique examine, et la version
+   * précédente d'une ligne modifiée vient du `RowStore`. Avec un million de lignes, une première fusion ne construit
+   * donc plus rien en O(n) : elle copie seulement des tranches de tableaux.
+   */
 
   /** Résultat filtré et trié, mis à jour depuis les changements du store. */
   compute(store: RowStore<T>, config: PipelineConfig<T>): T[] {
@@ -350,12 +370,9 @@ export class IncrementalPipeline<T> {
         this.setResult(rows, seqs);
       } else {
         // Niveau qu'on ne sait pas ranger en nombres (types mêlés...) : tri par comparaisons.
-        const entries = matched.map((row, i) => ({key: this.keyOf(row), row, seq: matchedSeqs[i], sortKeys: sortKeysOf(row, config.levels)}));
+        const entries = matched.map((row, i) => ({row, seq: matchedSeqs[i], sortKeys: sortKeysOf(row, config.levels)}));
         entries.sort((a, b) => this.compare(a, b, config));
-        this.result = entries.map((entry) => entry.row);
-        this.entries = entries;
-        this.index = null;
-        this.seqs = [];
+        this.setResult(entries.map((entry) => entry.row), entries.map((entry) => entry.seq));
       }
     }
     this.resyncTotals(config);
@@ -364,120 +381,146 @@ export class IncrementalPipeline<T> {
   private setResult(rows: T[], seqs: number[]): void {
     this.result = rows;
     this.seqs = seqs;
-    this.entries = null;
-    this.index = null;
   }
 
-  /** Entrées et index du résultat, construits à la demande. */
-  private ensureEntries(config: PipelineConfig<T>): {entries: ResultEntry<T>[]; index: Map<unknown, ResultEntry<T>>} {
-    if (!this.entries) {
-      this.entries = this.result.map((row, i) => ({key: this.keyOf(row), row, seq: this.seqs[i], sortKeys: sortKeysOf(row, config.levels)}));
-      this.seqs = [];
+  /** Entrée du résultat à la position `i`, avec ses clés de tri recalculées. */
+  private entryAt(i: number, config: PipelineConfig<T>): ResultEntry<T> {
+    const row = this.result[i];
+    return {row, seq: this.seqs[i], sortKeys: sortKeysOf(row, config.levels)};
+  }
+
+  /** Première position dont l'entrée n'est pas avant `target` (ordre total : clés de tri puis `seq`). */
+  private lowerBound(target: ResultEntry<T>, from: number, config: PipelineConfig<T>): number {
+    let low = from;
+    let high = this.result.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (this.compare(this.entryAt(mid, config), target, config) < 0) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
     }
-    if (!this.index) {
-      this.index = new Map(this.entries.map((entry) => [entry.key, entry]));
-    }
-    return {entries: this.entries, index: this.index};
+    return low;
   }
 
   /**
-   * Fusion des lignes modifiées. Le travail en JavaScript est en O(k·log n) : recherche
-   * dichotomique de l'ancienne position de chaque ligne modifiée, puis de la nouvelle.
-   * Le reste (O(n)) n'est que de la copie de tranches de tableaux (`slice` / `concat`,
-   * natives), sans comparaison ni appel d'accessor pour les lignes inchangées.
+   * Fusion des lignes modifiées. Le travail en JavaScript est en O(k·log n) : recherche dichotomique de l'ancienne
+   * position de chaque ligne modifiée, puis de la nouvelle. Le reste (O(n)) n'est que de la copie de tranches de
+   * tableaux (`slice` / `concat`, natives), sans comparaison ni appel d'accessor pour les lignes inchangées.
+   *
+   * Sans tri, le résultat est dans l'ordre d'arrivée et une mise à jour garde sa place : si toutes les lignes
+   * touchées restent dans le résultat, elles sont remplacées sur place (une seule copie native du tableau).
    */
   private merge(store: RowStore<T>, config: PipelineConfig<T>, keys: ReadonlySet<unknown>): void {
     this.stats.merges++;
-    const {entries: current, index} = this.ensureEntries(config);
-    // 1. Positions des anciennes versions, à retirer.
+
+    // 1. Anciennes versions présentes dans le résultat : positions à retirer.
     const removed: number[] = [];
     for (const key of keys) {
-      const previous = index.get(key);
-      if (previous) {
-        removed.push(this.positionOf(previous, config));
-        index.delete(key);
+      const previous = store.previous(key);
+      if (!previous) {
+        continue; // clé nouvelle dans ce lot, ou jamais connue du pipeline
+      }
+      const position = this.lowerBound({row: previous.row, seq: previous.seq, sortKeys: sortKeysOf(previous.row, config.levels)}, 0, config);
+      if (this.result[position] === previous.row) {
+        removed.push(position);
         this.applyToTotals(previous.row, -1, config);
       }
     }
-    removed.sort((a, b) => a - b);
-    const keptEntries: ResultEntry<T>[][] = [];
-    const keptRows: T[][] = [];
-    let from = 0;
-    for (const position of removed) {
-      keptEntries.push(current.slice(from, position));
-      keptRows.push(this.result.slice(from, position));
-      from = position + 1;
-    }
-    keptEntries.push(current.slice(from));
-    keptRows.push(this.result.slice(from));
-    const entries = ([] as ResultEntry<T>[]).concat(...keptEntries);
-    const rows = ([] as T[]).concat(...keptRows);
 
     // 2. Nouvelles versions qui passent les filtres, triées entre elles.
     const candidates: ResultEntry<T>[] = [];
     for (const key of keys) {
       const row = store.get(key);
       if (row !== undefined && config.matches(row)) {
-        candidates.push({key, row, seq: store.seqOf(key), sortKeys: sortKeysOf(row, config.levels)});
+        candidates.push({row, seq: store.seqOf(key), sortKeys: sortKeysOf(row, config.levels)});
         this.applyToTotals(row, 1, config);
       }
     }
+
+    if (config.levels.length === 0 && removed.length === candidates.length && this.replacesInPlace(removed, candidates)) {
+      return;
+    }
+
+    removed.sort((a, b) => a - b);
+    const keptRows: T[][] = [];
+    const keptSeqs: number[][] = [];
+    let from = 0;
+    for (const position of removed) {
+      keptRows.push(this.result.slice(from, position));
+      keptSeqs.push(this.seqs.slice(from, position));
+      from = position + 1;
+    }
+    keptRows.push(this.result.slice(from));
+    keptSeqs.push(this.seqs.slice(from));
+    const rows = ([] as T[]).concat(...keptRows);
+    const seqs = ([] as number[]).concat(...keptSeqs);
     if (candidates.length === 0) {
-      this.entries = entries;
-      this.result = rows;
+      this.setResult(rows, seqs);
       return;
     }
     candidates.sort((a, b) => this.compare(a, b, config));
 
     // 3. Insertion : position de chaque candidat par dichotomie, puis assemblage par tranches.
-    const mergedEntries: ResultEntry<T>[][] = [];
+    this.setResult(rows, seqs); // `lowerBound` lit le résultat privé de ses lignes retirées
     const mergedRows: T[][] = [];
+    const mergedSeqs: number[][] = [];
     let start = 0;
     let low = 0;
     for (let c = 0; c < candidates.length; c++) {
-      const candidate = candidates[c];
-      let high = entries.length;
+      low = this.lowerBound(candidates[c], low, config);
+      // Les candidats suivants consécutifs à la même position partent dans la même tranche.
+      let end = c;
+      while (end + 1 < candidates.length && (low === rows.length || this.compare(candidates[end + 1], this.entryAt(low, config), config) < 0)) {
+        end++;
+      }
+      const group = candidates.slice(c, end + 1);
+      mergedRows.push(rows.slice(start, low), group.map((entry) => entry.row));
+      mergedSeqs.push(seqs.slice(start, low), group.map((entry) => entry.seq));
+      start = low;
+      c = end;
+    }
+    mergedRows.push(rows.slice(start));
+    mergedSeqs.push(seqs.slice(start));
+    this.setResult(([] as T[]).concat(...mergedRows), ([] as number[]).concat(...mergedSeqs));
+  }
+
+  /**
+   * Remplace sur place les lignes retirées par les candidats quand chacune retrouve exactement sa place (même `seq`,
+   * donc même position sans tri). Le tableau précédent n'est pas modifié : un lecteur qui le garde le retrouve intact.
+   */
+  private replacesInPlace(removed: readonly number[], candidates: readonly ResultEntry<T>[]): boolean {
+    if (removed.length === 0) {
+      return true;
+    }
+    const byPosition = new Map<number, ResultEntry<T>>();
+    for (const position of removed) {
+      byPosition.set(position, undefined as never);
+    }
+    for (const candidate of candidates) {
+      // La position d'un candidat est celle du `seq` qu'il porte : on la retrouve dans le résultat actuel.
+      let low = 0;
+      let high = this.seqs.length;
       while (low < high) {
         const mid = (low + high) >>> 1;
-        if (this.compare(entries[mid], candidate, config) < 0) {
+        if (this.seqs[mid] < candidate.seq) {
           low = mid + 1;
         } else {
           high = mid;
         }
       }
-      // Les candidats suivants consécutifs à la même position partent dans la même tranche.
-      let end = c;
-      while (end + 1 < candidates.length && (low === entries.length || this.compare(candidates[end + 1], entries[low], config) < 0)) {
-        end++;
+      if (!byPosition.has(low) || this.seqs[low] !== candidate.seq || byPosition.get(low) !== undefined) {
+        return false;
       }
-      mergedEntries.push(entries.slice(start, low), candidates.slice(c, end + 1));
-      mergedRows.push(rows.slice(start, low), candidates.slice(c, end + 1).map((entry) => entry.row));
-      start = low;
-      c = end;
+      byPosition.set(low, candidate);
     }
-    for (const candidate of candidates) {
-      index.set(candidate.key, candidate);
+    const result = this.result.slice();
+    for (const [position, candidate] of byPosition) {
+      result[position] = candidate.row;
     }
-    mergedEntries.push(entries.slice(start));
-    mergedRows.push(rows.slice(start));
-    this.entries = ([] as ResultEntry<T>[]).concat(...mergedEntries);
-    this.result = ([] as T[]).concat(...mergedRows);
-  }
-
-  /** Position d'une entrée du résultat (ordre total : elle y est à un seul endroit). */
-  private positionOf(entry: ResultEntry<T>, config: PipelineConfig<T>): number {
-    const entries = this.entries!;
-    let low = 0;
-    let high = entries.length;
-    while (low < high) {
-      const mid = (low + high) >>> 1;
-      if (this.compare(entries[mid], entry, config) < 0) {
-        low = mid + 1;
-      } else {
-        high = mid;
-      }
-    }
-    return entries[low] === entry ? low : entries.indexOf(entry);
+    this.result = result;
+    return true;
   }
 
   private compare(a: ResultEntry<T>, b: ResultEntry<T>, config: PipelineConfig<T>): number {

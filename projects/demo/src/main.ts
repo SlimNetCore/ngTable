@@ -1,7 +1,6 @@
 import {bootstrapApplication} from '@angular/platform-browser';
 import {provideZonelessChangeDetection} from '@angular/core';
 import {provideRouter, Routes} from '@angular/router';
-import {provideNgTablePaginatorIntl} from '@sbourahla/ng-table';
 import {AppComponent} from './app/app.component';
 
 const routes: Routes = [
@@ -16,5 +15,5 @@ const routes: Routes = [
 ];
 
 bootstrapApplication(AppComponent, {
-  providers: [provideZonelessChangeDetection(), provideRouter(routes), provideNgTablePaginatorIntl()],
+  providers: [provideZonelessChangeDetection(), provideRouter(routes)],
 }).catch((error: unknown) => console.error(error));
