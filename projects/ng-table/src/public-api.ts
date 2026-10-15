@@ -34,3 +34,7 @@ export {PIVOT_PATH_SEPARATOR, pivotCellKey, pivotColumnFields, pivotTotalKey} fr
 export {NG_TABLE_COLUMN_DRAG_TYPE} from './lib/column-drag';
 export {NG_TABLE_MATERIAL_BRIDGE, NG_TABLE_THEME_DARK, NG_TABLE_THEME_LIGHT, NG_TABLE_TOKENS} from './lib/theme';
 export type {NgTableTheme, NgTableToken} from './lib/theme';
+export {NgTableCheckboxComponent} from './lib/ng-table-checkbox.component';
+export type {NgTableCheckboxChange} from './lib/ng-table-checkbox.component';
+export {NgTablePaginatorComponent} from './lib/ng-table-paginator.component';
+export type {NgTablePageEvent} from './lib/ng-table-paginator.component';

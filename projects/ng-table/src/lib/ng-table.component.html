@@ -55,18 +55,18 @@
 
       <mat-menu #columnsMenu="matMenu" class="ngt-columns-menu-panel">
         @for (column of columnsMenuItems(); track column.id) {
-          <!-- `<div mat-menu-item>` et non `<button>` : un `<mat-checkbox>` est lui-même
+          <!-- `<div mat-menu-item>` et non `<button>` : un `<ng-table-checkbox>` est lui-même
                un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
                et perturbe la navigation clavier/lecteur d'écran (contrôle dans contrôle). -->
           <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
           <div (click)="$event.stopPropagation()" mat-menu-item>
-            <mat-checkbox
-              (change)="onToggleColumnVisibility(column.id, $event.checked)"
+            <ng-table-checkbox
+              (checkedChange)="onToggleColumnVisibility(column.id, $event.checked)"
               [checked]="isColumnVisible(column.id)"
               class="columns-menu-checkbox"
             >
               {{ column.header }}
-            </mat-checkbox>
+            </ng-table-checkbox>
             @if (referenceColumnSelectable()) {
               <button
                 (click)="toggleReferenceColumn(column)"
@@ -338,10 +338,10 @@
         @if (sidePanelTab() === 'columns') {
           @for (column of columnsMenuItems(); track column.id) {
             <div class="ngt-side-panel__column">
-              <mat-checkbox (change)="onToggleColumnVisibility(column.id, $event.checked)" [checked]="isColumnVisible(column.id)"
+              <ng-table-checkbox (checkedChange)="onToggleColumnVisibility(column.id, $event.checked)" [checked]="isColumnVisible(column.id)"
                             class="ngt-side-panel__item">
                 {{ column.header }}
-              </mat-checkbox>
+              </ng-table-checkbox>
               <button (click)="toggleReferenceColumn(column)"
                       [attr.aria-label]="(isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn : effectiveLabels().setReferenceColumn).replace('{column}', column.header)"
                       [attr.aria-pressed]="isReferenceColumn(column)" [class.reference-pin--on]="isReferenceColumn(column)"
@@ -418,9 +418,9 @@
       @if (rowSelectionEnabled()) {
         <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__row_selection__">
           <th *matHeaderCellDef class="selection-header-cell" mat-header-cell>
-            <mat-checkbox
-              (change)="onToggleAllDisplayedRows($event)"
-              [aria-label]="effectiveLabels().selectAllRows"
+            <ng-table-checkbox
+              (checkedChange)="onToggleAllDisplayedRows($event)"
+              [ariaLabel]="effectiveLabels().selectAllRows"
               [checked]="areAllDisplayedRowsSelected()"
               [indeterminate]="hasPartiallySelectedDisplayedRows()"
             />
@@ -428,10 +428,10 @@
           <td *matFooterCellDef class="totals-cell" mat-footer-cell></td>
           <td *matCellDef="let row; let rowIndex = dataIndex" class="selection-cell" mat-cell>
             @if (!pinInfo(row)) {
-              <mat-checkbox
-                (change)="onToggleRowSelection($event, row)"
+              <ng-table-checkbox
+                (checkedChange)="onToggleRowSelection($event, row)"
                 (click)="$event.stopPropagation()"
-                [aria-label]="rowSelectAriaLabel(rowIndex)"
+                [ariaLabel]="rowSelectAriaLabel(rowIndex)"
                 [checked]="isRowSelected(row)"
               />
             }
@@ -883,8 +883,9 @@
   }
 
   @if (paginator() && !blockMode()) {
-    <mat-paginator
+    <ng-table-paginator
       (page)="onPage($event)"
+      [labels]="effectiveLabels()"
       [length]="paginatorLength()"
       [pageIndex]="pageIndex()"
       [pageSizeOptions]="pageSizeOptions()"

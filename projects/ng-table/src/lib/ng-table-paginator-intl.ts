@@ -30,6 +30,9 @@ export class NgTablePaginatorIntl extends MatPaginatorIntl {
 }
 
 /**
+ * @deprecated Le paginateur intégré de `ng-table` n'utilise plus `MatPaginatorIntl` : ses textes viennent de `[labels]`.
+ * Cette fonction ne concerne plus que *votre propre* `<mat-paginator>` placé ailleurs.
+ *
  * Fournit `NgTablePaginatorIntl` à la place du `MatPaginatorIntl` par défaut
  * (anglais) d'Angular Material.
  *

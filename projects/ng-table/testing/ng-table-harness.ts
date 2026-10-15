@@ -1,5 +1,60 @@
 import {BaseHarnessFilters, ComponentHarness, HarnessPredicate} from '@angular/cdk/testing';
-import {MatPaginatorHarness} from '@angular/material/paginator/testing';
+
+/** Le paginateur intégré de `<ng-table>` (`[paginator]="true"`). */
+export class NgTablePaginatorHarness extends ComponentHarness {
+  static hostSelector = 'ng-table-paginator';
+
+  private readonly range = this.locatorFor('.ngt-pager__range');
+  private readonly select = this.locatorForOptional('select.ngt-pager__select');
+  private readonly first = this.locatorFor('.ngt-pager__buttons button:nth-child(1)');
+  private readonly previous = this.locatorFor('.ngt-pager__buttons button:nth-child(2)');
+  private readonly next = this.locatorFor('.ngt-pager__buttons button:nth-child(3)');
+  private readonly last = this.locatorFor('.ngt-pager__buttons button:nth-child(4)');
+
+  /** Plage affichée, par exemple « 1 – 20 sur 100 ». */
+  async getRangeLabel(): Promise<string> {
+    return (await this.range()).text();
+  }
+
+  /** Taille de page choisie, ou `null` quand le choix de la taille n'est pas proposé. */
+  async getPageSize(): Promise<number | null> {
+    const select = await this.select();
+    return select ? Number(await select.getProperty<string>('value')) : null;
+  }
+
+  async setPageSize(size: number): Promise<void> {
+    const select = await this.select();
+    if (!select) {
+      throw new Error('Le paginateur ne propose pas de choix de taille de page.');
+    }
+    await select.setInputValue(`${size}`);
+    await select.dispatchEvent('change');
+  }
+
+  async goToFirstPage(): Promise<void> {
+    await (await this.first()).click();
+  }
+
+  async goToPreviousPage(): Promise<void> {
+    await (await this.previous()).click();
+  }
+
+  async goToNextPage(): Promise<void> {
+    await (await this.next()).click();
+  }
+
+  async goToLastPage(): Promise<void> {
+    await (await this.last()).click();
+  }
+
+  async isNextPageDisabled(): Promise<boolean> {
+    return (await this.next()).getProperty<boolean>('disabled');
+  }
+
+  async isPreviousPageDisabled(): Promise<boolean> {
+    return (await this.previous()).getProperty<boolean>('disabled');
+  }
+}
 
 /** Filtres de `NgTableHarness.with()`. */
 export interface NgTableHarnessFilters extends BaseHarnessFilters {
@@ -104,7 +159,7 @@ export class NgTableHarness extends ComponentHarness {
   /** Cellules d'en-tête, dans l'ordre d'affichage (colonne de sélection comprise). */
   readonly getHeaderCells = this.locatorForAll(NgTableHeaderCellHarness);
   /** Paginateur intégré (`[paginator]="true"`), sinon `null`. */
-  readonly getPaginator = this.locatorForOptional(MatPaginatorHarness);
+  readonly getPaginator = this.locatorForOptional(NgTablePaginatorHarness);
 
   static with(options: NgTableHarnessFilters = {}): HarnessPredicate<NgTableHarness> {
     return new HarnessPredicate(NgTableHarness, options).addOption('ariaLabel', options.ariaLabel, async (harness, label) =>

@@ -154,6 +154,15 @@ export interface NgTableLabels {
   /** Arbre : `{row}` n'est pas utilisé, les libellés sont génériques. */
   treeExpand: string;
   treeCollapse: string;
+  /** Paginateur intégré. `{from}`, `{to}` et `{total}` sont remplacés. */
+  paginatorLabel: string;
+  paginatorItemsPerPage: string;
+  paginatorFirst: string;
+  paginatorPrevious: string;
+  paginatorNext: string;
+  paginatorLast: string;
+  paginatorRange: string;
+  paginatorRangeEmpty: string;
   /** Glisser-déposer de lignes. `{position}` = nouvelle position (à partir de 1). */
   rowDragHandle: string;
   announceRowMoved: string;
@@ -255,6 +264,14 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   sidePanelPin: 'Fixer le panneau à droite',
   treeExpand: 'Déplier',
   treeCollapse: 'Replier',
+  paginatorLabel: 'Pagination',
+  paginatorItemsPerPage: 'Éléments par page',
+  paginatorFirst: 'Première page',
+  paginatorPrevious: 'Page précédente',
+  paginatorNext: 'Page suivante',
+  paginatorLast: 'Dernière page',
+  paginatorRange: '{from} – {to} sur {total}',
+  paginatorRangeEmpty: '0 sur {total}',
   rowDragHandle: 'Déplacer la ligne (Alt + flèches haut / bas)',
   announceRowMoved: 'Ligne déplacée en position {position}',
 };
@@ -363,6 +380,14 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   sidePanelPin: 'Dock the panel on the right',
   treeExpand: 'Expand',
   treeCollapse: 'Collapse',
+  paginatorLabel: 'Pagination',
+  paginatorItemsPerPage: 'Items per page',
+  paginatorFirst: 'First page',
+  paginatorPrevious: 'Previous page',
+  paginatorNext: 'Next page',
+  paginatorLast: 'Last page',
+  paginatorRange: '{from} – {to} of {total}',
+  paginatorRangeEmpty: '0 of {total}',
   rowDragHandle: 'Move row (Alt + up / down arrows)',
   announceRowMoved: 'Row moved to position {position}',
 };

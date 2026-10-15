@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {By} from '@angular/platform-browser';
-import {MatCheckboxChange} from '@angular/material/checkbox';
+import {NgTableCheckboxChange} from './ng-table-checkbox.component';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRangePasteEvent, NgTableRemoteQuery, NgTableRowMoveEvent, NgTableSelectionChangeEvent, NgTableSortChange, NgTableBlockRequest, NgTableBlockResult, NgTableRemoteDatasource} from './ng-table.component';
 import {NG_TABLE_DEFAULT_LABELS, provideNgTableLabels} from './ng-table-labels';
@@ -938,7 +938,7 @@ describe('NgTableComponent', () => {
       component.selectionChange.subscribe((e) => events.push(e));
       component.applyTransaction({update: [{...ROWS[0], nom: 'Charles'}]});
 
-      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, component.displayedRows()[0]);
+      component['onToggleRowSelection']({checked: true} as NgTableCheckboxChange, component.displayedRows()[0]);
 
       expect(events[0].selectedRows.map((r) => r.nom)).toEqual(['Charles']);
     });
@@ -1085,7 +1085,7 @@ describe('NgTableComponent', () => {
 
     it('pas de paginateur intégré en modèle par blocs', async () => {
       const {fixture} = await create({paginator: true});
-      expect((fixture.nativeElement as HTMLElement).querySelector('mat-paginator')).toBeNull();
+      expect((fixture.nativeElement as HTMLElement).querySelector('ng-table-paginator')).toBeNull();
     });
   });
 
@@ -1187,7 +1187,7 @@ describe('NgTableComponent', () => {
       await fixture.whenStable();
 
       expect(names(fixture)).toEqual(['Synthèse', 'alice']); // le filtre ne touche pas la ligne épinglée
-      const checkboxes = trs(fixture).map((tr) => !!tr.querySelector('td.selection-cell mat-checkbox'));
+      const checkboxes = trs(fixture).map((tr) => !!tr.querySelector('td.selection-cell ng-table-checkbox'));
       expect(checkboxes).toEqual([false, true]);
     });
 
@@ -1776,7 +1776,7 @@ describe('NgTableComponent', () => {
 
     it('pagine seul, sans rien à relier, et revient en page 0 après un filtre', async () => {
       const {component, fixture} = await createTable({paginator: true, pageSize: 1});
-      expect(fixture.nativeElement.querySelector('mat-paginator')).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('ng-table-paginator')).toBeTruthy();
       expect(ids(component.displayedRows())).toEqual(['1']);
       expect(component['paginatorLength']()).toBe(3);
 
@@ -2073,7 +2073,7 @@ describe('NgTableComponent', () => {
       const callsAfterRender = accessor.mock.calls.length;
       expect(callsAfterRender).toBe(ROWS.length); // une fois par ligne affichée
 
-      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, ROWS[1]);
+      component['onToggleRowSelection']({checked: true} as NgTableCheckboxChange, ROWS[1]);
       await fixture.whenStable();
 
       const checked = rowsEl(fixture).map((row) => row.querySelector<HTMLInputElement>('input[type=checkbox]')?.checked);
@@ -2105,7 +2105,7 @@ describe('NgTableComponent', () => {
       const events: unknown[] = [];
       component.selectionChange.subscribe((e) => events.push(e));
 
-      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, ROWS[1]);
+      component['onToggleRowSelection']({checked: true} as NgTableCheckboxChange, ROWS[1]);
 
       expect(component.isRowSelected(ROWS[1])).toBe(true);
       expect(component.selectedRowsCount()).toBe(1);
@@ -2116,17 +2116,17 @@ describe('NgTableComponent', () => {
     it('sélectionne / désélectionne toutes les lignes affichées', async () => {
       const {component} = await createTable({rowSelectionEnabled: true, rowKeyAccessor: (r: Row) => r.id});
 
-      component['onToggleAllDisplayedRows']({checked: true} as MatCheckboxChange);
+      component['onToggleAllDisplayedRows']({checked: true} as NgTableCheckboxChange);
       expect(component['areAllDisplayedRowsSelected']()).toBe(true);
 
-      component['onToggleAllDisplayedRows']({checked: false} as MatCheckboxChange);
+      component['onToggleAllDisplayedRows']({checked: false} as NgTableCheckboxChange);
       expect(component.selectedRowsCount()).toBe(0);
     });
 
     it('signale une sélection partielle', async () => {
       const {component} = await createTable({rowSelectionEnabled: true, rowKeyAccessor: (r: Row) => r.id});
 
-      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, ROWS[0]);
+      component['onToggleRowSelection']({checked: true} as NgTableCheckboxChange, ROWS[0]);
 
       expect(component['hasPartiallySelectedDisplayedRows']()).toBe(true);
       expect(component['areAllDisplayedRowsSelected']()).toBe(false);
@@ -2142,7 +2142,7 @@ describe('NgTableComponent', () => {
       });
 
       const targetRow = rowsWithoutId[1]; // 'alice'
-      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, targetRow);
+      component['onToggleRowSelection']({checked: true} as NgTableCheckboxChange, targetRow);
       expect(component.isRowSelected(targetRow)).toBe(true);
 
       await setInput('pageSize', 2); // ex. l'utilisateur change la taille de page
@@ -2157,7 +2157,7 @@ describe('NgTableComponent', () => {
       const degenerateTrackBy: TrackByFunction<Row> = () => 'same-for-every-row';
       const {component} = await createTable({rowSelectionEnabled: true, rowTrackBy: degenerateTrackBy});
 
-      component['onToggleRowSelection']({checked: true} as MatCheckboxChange, ROWS[0]);
+      component['onToggleRowSelection']({checked: true} as NgTableCheckboxChange, ROWS[0]);
 
       expect(component.isRowSelected(ROWS[0])).toBe(true);
       expect(component.isRowSelected(ROWS[1])).toBe(false);

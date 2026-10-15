@@ -629,6 +629,14 @@ Avec des dizaines ou des centaines de colonnes, `[virtualColumns]="true"` ne ren
 
 Le modèle de vue (valeurs, textes) n'est calculé que pour les colonnes rendues. L'export, le menu « Colonnes » et les vues portent toujours sur toutes les colonnes. Limite : la navigation clavier cellule par cellule (`cellNavigation`) ne parcourt que les colonnes rendues.
 
+### Étape 10vicies — Premiers composants sans Angular Material
+
+Le paginateur intégré (`<ng-table-paginator>`) et les cases à cocher (`<ng-table-checkbox>`, un vrai `<input type="checkbox">`) ne sont plus ceux de Material. Conséquences à connaître en migrant :
+- **Paginateur** : ses textes viennent de `[labels]` (français par défaut, `NG_TABLE_LABELS_EN` pour l'anglais) et non plus de `MatPaginatorIntl`. `provideNgTablePaginatorIntl()` ne concerne plus que *votre propre* `<mat-paginator>` placé ailleurs (déprécié pour le paginateur intégré). `getPaginator()` du harnais renvoie un `NgTablePaginatorHarness`.
+- **Cases à cocher** : `(checkedChange)` à la place de `(change)` quand vous utilisez `<ng-table-checkbox>` ; le harnais n'a rien changé (il lit déjà l'`<input>`).
+- Les deux composants sont exportés et se thèment par les jetons `--ngt-*`.
+- Il reste à remplacer : le tableau (`mat-table`), le menu, l'info-bulle, les boutons et icônes, le champ et le sélecteur de date.
+
 ### Étape 10novodecies — Thème : jetons CSS et thème sombre
 
 Tous les styles de la bibliothèque lisent des **jetons de conception** `--ngt-*`. Redéfinissez-en un sur n'importe quel ancêtre (`:root`, un conteneur, l'élément `ng-table` lui-même) et il s'applique, y compris aux menus et filtres qui s'ouvrent en surcouche :
@@ -3101,7 +3109,7 @@ Un backend Spring Boot complet (filtres, recherche, tri, regroupement, groupes r
 
 Deux façons de paginer :
 
-- **`[paginator]="true"`** : un `<mat-paginator>` intégré, déjà branché. En mode `remote`, fournissez `[totalCount]` (le total côté serveur). Chaque changement de page émet alors `remoteQueryChange` avec la nouvelle page.
+- **`[paginator]="true"`** : un paginateur intégré (`<ng-table-paginator>`, sans Angular Material), déjà branché ; ses textes viennent de `[labels]` (`paginatorItemsPerPage`, `paginatorRange`...). En mode `remote`, fournissez `[totalCount]` (le total côté serveur). Chaque changement de page émet alors `remoteQueryChange` avec la nouvelle page.
 - **`pageTrackingEnabled`** avec votre propre paginateur, comme ci-dessous.
 
 `pageIndex` et `pageSize` sont des `model()` : ils acceptent `[(pageIndex)]`, et le composant les met à jour lui-même (retour en page 0 après un filtre, restauration d'une vue). Chaque changement émet `(pageIndexChange)` / `(pageSizeChange)`.
@@ -3367,7 +3375,7 @@ expect(await table.getRowCount()).toBe(1);
 
 const [row] = await table.getRows();
 await row.toggleSelection();
-await (await table.getPaginator())?.goToNextPage();  // MatPaginatorHarness du paginateur intégré
+await (await table.getPaginator())?.goToNextPage();  // NgTablePaginatorHarness du paginateur intégré
 ```
 
 | Méthode | Rôle |
@@ -3376,7 +3384,7 @@ await (await table.getPaginator())?.goToNextPage();  // MatPaginatorHarness du p
 | `getHeaderTexts()`, `getCellTexts()`, `getColumnTexts(header)` | Contenu, colonne identifiée par son libellé. Le texte des boutons (copier...) est exclu. |
 | `sortBy(header, {additive?})`, `getSortDirection(header)` | Tri. |
 | `search(text)`, `getSearchValue()` | Recherche globale. |
-| `getPaginator()` | `MatPaginatorHarness` du paginateur intégré, ou `null`. |
+| `getPaginator()` | `NgTablePaginatorHarness` du paginateur intégré (`goToNextPage()`, `goToPreviousPage()`, `goToFirstPage()`, `goToLastPage()`, `getRangeLabel()`, `getPageSize()`, `setPageSize()`), ou `null`. |
 | `getEmptyText()`, `isLoading()`, `getLiveAnnouncement()`, `getAriaLabel()` | États affichés et accessibilité. |
 
 ## Migrer de 0.4 vers 1.0

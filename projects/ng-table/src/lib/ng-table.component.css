@@ -224,8 +224,8 @@
   text-align: center;
 }
 
-.selection-header-cell .mdc-checkbox,
-.selection-cell .mdc-checkbox {
+.selection-header-cell ng-table-checkbox,
+.selection-cell ng-table-checkbox {
   margin: 0 auto;
 }
 

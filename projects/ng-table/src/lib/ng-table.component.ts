@@ -25,10 +25,10 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {MatButtonModule} from '@angular/material/button';
-import {MatCheckboxChange, MatCheckboxModule} from '@angular/material/checkbox';
 import {MatIconModule} from '@angular/material/icon';
 import {MatMenuModule, MatMenuTrigger} from '@angular/material/menu';
-import {MatPaginatorModule, PageEvent} from '@angular/material/paginator';
+import {NgTableCheckboxChange, NgTableCheckboxComponent} from './ng-table-checkbox.component';
+import {NgTablePageEvent, NgTablePaginatorComponent} from './ng-table-paginator.component';
 import {MatTableModule} from '@angular/material/table';
 import {MatTooltipModule} from '@angular/material/tooltip';
 import {firstValueFrom, Observable, Subject, timer} from 'rxjs';
@@ -569,9 +569,9 @@ export interface NgTableViewsImportEvent {
     CommonModule,
     MatTableModule,
     MatMenuModule,
-    MatPaginatorModule,
+    NgTablePaginatorComponent,
     MatButtonModule,
-    MatCheckboxModule,
+    NgTableCheckboxComponent,
     MatIconModule,
     MatTooltipModule,
     ColumnFilterRendererComponent,
@@ -919,7 +919,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   /** Taille de page ; mêmes règles que `pageIndex`, émet `(pageSizeChange)`. */
   readonly pageSize = model(10);
   /**
-   * Affiche un `<mat-paginator>` intégré sous la table, déjà branché : rien à relier
+   * Affiche un paginateur intégré (`<ng-table-paginator>`) sous la table, déjà branché : rien à relier
    * côté parent. Active la pagination (inutile d'ajouter `pageTrackingEnabled`).
    * En mode `remote`, fournir `[totalCount]` (nombre total de lignes côté serveur).
    */
@@ -2978,7 +2978,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return;
     }
     // Les boutons, champs et cases à cocher des cellules gardent leur comportement.
-    if (target.closest('button, a, input, select, textarea, mat-checkbox, [role="button"]')) {
+    if (target.closest('button, a, input, select, textarea, ng-table-checkbox, [role="button"]')) {
       return;
     }
     const position = this.rangePositionOf(target);
@@ -3732,7 +3732,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return count > 0 && count < this.displayedRows().length;
   });
 
-  protected onToggleRowSelection(event: MatCheckboxChange, row: T): void {
+  protected onToggleRowSelection(event: NgTableCheckboxChange, row: T): void {
     const checked = !!event.checked;
     const key = this.rowKey(row);
     const selected = new Set(this.selectedKeysSet());
@@ -3744,7 +3744,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.commitSelection(selected, row, checked);
   }
 
-  protected onToggleAllDisplayedRows(event: MatCheckboxChange): void {
+  protected onToggleAllDisplayedRows(event: NgTableCheckboxChange): void {
     const checked = !!event.checked;
     const selected = new Set(this.selectedKeysSet());
     const rows = this.displayedRows();
@@ -4173,7 +4173,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   /** Paginateur intégré : change de page ; en mode `remote`, relance la requête serveur. */
-  protected onPage(event: PageEvent): void {
+  protected onPage(event: NgTablePageEvent): void {
     this.pageSize.set(event.pageSize);
     this.pageIndex.set(event.pageIndex);
     if (this.dataMode() === 'remote') {
