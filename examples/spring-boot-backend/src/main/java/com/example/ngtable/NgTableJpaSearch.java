@@ -166,6 +166,14 @@ public class NgTableJpaSearch<E> {
     return summaries;
   }
 
+  /**
+   * Filtres et recherche globale d'une requête, sans regroupement ni pagination : de quoi restreindre
+   * une autre requête (le pivot) aux lignes que la table affiche.
+   */
+  public Predicate filterPredicate(NgTable.Query query, CriteriaBuilder cb, Root<E> root) {
+    return where(query, null, false, cb, root);
+  }
+
   private Predicate where(NgTable.Query query, NgTableColumn group, boolean excludeCollapsed, CriteriaBuilder cb, Root<E> root) {
     List<Predicate> predicates = new ArrayList<>();
     query.filters().forEach((columnId, value) -> {
