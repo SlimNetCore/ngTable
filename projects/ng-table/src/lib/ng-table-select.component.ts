@@ -106,27 +106,27 @@ const GAP = 4;
       width: 100%;
       min-height: 40px;
       padding: 0 8px 0 12px;
-      border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
-      border-radius: 10px;
+      border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+      border-radius: var(--ngt-radius-control, 10px);
       background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
-      color: var(--ngt-text, var(--app-text, #0d1d26));
+      color: var(--ngt-text, var(--app-text, #14212b));
       font: inherit;
       text-align: left;
       cursor: pointer;
     }
 
     .ngt-select__trigger:hover {
-      background: var(--ngt-field-hover-bg, var(--app-field-hover-bg, #f7fbff));
+      background: var(--ngt-field-hover-bg, var(--app-field-hover-bg, #f8fafc));
     }
 
     .ngt-select__trigger:focus-visible,
     .ngt-select__trigger[aria-expanded='true'] {
-      border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
-      outline: 1px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+      border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+      outline: 1px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
     }
 
     .ngt-select__trigger--empty .ngt-select__summary {
-      color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+      color: var(--ngt-text-muted, var(--app-muted, #5f7080));
     }
 
     .ngt-select__summary {
@@ -140,7 +140,7 @@ const GAP = 4;
       width: 20px;
       height: 20px;
       font-size: 20px;
-      color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+      color: var(--ngt-text-muted, var(--app-muted, #5f7080));
     }
 
     .ngt-select__panel {
@@ -154,11 +154,12 @@ const GAP = 4;
       box-sizing: border-box;
       max-height: ${PANEL_MAX_HEIGHT}px;
       overflow: hidden;
-      border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
-      border-radius: 12px;
+      border: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+      border-radius: calc(var(--ngt-radius-control, 10px) + 2px);
       background: var(--ngt-surface, var(--app-surface, #ffffff));
-      box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09))), 0 12px 32px rgba(15, 23, 42, 0.18);
-      color: var(--ngt-text, var(--app-text, #0d1d26));
+      box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16))), 0 12px 32px rgba(15, 23, 42, 0.18);
+      color: var(--ngt-text, var(--app-text, #14212b));
+      font-family: var(--ngt-font-family, inherit);
       font-size: 0.8125rem;
     }
 
@@ -168,8 +169,8 @@ const GAP = 4;
       align-items: center;
       gap: 6px;
       padding: 8px 10px;
-      border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
-      color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+      border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+      color: var(--ngt-text-muted, var(--app-muted, #5f7080));
     }
 
     .ngt-select__search ng-table-icon {
@@ -184,7 +185,7 @@ const GAP = 4;
       padding: 4px 2px;
       border: 0;
       background: transparent;
-      color: var(--ngt-text, var(--app-text, #0d1d26));
+      color: var(--ngt-text, var(--app-text, #14212b));
       font: inherit;
       outline: none;
     }
@@ -218,7 +219,7 @@ const GAP = 4;
     }
 
     .ngt-select__option--active {
-      background: var(--ngt-hover-surface, var(--app-hover-surface, #f6fbff));
+      background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
     }
 
     .ngt-select__option--selected {
@@ -246,8 +247,8 @@ const GAP = 4;
     }
 
     .ngt-select__option--selected .ngt-select__box {
-      border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
-      background: var(--ngt-primary, var(--app-primary, #3a7ca5));
+      border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+      background: var(--ngt-primary, var(--app-primary, #2f6fa8));
     }
 
     .ngt-select__box ng-table-icon {
@@ -260,12 +261,12 @@ const GAP = 4;
       width: 18px;
       height: 18px;
       font-size: 18px;
-      color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+      color: var(--ngt-primary, var(--app-primary, #2f6fa8));
     }
 
     .ngt-select__empty {
       padding: 12px;
-      color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+      color: var(--ngt-text-muted, var(--app-muted, #5f7080));
     }
   `,
 })

@@ -12,7 +12,7 @@ describe('thème', () => {
       expect(token.light, token.name).not.toBe('');
       expect(token.dark, token.name).not.toBe('');
       expect(token.description, token.name).not.toBe('');
-      expect(token.dark, `${token.name} : le thème sombre doit différer du thème clair`).not.toBe(token.light);
+      if (token.kind !== 'size') expect(token.dark, `${token.name} : le thème sombre doit différer du thème clair`).not.toBe(token.light);
     }
   });
 
@@ -23,8 +23,8 @@ describe('thème', () => {
   });
 
   it('ngTableVar lit le jeton public, puis les anciens noms --app-*, puis la valeur claire', () => {
-    expect(ngTableVar('primary')).toBe('var(--ngt-primary, var(--app-primary, #3a7ca5))');
-    expect(ngTableVar('text-muted')).toBe('var(--ngt-text-muted, var(--app-muted, var(--app-text-muted, #4f6573)))');
+    expect(ngTableVar('primary')).toBe('var(--ngt-primary, var(--app-primary, #2f6fa8))');
+    expect(ngTableVar('text-muted')).toBe('var(--ngt-text-muted, var(--app-muted, var(--app-text-muted, #5f7080)))');
     expect(ngTableVar('danger')).toBe('var(--ngt-danger, var(--mat-sys-error, #b3261e))');
     expect(() => ngTableVar('inconnu')).toThrow();
   });

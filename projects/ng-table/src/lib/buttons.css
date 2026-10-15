@@ -18,7 +18,7 @@
   margin: 0;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font: inherit;
   font-weight: 500;
   line-height: 1;
@@ -34,41 +34,48 @@
 [ngt-flat-button] {
   min-height: 36px;
   padding: 0 16px;
-  border-radius: 999px;
+  border-radius: var(--ngt-radius-button, 999px);
 }
 
 [ngt-stroked-button] {
-  border-color: var(--ngt-primary-outline, var(--app-primary-outline, rgba(58, 124, 165, 0.34)));
+  border-color: var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  color: var(--ngt-text, var(--app-text, #14212b));
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+[ngt-stroked-button]:hover:not(:disabled) {
+  border-color: var(--ngt-primary-outline, var(--app-primary-outline, rgba(47, 111, 168, 0.32)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 [ngt-flat-button] {
-  background: var(--ngt-primary, var(--app-primary, #3a7ca5));
-  color: var(--ngt-surface, var(--app-surface, #ffffff));
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  color: var(--ngt-on-primary, #ffffff);
 }
 
 [ngt-icon-button] {
   width: 40px;
   height: 40px;
   padding: 0;
-  border-radius: 50%;
-  color: var(--ngt-text-muted, var(--app-muted, var(--app-text-muted, #4f6573)));
+  border-radius: var(--ngt-radius-button, 50%);
+  color: var(--ngt-text-muted, var(--app-muted, var(--app-text-muted, #5f7080)));
 }
 
 [ngt-button]:hover:not(:disabled),
 [ngt-stroked-button]:hover:not(:disabled),
 [ngt-icon-button]:hover:not(:disabled) {
-  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
 }
 
 [ngt-flat-button]:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 88%, black);
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 88%, black);
 }
 
 [ngt-button]:focus-visible,
 [ngt-stroked-button]:focus-visible,
 [ngt-flat-button]:focus-visible,
 [ngt-icon-button]:focus-visible {
-  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: 2px;
 }
 

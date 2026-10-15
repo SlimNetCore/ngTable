@@ -41,7 +41,7 @@ import {buildSparkline, SparklineType, sparklineValues} from './sparkline';
     ng-table-sparkline {
       display: inline-flex;
       vertical-align: middle;
-      color: var(--ngt-sparkline-color, var(--ngt-primary, var(--app-primary, #3a7ca5)));
+      color: var(--ngt-sparkline-color, var(--ngt-primary, var(--app-primary, #2f6fa8)));
     }
 
     .ngt-sparkline__line {

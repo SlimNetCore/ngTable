@@ -35,6 +35,9 @@ const ZOOM_LABELS_FR: ZoomLabels = {
  * Les couleurs viennent des variables CSS `--ngt-chart-1` à `--ngt-chart-8`. Chaque forme a une
  * infobulle (`<title>`), et un tableau masqué reprend les données pour les lecteurs d'écran.
  */
+/** Couleurs de série par défaut (thème clair) : les jetons --ngt-chart-1 à --ngt-chart-8 les remplacent. */
+const CHART_DEFAULTS = ['#2f6fa8', '#e07a3f', '#5fa36b', '#b5527e', '#8a6fd1', '#d1a83f', '#3fa7a0', '#8c8c8c'];
+
 @Component({
   selector: 'ng-table-chart',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -151,14 +154,6 @@ const ZOOM_LABELS_FR: ZoomLabels = {
     `
     ng-table-chart {
       display: block;
-      --ngt-chart-1: #3a7ca5;
-      --ngt-chart-2: #e07a3f;
-      --ngt-chart-3: #5fa36b;
-      --ngt-chart-4: #b5527e;
-      --ngt-chart-5: #8a6fd1;
-      --ngt-chart-6: #d1a83f;
-      --ngt-chart-7: #3fa7a0;
-      --ngt-chart-8: #8c8c8c;
     }
 
     .ngt-chart {
@@ -179,7 +174,7 @@ const ZOOM_LABELS_FR: ZoomLabels = {
     }
 
     .ngt-chart__grid {
-      stroke: var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+      stroke: var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
       stroke-width: 1;
     }
 
@@ -284,9 +279,9 @@ const ZOOM_LABELS_FR: ZoomLabels = {
     }
 
     .ngt-chart__brush {
-      fill: var(--ngt-primary, var(--app-primary, #3a7ca5));
+      fill: var(--ngt-primary, var(--app-primary, #2f6fa8));
       fill-opacity: 0.18;
-      stroke: var(--ngt-primary, var(--app-primary, #3a7ca5));
+      stroke: var(--ngt-primary, var(--app-primary, #2f6fa8));
       pointer-events: none;
     }
 
@@ -465,7 +460,8 @@ export class NgTableChartComponent {
   private readonly percentFormat = new Intl.NumberFormat(undefined, {style: 'percent', maximumFractionDigits: 1});
 
   protected color(index: number): string {
-    return `var(--ngt-chart-${(index % 8) + 1})`;
+    const n = (index % 8) + 1;
+    return `var(--ngt-chart-${n}, ${CHART_DEFAULTS[n - 1]})`;
   }
 
   protected dimmed(series: number): boolean {

@@ -17,7 +17,7 @@ const theme = await import(`data:text/javascript;base64,${Buffer.from(js).toStri
 // .ngt-overlay : les panneaux (menus, listes) que la bibliothèque pose dans <body>, hors de l'élément thémé.
 const ELEMENTS = ['ng-table', 'ng-table-chart', 'ng-table-pivot', 'ng-table-sparkline', '.ngt-overlay'];
 const dark = [
-  ...theme.NG_TABLE_TOKENS.map((token) => `  --ngt-${token.name}: ${token.dark};`),
+  ...theme.NG_TABLE_TOKENS.filter((token) => token.kind !== 'size').map((token) => `  --ngt-${token.name}: ${token.dark};`),
   ...Object.entries(theme.NG_TABLE_MATERIAL_BRIDGE).map(([name, value]) => `  ${name}: ${value};`),
 ].join('\n');
 const selectors = ['.ngt-dark', ...ELEMENTS.map((element) => `${element}[data-ngt-theme='dark']`)].join(',\n');

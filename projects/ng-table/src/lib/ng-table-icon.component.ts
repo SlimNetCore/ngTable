@@ -47,102 +47,101 @@ export type NgTableIconName =
   encapsulation: ViewEncapsulation.None,
   host: {'aria-hidden': 'true'},
   template: `
-    <svg fill="none" height="100%" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+    <svg fill="none" height="100%" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
          viewBox="0 0 24 24" width="100%">
       @switch (name()) {
         @case ('account_tree') {
-          <rect height="5" width="6" x="3" y="9.5"/><rect height="5" width="6" x="15" y="4"/><rect height="5" width="6" x="15" y="15"/>
+          <rect height="6" rx="1.5" width="6" x="3" y="9"/><rect height="6" rx="1.5" width="6" x="15" y="3.5"/><rect height="6" rx="1.5" width="6" x="15" y="14.5"/>
           <path d="M9 12h3M12 6.5v11M12 6.5h3M12 17.5h3"/>
         }
         @case ('bookmark') {
-          <path d="M7 4h10v16l-5-4-5 4z"/>
+          <path d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-4.2L6 20V5.5a1 1 0 0 1 1-1z"/>
         }
         @case ('check') {
-          <path d="M5 12.5l4.5 4.5L19 7.5"/>
+          <path d="M5 12.5l4.2 4.2L19 7.2"/>
         }
         @case ('chevron_right') {
-          <path d="M9 6l6 6-6 6"/>
+          <path d="M9.5 6l6 6-6 6"/>
         }
         @case ('close') {
-          <path d="M6 6l12 12M18 6L6 18"/>
+          <path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>
         }
         @case ('content_copy') {
-          <rect height="12" rx="2" width="11" x="8" y="8"/><path d="M16 8V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h1"/>
+          <rect height="12" rx="2.5" width="11.5" x="8.5" y="8.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>
         }
         @case ('delete') {
-          <path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/>
+          <path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 11.6A1.6 1.6 0 0 0 8.9 20h6.2a1.6 1.6 0 0 0 1.6-1.4L17.5 7M10 11v5M14 11v5"/>
         }
         @case ('dock_to_left') {
-          <rect height="16" rx="2" width="18" x="3" y="4"/><path d="M9 4v16"/>
+          <rect height="16" rx="3" width="18" x="3" y="4"/><path d="M9.5 4v16"/>
         }
         @case ('download') {
-          <path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>
+          <path d="M12 4v10.5M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/>
         }
         @case ('file_download') {
-          <path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>
+          <path d="M12 4v10.5M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/>
         }
         @case ('file_upload') {
-          <path d="M12 16V5M7 9l5-5 5 5M5 20h14"/>
+          <path d="M12 15.5V5M7.5 9L12 4.5 16.5 9M5 19.5h14"/>
         }
         @case ('drag_indicator') {
           <g fill="currentColor" stroke="none">
-            <circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/>
-            <circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/>
+            <circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/>
+            <circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/>
           </g>
         }
         @case ('expand_more') {
-          <path d="M6 9l6 6 6-6"/>
+          <path d="M6.5 9.5L12 15l5.5-5.5"/>
         }
         @case ('filter_alt') {
-          <path d="M4 5h16l-6 8v6l-4-2v-4z"/>
+          <path d="M4.6 5.5h14.8a.6.6 0 0 1 .46 1L14 13.3V19l-4 1.5v-7.2L4.14 6.5a.6.6 0 0 1 .46-1z"/>
         }
         @case ('filter_alt_off') {
-          <path d="M4 5h16l-6 8v6l-4-2v-4z"/><path d="M3 3l18 18"/>
+          <path d="M4.6 5.5h14.8a.6.6 0 0 1 .46 1L14 13.3V19l-4 1.5v-7.2L4.14 6.5a.6.6 0 0 1 .46-1z"/><path d="M3.5 3.5l17 17"/>
         }
         @case ('north') {
-          <path d="M12 19V5M6 11l6-6 6 6"/>
+          <path d="M12 19.5V5M6.5 10.5L12 5l5.5 5.5"/>
         }
         @case ('south') {
-          <path d="M12 5v14M6 13l6 6 6-6"/>
+          <path d="M12 4.5V19M6.5 13.5L12 19l5.5-5.5"/>
         }
         @case ('push_pin') {
-          <path d="M9 4h6v5l2.5 3h-11L9 9z"/><path d="M12 12v8"/>
+          <path d="M9.5 4.5h5l-.6 5 3 3.2H7.1l3-3.2z"/><path d="M12 12.7V20"/>
         }
         @case ('radio_button_checked') {
-          <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" fill="currentColor" r="4" stroke="none"/>
+          <circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" fill="currentColor" r="4" stroke="none"/>
         }
         @case ('radio_button_unchecked') {
-          <circle cx="12" cy="12" r="8"/>
+          <circle cx="12" cy="12" r="8.5"/>
         }
         @case ('save') {
-          <path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/>
+          <path d="M6 4.5h10.2a1 1 0 0 1 .7.3l2.3 2.3a1 1 0 0 1 .3.7V18a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V6A1.5 1.5 0 0 1 6 4.5zM8 4.5v4.2h7.2V4.5M8 19.5v-5.7h8v5.7"/>
         }
         @case ('search') {
-          <circle cx="10.5" cy="10.5" r="6"/><path d="M15.5 15.5L20 20"/>
+          <circle cx="10.8" cy="10.8" r="6.3"/><path d="M15.5 15.5l4.5 4.5"/>
         }
         @case ('star') {
-          <path d="M12 3l2.8 6 6.2.7-4.6 4.3 1.3 6.5-5.7-3.3-5.7 3.3 1.3-6.5L3 9.7 9.2 9z" fill="currentColor"/>
+          <path d="M12 3.6l2.5 5.4 5.9.7-4.4 4 1.2 5.8L12 16.5 6.8 19.5 8 13.7l-4.4-4 5.9-.7z" fill="currentColor"/>
         }
         @case ('star_outline') {
-          <path d="M12 3l2.8 6 6.2.7-4.6 4.3 1.3 6.5-5.7-3.3-5.7 3.3 1.3-6.5L3 9.7 9.2 9z"/>
+          <path d="M12 3.6l2.5 5.4 5.9.7-4.4 4 1.2 5.8L12 16.5 6.8 19.5 8 13.7l-4.4-4 5.9-.7z"/>
         }
         @case ('swap_vert') {
-          <path d="M8 20V5M4.5 8.5L8 5l3.5 3.5M16 4v15M12.5 15.5L16 19l3.5-3.5"/>
+          <path d="M8 19.5V5M4.5 8.5L8 5l3.5 3.5M16 4.5V19M12.5 15.5L16 19l3.5-3.5"/>
         }
         @case ('sync') {
           <path d="M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4M20 11a8 8 0 0 0-14.5-4M4 4v4h4"/>
         }
         @case ('unfold_less') {
-          <path d="M8 5l4 4 4-4M8 19l4-4 4 4"/>
+          <path d="M8 5.5l4 4 4-4M8 18.5l4-4 4 4"/>
         }
         @case ('unfold_more') {
-          <path d="M8 9l4-4 4 4M8 15l4 4 4-4"/>
+          <path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4"/>
         }
         @case ('view_column') {
-          <rect height="14" rx="1" width="16" x="4" y="5"/><path d="M9.5 5v14M14.5 5v14"/>
+          <rect height="14" rx="2.5" width="16" x="4" y="5"/><path d="M9.5 5v14M14.5 5v14"/>
         }
-      }
-    </svg>
+      }    </svg>
   `,
   styles: `
     ng-table-icon {

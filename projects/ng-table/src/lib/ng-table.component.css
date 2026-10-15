@@ -27,10 +27,10 @@
 }
 
 .list-panel {
-  border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   border-radius: 20px;
   background: var(--ngt-surface, var(--app-surface, #ffffff));
-  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16)));
 }
 
 .list-actions {
@@ -52,18 +52,18 @@
   margin-right: auto;
   padding: 0 4px 0 10px;
   height: 40px;
-  border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   border-radius: 999px;
   background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
 .global-search:focus-within {
-  border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 20%, transparent);
+  border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 20%, transparent);
 }
 
 .global-search__icon {
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   font-size: 20px;
   width: 20px;
   height: 20px;
@@ -113,16 +113,16 @@
 
 .table-wrap {
   overflow: auto;
-  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
 
 /* Densité compacte : lignes de 36 px et en-têtes de 44 px (52 et 56 par défaut). */
 .ng-table.ngt-density-compact td.cdk-cell {
-  height: 36px;
+  height: var(--ngt-row-height-compact, 36px);
 }
 
 .ng-table.ngt-density-compact th.cdk-header-cell {
-  height: 44px;
+  height: var(--ngt-header-height-compact, 44px);
 }
 
 .ng-table.ngt-density-compact td.cdk-cell {
@@ -198,10 +198,11 @@
  * toute règle de la bibliothèque ou de l'application les surcharge sans surenchère.
  */
 :where(.ng-table) {
+  font-family: var(--ngt-font-family, inherit);
   border-collapse: separate;
   border-spacing: 0;
   background: var(--ngt-surface, var(--app-surface, #ffffff));
-  color: var(--ngt-text, var(--app-text, #0d1d26));
+  color: var(--ngt-text, var(--app-text, #14212b));
   font-size: 0.875rem;
   line-height: 20px;
   white-space: normal;
@@ -210,7 +211,7 @@
 :where(.ng-table) :where(td.cdk-cell, th.cdk-header-cell, td.cdk-footer-cell) {
   box-sizing: border-box;
   padding: 0 16px;
-  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   background: var(--ngt-surface, var(--app-surface, #ffffff));
   color: inherit;
   text-align: start;
@@ -218,11 +219,11 @@
 }
 
 :where(.ng-table) :where(td.cdk-cell, td.cdk-footer-cell) {
-  height: 52px;
+  height: var(--ngt-row-height, 48px);
 }
 
 :where(.ng-table) :where(th.cdk-header-cell) {
-  height: 56px;
+  height: var(--ngt-header-height, 46px);
   font-weight: 500;
 }
 .ng-table .cdk-header-cell,
@@ -286,7 +287,7 @@
   justify-content: center;
   width: 14px;
   height: 18px;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   cursor: grab;
   opacity: 0;
   transition: opacity 0.15s ease, color 0.15s ease;
@@ -304,7 +305,7 @@
 }
 
 .drag-handle:hover {
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 /* La poignée n'est visible qu'au survol/focus de l'en-tête (`opacity: 0` par
@@ -312,10 +313,10 @@
    invisible même après le `:focus-within` ci-dessus (qui gère seulement
    l'opacité), violant WCAG 2.4.7 (indicateur de focus visible). */
 .drag-handle:focus-visible {
-  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: 2px;
   border-radius: 4px;
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .drag-handle:active {
@@ -330,8 +331,8 @@
 }
 
 .ng-table .cdk-header-cell.column-drag-over {
-  box-shadow: inset 2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5));
-  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+  box-shadow: inset 2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
 }
 
 @media (max-width: 760px) {
@@ -347,7 +348,7 @@
   gap: 4px;
   border: 0;
   background: transparent;
-  color: var(--ngt-text, var(--app-text, #0d1d26));
+  color: var(--ngt-text, var(--app-text, #14212b));
   padding: 0;
   margin: 0;
   min-width: 0;
@@ -374,7 +375,7 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 /* Sans le jeton, Material impose sa taille par défaut (40 px) malgré `width` ci-dessous. */
@@ -395,7 +396,7 @@
   height: 28px;
   padding: 0;
   line-height: 1;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   border-radius: 10px;
 }
 
@@ -410,9 +411,9 @@
 }
 
 .filter-button:focus-visible {
-  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: 2px;
-  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
 }
 
 .filter-button.filter-active {
@@ -444,25 +445,25 @@
   bottom: 4px;
   right: 6px;
   width: 1px;
-  background: var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  background: var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
 
 .resize-handle:hover {
-  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 10%, transparent);
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 10%, transparent);
 }
 
 .resize-handle:hover::after {
-  background: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .resize-handle:focus-visible {
-  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 16%, transparent);
-  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 16%, transparent);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
 
 .resize-handle:focus-visible::after {
-  background: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .menu-body {
@@ -478,8 +479,8 @@
   gap: 6px;
   margin: -2px 0 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -504,8 +505,8 @@
   display: inline-block;
   width: 18px;
   height: 18px;
-  border: 2px solid var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
-  border-top-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  border: 2px solid var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  border-top-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   border-radius: 50%;
   animation: ngt-spin 0.7s linear infinite;
 }
@@ -530,7 +531,7 @@
 
 .filter-loading-label {
   font-size: 12px;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .filter-loading-error {
@@ -545,9 +546,9 @@
   max-width: min(92vw, 380px) !important;
   max-height: none !important;
   overflow: hidden !important;
-  border-radius: 20px;
-  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
-  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09)));
+  border-radius: var(--ngt-radius-card, 16px);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16)));
   background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
   backdrop-filter: blur(var(--app-blur, 0px));
 }
@@ -578,8 +579,8 @@
   margin-left: 6px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-size: 0.72rem;
   font-weight: 700;
   max-width: 140px;
@@ -591,9 +592,9 @@
 .ngt-views-menu-panel.ngt-menu-panel {
   min-width: min(92vw, 320px) !important;
   max-width: min(92vw, 320px) !important;
-  border-radius: 20px;
-  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
-  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09)));
+  border-radius: var(--ngt-radius-card, 16px);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16)));
   background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
 }
 
@@ -615,7 +616,7 @@
   min-width: 0;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
   border-radius: 10px;
   background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
   color: inherit;
@@ -624,31 +625,31 @@
 
 .views-name-input:focus {
   outline: none;
-  border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .views-save-btn {
   flex: 0 0 auto;
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .views-divider {
   margin: 10px 0 6px;
-  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
 
 .views-empty-note {
   margin: 10px 2px 2px;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   font-size: 0.8rem;
 }
 
 .ngt-export-menu-panel.ngt-menu-panel {
   min-width: min(92vw, 280px) !important;
   max-width: min(92vw, 280px) !important;
-  border-radius: 20px;
-  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
-  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09)));
+  border-radius: var(--ngt-radius-card, 16px);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16)));
   background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
 }
 
@@ -676,22 +677,22 @@
   flex-direction: column;
   gap: 4px;
   font-size: 0.78rem;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .export-range-input {
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
   border-radius: 10px;
   background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
-  color: var(--ngt-text, var(--app-text, #0d1d26));
+  color: var(--ngt-text, var(--app-text, #14212b));
   font: inherit;
 }
 
 .export-range-input:focus {
   outline: none;
-  border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .export-confirm-btn {
@@ -710,11 +711,11 @@
 }
 
 .view-row:hover {
-  background: var(--ngt-hover-surface, var(--app-hover-surface, #f6fbff));
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
 }
 
 .view-row.active .view-row-label {
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-weight: 700;
 }
 
@@ -744,16 +745,16 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .view-row-default {
   flex: 0 0 auto;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .view-row-default--on {
-  color: #c98a00;
+  color: var(--ngt-warning, #c98a00);
 }
 
 .views-transfer-row {
@@ -765,30 +766,30 @@
 .views-import-feedback {
   margin: 6px 4px 0;
   font-size: 0.8rem;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .view-row-update {
   flex: 0 0 auto;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .view-row-update:hover {
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .view-row-update--done,
 .view-row-update--done:hover {
-  color: #2e7d32;
+  color: var(--ngt-success, #2e7d32);
 }
 
 .view-row-delete {
   flex: 0 0 auto;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .view-row-delete:hover {
-  color: #c62828;
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
 }
 
 .data-row {
@@ -799,7 +800,7 @@
    détail expansible ou menu contextuel) ; une ligne non focusable n'a jamais ce
    focus visible à afficher. */
 .data-row:focus-visible {
-  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
 
@@ -866,7 +867,7 @@
   border-radius: var(--ngt-tooltip-radius, 10px);
   border: var(--ngt-tooltip-border, 1px solid rgba(255, 255, 255, 0.08));
   box-shadow: var(--ngt-tooltip-shadow, 0 10px 30px rgba(15, 23, 42, 0.28));
-  background: var(--ngt-tooltip-bg, var(--ngt-text, var(--app-text, #0d1d26)));
+  background: var(--ngt-tooltip-bg, var(--ngt-text, var(--app-text, #14212b)));
   color: var(--ngt-tooltip-color, var(--ngt-surface, var(--app-surface, #ffffff)));
   font-family: var(--ngt-tooltip-font-family, inherit);
   font-size: var(--ngt-tooltip-font-size, 0.78rem);
@@ -892,7 +893,7 @@
   line-height: 1;
   border-radius: 10px;
   opacity: 0;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   transition: opacity 140ms ease, color 140ms ease;
 }
 
@@ -913,12 +914,12 @@
 
 .copy-action-btn:hover,
 .copy-action-btn:focus-visible {
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .no-data-cell {
   text-align: center;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   padding: 16px;
 }
 
@@ -926,7 +927,7 @@
   padding-top: 8px;
   padding-bottom: 10px;
   border-top: 0;
-  background: var(--ngt-surface-soft, var(--app-surface-soft, #f7fbfe));
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc));
 }
 
 .mobile-actions-cell {
@@ -1001,8 +1002,8 @@
   flex-wrap: wrap;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
-  background: var(--ngt-surface-soft, var(--app-surface-soft, #f7fbfe));
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc));
   border-radius: 20px 20px 0 0;
 }
 
@@ -1014,7 +1015,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   white-space: nowrap;
 }
 
@@ -1022,7 +1023,7 @@
   width: 16px;
   height: 16px;
   font-size: 16px;
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .active-filters-bar__chips {
@@ -1040,9 +1041,9 @@
   max-width: 100%;
   padding: 4px 6px 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--ngt-primary-outline, var(--app-primary-outline, rgba(58, 124, 165, 0.34)));
-  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  border: 1px solid var(--ngt-primary-outline, var(--app-primary-outline, rgba(47, 111, 168, 0.32)));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -1061,7 +1062,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 220px;
-  color: var(--ngt-text, var(--app-text, #0d1d26));
+  color: var(--ngt-text, var(--app-text, #14212b));
 }
 
 .active-filter-chip__clear {
@@ -1073,7 +1074,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .active-filter-chip__clear .ng-table-icon {
@@ -1139,7 +1140,7 @@
   font-size: 0.7rem;
   font-weight: 600;
   line-height: 1;
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 /* Menu « Colonnes » : case à cocher + punaise de la colonne de référence. */
@@ -1157,7 +1158,7 @@
   width: 32px;
   height: 32px;
   padding: 4px;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .ngt-columns-menu-panel .reference-pin ng-table-icon {
@@ -1171,7 +1172,7 @@
 }
 
 .ngt-columns-menu-panel .reference-pin--on[ngt-icon-button] {
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .ngt-columns-menu-panel .reference-pin--on ng-table-icon {
@@ -1181,14 +1182,14 @@
 
 /* Navigation cellule par cellule : cellule active bien visible au clavier. */
 .ng-table[role='grid'] td.cdk-cell:focus-visible {
-  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
 
 /* --- Regroupement et totaux -------------------------------------------- */
 .ng-table tr.group-row {
   cursor: pointer;
-  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
 }
 
 .ng-table tr.group-row:hover {
@@ -1198,7 +1199,7 @@
 /* Les cellules épinglées ont un fond opaque (blanc) pour masquer ce qui défile dessous :
    dans une ligne de groupe, elles prennent la couleur de la ligne. */
 .ng-table tr.group-row td.cdk-table-sticky {
-  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
 }
 
 .ng-table tr.group-row:hover td.cdk-table-sticky {
@@ -1206,14 +1207,14 @@
 }
 
 .ng-table tr.group-row:focus-visible {
-  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
 
 .ng-table td.group-cell {
   font-weight: 600;
   font-size: 0.85rem;
-  color: var(--ngt-text, var(--app-text, #0d1d26));
+  color: var(--ngt-text, var(--app-text, #14212b));
   white-space: nowrap;
 }
 
@@ -1234,25 +1235,25 @@
   font-size: 20px;
   width: 20px;
   height: 20px;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .group-name {
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   font-weight: 500;
 }
 
 .group-count {
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-size: 0.75rem;
 }
 
 .ng-table tr.totals-row td.totals-cell {
   font-weight: 700;
-  border-top: 2px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
+  border-top: 2px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
   background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
@@ -1260,7 +1261,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 0.75rem;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 /* --- Défilement virtuel ----------------------------------------------- */
@@ -1284,8 +1285,8 @@
 @keyframes ngt-flash-up-1 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); } }
 @keyframes ngt-flash-down-0 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); } }
 @keyframes ngt-flash-down-1 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); } }
-@keyframes ngt-flash-change-0 { from { background-color: var(--ngt-flash-change-bg, rgba(58, 124, 165, 0.3)); } }
-@keyframes ngt-flash-change-1 { from { background-color: var(--ngt-flash-change-bg, rgba(58, 124, 165, 0.3)); } }
+@keyframes ngt-flash-change-0 { from { background-color: var(--ngt-flash-change-bg, rgba(47, 111, 168, 0.3)); } }
+@keyframes ngt-flash-change-1 { from { background-color: var(--ngt-flash-change-bg, rgba(47, 111, 168, 0.3)); } }
 
 .ng-table td[data-ngt-flash='up-0'] { animation: ngt-flash-up-0 var(--ngt-flash-duration, 1s) ease-out; }
 .ng-table td[data-ngt-flash='up-1'] { animation: ngt-flash-up-1 var(--ngt-flash-duration, 1s) ease-out; }
@@ -1343,7 +1344,7 @@
   position: sticky;
   top: calc(var(--ngt-header-h, 0px) + var(--ngt-pin-index, 0) * var(--ngt-row-h, 48px));
   z-index: 2;
-  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
   font-weight: 500;
 }
 
@@ -1351,7 +1352,7 @@
   position: sticky;
   bottom: calc(var(--ngt-footer-h, 0px) + var(--ngt-pin-index, 0) * var(--ngt-row-h, 48px));
   z-index: 2;
-  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
   font-weight: 500;
 }
 
@@ -1376,14 +1377,14 @@
   font-weight: 600;
   font-size: 0.8rem;
   letter-spacing: 0.02em;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
-  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
 
 .ng-table th.header-group-cell:not(.header-group-cell--empty) {
-  border-left: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
-  border-right: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
-  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
+  border-left: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  border-right: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
 }
 
 /* Ligne de groupes : plus basse que la ligne des colonnes. */
@@ -1399,18 +1400,18 @@
 
 /* Contour de la plage : un ombrage intérieur par côté, combinés par des variables CSS. */
 .ng-table td[data-ngt-range~='in'] {
-  background-color: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 14%, transparent);
+  background-color: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 14%, transparent);
   box-shadow: var(--ngt-rs-t, 0 0 #0000), var(--ngt-rs-r, 0 0 #0000), var(--ngt-rs-b, 0 0 #0000), var(--ngt-rs-l, 0 0 #0000);
 }
 
-.ng-table td[data-ngt-range~='top'] { --ngt-rs-t: inset 0 2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
-.ng-table td[data-ngt-range~='right'] { --ngt-rs-r: inset -2px 0 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
-.ng-table td[data-ngt-range~='bottom'] { --ngt-rs-b: inset 0 -2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
-.ng-table td[data-ngt-range~='left'] { --ngt-rs-l: inset 2px 0 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
+.ng-table td[data-ngt-range~='top'] { --ngt-rs-t: inset 0 2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8)); }
+.ng-table td[data-ngt-range~='right'] { --ngt-rs-r: inset -2px 0 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8)); }
+.ng-table td[data-ngt-range~='bottom'] { --ngt-rs-b: inset 0 -2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8)); }
+.ng-table td[data-ngt-range~='left'] { --ngt-rs-l: inset 2px 0 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8)); }
 
 /* Les cellules épinglées ont un fond opaque : la teinte de la plage s'y mélange à ce fond. */
 .ng-table td.cdk-table-sticky[data-ngt-range~='in'] {
-  background-color: color-mix(in srgb, var(--ngt-surface, var(--app-surface, #ffffff)) 86%, var(--ngt-primary, var(--app-primary, #3a7ca5)));
+  background-color: color-mix(in srgb, var(--ngt-surface, var(--app-surface, #ffffff)) 86%, var(--ngt-primary, var(--app-primary, #2f6fa8)));
 }
 
 /* La cellule active (navigation clavier) garde son contour de focus par-dessus celui de la plage. */
@@ -1424,7 +1425,7 @@
 }
 
 .ng-table td[data-ngt-editable]:hover {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 40%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 40%, transparent);
 }
 
 .cell-content--hidden {
@@ -1444,7 +1445,7 @@
   min-width: 0;
   height: 34px;
   padding: 0 8px;
-  border: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+  border: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   border-radius: 6px;
   background: var(--ngt-surface, var(--app-surface, #ffffff));
   color: inherit;
@@ -1464,7 +1465,7 @@
   padding: 2px 8px;
   border-radius: 4px;
   background: var(--ngt-danger, var(--mat-sys-error, #b3261e));
-  color: #fff;
+  color: var(--ngt-on-primary, #ffffff);
   font-size: 0.75rem;
   white-space: nowrap;
 }
@@ -1473,7 +1474,7 @@
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  accent-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   cursor: pointer;
 }
 
@@ -1484,7 +1485,7 @@
   align-items: center;
   gap: 4px 20px;
   padding: 8px 16px;
-  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   color: var(--ngt-text-muted, var(--app-text-muted, #475569));
   font-size: 0.8125rem;
 }
@@ -1508,7 +1509,7 @@
   display: flex;
   flex-direction: column;
   width: min(280px, 90%);
-  border-left: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border-left: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   background: var(--ngt-surface, var(--app-surface, #ffffff));
   box-shadow: -8px 0 16px -8px rgba(15, 23, 42, 0.2);
 }
@@ -1516,7 +1517,7 @@
 .ngt-side-panel__tabs {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
 
 .ngt-side-panel__tab {
@@ -1531,7 +1532,7 @@
 }
 
 .ngt-side-panel__tab--on {
-  border-bottom-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  border-bottom-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-weight: 600;
 }
 
@@ -1540,8 +1541,8 @@
   min-width: 18px;
   margin-left: 4px;
   border-radius: 9px;
-  background: var(--ngt-primary, var(--app-primary, #3a7ca5));
-  color: #fff;
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  color: var(--ngt-on-primary, #ffffff);
   font-size: 0.7rem;
   line-height: 18px;
   text-align: center;
@@ -1600,8 +1601,8 @@
 
 .ngt-row-handle:hover,
 .ngt-row-handle:focus-visible {
-  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 14%, transparent);
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 14%, transparent);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .ngt-row-handle:active {
@@ -1613,7 +1614,7 @@
 }
 
 .ng-table tr[data-ngt-drop='before'] td {
-  box-shadow: inset 0 2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5));
+  box-shadow: inset 0 2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 /* Panneau latéral fixé : il prend sa place à gauche au lieu de recouvrir le tableau. */
@@ -1637,7 +1638,7 @@
 
 /* Punaise « enfoncée » : l'icône se couche à l'horizontale. */
 .ngt-side-panel__pin--on {
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .ngt-side-panel__pin--on .ng-table-icon {
@@ -1651,7 +1652,7 @@
   width: 32px;
   height: 32px;
   padding: 4px;
-  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .ngt-side-panel .reference-pin ng-table-icon {
@@ -1664,7 +1665,7 @@
 
 /* Colonne fixée : la punaise se couche à l'horizontale et prend la couleur principale. */
 .ngt-side-panel .reference-pin--on[ngt-icon-button] {
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .ngt-side-panel .reference-pin--on ng-table-icon {
@@ -1679,7 +1680,7 @@
 }
 
 .ng-table tr[data-ngt-drop='after'] td {
-  box-shadow: inset 0 -2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5));
+  box-shadow: inset 0 -2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 /* --- Données arborescentes ---------------------------------------------- */
@@ -1710,6 +1711,86 @@ button.ngt-tree-toggle {
 
 button.ngt-tree-toggle:hover,
 button.ngt-tree-toggle:focus-visible {
-  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 14%, transparent);
-  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 14%, transparent);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+/* --- Finition visuelle -------------------------------------------------------
+   Une couche de raffinement par-dessus la structure : carte arrondie, en-têtes calmes, filets fins,
+   survol de ligne, icônes de tri discrètes. Tout passe par les jetons --ngt-*. */
+.list-panel {
+  overflow: clip;
+  border-radius: var(--ngt-radius-card, 16px);
+}
+
+.list-actions {
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.global-search {
+  height: 38px;
+  border-radius: var(--ngt-radius-button, 999px);
+  border-color: var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.global-search:hover:not(:focus-within) {
+  border-color: var(--ngt-primary-outline, var(--app-primary-outline, rgba(47, 111, 168, 0.32)));
+}
+
+.global-search__input::placeholder {
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+}
+
+.ng-table th.cdk-header-cell {
+  height: var(--ngt-header-height, 46px);
+  border-bottom: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc));
+}
+
+.header-button {
+  font-size: var(--ngt-header-font-size, 0.8125rem);
+  font-weight: var(--ngt-header-font-weight, 600);
+  letter-spacing: 0.01em;
+}
+
+.sort-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+  opacity: 0.45;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.sort-icon--active {
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  opacity: 1;
+}
+
+.header-button:hover:not(:disabled) .sort-icon {
+  opacity: 0.9;
+}
+
+.filter-button .ng-table-icon,
+.filter-button ng-table-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.ng-table td.cdk-cell {
+  height: var(--ngt-row-height, 48px);
+  font-size: var(--ngt-font-size, 0.84rem);
+}
+
+.ng-table td.cdk-cell,
+.ng-table td.cdk-cell.cdk-table-sticky {
+  transition: background-color 0.12s ease;
+}
+
+.ng-table tr.data-row:not([data-ngt-pin]):hover td.cdk-cell:not(.detail-row):not([data-ngt-range~='in']) {
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
 }

@@ -299,14 +299,14 @@ const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floo
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-bottom: 12px; }
-    .controls select, .controls button { padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(15, 23, 42, .25); font: inherit; }
+    .controls select, .controls button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--demo-border); font: inherit; }
     table.results { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-    table.results th, table.results td { padding: 6px 10px; border-bottom: 1px solid rgba(15, 23, 42, .12); text-align: right; }
+    table.results th, table.results td { padding: 6px 10px; border-bottom: 1px solid var(--demo-border); text-align: right; }
     table.results th:first-child, table.results td:first-child { text-align: left; }
     .win { font-weight: 700; color: #15803d; }
-    .hint { margin: 8px 0 0; color: #4f6573; }
-    .stage { height: 480px; width: 100%; overflow: hidden; border: 1px solid rgba(15, 23, 42, .15); border-radius: 8px; }
-    pre.report { margin: 12px 0 0; padding: 10px; background: #f5f7fa; border-radius: 8px; overflow: auto; font-size: .75rem; }
+    .hint { margin: 8px 0 0; color: var(--demo-muted); }
+    .stage { height: 480px; width: 100%; overflow: hidden; border: 1px solid var(--demo-border); border-radius: 8px; }
+    pre.report { margin: 12px 0 0; padding: 10px; background: var(--demo-bg); border-radius: 8px; overflow: auto; font-size: .75rem; }
   `,
   template: `
     <p class="demo-intro">

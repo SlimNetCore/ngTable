@@ -475,7 +475,7 @@
               >
                 <span [ngTableTruncateTooltip]="column.header" class="header-label">{{ column.header }}</span>
                 @if (column.sortable) {
-                  <ng-table-icon aria-hidden="true" class="sort-icon" [name]="currentSortIcon(column)"/>
+                  <ng-table-icon aria-hidden="true" class="sort-icon" [class.sort-icon--active]="currentSortIcon(column) !== 'swap_vert'" [name]="currentSortIcon(column)"/>
                   @if (sortPriority(column); as priority) {
                     <span aria-hidden="true" class="sort-priority">{{ priority }}</span>
                   }

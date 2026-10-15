@@ -46,17 +46,17 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
     @media (max-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr); } }
     .actions-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .log { margin: 0; padding: 0; list-style: none; max-height: 360px; overflow: auto; font-size: .75rem; }
-    .log li { padding: 4px 0; border-bottom: 1px solid rgba(15, 23, 42, .08); }
-    .log .event { font-weight: 600; color: #1d4f91; }
+    .log li { padding: 4px 0; border-bottom: 1px solid var(--demo-border); }
+    .log .event { font-weight: 600; color: var(--demo-accent); }
     .log .time { color: #8a99a6; margin-right: 6px; }
-    .log .detail { display: block; color: #4f6573; word-break: break-all; }
-    .state { margin: 0; font-size: .72rem; max-height: 220px; overflow: auto; background: #f5f7fa; padding: 8px; border-radius: 8px; }
-    .server { font-size: .8rem; color: #4f6573; }
+    .log .detail { display: block; color: var(--demo-muted); word-break: break-all; }
+    .state { margin: 0; font-size: .72rem; max-height: 220px; overflow: auto; background: var(--demo-bg); padding: 8px; border-radius: 8px; }
+    .server { font-size: .8rem; color: var(--demo-muted); }
     .server--error { color: #b3261e; font-weight: 600; }
     .perf { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
-    .perf div { padding: 8px 10px; background: #f5f7fa; border-radius: 8px; }
-    .perf strong { display: block; font-size: 1.1rem; color: #0d1d26; }
-    .perf span { font-size: .75rem; color: #4f6573; }
+    .perf div { padding: 8px 10px; background: var(--demo-bg); border-radius: 8px; }
+    .perf strong { display: block; font-size: 1.1rem; color: var(--demo-text); }
+    .perf span { font-size: .75rem; color: var(--demo-muted); }
   `,
   template: `
     <p class="demo-intro">
@@ -247,7 +247,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
     </ng-template>
 
     <ng-template #detailTpl let-row>
-      <div style="padding: 8px 16px; color: #4f6573">{{ row.description }}</div>
+      <div style="padding: 8px 16px; color: var(--demo-muted)">{{ row.description }}</div>
     </ng-template>
   `,
 })

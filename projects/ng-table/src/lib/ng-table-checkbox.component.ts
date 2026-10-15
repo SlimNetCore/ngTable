@@ -43,12 +43,12 @@ export interface NgTableCheckboxChange {
       width: 18px;
       height: 18px;
       margin: 0;
-      accent-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+      accent-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
       cursor: pointer;
     }
 
     .ngt-checkbox__input:focus-visible {
-      outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+      outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
       outline-offset: 2px;
     }
 

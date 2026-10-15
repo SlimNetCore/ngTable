@@ -73,10 +73,10 @@ const LOCAL_FILES: FileNode[] = [
   styles: `
     .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-bottom: 12px; }
     .controls label { display: inline-flex; gap: 6px; align-items: center; }
-    .controls select { padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(15, 23, 42, .25); font: inherit; }
+    .controls select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--demo-border); font: inherit; }
     .two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
     @media (min-width: 1100px) { .two { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
-    .hint { margin: 8px 0 0; color: #4f6573; }
+    .hint { margin: 8px 0 0; color: var(--demo-muted); }
     .error { color: #b3261e; font-weight: 600; }
   `,
   template: `

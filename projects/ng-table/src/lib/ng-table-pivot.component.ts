@@ -274,8 +274,8 @@ const AGGREGATES: PivotAggregate[] = ['sum', 'avg', 'min', 'max', 'count'];
     }
 
     .ngt-pivot-zone--over {
-      border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
-      background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 8%, var(--ngt-surface, var(--app-surface, #fff)));
+      border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+      background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 8%, var(--ngt-surface, var(--app-surface, #fff)));
     }
 
     .ngt-pivot-zone__title {
@@ -306,14 +306,14 @@ const AGGREGATES: PivotAggregate[] = ['sum', 'avg', 'min', 'max', 'count'];
       padding: 4px 10px;
       border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.2)));
       border-radius: 999px;
-      background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
+      background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
       font-size: 0.8125rem;
       cursor: grab;
       user-select: none;
     }
 
     .ngt-pivot-chip--used {
-      border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+      border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
     }
 
     .ngt-pivot-chip__x {

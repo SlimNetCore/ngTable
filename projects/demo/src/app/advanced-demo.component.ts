@@ -42,10 +42,10 @@ function addDays(isoDay: string, days: number): string {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
-    .detail { padding: 8px 16px; color: #4f6573; line-height: 1.5; }
+    .detail { padding: 8px 16px; color: var(--demo-muted); line-height: 1.5; }
     .actions { display: flex; gap: 2px; }
     .actions button { --mat-icon-button-state-layer-size: 32px; width: 32px; height: 32px; padding: 4px; }
-    .loader { display: flex; flex-direction: column; align-items: center; gap: 8px; color: #1d4f91; font-weight: 500; }
+    .loader { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--demo-accent); font-weight: 500; }
     .loader mat-icon { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
   `,

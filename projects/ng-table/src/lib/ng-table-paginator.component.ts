@@ -58,7 +58,7 @@ export interface NgTablePageEvent {
       justify-content: flex-end;
       gap: 8px 24px;
       padding: 8px 16px;
-      color: var(--ngt-text-muted, var(--app-muted, var(--app-text-muted, #4f6573)));
+      color: var(--ngt-text-muted, var(--app-muted, var(--app-text-muted, #5f7080)));
       font-size: 0.8125rem;
     }
 
@@ -70,10 +70,10 @@ export interface NgTablePageEvent {
 
     .ngt-pager__select {
       padding: 4px 8px;
-      border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
+      border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
       border-radius: 6px;
       background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
-      color: var(--ngt-text, var(--app-text, #0d1d26));
+      color: var(--ngt-text, var(--app-text, #14212b));
       font: inherit;
     }
 
@@ -92,18 +92,18 @@ export interface NgTablePageEvent {
       border: 0;
       border-radius: 50%;
       background: none;
-      color: var(--ngt-text, var(--app-text, #0d1d26));
+      color: var(--ngt-text, var(--app-text, #14212b));
       cursor: pointer;
     }
 
     .ngt-pager__buttons button:hover:not(:disabled),
     .ngt-pager__buttons button:focus-visible {
-      background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+      background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
     }
 
     .ngt-pager__buttons button:focus-visible,
     .ngt-pager__select:focus-visible {
-      outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
+      outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
       outline-offset: 1px;
     }
 

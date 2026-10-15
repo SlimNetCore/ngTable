@@ -658,16 +658,25 @@ Tous les styles de la bibliothèque lisent des **jetons de conception** `--ngt-*
 
 | Jeton | Rôle | Clair | Sombre |
 |-------|------|-------|--------|
-| `--ngt-primary` | Accent | `#3a7ca5` | `#7fb4d6` |
+| `--ngt-primary` | Accent | `#2f6fa8` | `#7fb4d6` |
 | `--ngt-primary-soft`, `--ngt-primary-outline` | Fond léger / contour de l'accent | | |
-| `--ngt-text`, `--ngt-text-muted` | Texte principal / secondaire | `#0d1d26`, `#4f6573` | `#e6edf3`, `#9fb0bf` |
+| `--ngt-text`, `--ngt-text-muted` | Texte principal / secondaire | `#14212b`, `#5f7080` | `#e7edf3`, `#93a4b4` |
 | `--ngt-border`, `--ngt-border-strong` | Séparateurs / contours des champs | | |
-| `--ngt-surface`, `--ngt-surface-alt`, `--ngt-surface-soft` | Fonds du tableau, des lignes épinglées et totaux, des zones légères | `#ffffff`, `#f1f5f9`, `#f7fbfe` | `#141b22`, `#1c252e`, `#18222b` |
+| `--ngt-surface`, `--ngt-surface-alt`, `--ngt-surface-soft` | Fonds du tableau, des lignes épinglées et totaux, des zones légères | `#ffffff`, `#f4f6f9`, `#f8fafc` | `#11171d`, `#19212a`, `#151c24` |
 | `--ngt-hover-surface`, `--ngt-field-bg`, `--ngt-field-hover-bg`, `--ngt-filter-panel-bg` | Survol, champs, panneaux de filtre | | |
 | `--ngt-shadow-soft` | Ombre des cartes | | |
 | `--ngt-danger` | Erreurs de saisie | `#b3261e` | `#f2b8b5` |
+| `--ngt-success`, `--ngt-warning` | Confirmation (vue mise à jour) / favori et avertissement | `#2e7d32`, `#c98a00` | `#7fdba3`, `#f0c15a` |
+| `--ngt-on-primary` | Texte sur fond d'accent ou d'erreur (pastilles, bouton plein) | `#ffffff` | `#0b1620` |
+| `--ngt-chart-1` … `--ngt-chart-8` | Palette des séries des graphiques (elle tourne sur 8 couleurs) | `#2f6fa8`, `#e07a3f`… | `#7fb4d6`, `#f0955f`… |
+| `--ngt-radius-card`, `--ngt-radius-control` | Rayon des cartes et panneaux / des champs, listes et menus | `16px`, `10px` | idem |
+| `--ngt-row-height`, `--ngt-header-height` | Hauteur d'une ligne / de la ligne d'en-têtes (la densité compacte remplace la première) | `48px`, `46px` | idem |
+| `--ngt-row-height-compact`, `--ngt-header-height-compact` | Mêmes hauteurs en densité compacte | `36px`, `44px` | idem |
+| `--ngt-radius-button` | Rayon des boutons et de la recherche (pastille par défaut ; `8px` pour des boutons carrés) | `999px` | idem |
+| `--ngt-font-family`, `--ngt-font-size` | Police du tableau et de ses panneaux (celle de la page par défaut) / taille du texte des cellules | `inherit`, `0.84rem` | idem |
+| `--ngt-header-font-size`, `--ngt-header-font-weight` | Taille et graisse des en-têtes | `0.8125rem`, `600` | idem |
 
-La liste complète, avec les descriptions, est exportée : `NG_TABLE_TOKENS`. Les anciens noms `--app-*` (et `--mat-sys-error`) restent lus en repli : une application qui les définissait n'a rien à changer.
+La liste complète (38 jetons), avec les descriptions, est exportée : `NG_TABLE_TOKENS`. Un jeton défini sur `:root` ou sur un conteneur s'applique partout, y compris aux menus, listes et graphiques ; la forme des boutons, la typographie et les hauteurs de la densité compacte se règlent aussi par jetons. Les anciens noms `--app-*` (et `--mat-sys-error`) restent lus en repli : une application qui les définissait n'a rien à changer.
 
 **Thème sombre**, de trois façons :
 - `[theme]="'dark'"` sur `<ng-table>`, `<ng-table-pivot>`, `<ng-table-chart>` ou `<ng-table-sparkline>` ; `'auto'` suit `prefers-color-scheme` ; `'light'` force le clair ; `null` (défaut) ne force rien.
@@ -2978,7 +2987,7 @@ De la même façon, `column.header`, `filter.label`, `copy.tooltip` et les `labe
 | `--app-frost`           | Fond du bouton "effacer"                    | `#ffffff`                           | `rgba(255, 255, 255, 0.04)`       |
 | `--app-text`            | Texte principal                             | `#0d1d26`                           | `#eff8fb`                         |
 | `--app-muted`           | Texte secondaire                            | `#4f6573`                           | `#8aa8b3`                         |
-| `--app-primary`         | Couleur d'accent                            | `#3a7ca5`                           | `#61d8df`                         |
+| `--app-primary`         | Couleur d'accent                            | `#2f6fa8`                           | `#61d8df`                         |
 | `--app-primary-soft`    | Fond teinté à l'accent                      | `rgba(58, 124, 165, 0.16)`          | `rgba(97, 216, 223, 0.14)`        |
 | `--app-primary-outline` | Contour teinté à l'accent                   | `rgba(58, 124, 165, 0.34)`          | `rgba(97, 216, 223, 0.38)`        |
 | `--app-shadow-soft`     | Ombre portée                                | `0 8px 20px rgba(15, 23, 42, 0.09)` | `0 16px 48px rgba(0, 0, 0, 0.24)` |

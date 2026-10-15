@@ -66,11 +66,12 @@ const MARGIN = 8;
       margin: 0;
       padding: 0;
       overflow: auto;
-      border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
-      border-radius: 12px;
+      border: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+      border-radius: calc(var(--ngt-radius-control, 10px) + 2px);
       background: var(--ngt-surface, var(--app-surface, #ffffff));
       box-shadow: 0 8px 28px rgba(15, 23, 42, 0.2);
-      color: var(--ngt-text, var(--app-text, #0d1d26));
+      color: var(--ngt-text, var(--app-text, #14212b));
+      font-family: var(--ngt-font-family, inherit);
       font-size: 0.875rem;
       outline: none;
     }
@@ -101,7 +102,7 @@ const MARGIN = 8;
     .ngt-menu-panel [mat-menu-item]:hover:not(:disabled),
     .ngt-menu-panel [ngt-menu-item]:focus-visible,
     .ngt-menu-panel [mat-menu-item]:focus-visible {
-      background: var(--ngt-hover-surface, var(--app-hover-surface, #f6fbff));
+      background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
       outline: none;
     }
 

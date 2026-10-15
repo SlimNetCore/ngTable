@@ -55,15 +55,15 @@ function makeQuote(id: number): Quote {
   styles: `
     .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
     .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
-    .metrics div { padding: 8px 10px; background: #f5f7fa; border-radius: 8px; }
-    .metrics strong { display: block; font-size: 1.15rem; color: #0d1d26; font-variant-numeric: tabular-nums; }
-    .metrics span { font-size: .75rem; color: #4f6573; }
+    .metrics div { padding: 8px 10px; background: var(--demo-bg); border-radius: 8px; }
+    .metrics strong { display: block; font-size: 1.15rem; color: var(--demo-text); font-variant-numeric: tabular-nums; }
+    .metrics span { font-size: .75rem; color: var(--demo-muted); }
     .metrics .bad strong { color: #a3261e; }
     .up { color: #15803d; font-variant-numeric: tabular-nums; }
     .down { color: #b91c1c; font-variant-numeric: tabular-nums; }
     .num { font-variant-numeric: tabular-nums; }
     .error { color: #b3261e; font-weight: 600; }
-    .hint { margin: 8px 0 0; color: #4f6573; }
+    .hint { margin: 8px 0 0; color: var(--demo-muted); }
   `,
   template: `
     <p class="demo-intro">
