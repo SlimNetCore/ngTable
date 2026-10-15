@@ -1,6 +1,6 @@
 {
   "name": "@sbourahla/ng-table",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "Table Angular configurable : colonnes, tri, filtres, vues sauvegardées, modes local/remote. Sans dépendance i18n ni métier.",
   "keywords": [
     "angular",
