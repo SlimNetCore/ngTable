@@ -11,7 +11,9 @@
     "watch": "ng build ng-table --watch --configuration development",
     "test": "ng test ng-table",
     "test:ci": "ng test ng-table --watch=false",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "theme:css": "node scripts/generate-theme-css.mjs",
+    "theme:check": "node scripts/generate-theme-css.mjs --check"
   },
   "dependencies": {
     "@angular/cdk": "^22.1.6",

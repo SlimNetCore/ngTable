@@ -47,6 +47,7 @@ import {
   syncGridTabStops,
 } from './grid-navigation';
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
+import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {compileFilters} from './filter-compile';
 import {searchText, SortLevel} from './row-pipeline';
@@ -579,7 +580,8 @@ export interface NgTableViewsImportEvent {
     NgTableSparklineComponent,
   ],
   templateUrl: './ng-table.component.html',
-  styleUrl: './ng-table.component.css',
+  styleUrls: ['./theme.css', './ng-table.component.css'],
+  host: {'[attr.data-ngt-theme]': 'theme()'},
   // Tout l'état interne passe par des signals : `OnPush` suffit et évite de re-vérifier
   // la vue (et ses centaines de cellules) à chaque cycle de détection global.
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -791,6 +793,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly editOnPaste = input(true);
   /** Nombre d'opérations que Ctrl+Z peut défaire. */
   readonly undoRedoLimit = input(100);
+  /**
+   * Thème : `'dark'`, `'light'`, ou `'auto'` (suit `prefers-color-scheme`). `null` (défaut) ne force rien : les
+   * jetons `--ngt-*` de l'application s'appliquent. Pour un thème sombre dans toute l'application, y compris les
+   * menus et filtres qui s'ouvrent en surcouche, posez plutôt la classe `ngt-dark` sur `<html>`.
+   */
+  readonly theme = input<NgTableTheme | null>(null);
   /**
    * Données arborescentes (mode local) : la première colonne affiche l'indentation et un bouton
    * pour déplier / replier. Fournir `[treeChildren]` (lignes imbriquées) ou `[treeParent]`

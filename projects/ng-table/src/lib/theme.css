@@ -1,0 +1,96 @@
+/* Généré par scripts/generate-theme-css.mjs depuis theme.ts : ne pas modifier à la main. */
+
+/* Thème sombre : `[theme]="'dark'"` sur le composant, ou la classe `ngt-dark` sur <html> / <body> (elle thème aussi
+   les menus et filtres ouverts en surcouche). */
+.ngt-dark,
+ng-table[data-ngt-theme='dark'],
+ng-table-chart[data-ngt-theme='dark'],
+ng-table-pivot[data-ngt-theme='dark'],
+ng-table-sparkline[data-ngt-theme='dark'] {
+  --ngt-primary: #7fb4d6;
+  --ngt-primary-soft: rgba(127, 180, 214, 0.24);
+  --ngt-primary-outline: rgba(127, 180, 214, 0.45);
+  --ngt-text: #e6edf3;
+  --ngt-text-muted: #9fb0bf;
+  --ngt-border: rgba(255, 255, 255, 0.16);
+  --ngt-border-strong: rgba(255, 255, 255, 0.3);
+  --ngt-surface: #141b22;
+  --ngt-surface-alt: #1c252e;
+  --ngt-surface-soft: #18222b;
+  --ngt-hover-surface: #202c37;
+  --ngt-field-bg: #1a232c;
+  --ngt-field-hover-bg: #212d38;
+  --ngt-filter-panel-bg: #1a232c;
+  --ngt-shadow-soft: 0 8px 20px rgba(0, 0, 0, 0.45);
+  --ngt-danger: #f2b8b5;
+  --mat-sys-surface: var(--ngt-surface, #141b22);
+  --mat-sys-background: var(--ngt-surface, #141b22);
+  --mat-sys-surface-container: var(--ngt-surface-alt, #1c252e);
+  --mat-sys-surface-container-low: var(--ngt-surface, #141b22);
+  --mat-sys-surface-container-lowest: var(--ngt-surface, #141b22);
+  --mat-sys-surface-container-high: var(--ngt-surface-alt, #1c252e);
+  --mat-sys-surface-container-highest: var(--ngt-hover-surface, #202c37);
+  --mat-sys-surface-variant: var(--ngt-surface-alt, #1c252e);
+  --mat-sys-on-surface: var(--ngt-text, #e6edf3);
+  --mat-sys-on-background: var(--ngt-text, #e6edf3);
+  --mat-sys-on-surface-variant: var(--ngt-text-muted, #9fb0bf);
+  --mat-sys-outline: var(--ngt-border-strong, rgba(255, 255, 255, 0.3));
+  --mat-sys-outline-variant: var(--ngt-border, rgba(255, 255, 255, 0.16));
+  --mat-sys-primary: var(--ngt-primary, #7fb4d6);
+  --mat-sys-on-primary: #0b1620;
+  --mat-sys-secondary-container: var(--ngt-primary-soft, rgba(127, 180, 214, 0.24));
+  --mat-sys-on-secondary-container: var(--ngt-text, #e6edf3);
+  --mat-sys-error: var(--ngt-danger, #f2b8b5);
+  color-scheme: dark;
+}
+
+/* `[theme]="'auto'"` : suit le réglage du système. */
+@media (prefers-color-scheme: dark) {
+    ng-table[data-ngt-theme='auto'],
+    ng-table-chart[data-ngt-theme='auto'],
+    ng-table-pivot[data-ngt-theme='auto'],
+    ng-table-sparkline[data-ngt-theme='auto'] {
+    --ngt-primary: #7fb4d6;
+    --ngt-primary-soft: rgba(127, 180, 214, 0.24);
+    --ngt-primary-outline: rgba(127, 180, 214, 0.45);
+    --ngt-text: #e6edf3;
+    --ngt-text-muted: #9fb0bf;
+    --ngt-border: rgba(255, 255, 255, 0.16);
+    --ngt-border-strong: rgba(255, 255, 255, 0.3);
+    --ngt-surface: #141b22;
+    --ngt-surface-alt: #1c252e;
+    --ngt-surface-soft: #18222b;
+    --ngt-hover-surface: #202c37;
+    --ngt-field-bg: #1a232c;
+    --ngt-field-hover-bg: #212d38;
+    --ngt-filter-panel-bg: #1a232c;
+    --ngt-shadow-soft: 0 8px 20px rgba(0, 0, 0, 0.45);
+    --ngt-danger: #f2b8b5;
+    --mat-sys-surface: var(--ngt-surface, #141b22);
+    --mat-sys-background: var(--ngt-surface, #141b22);
+    --mat-sys-surface-container: var(--ngt-surface-alt, #1c252e);
+    --mat-sys-surface-container-low: var(--ngt-surface, #141b22);
+    --mat-sys-surface-container-lowest: var(--ngt-surface, #141b22);
+    --mat-sys-surface-container-high: var(--ngt-surface-alt, #1c252e);
+    --mat-sys-surface-container-highest: var(--ngt-hover-surface, #202c37);
+    --mat-sys-surface-variant: var(--ngt-surface-alt, #1c252e);
+    --mat-sys-on-surface: var(--ngt-text, #e6edf3);
+    --mat-sys-on-background: var(--ngt-text, #e6edf3);
+    --mat-sys-on-surface-variant: var(--ngt-text-muted, #9fb0bf);
+    --mat-sys-outline: var(--ngt-border-strong, rgba(255, 255, 255, 0.3));
+    --mat-sys-outline-variant: var(--ngt-border, rgba(255, 255, 255, 0.16));
+    --mat-sys-primary: var(--ngt-primary, #7fb4d6);
+    --mat-sys-on-primary: #0b1620;
+    --mat-sys-secondary-container: var(--ngt-primary-soft, rgba(127, 180, 214, 0.24));
+    --mat-sys-on-secondary-container: var(--ngt-text, #e6edf3);
+    --mat-sys-error: var(--ngt-danger, #f2b8b5);
+    color-scheme: dark;
+  }
+}
+
+ng-table[data-ngt-theme='light'],
+ng-table-chart[data-ngt-theme='light'],
+ng-table-pivot[data-ngt-theme='light'],
+ng-table-sparkline[data-ngt-theme='light'] {
+  color-scheme: light;
+}

@@ -32,3 +32,5 @@ export type {ViewRange} from './lib/chart-zoom';
 export type {ZoomLabels} from './lib/ng-table-chart.component';
 export {PIVOT_PATH_SEPARATOR, pivotCellKey, pivotColumnFields, pivotTotalKey} from './lib/pivot';
 export {NG_TABLE_COLUMN_DRAG_TYPE} from './lib/column-drag';
+export {NG_TABLE_MATERIAL_BRIDGE, NG_TABLE_THEME_DARK, NG_TABLE_THEME_LIGHT, NG_TABLE_TOKENS} from './lib/theme';
+export type {NgTableTheme, NgTableToken} from './lib/theme';

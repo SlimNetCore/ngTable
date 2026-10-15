@@ -27,10 +27,10 @@
 }
 
 .list-panel {
-  border: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
   border-radius: 20px;
-  background: var(--app-surface, #ffffff);
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09)));
 }
 
 .list-actions {
@@ -52,18 +52,18 @@
   margin-right: auto;
   padding: 0 4px 0 10px;
   height: 40px;
-  border: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
   border-radius: 999px;
-  background: var(--app-surface, #ffffff);
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
 .global-search:focus-within {
-  border-color: var(--app-primary, #3a7ca5);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #3a7ca5) 20%, transparent);
+  border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 20%, transparent);
 }
 
 .global-search__icon {
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   font-size: 20px;
   width: 20px;
   height: 20px;
@@ -112,7 +112,7 @@
 
 .table-wrap {
   overflow: auto;
-  border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
 }
 
 /* Densité compacte : on passe par les tokens de Material plutôt que de forcer des
@@ -130,7 +130,7 @@
 /* Cellules figées (en-tête sticky, colonnes épinglées) : fond opaque, sinon les
    lignes qui défilent dessous restent visibles à travers. */
 .ng-table .mat-mdc-table-sticky {
-  background: var(--app-surface, #ffffff);
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
 .ng-table .mat-mdc-table-sticky-border-elem-left {
@@ -158,7 +158,7 @@
 .ngt-loading-overlay__backdrop {
   position: absolute;
   inset: 0;
-  background: var(--app-surface, #ffffff);
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
   opacity: 0.85;
 }
 
@@ -251,7 +251,7 @@
   justify-content: center;
   width: 14px;
   height: 18px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   cursor: grab;
   opacity: 0;
   transition: opacity 0.15s ease, color 0.15s ease;
@@ -269,7 +269,7 @@
 }
 
 .drag-handle:hover {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 /* La poignée n'est visible qu'au survol/focus de l'en-tête (`opacity: 0` par
@@ -277,10 +277,10 @@
    invisible même après le `:focus-within` ci-dessus (qui gère seulement
    l'opacité), violant WCAG 2.4.7 (indicateur de focus visible). */
 .drag-handle:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
   outline-offset: 2px;
   border-radius: 4px;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .drag-handle:active {
@@ -295,8 +295,8 @@
 }
 
 .ng-table .mat-mdc-header-cell.column-drag-over {
-  box-shadow: inset 2px 0 0 var(--app-primary, #3a7ca5);
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+  box-shadow: inset 2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
 }
 
 @media (max-width: 760px) {
@@ -312,7 +312,7 @@
   gap: 4px;
   border: 0;
   background: transparent;
-  color: var(--app-text, #0d1d26);
+  color: var(--ngt-text, var(--app-text, #0d1d26));
   padding: 0;
   margin: 0;
   min-width: 0;
@@ -339,7 +339,7 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 /* Sans le jeton, Material impose sa taille par défaut (40 px) malgré `width` ci-dessous. */
@@ -359,7 +359,7 @@
   height: 28px;
   padding: 0;
   line-height: 1;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   border-radius: 10px;
 }
 
@@ -374,18 +374,18 @@
 }
 
 .filter-button:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
   outline-offset: 2px;
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
 }
 
 .filter-button.filter-active {
-  color: var(--mat-sys-error, #b3261e);
-  background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 14%, transparent);
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
+  background: color-mix(in srgb, var(--ngt-danger, var(--mat-sys-error, #b3261e)) 14%, transparent);
 }
 
 .filter-button.filter-active .mat-icon {
-  color: var(--mat-sys-error, #b3261e) !important;
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e)) !important;
 }
 
 .resize-handle {
@@ -408,25 +408,25 @@
   bottom: 4px;
   right: 6px;
   width: 1px;
-  background: var(--app-border, rgba(15, 23, 42, 0.13));
+  background: var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
 }
 
 .resize-handle:hover {
-  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 10%, transparent);
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 10%, transparent);
 }
 
 .resize-handle:hover::after {
-  background: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .resize-handle:focus-visible {
-  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 16%, transparent);
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 16%, transparent);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
   outline-offset: -2px;
 }
 
 .resize-handle:focus-visible::after {
-  background: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .menu-body {
@@ -442,8 +442,8 @@
   gap: 6px;
   margin: -2px 0 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
-  color: var(--app-primary, #3a7ca5);
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -468,8 +468,8 @@
   display: inline-block;
   width: 18px;
   height: 18px;
-  border: 2px solid var(--app-primary-soft, rgba(58, 124, 165, 0.16));
-  border-top-color: var(--app-primary, #3a7ca5);
+  border: 2px solid var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+  border-top-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
   border-radius: 50%;
   animation: ngt-spin 0.7s linear infinite;
 }
@@ -494,13 +494,13 @@
 
 .filter-loading-label {
   font-size: 12px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .filter-loading-error {
   margin-bottom: 8px;
   font-size: 12px;
-  color: var(--mat-sys-error, #b3261e);
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
   font-weight: 600;
 }
 
@@ -510,9 +510,9 @@
   max-height: none !important;
   overflow: hidden !important;
   border-radius: 20px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
-  background: var(--app-filter-panel-bg, #ffffff);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09)));
+  background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
   backdrop-filter: blur(var(--app-blur, 0px));
 }
 
@@ -542,8 +542,8 @@
   margin-left: 6px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
-  color: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
   font-size: 0.72rem;
   font-weight: 700;
   max-width: 140px;
@@ -556,9 +556,9 @@
   min-width: min(92vw, 320px) !important;
   max-width: min(92vw, 320px) !important;
   border-radius: 20px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
-  background: var(--app-filter-panel-bg, #ffffff);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09)));
+  background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
 }
 
 .views-menu-body {
@@ -579,31 +579,31 @@
   min-width: 0;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
   border-radius: 10px;
-  background: var(--app-field-bg, #ffffff);
+  background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
   color: inherit;
   font: inherit;
 }
 
 .views-name-input:focus {
   outline: none;
-  border-color: var(--app-primary, #3a7ca5);
+  border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .views-save-btn {
   flex: 0 0 auto;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .views-divider {
   margin: 10px 0 6px;
-  border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
 }
 
 .views-empty-note {
   margin: 10px 2px 2px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   font-size: 0.8rem;
 }
 
@@ -611,9 +611,9 @@
   min-width: min(92vw, 280px) !important;
   max-width: min(92vw, 280px) !important;
   border-radius: 20px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
-  background: var(--app-filter-panel-bg, #ffffff);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09)));
+  background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
 }
 
 .export-menu-body {
@@ -640,22 +640,22 @@
   flex-direction: column;
   gap: 4px;
   font-size: 0.78rem;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .export-range-input {
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
   border-radius: 10px;
-  background: var(--app-field-bg, #ffffff);
-  color: var(--app-text, #0d1d26);
+  background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
+  color: var(--ngt-text, var(--app-text, #0d1d26));
   font: inherit;
 }
 
 .export-range-input:focus {
   outline: none;
-  border-color: var(--app-primary, #3a7ca5);
+  border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .export-confirm-btn {
@@ -674,11 +674,11 @@
 }
 
 .view-row:hover {
-  background: var(--app-hover-surface, #f6fbff);
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #f6fbff));
 }
 
 .view-row.active .view-row-label {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
   font-weight: 700;
 }
 
@@ -708,12 +708,12 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .view-row-default {
   flex: 0 0 auto;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .view-row-default--on {
@@ -729,16 +729,16 @@
 .views-import-feedback {
   margin: 6px 4px 0;
   font-size: 0.8rem;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .view-row-update {
   flex: 0 0 auto;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .view-row-update:hover {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .view-row-update--done,
@@ -748,7 +748,7 @@
 
 .view-row-delete {
   flex: 0 0 auto;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .view-row-delete:hover {
@@ -763,7 +763,7 @@
    détail expansible ou menu contextuel) ; une ligne non focusable n'a jamais ce
    focus visible à afficher. */
 .data-row:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
   outline-offset: -2px;
 }
 
@@ -827,8 +827,8 @@
  * change rien à l'écran, c'est la surface qui porte fond, padding et rayon.
  */
 .ngt-truncate-tooltip {
-  --mat-tooltip-container-color: var(--ngt-tooltip-bg, var(--app-text, #0d1d26));
-  --mat-tooltip-supporting-text-color: var(--ngt-tooltip-color, var(--app-surface, #ffffff));
+  --mat-tooltip-container-color: var(--ngt-tooltip-bg, var(--ngt-text, var(--app-text, #0d1d26)));
+  --mat-tooltip-supporting-text-color: var(--ngt-tooltip-color, var(--ngt-surface, var(--app-surface, #ffffff)));
   --mat-tooltip-supporting-text-size: var(--ngt-tooltip-font-size, 0.78rem);
   --mat-tooltip-supporting-text-line-height: var(--ngt-tooltip-line-height, 1.45);
   --mat-tooltip-supporting-text-weight: var(--ngt-tooltip-font-weight, 400);
@@ -841,8 +841,8 @@
   border-radius: var(--ngt-tooltip-radius, 10px);
   border: var(--ngt-tooltip-border, 1px solid rgba(255, 255, 255, 0.08));
   box-shadow: var(--ngt-tooltip-shadow, 0 10px 30px rgba(15, 23, 42, 0.28));
-  background: var(--ngt-tooltip-bg, var(--app-text, #0d1d26));
-  color: var(--ngt-tooltip-color, var(--app-surface, #ffffff));
+  background: var(--ngt-tooltip-bg, var(--ngt-text, var(--app-text, #0d1d26)));
+  color: var(--ngt-tooltip-color, var(--ngt-surface, var(--app-surface, #ffffff)));
   font-family: var(--ngt-tooltip-font-family, inherit);
   font-size: var(--ngt-tooltip-font-size, 0.78rem);
   font-weight: var(--ngt-tooltip-font-weight, 400);
@@ -866,7 +866,7 @@
   line-height: 1;
   border-radius: 10px;
   opacity: 0;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   transition: opacity 140ms ease, color 140ms ease;
 }
 
@@ -887,12 +887,12 @@
 
 .copy-action-btn:hover,
 .copy-action-btn:focus-visible {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .no-data-cell {
   text-align: center;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   padding: 16px;
 }
 
@@ -900,7 +900,7 @@
   padding-top: 8px;
   padding-bottom: 10px;
   border-top: 0;
-  background: var(--app-surface-soft, #f7fbfe);
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f7fbfe));
 }
 
 .mobile-actions-cell {
@@ -990,8 +990,8 @@
   flex-wrap: wrap;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
-  background: var(--app-surface-soft, #f7fbfe);
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f7fbfe));
   border-radius: 20px 20px 0 0;
 }
 
@@ -1003,7 +1003,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   white-space: nowrap;
 }
 
@@ -1011,7 +1011,7 @@
   width: 16px;
   height: 16px;
   font-size: 16px;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .active-filters-bar__chips {
@@ -1029,9 +1029,9 @@
   max-width: 100%;
   padding: 4px 6px 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--app-primary-outline, rgba(58, 124, 165, 0.34));
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
-  color: var(--app-primary, #3a7ca5);
+  border: 1px solid var(--ngt-primary-outline, var(--app-primary-outline, rgba(58, 124, 165, 0.34)));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -1050,7 +1050,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 220px;
-  color: var(--app-text, #0d1d26);
+  color: var(--ngt-text, var(--app-text, #0d1d26));
 }
 
 .active-filter-chip__clear {
@@ -1061,7 +1061,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .active-filter-chip__clear .mat-icon {
@@ -1072,7 +1072,7 @@
 }
 
 .active-filter-chip__clear:hover {
-  color: var(--mat-sys-error, #b3261e);
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
 }
 
 .active-filters-bar__reset {
@@ -1127,7 +1127,7 @@
   font-size: 0.7rem;
   font-weight: 600;
   line-height: 1;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 /* Menu « Colonnes » : case à cocher + punaise de la colonne de référence. */
@@ -1152,7 +1152,7 @@
   width: 32px;
   height: 32px;
   padding: 4px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .ngt-columns-menu-panel .reference-pin mat-icon {
@@ -1166,7 +1166,7 @@
 }
 
 .ngt-columns-menu-panel .reference-pin--on.mat-mdc-icon-button {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .ngt-columns-menu-panel .reference-pin--on mat-icon {
@@ -1176,39 +1176,39 @@
 
 /* Navigation cellule par cellule : cellule active bien visible au clavier. */
 .ng-table[role='grid'] td.mat-mdc-cell:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
   outline-offset: -2px;
 }
 
 /* --- Regroupement et totaux -------------------------------------------- */
 .ng-table tr.group-row {
   cursor: pointer;
-  background: var(--app-surface-alt, #f1f5f9);
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
 }
 
 .ng-table tr.group-row:hover {
-  background: var(--app-hover-surface, #e8f0f8);
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #e8f0f8));
 }
 
 /* Les cellules épinglées ont un fond opaque (blanc) pour masquer ce qui défile dessous :
    dans une ligne de groupe, elles prennent la couleur de la ligne. */
 .ng-table tr.group-row td.mat-mdc-table-sticky {
-  background: var(--app-surface-alt, #f1f5f9);
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
 }
 
 .ng-table tr.group-row:hover td.mat-mdc-table-sticky {
-  background: var(--app-hover-surface, #e8f0f8);
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #e8f0f8));
 }
 
 .ng-table tr.group-row:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
   outline-offset: -2px;
 }
 
 .ng-table td.group-cell {
   font-weight: 600;
   font-size: 0.85rem;
-  color: var(--app-text, #0d1d26);
+  color: var(--ngt-text, var(--app-text, #0d1d26));
   white-space: nowrap;
 }
 
@@ -1229,33 +1229,33 @@
   font-size: 20px;
   width: 20px;
   height: 20px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .group-name {
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   font-weight: 500;
 }
 
 .group-count {
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
-  color: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(58, 124, 165, 0.16)));
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
   font-size: 0.75rem;
 }
 
 .ng-table tr.totals-row td.totals-cell {
   font-weight: 700;
-  border-top: 2px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
-  background: var(--app-surface, #ffffff);
+  border-top: 2px solid var(--ngt-border-strong, var(--app-border-strong, rgba(15, 23, 42, 0.24)));
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
 .totals-label {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 0.75rem;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 /* --- Défilement virtuel ----------------------------------------------- */
@@ -1310,7 +1310,7 @@
 }
 
 .loading-failed {
-  color: var(--mat-sys-error, #b3261e);
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
   font-size: 0.85rem;
 }
 
@@ -1338,7 +1338,7 @@
   position: sticky;
   top: calc(var(--ngt-header-h, 0px) + var(--ngt-pin-index, 0) * var(--ngt-row-h, 48px));
   z-index: 2;
-  background: var(--app-surface-alt, #f1f5f9);
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
   font-weight: 500;
 }
 
@@ -1346,7 +1346,7 @@
   position: sticky;
   bottom: calc(var(--ngt-footer-h, 0px) + var(--ngt-pin-index, 0) * var(--ngt-row-h, 48px));
   z-index: 2;
-  background: var(--app-surface-alt, #f1f5f9);
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
   font-weight: 500;
 }
 
@@ -1371,14 +1371,14 @@
   font-weight: 600;
   font-size: 0.8rem;
   letter-spacing: 0.02em;
-  color: var(--app-muted, #4f6573);
-  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
 }
 
 .ng-table th.header-group-cell:not(.header-group-cell--empty) {
-  border-left: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
-  border-right: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
-  background: var(--app-surface-alt, #f1f5f9);
+  border-left: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  border-right: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
 }
 
 /* Ligne de groupes : plus basse que la ligne des colonnes. */
@@ -1394,18 +1394,18 @@
 
 /* Contour de la plage : un ombrage intérieur par côté, combinés par des variables CSS. */
 .ng-table td[data-ngt-range~='in'] {
-  background-color: color-mix(in srgb, var(--app-primary, #3a7ca5) 14%, transparent);
+  background-color: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 14%, transparent);
   box-shadow: var(--ngt-rs-t, 0 0 #0000), var(--ngt-rs-r, 0 0 #0000), var(--ngt-rs-b, 0 0 #0000), var(--ngt-rs-l, 0 0 #0000);
 }
 
-.ng-table td[data-ngt-range~='top'] { --ngt-rs-t: inset 0 2px 0 0 var(--app-primary, #3a7ca5); }
-.ng-table td[data-ngt-range~='right'] { --ngt-rs-r: inset -2px 0 0 0 var(--app-primary, #3a7ca5); }
-.ng-table td[data-ngt-range~='bottom'] { --ngt-rs-b: inset 0 -2px 0 0 var(--app-primary, #3a7ca5); }
-.ng-table td[data-ngt-range~='left'] { --ngt-rs-l: inset 2px 0 0 0 var(--app-primary, #3a7ca5); }
+.ng-table td[data-ngt-range~='top'] { --ngt-rs-t: inset 0 2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
+.ng-table td[data-ngt-range~='right'] { --ngt-rs-r: inset -2px 0 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
+.ng-table td[data-ngt-range~='bottom'] { --ngt-rs-b: inset 0 -2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
+.ng-table td[data-ngt-range~='left'] { --ngt-rs-l: inset 2px 0 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5)); }
 
 /* Les cellules épinglées ont un fond opaque : la teinte de la plage s'y mélange à ce fond. */
 .ng-table td.mat-mdc-table-sticky[data-ngt-range~='in'] {
-  background-color: color-mix(in srgb, var(--app-surface, #ffffff) 86%, var(--app-primary, #3a7ca5));
+  background-color: color-mix(in srgb, var(--ngt-surface, var(--app-surface, #ffffff)) 86%, var(--ngt-primary, var(--app-primary, #3a7ca5)));
 }
 
 /* La cellule active (navigation clavier) garde son contour de focus par-dessus celui de la plage. */
@@ -1419,7 +1419,7 @@
 }
 
 .ng-table td[data-ngt-editable]:hover {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-primary, #3a7ca5) 40%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 40%, transparent);
 }
 
 .cell-content--hidden {
@@ -1439,16 +1439,16 @@
   min-width: 0;
   height: 34px;
   padding: 0 8px;
-  border: 2px solid var(--app-primary, #3a7ca5);
+  border: 2px solid var(--ngt-primary, var(--app-primary, #3a7ca5));
   border-radius: 6px;
-  background: var(--app-surface, #ffffff);
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
   color: inherit;
   font: inherit;
   outline: none;
 }
 
 .ngt-editor[aria-invalid='true'] {
-  border-color: var(--mat-sys-error, #b3261e);
+  border-color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
 }
 
 .ngt-editor-error {
@@ -1458,7 +1458,7 @@
   z-index: 5;
   padding: 2px 8px;
   border-radius: 4px;
-  background: var(--mat-sys-error, #b3261e);
+  background: var(--ngt-danger, var(--mat-sys-error, #b3261e));
   color: #fff;
   font-size: 0.75rem;
   white-space: nowrap;
@@ -1468,7 +1468,7 @@
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: var(--app-primary, #3a7ca5);
+  accent-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
   cursor: pointer;
 }
 
@@ -1479,8 +1479,8 @@
   align-items: center;
   gap: 4px 20px;
   padding: 8px 16px;
-  border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
-  color: var(--app-text-muted, #475569);
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
   font-size: 0.8125rem;
 }
 
@@ -1489,7 +1489,7 @@
 }
 
 .ngt-status-bar b {
-  color: var(--app-text, #0f172a);
+  color: var(--ngt-text, var(--app-text, #0f172a));
   font-weight: 600;
 }
 
@@ -1503,15 +1503,15 @@
   display: flex;
   flex-direction: column;
   width: min(280px, 90%);
-  border-left: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
-  background: var(--app-surface, #ffffff);
+  border-left: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
   box-shadow: -8px 0 16px -8px rgba(15, 23, 42, 0.2);
 }
 
 .ngt-side-panel__tabs {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
 }
 
 .ngt-side-panel__tab {
@@ -1526,7 +1526,7 @@
 }
 
 .ngt-side-panel__tab--on {
-  border-bottom-color: var(--app-primary, #3a7ca5);
+  border-bottom-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
   font-weight: 600;
 }
 
@@ -1535,7 +1535,7 @@
   min-width: 18px;
   margin-left: 4px;
   border-radius: 9px;
-  background: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary, var(--app-primary, #3a7ca5));
   color: #fff;
   font-size: 0.7rem;
   line-height: 18px;
@@ -1567,7 +1567,7 @@
 }
 
 .ngt-side-panel__empty {
-  color: var(--app-text-muted, #475569);
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
 }
 
 /* --- Glisser-déposer de lignes ------------------------------------------ */
@@ -1589,14 +1589,14 @@
   border: 0;
   border-radius: 6px;
   background: none;
-  color: var(--app-text-muted, #475569);
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
   cursor: grab;
 }
 
 .ngt-row-handle:hover,
 .ngt-row-handle:focus-visible {
-  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 14%, transparent);
-  color: var(--app-primary, #3a7ca5);
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 14%, transparent);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .ngt-row-handle:active {
@@ -1608,7 +1608,7 @@
 }
 
 .ng-table tr[data-ngt-drop='before'] td {
-  box-shadow: inset 0 2px 0 0 var(--app-primary, #3a7ca5);
+  box-shadow: inset 0 2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 /* Panneau latéral fixé : il prend sa place à gauche au lieu de recouvrir le tableau. */
@@ -1632,7 +1632,7 @@
 
 /* Punaise « enfoncée » : l'icône se couche à l'horizontale. */
 .ngt-side-panel__pin--on {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .ngt-side-panel__pin--on .mat-icon {
@@ -1645,7 +1645,7 @@
   width: 32px;
   height: 32px;
   padding: 4px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
 }
 
 .ngt-side-panel .reference-pin mat-icon {
@@ -1658,7 +1658,7 @@
 
 /* Colonne fixée : la punaise se couche à l'horizontale et prend la couleur principale. */
 .ngt-side-panel .reference-pin--on.mat-mdc-icon-button {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 .ngt-side-panel .reference-pin--on mat-icon {
@@ -1673,7 +1673,7 @@
 }
 
 .ng-table tr[data-ngt-drop='after'] td {
-  box-shadow: inset 0 -2px 0 0 var(--app-primary, #3a7ca5);
+  box-shadow: inset 0 -2px 0 0 var(--ngt-primary, var(--app-primary, #3a7ca5));
 }
 
 /* --- Données arborescentes ---------------------------------------------- */
@@ -1695,7 +1695,7 @@
   border: 0;
   border-radius: 6px;
   background: none;
-  color: var(--app-text-muted, #475569);
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
 }
 
 button.ngt-tree-toggle {
@@ -1704,6 +1704,6 @@ button.ngt-tree-toggle {
 
 button.ngt-tree-toggle:hover,
 button.ngt-tree-toggle:focus-visible {
-  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 14%, transparent);
-  color: var(--app-primary, #3a7ca5);
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 14%, transparent);
+  color: var(--ngt-primary, var(--app-primary, #3a7ca5));
 }

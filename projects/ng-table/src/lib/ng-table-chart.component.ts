@@ -1,4 +1,5 @@
 import {ChangeDetectionStrategy, Component, computed, effect, input, output, signal, ViewEncapsulation} from '@angular/core';
+import {NgTableTheme} from './theme';
 import {isFullRange, panRange, rangeFromBrush, ViewRange, zoomRange} from './chart-zoom';
 import {buildChartLayout, formatAxisNumber, NgTableChartData, NgTableChartType} from './chart';
 
@@ -144,7 +145,10 @@ const ZOOM_LABELS_FR: ZoomLabels = {
       </figure>
     }
   `,
-  styles: `
+  host: {'[attr.data-ngt-theme]': 'theme()'},
+  styleUrl: './theme.css',
+  styles: [
+    `
     ng-table-chart {
       display: block;
       --ngt-chart-1: #3a7ca5;
@@ -175,17 +179,17 @@ const ZOOM_LABELS_FR: ZoomLabels = {
     }
 
     .ngt-chart__grid {
-      stroke: var(--app-border, rgba(15, 23, 42, 0.13));
+      stroke: var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.13)));
       stroke-width: 1;
     }
 
     .ngt-chart__axis {
-      stroke: var(--app-text-muted, #475569);
+      stroke: var(--ngt-text-muted, var(--app-text-muted, #475569));
       stroke-width: 1;
     }
 
     .ngt-chart__axis-label {
-      fill: var(--app-text-muted, #475569);
+      fill: var(--ngt-text-muted, var(--app-text-muted, #475569));
       font-size: 11px;
     }
 
@@ -202,7 +206,7 @@ const ZOOM_LABELS_FR: ZoomLabels = {
     }
 
     .ngt-chart__slice {
-      stroke: var(--app-surface, #fff);
+      stroke: var(--ngt-surface, var(--app-surface, #fff));
       stroke-width: 1.5;
     }
 
@@ -218,7 +222,7 @@ const ZOOM_LABELS_FR: ZoomLabels = {
     }
 
     .ngt-chart__point {
-      stroke: var(--app-surface, #fff);
+      stroke: var(--ngt-surface, var(--app-surface, #fff));
       stroke-width: 1.5;
     }
 
@@ -255,9 +259,9 @@ const ZOOM_LABELS_FR: ZoomLabels = {
     .ngt-chart__toolbar button {
       min-width: 28px;
       padding: 2px 8px;
-      border: 1px solid var(--app-border, rgba(15, 23, 42, 0.25));
+      border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.25)));
       border-radius: 6px;
-      background: var(--app-surface, #fff);
+      background: var(--ngt-surface, var(--app-surface, #fff));
       color: inherit;
       font: inherit;
       cursor: pointer;
@@ -270,7 +274,7 @@ const ZOOM_LABELS_FR: ZoomLabels = {
 
     .ngt-chart__window {
       margin-left: 6px;
-      color: var(--app-text-muted, #475569);
+      color: var(--ngt-text-muted, var(--app-text-muted, #475569));
       font-size: 0.75rem;
     }
 
@@ -280,9 +284,9 @@ const ZOOM_LABELS_FR: ZoomLabels = {
     }
 
     .ngt-chart__brush {
-      fill: var(--app-primary, #3a7ca5);
+      fill: var(--ngt-primary, var(--app-primary, #3a7ca5));
       fill-opacity: 0.18;
-      stroke: var(--app-primary, #3a7ca5);
+      stroke: var(--ngt-primary, var(--app-primary, #3a7ca5));
       pointer-events: none;
     }
 
@@ -295,9 +299,12 @@ const ZOOM_LABELS_FR: ZoomLabels = {
       white-space: nowrap;
     }
   `,
+  ],
 })
 export class NgTableChartComponent {
   readonly data = input<NgTableChartData | null>(null);
+  /** `'dark'`, `'light'`, `'auto'`, ou `null` (jetons de l'application). */
+  readonly theme = input<NgTableTheme | null>(null);
   readonly type = input<NgTableChartType>('bar');
   readonly title = input('');
   /** Hauteur du cadre ; la largeur suit le conteneur (le tracé se met à l'échelle). */

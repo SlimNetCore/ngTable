@@ -3,7 +3,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--app-surface-solid, #ffffff);
+  background: var(--ngt-surface, var(--app-surface-solid, #ffffff));
   padding: 8px 8px 4px;
 }
 
@@ -29,6 +29,6 @@
 }
 
 :host ::ng-deep .select-filter-input .mat-mdc-input-element::placeholder {
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #4f6573));
   text-transform: none;
 }

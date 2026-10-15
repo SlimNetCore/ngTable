@@ -1,4 +1,5 @@
 import {ChangeDetectionStrategy, Component, computed, effect, input, model, output, signal, untracked, ViewEncapsulation} from '@angular/core';
+import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {NgTableColumn, NgTableComponent} from './ng-table.component';
 import {
@@ -250,9 +251,13 @@ const AGGREGATES: PivotAggregate[] = ['sum', 'avg', 'min', 'max', 'count'];
       [rows]="model().rows"
       [stickyHeader]="maxHeight() !== null"
       [statusBar]="statusBar()"
+      [theme]="theme()"
     />
   `,
-  styles: `
+  host: {'[attr.data-ngt-theme]': 'theme()'},
+  styleUrl: './theme.css',
+  styles: [
+    `
     .ngt-pivot-config {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -263,27 +268,27 @@ const AGGREGATES: PivotAggregate[] = ['sum', 'avg', 'min', 'max', 'count'];
     .ngt-pivot-zone {
       min-height: 64px;
       padding: 8px;
-      border: 1px dashed var(--app-border, rgba(15, 23, 42, 0.3));
+      border: 1px dashed var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.3)));
       border-radius: 12px;
-      background: var(--app-surface, #fff);
+      background: var(--ngt-surface, var(--app-surface, #fff));
     }
 
     .ngt-pivot-zone--over {
-      border-color: var(--app-primary, #3a7ca5);
-      background: color-mix(in srgb, var(--app-primary, #3a7ca5) 8%, var(--app-surface, #fff));
+      border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
+      background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #3a7ca5)) 8%, var(--ngt-surface, var(--app-surface, #fff)));
     }
 
     .ngt-pivot-zone__title {
       display: block;
       margin-bottom: 6px;
-      color: var(--app-text-muted, #475569);
+      color: var(--ngt-text-muted, var(--app-text-muted, #475569));
       font-size: 0.75rem;
       font-weight: 600;
       text-transform: uppercase;
     }
 
     .ngt-pivot-zone__hint {
-      color: var(--app-text-muted, #475569);
+      color: var(--ngt-text-muted, var(--app-text-muted, #475569));
       font-size: 0.8125rem;
     }
 
@@ -299,16 +304,16 @@ const AGGREGATES: PivotAggregate[] = ['sum', 'avg', 'min', 'max', 'count'];
       gap: 6px;
       align-items: center;
       padding: 4px 10px;
-      border: 1px solid var(--app-border, rgba(15, 23, 42, 0.2));
+      border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.2)));
       border-radius: 999px;
-      background: var(--app-surface-alt, #f1f5f9);
+      background: var(--ngt-surface-alt, var(--app-surface-alt, #f1f5f9));
       font-size: 0.8125rem;
       cursor: grab;
       user-select: none;
     }
 
     .ngt-pivot-chip--used {
-      border-color: var(--app-primary, #3a7ca5);
+      border-color: var(--ngt-primary, var(--app-primary, #3a7ca5));
     }
 
     .ngt-pivot-chip__x {
@@ -323,9 +328,9 @@ const AGGREGATES: PivotAggregate[] = ['sum', 'avg', 'min', 'max', 'count'];
 
     .ngt-pivot-agg,
     .ngt-pivot-add {
-      border: 1px solid var(--app-border, rgba(15, 23, 42, 0.2));
+      border: 1px solid var(--ngt-border, var(--app-border, rgba(15, 23, 42, 0.2)));
       border-radius: 6px;
-      background: var(--app-surface, #fff);
+      background: var(--ngt-surface, var(--app-surface, #fff));
       color: inherit;
       font: inherit;
       font-size: 0.75rem;
@@ -335,10 +340,11 @@ const AGGREGATES: PivotAggregate[] = ['sum', 'avg', 'min', 'max', 'count'];
       margin-bottom: 8px;
       padding: 8px 12px;
       border-radius: 8px;
-      background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 12%, transparent);
-      color: var(--mat-sys-error, #b3261e);
+      background: color-mix(in srgb, var(--ngt-danger, var(--mat-sys-error, #b3261e)) 12%, transparent);
+      color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
     }
   `,
+  ],
 })
 export class NgTablePivotComponent<T> {
   /** Les données à croiser (calcul dans le navigateur). Ignoré quand `datasource` est fourni. */
@@ -362,6 +368,8 @@ export class NgTablePivotComponent<T> {
   readonly exportFilename = input('pivot');
   readonly globalSearchEnabled = input(true);
   readonly statusBar = input(false);
+  /** `'dark'`, `'light'`, `'auto'`, ou `null` (jetons de l'application). */
+  readonly theme = input<NgTableTheme | null>(null);
   /** Le serveur a échoué ou refusé la requête. */
   readonly pivotError = output<unknown>();
 

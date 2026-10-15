@@ -1,4 +1,5 @@
-import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input, ViewEncapsulation} from '@angular/core';
+import {NgTableTheme} from './theme';
 import {buildSparkline, SparklineType, sparklineValues} from './sparkline';
 
 /**
@@ -33,11 +34,14 @@ import {buildSparkline, SparklineType, sparklineValues} from './sparkline';
       </svg>
     }
   `,
-  styles: `
-    :host {
+  styleUrl: './theme.css',
+  encapsulation: ViewEncapsulation.None,
+  styles: [
+    `
+    ng-table-sparkline {
       display: inline-flex;
       vertical-align: middle;
-      color: var(--ngt-sparkline-color, var(--app-primary, #3a7ca5));
+      color: var(--ngt-sparkline-color, var(--ngt-primary, var(--app-primary, #3a7ca5)));
     }
 
     .ngt-sparkline__line {
@@ -58,19 +62,21 @@ import {buildSparkline, SparklineType, sparklineValues} from './sparkline';
     }
 
     .ngt-sparkline__bar--negative {
-      fill: var(--mat-sys-error, #b3261e);
+      fill: var(--ngt-danger, var(--mat-sys-error, #b3261e));
     }
 
     .ngt-sparkline__dot {
       fill: currentColor;
     }
   `,
-  host: {'[style.--ngt-sparkline-color]': 'color()'},
+  ],
+  host: {'[style.--ngt-sparkline-color]': 'color()', '[attr.data-ngt-theme]': 'theme()'},
 })
 export class NgTableSparklineComponent {
   /** La série de nombres à tracer. */
   readonly values = input<readonly unknown[] | unknown>([]);
   readonly type = input<SparklineType>('line');
+  readonly theme = input<NgTableTheme | null>(null);
   readonly width = input(96);
   readonly height = input(24);
   /** Couleur CSS du tracé ; par défaut la couleur principale. */
