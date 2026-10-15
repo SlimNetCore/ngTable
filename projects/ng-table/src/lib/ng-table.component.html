@@ -4,18 +4,18 @@
 
   @if (rowContextMenuEnabled() && rowContextMenuTemplate()) {
     <div
-      #rowContextMenuTrigger="matMenuTrigger"
-      [matMenuTriggerFor]="contextMenu"
+      #rowContextMenuTrigger="ngTableMenuTrigger"
+      [ngTableMenuTriggerFor]="contextMenu"
       [style.left.px]="contextMenuPosition().x"
       [style.top.px]="contextMenuPosition().y"
       class="context-menu-anchor"
     ></div>
 
-    <mat-menu #contextMenu="matMenu" (closed)="onRowContextMenuClosed()">
+    <ng-table-menu #contextMenu (closed)="onRowContextMenuClosed()">
       @if (contextMenuRow(); as row) {
         <ng-container *ngTemplateOutlet="rowContextMenuTemplate()!; context: { $implicit: row, row: row }"/>
       }
-    </mat-menu>
+    </ng-table-menu>
   }
 
   <div class="list-actions">
@@ -48,18 +48,18 @@
     }
 
     @if (columnsMenuEnabled()) {
-      <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" ngt-stroked-button type="button">
+      <button [disabled]="!hasColumns()" [ngTableMenuTriggerFor]="columnsMenu" ngt-stroked-button type="button">
         <ng-table-icon aria-hidden="true" name="view_column"/>
         {{ effectiveLabels().columnsButton }}
       </button>
 
-      <mat-menu #columnsMenu="matMenu" class="ngt-columns-menu-panel">
+      <ng-table-menu #columnsMenu class="ngt-columns-menu-panel">
         @for (column of columnsMenuItems(); track column.id) {
-          <!-- `<div mat-menu-item>` et non `<button>` : un `<ng-table-checkbox>` est lui-même
+          <!-- `<div ngt-menu-item>` et non `<button>` : un `<ng-table-checkbox>` est lui-même
                un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
                et perturbe la navigation clavier/lecteur d'écran (contrôle dans contrôle). -->
           <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
-          <div (click)="$event.stopPropagation()" mat-menu-item>
+          <div (click)="$event.stopPropagation()" ngt-menu-item>
             <ng-table-checkbox
               (checkedChange)="onToggleColumnVisibility(column.id, $event.checked)"
               [checked]="isColumnVisible(column.id)"
@@ -84,7 +84,7 @@
             }
           </div>
         }
-      </mat-menu>
+      </ng-table-menu>
     }
 
     @if (sidePanel()) {
@@ -96,7 +96,7 @@
     }
 
     @if (groupingEnabled()) {
-      <button [matMenuTriggerFor]="groupMenu" ngt-stroked-button type="button">
+      <button [ngTableMenuTriggerFor]="groupMenu" ngt-stroked-button type="button">
         <ng-table-icon aria-hidden="true" name="account_tree"/>
         {{ effectiveLabels().groupButton }}
         @if (groupColumn(); as grouped) {
@@ -104,13 +104,13 @@
         }
       </button>
 
-      <mat-menu #groupMenu="matMenu">
-        <button (click)="groupBy.set(null)" [attr.aria-checked]="!groupColumn()" mat-menu-item role="menuitemradio" type="button">
+      <ng-table-menu #groupMenu>
+        <button (click)="groupBy.set(null)" [attr.aria-checked]="!groupColumn()" ngt-menu-item role="menuitemradio" type="button">
           <ng-table-icon aria-hidden="true" [name]="groupColumn() ? 'radio_button_unchecked' : 'radio_button_checked'"/>
           {{ effectiveLabels().groupNone }}
         </button>
         @for (column of groupableColumns(); track column.id) {
-          <button (click)="groupBy.set(column.id)" [attr.aria-checked]="groupBy() === column.id" mat-menu-item
+          <button (click)="groupBy.set(column.id)" [attr.aria-checked]="groupBy() === column.id" ngt-menu-item
                   role="menuitemradio" type="button">
             <ng-table-icon aria-hidden="true" [name]="groupBy() === column.id ? 'radio_button_checked' : 'radio_button_unchecked'"/>
             {{ column.header }}
@@ -118,20 +118,20 @@
         }
         @if (groupColumn() && groupsCollapsible()) {
           <div class="views-divider"></div>
-          <button (click)="expandAllGroups()" mat-menu-item type="button">
+          <button (click)="expandAllGroups()" ngt-menu-item type="button">
             <ng-table-icon aria-hidden="true" name="unfold_more"/>
             {{ effectiveLabels().expandAllGroups }}
           </button>
-          <button (click)="collapseAllGroups()" mat-menu-item type="button">
+          <button (click)="collapseAllGroups()" ngt-menu-item type="button">
             <ng-table-icon aria-hidden="true" name="unfold_less"/>
             {{ effectiveLabels().collapseAllGroups }}
           </button>
         }
-      </mat-menu>
+      </ng-table-menu>
     }
 
     @if (viewsEnabled()) {
-      <button (menuOpened)="viewsImportFeedback.set('')" [matMenuTriggerFor]="viewsMenu" ngt-stroked-button type="button">
+      <button (menuOpened)="viewsImportFeedback.set('')" [ngTableMenuTriggerFor]="viewsMenu" ngt-stroked-button type="button">
         <ng-table-icon aria-hidden="true" name="bookmark"/>
         {{ effectiveLabels().viewsButton }}
         @if (activeView(); as av) {
@@ -139,7 +139,7 @@
         }
       </button>
 
-      <mat-menu #viewsMenu="matMenu" class="ngt-views-menu-panel">
+      <ng-table-menu #viewsMenu class="ngt-views-menu-panel">
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
         <div (click)="$event.stopPropagation()" class="views-menu-body">
           <div class="views-save-row">
@@ -221,13 +221,13 @@
             }
           }
         </div>
-      </mat-menu>
+      </ng-table-menu>
     }
 
     @if (exportEnabled()) {
       <button
         (click)="openExportDialog()"
-        [matMenuTriggerFor]="exportMode() === 'local' && exportTotalPages() > 1 ? exportMenu : null"
+        [ngTableMenuTriggerFor]="exportMode() === 'local' && exportTotalPages() > 1 ? exportMenu : null"
         ngt-stroked-button
         type="button"
       >
@@ -235,7 +235,7 @@
         {{ effectiveLabels().exportButton }}
       </button>
 
-      <mat-menu #exportMenu="matMenu" class="ngt-export-menu-panel">
+      <ng-table-menu #exportMenu class="ngt-export-menu-panel">
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
         <div (click)="$event.stopPropagation()" class="export-menu-body">
           <p class="export-menu-title">{{ effectiveLabels().exportDialogTitle }}</p>
@@ -270,7 +270,7 @@
             {{ effectiveLabels().exportConfirm }}
           </button>
         </div>
-      </mat-menu>
+      </ng-table-menu>
     }
   </div>
 
@@ -485,12 +485,12 @@
               @if (column.filter; as filter) {
                 @if (!shouldRenderInlineFilter(column)) {
                   <button
-                    #filterTrigger="matMenuTrigger"
+                    #filterTrigger="ngTableMenuTrigger"
                     (menuClosed)="onFilterMenuClosed(column.id)"
                     (menuOpened)="onFilterMenuOpened(column.id, filterTrigger, filter)"
                     [attr.aria-label]="filterByAriaLabel(column)"
                     [class.filter-active]="isFilterActive(column.id)"
-                    [matMenuTriggerFor]="menu"
+                    [ngTableMenuTriggerFor]="menu"
                     class="filter-button"
                     ngt-icon-button
                     type="button"
@@ -498,7 +498,7 @@
                     <ng-table-icon aria-hidden="true" [name]="isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off'"/>
                   </button>
 
-                  <mat-menu #menu="matMenu" class="ngt-filter-menu-panel">
+                  <ng-table-menu #menu class="ngt-filter-menu-panel">
                     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
                     <div
                       (click)="$event.stopPropagation()"
@@ -544,7 +544,7 @@
                         />
                       }
                     </div>
-                  </mat-menu>
+                  </ng-table-menu>
                 }
               }
 

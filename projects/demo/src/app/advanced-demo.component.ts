@@ -2,7 +2,6 @@ import {ChangeDetectionStrategy, Component, computed, effect, signal, TemplateRe
 import {MatButtonModule} from '@angular/material/button';
 import {MatButtonToggleModule} from '@angular/material/button-toggle';
 import {MatIconModule} from '@angular/material/icon';
-import {MatMenuModule} from '@angular/material/menu';
 import {MatSlideToggleModule} from '@angular/material/slide-toggle';
 import {
   NG_TABLE_LABELS_EN,
@@ -39,7 +38,6 @@ function addDays(isoDay: string, days: number): string {
     MatButtonToggleModule,
     MatButtonModule,
     MatIconModule,
-    MatMenuModule,
     PageBarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -228,10 +226,10 @@ function addDays(isoDay: string, days: number): string {
     </ng-template>
 
     <ng-template #contextMenuTpl let-row>
-      <button (click)="lastClicked.set('Ouvrir ' + row.reference)" mat-menu-item type="button">
+      <button (click)="lastClicked.set('Ouvrir ' + row.reference)" ngt-menu-item type="button">
         <mat-icon>open_in_new</mat-icon> Ouvrir {{ row.reference }}
       </button>
-      <button (click)="lastClicked.set('Annuler ' + row.reference)" mat-menu-item type="button">
+      <button (click)="lastClicked.set('Annuler ' + row.reference)" ngt-menu-item type="button">
         <mat-icon>block</mat-icon> Annuler la commande
       </button>
     </ng-template>

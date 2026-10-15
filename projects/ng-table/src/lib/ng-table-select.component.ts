@@ -52,7 +52,7 @@ const GAP = 4;
     </button>
 
     @if (open()) {
-      <div #panel (keydown)="onPanelKeydown($event)" [id]="panelId" class="ngt-select__panel" role="presentation">
+      <div #panel (keydown)="onPanelKeydown($event)" [id]="panelId" class="ngt-select__panel ngt-overlay" role="presentation">
         @if (searchable()) {
           <div class="ngt-select__search">
             <ng-table-icon aria-hidden="true" name="search"/>
@@ -369,6 +369,10 @@ export class NgTableSelectComponent {
         const panel = this.panel()?.nativeElement;
         if (!panel) {
           return;
+        }
+        const theme = this.trigger().nativeElement.closest('[data-ngt-theme]')?.getAttribute('data-ngt-theme');
+        if (theme) {
+          panel.setAttribute('data-ngt-theme', theme); // le panneau quitte l'élément thémé en passant dans <body>
         }
         this.document.body.appendChild(panel); // hors des ancêtres qui rogneraient ou déplaceraient un panneau fixe
         // Les menus et fenêtres d'Angular Material vivent dans la « top layer » (API Popover) : aucun z-index ne passe

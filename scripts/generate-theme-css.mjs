@@ -14,7 +14,8 @@ const source = readFileSync(join(lib, 'theme.ts'), 'utf8');
 const js = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022}}).outputText;
 const theme = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 
-const ELEMENTS = ['ng-table', 'ng-table-chart', 'ng-table-pivot', 'ng-table-sparkline'];
+// .ngt-overlay : les panneaux (menus, listes) que la bibliothèque pose dans <body>, hors de l'élément thémé.
+const ELEMENTS = ['ng-table', 'ng-table-chart', 'ng-table-pivot', 'ng-table-sparkline', '.ngt-overlay'];
 const dark = [
   ...theme.NG_TABLE_TOKENS.map((token) => `  --ngt-${token.name}: ${token.dark};`),
   ...Object.entries(theme.NG_TABLE_MATERIAL_BRIDGE).map(([name, value]) => `  ${name}: ${value};`),

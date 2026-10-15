@@ -25,7 +25,7 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgTableIconComponent} from './ng-table-icon.component';
-import {MatMenuModule, MatMenuTrigger} from '@angular/material/menu';
+import {NgTableMenuComponent, NgTableMenuTriggerDirective} from './ng-table-menu';
 import {NgTableCheckboxChange, NgTableCheckboxComponent} from './ng-table-checkbox.component';
 import {NgTablePageEvent, NgTablePaginatorComponent} from './ng-table-paginator.component';
 import {MatTableModule} from '@angular/material/table';
@@ -567,7 +567,8 @@ export interface NgTableViewsImportEvent {
   imports: [
     CommonModule,
     MatTableModule,
-    MatMenuModule,
+    NgTableMenuComponent,
+    NgTableMenuTriggerDirective,
     NgTablePaginatorComponent,
     NgTableCheckboxComponent,
     NgTableIconComponent,
@@ -1316,7 +1317,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   protected readonly internalExpandedKeys = signal<ReadonlySet<unknown>>(new Set());
   protected readonly columnWidths = signal<Record<string, number>>({});
   protected readonly contextMenuPosition = signal<{ x: number; y: number }>({x: 0, y: 0});
-  protected readonly contextMenuTriggerRef = viewChild<MatMenuTrigger>('rowContextMenuTrigger');
+  protected readonly contextMenuTriggerRef = viewChild<NgTableMenuTriggerDirective>('rowContextMenuTrigger');
   protected readonly newViewName = signal('');
   /** Contenu de la région `aria-live` (voir `announce`). */
   protected readonly liveAnnouncement = signal('');
@@ -2019,7 +2020,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   private readonly internalViewsStore = signal<NgTableViewsStore>({views: [], activeViewId: null});
   private hasLoadedInitialViewsStore = false;
   private readonly activeFilterColumnId = signal<string | null>(null);
-  private readonly activeFilterTrigger = signal<MatMenuTrigger | null>(null);
+  private readonly activeFilterTrigger = signal<NgTableMenuTriggerDirective | null>(null);
 
   private readonly collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
   private readonly numberFormat = new Intl.NumberFormat(undefined, {maximumFractionDigits: 2});
@@ -2743,7 +2744,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     requestAnimationFrame(() => trigger.openMenu());
   }
 
-  protected onFilterMenuOpened(columnId: string, trigger: MatMenuTrigger, filter: NgTableFilterConfig): void {
+  protected onFilterMenuOpened(columnId: string, trigger: NgTableMenuTriggerDirective, filter: NgTableFilterConfig): void {
     this.activeFilterColumnId.set(columnId);
     this.activeFilterTrigger.set(trigger);
     this.startScrollTracking();
@@ -4370,7 +4371,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.cellCopied.emit({columnId: column.id, value, row});
   }
 
-  protected closeFilterMenuOnEnter(event: Event, trigger: MatMenuTrigger): void {
+  protected closeFilterMenuOnEnter(event: Event, trigger: NgTableMenuTriggerDirective): void {
     event.stopPropagation();
     queueMicrotask(() => trigger.closeMenu());
   }

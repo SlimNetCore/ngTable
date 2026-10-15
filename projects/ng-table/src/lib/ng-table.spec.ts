@@ -680,7 +680,7 @@ describe('NgTableComponent', () => {
       const button = [...fixture.nativeElement.querySelectorAll('.list-actions button')].find((b: Element) => b.textContent?.includes('Grouper')) as HTMLButtonElement;
       button.click();
       await fixture.whenStable();
-      const entries = [...document.querySelectorAll('.mat-mdc-menu-panel [role="menuitemradio"]')];
+      const entries = [...document.querySelectorAll('.ngt-menu-panel [role="menuitemradio"]')];
       expect(entries.map((el) => text(el))).toEqual(['Aucun regroupement', 'Nom', 'Montant', 'Statut', 'Actif']);
       expect(entries.map((el) => el.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false']);
 

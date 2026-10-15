@@ -6,7 +6,8 @@
 ng-table[data-ngt-theme='dark'],
 ng-table-chart[data-ngt-theme='dark'],
 ng-table-pivot[data-ngt-theme='dark'],
-ng-table-sparkline[data-ngt-theme='dark'] {
+ng-table-sparkline[data-ngt-theme='dark'],
+.ngt-overlay[data-ngt-theme='dark'] {
   --ngt-primary: #7fb4d6;
   --ngt-primary-soft: rgba(127, 180, 214, 0.24);
   --ngt-primary-outline: rgba(127, 180, 214, 0.45);
@@ -49,7 +50,8 @@ ng-table-sparkline[data-ngt-theme='dark'] {
     ng-table[data-ngt-theme='auto'],
     ng-table-chart[data-ngt-theme='auto'],
     ng-table-pivot[data-ngt-theme='auto'],
-    ng-table-sparkline[data-ngt-theme='auto'] {
+    ng-table-sparkline[data-ngt-theme='auto'],
+    .ngt-overlay[data-ngt-theme='auto'] {
     --ngt-primary: #7fb4d6;
     --ngt-primary-soft: rgba(127, 180, 214, 0.24);
     --ngt-primary-outline: rgba(127, 180, 214, 0.45);
@@ -91,6 +93,7 @@ ng-table-sparkline[data-ngt-theme='dark'] {
 ng-table[data-ngt-theme='light'],
 ng-table-chart[data-ngt-theme='light'],
 ng-table-pivot[data-ngt-theme='light'],
-ng-table-sparkline[data-ngt-theme='light'] {
+ng-table-sparkline[data-ngt-theme='light'],
+.ngt-overlay[data-ngt-theme='light'] {
   color-scheme: light;
 }

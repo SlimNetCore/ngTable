@@ -506,7 +506,7 @@
   font-weight: 600;
 }
 
-.ngt-filter-menu-panel.mat-mdc-menu-panel {
+.ngt-filter-menu-panel.ngt-menu-panel {
   min-width: min(92vw, 380px) !important;
   max-width: min(92vw, 380px) !important;
   max-height: none !important;
@@ -518,7 +518,7 @@
   backdrop-filter: blur(var(--app-blur, 0px));
 }
 
-.ngt-filter-menu-panel .mat-mdc-menu-content {
+.ngt-filter-menu-panel .ngt-menu-content {
   display: flex;
   justify-content: center;
   padding: 0 !important;
@@ -554,7 +554,7 @@
   white-space: nowrap;
 }
 
-.ngt-views-menu-panel.mat-mdc-menu-panel {
+.ngt-views-menu-panel.ngt-menu-panel {
   min-width: min(92vw, 320px) !important;
   max-width: min(92vw, 320px) !important;
   border-radius: 20px;
@@ -609,7 +609,7 @@
   font-size: 0.8rem;
 }
 
-.ngt-export-menu-panel.mat-mdc-menu-panel {
+.ngt-export-menu-panel.ngt-menu-panel {
   min-width: min(92vw, 280px) !important;
   max-width: min(92vw, 280px) !important;
   border-radius: 20px;
@@ -1124,19 +1124,11 @@
 }
 
 /* Menu « Colonnes » : case à cocher + punaise de la colonne de référence. */
-.ngt-columns-menu-panel .mat-mdc-menu-item {
+.ngt-columns-menu-panel [ngt-menu-item] {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-
-.ngt-columns-menu-panel .mat-mdc-menu-item .mat-mdc-menu-item-text {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
 }
 
 .ngt-columns-menu-panel .reference-pin[ngt-icon-button] {
