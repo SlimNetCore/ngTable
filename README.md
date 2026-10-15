@@ -676,6 +676,25 @@ npm start                           # à la racine, puis ouvrez http://localhost
 
 Opérations mesurées : chargement, tri numérique, tri texte (valeurs distinctes), tri sur deux niveaux, filtre texte, filtre numérique, saut à 90 % de la liste, lot de 1 000 mises à jour. Chaque mesure va de l'appel de l'opération à la **fin de la deuxième image peinte** qui suit : le rendu est compté, pas seulement le calcul. On garde la médiane de 5 passages. Aucun réglage particulier pour l'une ou l'autre grille (défilement virtuel, lignes compactes, pas d'animation), et le bouton « Copier le rapport » produit un tableau Markdown avec le navigateur et le nombre de cœurs.
 
+**Première mesure** — 1 000 000 de lignes, Chrome 153 (Windows, 8 cœurs logiques), médiane de 5 passages, fenêtre au premier plan :
+
+| Opération | ng-table (ms) | AG Grid (ms) | Rapport |
+|---|---:|---:|---:|
+| Chargement des lignes (premier affichage) | 444 | 1 489 | 3,35 × |
+| Tri numérique (montant) | 187 | 5 362 | 28,7 × |
+| Tri texte, valeurs distinctes (référence) | 1 434 | 3 406 | 2,37 × |
+| Tri sur deux niveaux (client, montant) | 406 | 7 066 | 17,4 × |
+| Filtre texte « contient » | 74 | 1 737 | 23,4 × |
+| Filtre numérique « > 5 000 » | 189 | 3 161 | 16,8 × |
+| Saut à 90 % de la liste | 17 | 14 | 0,82 × |
+| 1 000 mises à jour d'un coup (lot) | 35 | 3 715 | 105 × |
+
+À lire avec prudence :
+- **Les deux dernières lignes sont à refaire.** Dans cette première version, le filtre numérique du scénario précédent restait actif pendant « saut » et « mises à jour » (dans les deux grilles). Les scénarios remettent maintenant tri et filtres à zéro avant ces deux mesures ; le chiffre de 105 × en particulier n'est pas représentatif tant qu'il n'est pas relancé.
+- **Le saut à 90 % est le seul où AG Grid est (très légèrement) devant** : 14 ms contre 17 ms, soit un écart de l'ordre d'une image.
+- Ce sont les réglages par défaut d'AG Grid Community. Il offre des options (traitement asynchrone des transactions `applyTransactionAsync`, tampon de lignes...) que ce benchmark n'explore pas ; ng-table de son côté trie par un tri par base spécialisé (étape 10sexdecies). Un écart de 28 × en tri numérique dit surtout que cette voie est très rapide pour des colonnes de nombres, pas que toute la grille est 28 fois plus rapide.
+- Une seule machine, Chrome avec l'extension Avast. Relancez la mesure chez vous avant de citer ces chiffres.
+
 À savoir pour des chiffres honnêtes :
 - **Gardez la fenêtre au premier plan.** Un onglet masqué ne peint pas d'images et ralentit les minuteurs ; la page détecte ce cas et mesure alors seulement jusqu'à la mise en page (le rapport l'indique), ce qui n'est comparable à rien d'autre.
 - Les résultats dépendent de la machine : comparez les deux colonnes entre elles, pas avec un autre poste.

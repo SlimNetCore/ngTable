@@ -198,12 +198,21 @@ const SCENARIOS: Scenario[] = [
   {
     id: 'scroll',
     label: 'Saut à 90 % de la liste',
-    reset: (g) => g.scrollTo(0),
+    // Sans tri ni filtre : les scénarios précédents ne doivent pas laisser leur état à ceux qui suivent.
+    reset: (g) => {
+      g.clearSort();
+      g.clearFilters();
+      g.scrollTo(0);
+    },
     run: (g, {size}) => g.scrollTo(Math.floor(size * 0.9)),
   },
   {
     id: 'live',
     label: '1 000 mises à jour d\'un coup (lot)',
+    reset: (g) => {
+      g.clearSort();
+      g.clearFilters();
+    },
     run: (g, {rows, run}) => {
       const batch: Row[] = [];
       for (let k = 0; k < 1000; k++) {
