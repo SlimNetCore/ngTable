@@ -4,6 +4,12 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- Filtre par ensemble de valeurs : `filter.type: 'set'` (une case par valeur distincte avec son effectif, recherche, « tout sélectionner », cellules vides ; valeur sérialisée en tableau JSON). Composant `NgTableSetFilterComponent` exporté ; labels `selectAll`, `blanks`, `setFilterTruncated`.
+- Panneau de regroupement (`[groupPanel]`) et regroupement sur plusieurs niveaux (`[groupLevels]`, mode local) : dépôt d'en-têtes de colonnes, puces réordonnables, sous-groupes en retrait, agrégats par niveau, repli à tous les niveaux ; `groupLevels` dans les vues et `getQueryState()`.
+- Export Excel mis en forme (`exportXlsxStyle: 'styled'`, défaut) : en-têtes colorés avec l'accent du thème, lignes alternées, vraies dates Excel, formats de nombres, largeurs ajustées, filtre automatique, ligne d'en-têtes figée et répétée à l'impression. `NgTableColumn.excel`, `[exportXlsxOptions]`, `toStyledXlsx`. Changement : un export `xlsx` est désormais stylé par défaut (`[exportXlsxStyle]="'plain'"` pour l'ancien classeur brut).
+- Calcul en Web Worker (`[workerCompute]`, `[workerThreshold]`, `(computing)`, `[computeWorkerFactory]`) : tri, filtres et recherche globale hors du fil principal pour les grands jeux de données ; worker livré dans la bibliothèque (`Blob`), repli automatique sur le fil principal en cas d'échec. `npm run worker:bundle` / `worker:check`.
+- Site de documentation statique (`npm run docs:build`, `npm run docs:serve`) généré depuis le README, le CHANGELOG et la ROADMAP : 80 pages, recherche plein texte, coloration du code, thème sombre ; workflow GitHub Pages (`.github/workflows/docs.yml`) et vérification dans la CI.
+
 ### Ajouté
 - Mode live : `applyTransaction()`, `applyTransactionAsync()` (lots regroupés pendant `[asyncTransactionWaitMillis]`), `flushAsyncTransactions()`, `(asyncTransactionsFlushed)`, types `NgTableRowTransaction` / `NgTableTransactionResult`.
 - Surbrillance des cellules modifiées : `[flashCells]`, `[flashDurationMs]`, `NgTableColumn.flashOnChange`, attribut `data-ngt-flash`, variables `--ngt-flash-up-bg`, `--ngt-flash-down-bg`, `--ngt-flash-change-bg`.

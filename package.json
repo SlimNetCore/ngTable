@@ -6,14 +6,18 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve demo",
-    "build": "ng build ng-table && node scripts/copy-package-files.mjs",
+    "build": "node scripts/bundle-worker.mjs && ng build ng-table && node scripts/copy-package-files.mjs",
     "build:demo": "ng build demo",
     "watch": "ng build ng-table --watch --configuration development",
     "test": "ng test ng-table",
     "test:ci": "ng test ng-table --watch=false",
     "lint": "ng lint",
     "theme:css": "node scripts/generate-theme-css.mjs",
-    "theme:check": "node scripts/generate-theme-css.mjs --check"
+    "theme:check": "node scripts/generate-theme-css.mjs --check",
+    "worker:bundle": "node scripts/bundle-worker.mjs",
+    "worker:check": "node scripts/bundle-worker.mjs --check",
+    "docs:build": "node scripts/build-docs.mjs",
+    "docs:serve": "node scripts/build-docs.mjs && node scripts/serve-docs.mjs 4400"
   },
   "dependencies": {
     "@angular/cdk": "^22.1.6",

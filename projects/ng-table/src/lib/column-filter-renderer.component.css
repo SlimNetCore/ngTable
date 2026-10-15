@@ -209,3 +209,8 @@
 :host-context(.inline-filter) .field-shell:has(.col-filter--date) {
   padding-inline: 8px;
 }
+.set-filter {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}

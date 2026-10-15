@@ -3,6 +3,7 @@
  * recherche globale et tri multi-niveaux, en fonctions pures sans dépendance Angular.
  * Le composant se contente d'enchaîner ces fonctions dans ses `computed`.
  */
+import {compileSetMatcher} from './set-filter';
 import type {NgTableColumn} from './ng-table.component';
 import {
   matchesBoolean,
@@ -38,6 +39,13 @@ export function matchesAllFilters<T>(row: T, columns: readonly NgTableColumn<T>[
 export function matchesColumnFilter<T>(row: T, column: NgTableColumn<T>, filterValue: string): boolean {
   if (column.filterPredicate) {
     return column.filterPredicate(row, filterValue);
+  }
+
+  if (column.filter?.type === 'set') {
+    const matcher = compileSetMatcher(filterValue);
+    if (matcher) {
+      return matcher(column.valueAccessor(row));
+    }
   }
 
   const raw = column.valueAccessor(row);

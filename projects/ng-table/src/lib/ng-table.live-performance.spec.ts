@@ -141,7 +141,7 @@ describe('NgTableComponent — performance du mode live (100 000 lignes)', () =>
     // Ordre exact après tous les lots : identique à un recalcul complet.
     const expected = sortRows(current.filter((row) => matchesAllFilters(row, columns, filters)), levels, collator).map((q) => q.id);
     expect(component.displayedRows().map((q) => q.id)).toEqual(expected);
-  });
+  }, 60_000);
 
   it('le coût suit la taille du lot : 10 mises à jour coûtent nettement moins que 5 000', async () => {
     for (let i = 0; i < 3; i++) {

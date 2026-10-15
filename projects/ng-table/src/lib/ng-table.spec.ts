@@ -650,6 +650,76 @@ describe('NgTableComponent', () => {
       expect(ids(component.displayedRows())).toEqual(['2', '1', '3']);
     });
 
+    describe('plusieurs niveaux et panneau de regroupement', () => {
+      const levelColumns = () => groupColumns().map((column) => ({...column, groupable: true}));
+      const panelChips = (fixture: ComponentFixture<NgTableComponent>) =>
+        [...(fixture.nativeElement as HTMLElement).querySelectorAll('.ngt-group-chip')].map((chip) => text(chip).replace(/close$/, '').trim());
+
+      it('regroupe sur deux niveaux : un en-tête par groupe et par sous-groupe, sous-groupes en retrait', async () => {
+        const {component, fixture} = await createTable({columns: levelColumns(), groupBy: 'statut', groupLevels: ['actif']});
+        await fixture.whenStable();
+
+        const headers = groupRows(fixture);
+        expect(headers.map((row) => groupLabel(row).split(' : ')[0])).toEqual(['Statut', 'Actif', 'Statut', 'Actif']);
+        const indents = headers.map((row) => (row.querySelector('.group-label') as HTMLElement).style.paddingInlineStart);
+        expect(indents).toEqual(['0px', '20px', '0px', '20px']);
+        expect(ids(component.displayedRows())).toEqual(['2', '1', '3']);
+      });
+
+      it('replier un groupe parent masque ses sous-groupes ; l’état de requête garde les niveaux', async () => {
+        const {component, fixture} = await createTable({columns: levelColumns(), groupBy: 'statut', groupLevels: ['actif']});
+        await fixture.whenStable();
+
+        groupRows(fixture)[2].click(); // VALIDEE
+        await fixture.whenStable();
+        expect(groupRows(fixture)).toHaveLength(3); // Brouillon, son sous-groupe, Validée replié
+        expect(ids(component.displayedRows())).toEqual(['2']);
+        expect(component.getQueryState().groupLevels).toEqual(['actif']);
+
+        component.applyQueryState({groupBy: 'statut', groupLevels: []});
+        await fixture.whenStable();
+        expect(groupRows(fixture)).toHaveLength(2);
+        expect(component.getQueryState().groupLevels).toBeUndefined();
+      });
+
+      it('le panneau liste les niveaux, retire un niveau, en ajoute un par le menu et par le glisser-déposer', async () => {
+        const {component, fixture} = await createTable({columns: levelColumns(), groupingEnabled: true, groupPanel: true, groupBy: 'statut'});
+        await fixture.whenStable();
+        expect(panelChips(fixture)).toEqual(['Statut']);
+
+        component['addGroupLevel']('actif');
+        await fixture.whenStable();
+        expect(panelChips(fixture)).toEqual(['Statut', 'Actif']);
+        expect(component.groupLevels()).toEqual(['actif']);
+
+        // Un en-tête glissé sur le panneau devient un niveau de plus.
+        component['draggingColumnId'].set('nom');
+        const drop = new Event('drop', {cancelable: true}) as DragEvent;
+        (fixture.nativeElement as HTMLElement).querySelector('.ngt-group-panel')!.dispatchEvent(drop);
+        await fixture.whenStable();
+        expect(panelChips(fixture)).toEqual(['Statut', 'Actif', 'Nom']);
+
+        // Réordonner : « Nom » passe en premier.
+        component['setGroupColumns'](['nom', 'statut', 'actif']);
+        await fixture.whenStable();
+        expect(panelChips(fixture)).toEqual(['Nom', 'Statut', 'Actif']);
+
+        component['removeGroupLevel'](0);
+        component['removeGroupLevel'](1);
+        await fixture.whenStable();
+        expect(panelChips(fixture)).toEqual(['Statut']);
+        component['setGroupBy'](null);
+        await fixture.whenStable();
+        expect(component.groupLevels()).toEqual([]);
+        expect((fixture.nativeElement as HTMLElement).querySelector('.ngt-group-panel__hint')).not.toBeNull();
+      });
+
+      it('sans option groupPanel, pas de panneau', async () => {
+        const {fixture} = await createTable({columns: levelColumns(), groupingEnabled: true});
+        await fixture.whenStable();
+        expect((fixture.nativeElement as HTMLElement).querySelector('.ngt-group-panel')).toBeNull();
+      });
+    });
     it('pagine sur les lignes regroupées, un groupe replié comptant pour une ligne', async () => {
       const {component} = await createTable({columns: groupColumns(), groupBy: 'statut', paginator: true, pageSize: 2});
       expect(ids(component.displayedRows())).toEqual(['2', '1']);

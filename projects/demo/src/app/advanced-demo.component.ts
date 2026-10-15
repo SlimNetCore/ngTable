@@ -115,6 +115,9 @@ function addDays(isoDay: string, days: number): string {
       (rangeCopied)="rangeInfo.set($event.rowCount + ' × ' + $event.columnCount + ' cellules copiées')"
       (rangePasted)="rangeInfo.set('Collé : ' + $event.assignments.length + ' cellule(s) cible(s), ' + $event.values.length + ' ligne(s) × ' + ($event.values[0]?.length ?? 0) + ' colonne(s)')"
       (cellEdited)="editInfo.set($event.column.header + ' : ' + $event.oldValue + ' → ' + $event.newValue + ' (' + $event.source + ')')"
+      [groupPanel]="grouping()"
+      [workerCompute]="worker()"
+      [workerThreshold]="1000"
       [groupingEnabled]="grouping()"
       [(groupBy)]="groupBy"
       [showTotals]="totalsRow()"
@@ -273,6 +276,7 @@ export class AdvancedDemoComponent {
   protected readonly editInfo = signal('');
   protected readonly headerGroups = signal(true);
   protected readonly grouping = signal(true);
+  protected readonly worker = signal(false);
   protected readonly groupBy = signal<string | null>(null);
   protected readonly selection = signal(false);
   protected readonly detailRows = signal(true);
@@ -290,6 +294,7 @@ export class AdvancedDemoComponent {
     {label: 'Tri multi-colonnes', value: this.multiSort},
     {label: 'Navigation clavier (grille)', value: this.cellNavigation},
     {label: 'Regroupement', value: this.grouping},
+    {label: 'Calcul en worker (≥ 1 000 lignes)', value: this.worker},
     {label: 'Ligne de totaux', value: this.totalsRow},
     {label: 'Lignes épinglées', value: this.pinnedRows},
     {label: 'Sélection de plage', value: this.rangeSelection},

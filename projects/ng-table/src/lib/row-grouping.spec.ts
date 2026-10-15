@@ -3,7 +3,10 @@ import type {NgTableColumn} from './ng-table.component';
 import {
   buildConsecutiveGroups,
   buildGroups,
+  buildGroupTree,
   computeAggregate,
+  flattenGroups,
+  GROUP_PATH_SEPARATOR,
   groupedUnits,
   NgTableGroupRow,
   remoteGroupedPage,
@@ -104,5 +107,58 @@ describe('row-grouping', () => {
       const allCollapsed = remoteGroupedPage([], statut, summaries, new Set(['A', 'B', 'C']), 0, 10);
       expect(render(allCollapsed)).toEqual(['▸A', '▸B', '▸C']);
     });
+  });
+});
+
+describe('regroupement sur plusieurs niveaux', () => {
+  interface Sale {
+    id: number;
+    zone: string;
+    statut: string;
+  }
+  const sales: Sale[] = [
+    {id: 1, zone: 'Sud', statut: 'B'},
+    {id: 2, zone: 'Nord', statut: 'A'},
+    {id: 3, zone: 'Nord', statut: 'B'},
+    {id: 4, zone: 'Sud', statut: 'B'},
+    {id: 5, zone: 'Nord', statut: 'A'},
+  ];
+  const zone: NgTableColumn<Sale> = {id: 'zone', header: 'Zone', valueAccessor: (r) => r.zone};
+  const state: NgTableColumn<Sale> = {id: 'statut', header: 'Statut', valueAccessor: (r) => r.statut};
+  const tree = () => buildGroupTree(sales, [zone, state], false, collator);
+  const SEP = GROUP_PATH_SEPARATOR;
+
+  it('construit l’arbre : clés en chemin, niveaux, lignes de chaque groupe et sous-groupes triés', () => {
+    const groups = tree();
+    expect(groups.map((g) => g.key)).toEqual(['Nord', 'Sud']);
+    expect(groups[0].rows.map((r) => r.id)).toEqual([2, 3, 5]);
+    expect(groups[0].children?.map((g) => g.key)).toEqual([`Nord${SEP}A`, `Nord${SEP}B`]);
+    expect(groups[0].children?.map((g) => g.rawKey)).toEqual(['A', 'B']);
+    expect(groups[0].children?.map((g) => g.depth)).toEqual([1, 1]);
+    expect(groups[0].children?.[1].children).toBeUndefined();
+    expect(flattenGroups(groups).map((g) => g.key)).toHaveLength(2 + 2 + 1);
+  });
+
+  it('un seul niveau donne les mêmes groupes que buildGroups', () => {
+    expect(buildGroupTree(sales, [zone], true, collator).map((g) => g.key)).toEqual(buildGroups(sales, zone, true, collator).map((g) => g.key));
+  });
+
+  it('unités et en-têtes : un en-tête par niveau, chaque ligne sous son groupe feuille', () => {
+    const items = withGroupHeaders(groupedUnits(tree(), new Set()));
+    const label = (item: unknown) => (item instanceof NgTableGroupRow ? `${'>'.repeat(item.depth + 1)}${item.group.rawKey}${item.collapsed ? '*' : ''}` : (item as Sale).id);
+    expect(items.map(label)).toEqual(['>Nord', '>>A', 2, 5, '>>B', 3, '>Sud', '>>B', 1, 4]);
+  });
+
+  it('replier un groupe parent le réduit à son en-tête ; replier un sous-groupe garde son parent déplié', () => {
+    const groups = tree();
+    const label = (item: unknown) => (item instanceof NgTableGroupRow ? `${'>'.repeat(item.depth + 1)}${item.group.rawKey}${item.collapsed ? '*' : ''}` : (item as Sale).id);
+    expect(withGroupHeaders(groupedUnits(groups, new Set(['Nord']))).map(label)).toEqual(['>Nord*', '>Sud', '>>B', 1, 4]);
+    expect(withGroupHeaders(groupedUnits(groups, new Set([`Nord${SEP}A`]))).map(label)).toEqual(['>Nord', '>>A*', '>>B', 3, '>Sud', '>>B', 1, 4]);
+  });
+
+  it('une page qui commence au milieu d’un groupe répète ses en-têtes parents', () => {
+    const units = groupedUnits(tree(), new Set());
+    const page = withGroupHeaders(units.slice(2)); // commence à la ligne 3 (Nord > B)
+    expect(page.slice(0, 3).map((item) => (item instanceof NgTableGroupRow ? item.group.rawKey : (item as Sale).id))).toEqual(['Nord', 'B', 3]);
   });
 });

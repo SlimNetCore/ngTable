@@ -23,6 +23,12 @@ export interface NgTableLabels {
   all: string;
   search: string;
   noData: string;
+  /** Filtre par ensemble : case « tout » en tête de liste. */
+  selectAll: string;
+  /** Filtre par ensemble : libellé des cellules vides. */
+  blanks: string;
+  /** Filtre par ensemble : la liste est tronquée (trop de valeurs distinctes ou de cases à montrer). */
+  setFilterTruncated: string;
   sort: string;
   sortAsc: string;
   sortDesc: string;
@@ -111,6 +117,11 @@ export interface NgTableLabels {
   groupCount: string;
   /** Libellé d'un groupe dont la valeur est vide. */
   groupEmpty: string;
+  /** Panneau de regroupement : nom accessible, invite, retrait d'un niveau (`{column}`), ajout d'un niveau. */
+  groupPanelLabel: string;
+  groupPanelHint: string;
+  groupRemove: string;
+  groupAdd: string;
   /** Menu « Grouper » : déplier tous les groupes. */
   expandAllGroups: string;
   /** Menu « Grouper » : replier tous les groupes. */
@@ -185,6 +196,9 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   all: 'Tous',
   search: 'Rechercher',
   noData: 'Aucune donnée',
+  selectAll: '(Tout sélectionner)',
+  blanks: '(Vides)',
+  setFilterTruncated: 'Liste tronquée : affinez avec la recherche.',
   sort: 'Trier',
   sortAsc: 'Trié croissant',
   sortDesc: 'Trié décroissant',
@@ -232,6 +246,10 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   groupNone: 'Aucun regroupement',
   groupCount: '{count} ligne(s)',
   groupEmpty: '(vide)',
+  groupPanelLabel: 'Regroupement des lignes',
+  groupPanelHint: 'Glissez une colonne ici pour regrouper',
+  groupRemove: 'Retirer le regroupement par {column}',
+  groupAdd: 'Ajouter un niveau de regroupement',
   expandAllGroups: 'Tout déplier',
   collapseAllGroups: 'Tout replier',
   aggregateSum: 'Σ',
@@ -301,6 +319,9 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   all: 'All',
   search: 'Search',
   noData: 'No data',
+  selectAll: '(Select all)',
+  blanks: '(Blanks)',
+  setFilterTruncated: 'List truncated: narrow it down with the search.',
   sort: 'Sort',
   sortAsc: 'Sorted ascending',
   sortDesc: 'Sorted descending',
@@ -348,6 +369,10 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   groupNone: 'No grouping',
   groupCount: '{count} row(s)',
   groupEmpty: '(empty)',
+  groupPanelLabel: 'Row grouping',
+  groupPanelHint: 'Drag a column here to group',
+  groupRemove: 'Stop grouping by {column}',
+  groupAdd: 'Add a grouping level',
   expandAllGroups: 'Expand all',
   collapseAllGroups: 'Collapse all',
   aggregateSum: 'Σ',

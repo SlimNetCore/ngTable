@@ -7,9 +7,20 @@ import type {NgTableAggregate, NgTableColumn} from './ng-table.component';
 import {toIsoDay} from './filter-matching';
 import {compareSortValues, getSortValue, numericValue} from './row-pipeline';
 
+/** Séparateur des clés d'un groupe imbriqué : la clé d'un sous-groupe est celle de son parent, ce séparateur, puis sa valeur. */
+export const GROUP_PATH_SEPARATOR = '\u001f';
+
 export interface RowGroup<T> {
-  /** Clé stable du groupe (valeur de la colonne, en texte). */
+  /** Clé stable du groupe (valeur de la colonne, en texte ; chemin complet pour un sous-groupe). */
   key: string;
+  /** Valeur du groupe seule, sans les groupes parents (égale à key au premier niveau). */
+  rawKey?: string;
+  /** Niveau d'imbrication : 0 pour le premier niveau de regroupement. */
+  depth?: number;
+  /** Colonne de regroupement de ce niveau. */
+  column?: NgTableColumn<T>;
+  /** Sous-groupes (niveau suivant) ; absents sur le dernier niveau, qui porte les lignes. */
+  children?: RowGroup<T>[];
   /** Valeur de regroupement (valeur de la cellule). */
   value: unknown;
   /** Toutes les lignes du groupe (après filtres), pour le compte et les agrégats. */
@@ -26,10 +37,17 @@ export class NgTableGroupRow<T> {
     readonly group: RowGroup<T>,
     readonly collapsed: boolean,
   ) {}
+
+  /** Niveau d'imbrication de l'en-tête (0 : premier niveau). */
+  get depth(): number {
+    return this.group.depth ?? 0;
+  }
 }
 
 /** Unité de pagination : une ligne d'un groupe déplié, ou un groupe replié entier. */
-export type GroupedUnit<T> = { kind: 'row'; row: T; group: RowGroup<T> } | { kind: 'collapsed'; group: RowGroup<T> };
+export type GroupedUnit<T> =
+  | { kind: 'row'; row: T; group: RowGroup<T>; path: RowGroup<T>[] }
+  | { kind: 'collapsed'; group: RowGroup<T>; path: RowGroup<T>[] };
 
 /** Clé de regroupement d'une valeur : jour ISO pour une date, texte sinon, `''` si vide. */
 export function groupKeyOf(value: unknown): string {
@@ -51,7 +69,7 @@ export function buildGroups<T>(rows: T[], column: NgTableColumn<T>, descending: 
     const key = groupKeyOf(value);
     let group = byKey.get(key);
     if (!group) {
-      group = {key, value, rows: []};
+      group = {key, rawKey: key, value, rows: [], depth: 0, column};
       byKey.set(key, group);
     }
     group.rows.push(row);
@@ -85,17 +103,59 @@ export function buildConsecutiveGroups<T>(rows: T[], column: NgTableColumn<T>): 
   return groups;
 }
 
-/** Unités paginables : les lignes des groupes dépliés, et une unité par groupe replié. */
-export function groupedUnits<T>(groups: RowGroup<T>[], collapsedKeys: ReadonlySet<string>): GroupedUnit<T>[] {
-  const units: GroupedUnit<T>[] = [];
-  for (const group of groups) {
-    if (collapsedKeys.has(group.key)) {
-      units.push({kind: 'collapsed', group});
-    } else {
-      for (const row of group.rows) {
-        units.push({kind: 'row', row, group});
+/**
+ * Regroupe sur plusieurs niveaux : le premier niveau comme `buildGroups`, puis chaque groupe est lui-même regroupé par la
+ * colonne suivante (croissant). Les lignes d'un groupe gardent l'ordre d'entrée ; chaque groupe porte toutes ses lignes
+ * (descendantes comprises) pour le compte et les agrégats, et ses sous-groupes dans `children`.
+ */
+export function buildGroupTree<T>(rows: T[], columns: readonly NgTableColumn<T>[], descending: boolean, collator: Intl.Collator): RowGroup<T>[] {
+  const build = (items: T[], depth: number, parent: RowGroup<T> | null): RowGroup<T>[] => {
+    const groups = buildGroups(items, columns[depth], depth === 0 ? descending : false, collator);
+    for (const group of groups) {
+      group.depth = depth;
+      if (parent) {
+        group.rawKey = group.key;
+        group.key = parent.key + GROUP_PATH_SEPARATOR + group.key;
+      }
+      if (depth + 1 < columns.length) {
+        group.children = build(group.rows, depth + 1, group);
       }
     }
+    return groups;
+  };
+  return columns.length === 0 ? [] : build(rows, 0, null);
+}
+
+/** Tous les groupes de l'arbre, de tous les niveaux. */
+export function flattenGroups<T>(groups: readonly RowGroup<T>[]): RowGroup<T>[] {
+  const all: RowGroup<T>[] = [];
+  const visit = (group: RowGroup<T>) => {
+    all.push(group);
+    group.children?.forEach(visit);
+  };
+  groups.forEach(visit);
+  return all;
+}
+
+/** Unités paginables : les lignes des groupes dépliés (feuilles), et une unité par groupe replié, quel que soit son niveau. */
+export function groupedUnits<T>(groups: RowGroup<T>[], collapsedKeys: ReadonlySet<string>): GroupedUnit<T>[] {
+  const units: GroupedUnit<T>[] = [];
+  const walk = (group: RowGroup<T>, ancestors: RowGroup<T>[]) => {
+    const path = [...ancestors, group];
+    if (collapsedKeys.has(group.key)) {
+      units.push({kind: 'collapsed', group, path});
+    } else if (group.children) {
+      for (const child of group.children) {
+        walk(child, path);
+      }
+    } else {
+      for (const row of group.rows) {
+        units.push({kind: 'row', row, group, path});
+      }
+    }
+  };
+  for (const group of groups) {
+    walk(group, []);
   }
   return units;
 }
@@ -103,26 +163,29 @@ export function groupedUnits<T>(groups: RowGroup<T>[], collapsedKeys: ReadonlySe
 /**
  * Source de données de la table pour une page d'unités : un en-tête avant la première
  * ligne de chaque groupe présent sur la page (y compris un groupe commencé à la page
- * précédente), et l'en-tête seul pour un groupe replié.
+ * précédente, et ses parents), et l'en-tête seul pour un groupe replié.
  */
 export function withGroupHeaders<T>(units: GroupedUnit<T>[]): (T | NgTableGroupRow<T>)[] {
   const items: (T | NgTableGroupRow<T>)[] = [];
-  let current: RowGroup<T> | null = null;
+  let current: RowGroup<T>[] = [];
   for (const unit of units) {
+    let common = 0;
+    while (common < current.length && common < unit.path.length && current[common] === unit.path[common]) {
+      common++;
+    }
+    const last = unit.path.length - 1;
+    for (let level = common; level <= last; level++) {
+      items.push(new NgTableGroupRow(unit.path[level], unit.kind === 'collapsed' && level === last));
+    }
     if (unit.kind === 'collapsed') {
-      items.push(new NgTableGroupRow(unit.group, true));
-      current = null;
+      current = unit.path.slice(0, -1);
       continue;
     }
-    if (unit.group !== current) {
-      items.push(new NgTableGroupRow(unit.group, false));
-      current = unit.group;
-    }
+    current = unit.path;
     items.push(unit.row);
   }
   return items;
 }
-
 /** Agrégat d'une colonne sur des lignes ; `null` si la colonne n'en déclare pas ou s'il n'y a rien à agréger. */
 export function computeAggregate<T>(column: NgTableColumn<T>, rows: readonly T[]): unknown {
   const aggregate: NgTableAggregate<T> | undefined = column.aggregate;

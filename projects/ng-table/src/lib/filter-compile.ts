@@ -7,6 +7,7 @@
  * Le comportement est celui de `matchesColumnFilter`, que les tests comparent sur des valeurs
  * aléatoires.
  */
+import {compileSetMatcher} from './set-filter';
 import type {NgTableColumn} from './ng-table.component';
 import {matchesDate, normalizeIsoDay, parseNumber, toIsoDay} from './filter-matching';
 import type {NgTableTextOperator} from './filter-matching';
@@ -118,6 +119,11 @@ export function compileColumnFilter<T>(column: NgTableColumn<T>, filterValue: st
   }
   const accessor = column.valueAccessor;
   const type = column.filter?.type;
+  const setMatcher = type === 'set' ? compileSetMatcher(filterValue) : null;
+  if (setMatcher) {
+    // Les cellules vides sont une valeur comme une autre (clé vide) : testées avant le rejet des valeurs nulles.
+    return (row) => setMatcher(accessor(row));
+  }
   const dateMatcher = type === 'date' || type === 'range' ? compileDateMatcher(filterValue, type) : null;
   const lower = filterValue.toLowerCase();
   const wantTrue = lower === 'true' || lower === '1';

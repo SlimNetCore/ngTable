@@ -7,6 +7,8 @@ import {
 } from '@angular/core';
 import {NgTableIconComponent} from './ng-table-icon.component';
 import {NG_TABLE_DEFAULT_LABELS, NgTableLabels} from './ng-table-labels';
+import {NgTableSetFilterComponent} from './ng-table-set-filter.component';
+import type {SetFilterValue} from './set-filter';
 import {NgTableSelectComponent} from './ng-table-select.component';
 
 export type ColumnFilterType =
@@ -33,7 +35,12 @@ export type ColumnFilterType =
   | 'month'
   | 'week'
   | 'boolean'
-  | 'enum';
+  | 'enum'
+  /**
+   * Ensemble de valeurs : une case par valeur distincte de la colonne (avec son effectif), recherche et « tout sélectionner ».
+   * Valeur sérialisée : tableau JSON des clés cochées, vide quand tout l'est.
+   */
+  | 'set';
 
 /**
  * Renderer standard de filtre de colonne.
@@ -57,6 +64,7 @@ export type ColumnFilterType =
     CommonModule,
     NgTableIconComponent,
     NgTableSelectComponent,
+    NgTableSetFilterComponent,
   ],
   templateUrl: './column-filter-renderer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -74,6 +82,9 @@ export class ColumnFilterRendererComponent {
   readonly labels = input<NgTableLabels>(NG_TABLE_DEFAULT_LABELS);
   /** Options pour les types enum/boolean. */
   readonly options = input<{ value: string; label: string }[]>([]);
+  /** Valeurs distinctes de la colonne, pour le type set. */
+  readonly setValues = input<readonly SetFilterValue[]>([]);
+  readonly setTruncated = input(false);
   /** Emet la nouvelle valeur serialisee vers le parent. */
   readonly valueChange = output<string>();
   /** Demande au parent d'effacer le filtre. */
@@ -194,7 +205,8 @@ export class ColumnFilterRendererComponent {
       !this.isSingleDateType(type) &&
       type !== 'numberRange' &&
       type !== 'boolean' &&
-      type !== 'enum'
+      type !== 'enum' &&
+      type !== 'set'
     );
   }
 

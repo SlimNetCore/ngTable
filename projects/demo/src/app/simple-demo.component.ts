@@ -40,7 +40,7 @@ export class SimpleDemoComponent {
 
   protected readonly columns: NgTableColumn<Commande>[] = [
     {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference, sortable: true, filter: {type: 'text'}},
-    {id: 'client', header: 'Client', valueAccessor: (c) => c.client, sortable: true, filter: {type: 'text'}},
+    {id: 'client', header: 'Client', valueAccessor: (c) => c.client, sortable: true, filter: {type: 'set'}},
     {
       id: 'statut',
       header: 'Statut',
@@ -62,7 +62,7 @@ export class SimpleDemoComponent {
 
 columns: NgTableColumn<Commande>[] = [
   {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference, sortable: true, filter: {type: 'text'}},
-  {id: 'client', header: 'Client', valueAccessor: (c) => c.client, sortable: true, filter: {type: 'text'}},
+  {id: 'client', header: 'Client', valueAccessor: (c) => c.client, sortable: true, filter: {type: 'set'}},
   {id: 'statut', header: 'Statut', valueAccessor: (c) => STATUT_LABELS[c.statut], sortable: true,
    filter: {type: 'enum', options: STATUTS}},  // [{value: 'Validée', label: 'Validée'}, ...]
   {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, filter: {type: 'number'}},

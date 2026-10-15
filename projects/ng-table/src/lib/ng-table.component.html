@@ -105,12 +105,12 @@
       </button>
 
       <ng-table-menu #groupMenu>
-        <button (click)="groupBy.set(null)" [attr.aria-checked]="!groupColumn()" ngt-menu-item role="menuitemradio" type="button">
+        <button (click)="setGroupBy(null)" [attr.aria-checked]="!groupColumn()" ngt-menu-item role="menuitemradio" type="button">
           <ng-table-icon aria-hidden="true" [name]="groupColumn() ? 'radio_button_unchecked' : 'radio_button_checked'"/>
           {{ effectiveLabels().groupNone }}
         </button>
         @for (column of groupableColumns(); track column.id) {
-          <button (click)="groupBy.set(column.id)" [attr.aria-checked]="groupBy() === column.id" ngt-menu-item
+          <button (click)="setGroupBy(column.id)" [attr.aria-checked]="groupBy() === column.id" ngt-menu-item
                   role="menuitemradio" type="button">
             <ng-table-icon aria-hidden="true" [name]="groupBy() === column.id ? 'radio_button_checked' : 'radio_button_unchecked'"/>
             {{ column.header }}
@@ -274,6 +274,53 @@
     }
   </div>
 
+  @if (groupPanel() && groupingEnabled()) {
+    <div
+      (dragleave)="groupDropOver.set(false)"
+      (dragover)="onGroupPanelDragOver($event)"
+      (drop)="onGroupPanelDrop($event)"
+      [attr.aria-label]="effectiveLabels().groupPanelLabel"
+      [class.ngt-group-panel--over]="groupDropOver()"
+      class="ngt-group-panel"
+      role="group"
+    >
+      <ng-table-icon aria-hidden="true" class="ngt-group-panel__icon" name="account_tree"/>
+      @for (column of groupColumns(); track column.id; let index = $index) {
+        @if (index > 0) {
+          <ng-table-icon aria-hidden="true" class="ngt-group-panel__sep" name="chevron_right"/>
+        }
+        <span
+          (dragover)="onGroupChipDragOver($event)"
+          (dragstart)="onGroupChipDragStart($event, index)"
+          (drop)="onGroupChipDrop($event, index)"
+          class="ngt-group-chip"
+          draggable="true"
+        >
+          {{ column.header }}
+          <button
+            (click)="removeGroupLevel(index)"
+            [attr.aria-label]="effectiveLabels().groupRemove.replace('{column}', column.header)"
+            class="ngt-group-chip__remove"
+            type="button"
+          >
+            <ng-table-icon aria-hidden="true" name="close"/>
+          </button>
+        </span>
+      } @empty {
+        <span class="ngt-group-panel__hint">{{ effectiveLabels().groupPanelHint }}</span>
+      }
+      @if (addableGroupColumns().length > 0) {
+        <button [ngTableMenuTriggerFor]="groupAddMenu" [attr.aria-label]="effectiveLabels().groupAdd" class="ngt-group-panel__add" ngt-icon-button type="button">
+          <ng-table-icon aria-hidden="true" name="add"/>
+        </button>
+        <ng-table-menu #groupAddMenu>
+          @for (column of addableGroupColumns(); track column.id) {
+            <button (click)="addGroupLevel(column.id)" ngt-menu-item type="button">{{ column.header }}</button>
+          }
+        </ng-table-menu>
+      }
+    </div>
+  }
   @if (showActiveFiltersBar() && activeFilterSummaries().length > 0) {
     <div class="active-filters-bar">
       <span class="active-filters-bar__label">
@@ -306,8 +353,8 @@
     </div>
   }
 
-  <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--docked]="sidePanel() && sidePanelOpen() && sidePanelPinned()"
-       [class.table-viewport--loading]="loading()" class="table-viewport">
+  <div [attr.aria-busy]="busy() ? 'true' : null" [class.table-viewport--docked]="sidePanel() && sidePanelOpen() && sidePanelPinned()"
+       [class.table-viewport--loading]="busy()" class="table-viewport">
   @if (sidePanel() && sidePanelOpen()) {
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- seul Échap ferme, géré par keydown -->
     <aside (keydown.escape)="sidePanelOpen.set(false)" [attr.aria-label]="effectiveLabels().sidePanelTitle"
@@ -539,6 +586,8 @@
                           [labels]="effectiveLabels()"
                           [options]="resolvedFilterOptions(column.id, filter)"
                           [placeholder]="filter.placeholder ?? ''"
+                          [setTruncated]="setFilterTruncated(column.id)"
+                          [setValues]="setFilterValues(column.id, filter)"
                           [type]="filter.type ?? 'text'"
                           [value]="currentFilterValue(column.id)"
                         />
@@ -579,6 +628,8 @@
                     [labels]="effectiveLabels()"
                     [options]="resolvedFilterOptions(column.id, filter)"
                     [placeholder]="filter.placeholder ?? ''"
+                    [setTruncated]="setFilterTruncated(column.id)"
+                    [setValues]="setFilterValues(column.id, filter)"
                     [type]="filter.type ?? 'text'"
                     [value]="currentFilterValue(column.id)"
                   />
@@ -710,13 +761,13 @@
                       [stickyEnd]="pinnedSide(column) === 'right'">
           <td *cdkCellDef="let item" [class.group-cell--lead]="column.id === leadColumnId()" class="group-cell" cdk-cell>
             @if (column.id === leadColumnId()) {
-              <span class="group-label">
+              <span [style.padding-inline-start.px]="item.depth * 20" class="group-label">
                 @if (groupsCollapsible()) {
                   <ng-table-icon aria-hidden="true" class="group-chevron" [name]="item.collapsed ? 'chevron_right' : 'expand_more'"/>
                 }
                 <!-- Espaces DANS les textes : Angular retire ceux entre les balises, et le nom lu
                      par un lecteur d'écran deviendrait « Statut :Brouillon1 ligne(s) ». -->
-                <span class="group-name">{{ groupColumn()?.header }} : </span>
+                <span class="group-name">{{ (item.group.column ?? groupColumn())?.header }} : </span>
                 <span class="group-value">{{ groupValueLabel(item.group) }} </span>
                 @if (groupCountLabel(item.group); as count) {
                   <span class="group-count">{{ count }}</span>
@@ -848,7 +899,7 @@
     </table>
   </div>
 
-  @if (loading()) {
+  @if (busy()) {
     <div aria-live="polite" class="ngt-loading-overlay" role="status">
       <div class="ngt-loading-overlay__backdrop"></div>
       <div class="ngt-loading-overlay__content">

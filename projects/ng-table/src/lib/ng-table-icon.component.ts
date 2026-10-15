@@ -3,6 +3,7 @@ import {ChangeDetectionStrategy, Component, input, ViewEncapsulation} from '@ang
 /** Les icônes de `ng-table`. */
 export type NgTableIconName =
   | 'account_tree'
+  | 'add'
   | 'bookmark'
   | 'check'
   | 'chevron_right'
@@ -53,6 +54,9 @@ export type NgTableIconName =
         @case ('account_tree') {
           <rect height="6" rx="1.5" width="6" x="3" y="9"/><rect height="6" rx="1.5" width="6" x="15" y="3.5"/><rect height="6" rx="1.5" width="6" x="15" y="14.5"/>
           <path d="M9 12h3M12 6.5v11M12 6.5h3M12 17.5h3"/>
+        }
+        @case ('add') {
+          <path d="M12 5v14M5 12h14"/>
         }
         @case ('bookmark') {
           <path d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-4.2L6 20V5.5a1 1 0 0 1 1-1z"/>

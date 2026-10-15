@@ -327,6 +327,20 @@ Sans `filter`, une colonne n'est simplement pas filtrable (pas d'icône, pas de 
 }
 ```
 
+### Filtre par ensemble de valeurs (`type: 'set'`)
+
+Pour une colonne qui a peu de valeurs distinctes (statut, client, zone), le filtre `set` affiche une case par valeur, avec son effectif, une recherche et « (Tout sélectionner) » :
+
+```ts
+{id: 'client', header: 'Client', valueAccessor: (c) => c.client, filter: {type: 'set'}}
+```
+
+- Les valeurs viennent des lignes elles-mêmes (mode local), triées naturellement, **cellules vides comprises** (« (Vides) ») ; une date est représentée par son jour `YYYY-MM-DD`. Au-delà de 10 000 valeurs distinctes la liste est tronquée et la recherche prend le relais (300 cases affichées à la fois).
+- Tout cocher revient à ne pas filtrer. La valeur du filtre est un **tableau JSON** des clés cochées (`["Nord","Sud, Est",""]`) : une valeur peut contenir une virgule, contrairement à l'`enum` (CSV). `[]` ne garde aucune ligne.
+- La barre des filtres actifs résume le choix (`Dupont SA, Martin SARL, Petit Commerce +2`).
+- En mode `remote`, la table n'a qu'une page : fournissez les valeurs par `filter.options` (ou `optionsLoader`) ; elles s'affichent sans effectif, et le serveur reçoit la valeur JSON dans `NgTableRemoteQuery.filters`.
+- Pour un filtre sur mesure, `compileSetMatcher`, `parseSetFilter`, `serializeSetFilter` et `distinctSetValues` sont dans `set-filter.ts` ; le composant est exporté (`NgTableSetFilterComponent`).
+- Textes : `labels.selectAll`, `labels.blanks`, `labels.setFilterTruncated`.
 ### Étape 4 — Filtres en ligne (inline) vs en menu
 
 Par défaut, chaque colonne filtrable affiche une icône dans l'en-tête ouvrant un mini-menu. Pour afficher le filtre **directement** dans l'en-tête (pas de clic nécessaire) :
@@ -736,6 +750,21 @@ Tout ce qui précède se démontre aussi sur un vrai serveur : `examples/spring-
 
 Le pivot serveur reçoit exactement `PivotServerRequest` (`rows`, `columns`, `values`, `columnSort`, `filters`) : les champs sont désignés par leur identifiant et validés contre une liste blanche (`client`, `statut`, `mois`, `urgent` ; mesure `montant`), jamais utilisés tels quels dans une requête. Les filtres et la recherche de la table restreignent le pivot aux mêmes lignes. Au-delà de 20 000 groupes le serveur répond 400. Détail des classes dans `examples/spring-boot-backend/README.md`.
 
+### Calcul en Web Worker (grands jeux de données)
+
+Au-delà de quelques centaines de milliers de lignes, un tri de texte ou un filtre bloque le fil principal (la saisie et le défilement se figent). `[workerCompute]` déplace le **tri, les filtres et la recherche globale** dans un Web Worker :
+
+```html
+<ng-table [columns]="columns" [rows]="rows" [workerCompute]="true" [workerThreshold]="200000"
+          (computing)="busy.set($event)"/>
+```
+
+- **Comment** : un worker ne reçoit pas de fonctions. La table lui envoie les **colonnes de valeurs** (les résultats des accesseurs ; les colonnes numériques partent en `Float64Array`, transférées sans copie), **une seule fois par jeu de données**. Le worker y exécute les mêmes modules que le fil principal (filtres compilés, tri par base, recherche) et renvoie l'ordre des lignes retenues. Les tris et filtres suivants n'envoient plus que quelques réglages.
+- **Pendant le calcul**, l'ancien résultat reste affiché sous l'indicateur d'attente (`aria-busy`), la table reste utilisable ; `(computing)` signale le début et la fin. Une demande plus récente remplace celle en cours.
+- **S'applique** en mode local, sans données arborescentes, quand le nombre de lignes atteint `[workerThreshold]` (100 000 par défaut). Un filtre à `filterPredicate` (fonction) se calcule sur le fil principal.
+- **Données vivantes** : chaque transaction recalcule tout dans le worker. Pour un flux d'écritures fréquentes, gardez le calcul sur le fil principal (pipeline incrémental) : il fusionne 1 000 mises à jour sur 1 000 000 de lignes en quelques millisecondes.
+- **Échec** (CSP interdisant les `Blob`, plantage du worker) : la table revient d'elle-même au fil principal, avec un avertissement dans la console. Avec une politique de sécurité stricte, fournissez votre worker par `[computeWorkerFactory]` : il doit exécuter `ng-table.worker` (le fichier est dans les sources de la bibliothèque).
+- Le worker est livré **empaqueté dans la bibliothèque** (une source JavaScript de 12 Ko chargée dans un `Blob`, générée par `npm run worker:bundle`) : aucune configuration de l'application.
 ### Étape 10sexdecies — Performances sur de gros volumes
 
 Mesures sur **1 000 000 de lignes** en mémoire (poste de développement ; `PERF_ROWS=1000000 npm run test:ci` les rejoue, 200 000 lignes par défaut). Chaque temps comprend le chargement des lignes dans la table (de 300 à 500 ms à lui seul pour un million) :
@@ -1003,6 +1032,20 @@ Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`),
   <ng-table [dataMode]="'remote'" [groupingEnabled]="true" [groupSummaries]="groupSummaries()" (remoteQueryChange)="load($event)" ... />
   ```
 
+### Regroupement sur plusieurs niveaux et panneau de regroupement
+
+`[groupBy]` est le premier niveau de regroupement ; `[groupLevels]` ajoute les niveaux suivants (sous-groupes), en mode local :
+
+```html
+<ng-table [columns]="columns" [rows]="rows" [groupingEnabled]="true" [groupPanel]="true"
+          [(groupBy)]="groupBy" [(groupLevels)]="groupLevels"/>
+```
+
+- **Panneau** (`[groupPanel]`, avec `[groupingEnabled]`) : une barre au-dessus du tableau. On y **dépose un en-tête de colonne** (glisser-déposer) ou on choisit une colonne par le bouton « + » ; chaque niveau est une puce que l'on retire par sa croix et que l'on **réordonne en la glissant** sur une autre. L'ordre des puces est l'ordre des niveaux.
+- Les en-têtes de sous-groupe sont **en retrait** (20 px par niveau), avec leur effectif et leurs agrégats (`NgTableColumn.aggregate`). Replier un groupe masque ses sous-groupes ; replier un sous-groupe garde son parent déplié. La pagination compte un groupe replié pour une ligne, à tous les niveaux.
+- Le menu « Grouper » règle toujours le premier niveau (« Aucun regroupement » retire aussi les sous-niveaux). `groupLevels` est enregistré dans les vues et dans `getQueryState()` / `applyQueryState()` ; il n'est pas dans l'URL de `ngTableUrlState`.
+- **Limite** : un seul niveau en mode `remote` (le serveur ne reçoit que `groupBy`) ; un niveau ajouté au panneau y remplace le premier.
+- Le panneau se règle par les jetons `--ngt-*` (rayon `--ngt-radius-control`, accent). Textes : `labels.groupPanelLabel`, `groupPanelHint`, `groupRemove`, `groupAdd`.
 ### Étape 11 — Visibilité des colonnes
 
 Un bouton "Colonnes" (menu à cases à cocher) est présent par défaut — rien à activer. Pour le masquer (par exemple si vous pilotez la visibilité autrement, ou ne voulez pas laisser l'utilisateur y toucher) :
@@ -1257,6 +1300,7 @@ Exemple de corps envoyé (regroupement par statut, deux groupes repliés, trois 
    |---|---|---|
    | `text`, `search`... | `dupont` | contient (ou `filter.operator` : `equals`, `startsWith`, `endsWith`), sans tenir compte de la casse |
    | `enum` / `select` | `VALIDEE,EXPEDIEE` | une des valeurs (séparées par des virgules) |
+   | `set` | `["Nord","Sud, Est",""]` | une des valeurs : tableau JSON de clés (`[]` : aucune ; `""` : cellules vides) |
    | `boolean` | `true` / `false` | égalité |
    | `number` | `42`, `>100`, `<=50`, `!=0`, `10..50` | comparaison ou plage (bornes incluses, virgule décimale acceptée) |
    | `numberRange` | `10..50`, `10..`, `..50` | plage, une borne peut être vide |
@@ -2523,6 +2567,20 @@ onExportRequested(request: NgTableRemoteExportRequest): void {
 
 Un backend Spring Boot qui génère ce fichier est décrit à l'Étape 17ter. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
 
+### Export Excel mis en forme (`exportFormat: 'xlsx'`)
+
+Avec `[exportFormat]="'xlsx'"`, le classeur est **mis en forme** par défaut, sans aucune dépendance (le fichier est écrit à la main, vérifié dans Excel) :
+
+- **En-têtes** colorés (l'accent `--ngt-primary` du thème, texte blanc ou foncé selon le contraste), texte en gras, ligne figée et **répétée à l'impression**, **filtre automatique** sur la ligne d'en-têtes.
+- **Lignes alternées**, filets fins, quadrillage masqué, largeurs de colonnes ajustées au contenu (8 à 60 caractères), mise en page paysage sur une page de large.
+- **Vrais types Excel** : les `Date` deviennent de vraies dates (`jj/mm/aaaa`, ou avec l'heure s'il y en a une), les nombres décimaux sont à 2 chiffres avec séparateur de milliers, les entiers de 100 000 et plus ont le séparateur, les booléens sont centrés.
+
+```ts
+{id: 'montant', header: 'Montant', valueAccessor: (c) => c.montant,
+ excel: {numFmt: '#,##0.00 "€"', width: 16, align: 'right'}}
+```
+
+`NgTableColumn.excel` règle une colonne (format de nombre ou de date Excel, largeur, alignement). Côté tableau : `[exportXlsxOptions]="{headerFill: '#7c3aed', zebra: '#f5f3ff', autoFilter: true, sheetName: 'Commandes'}"`. `[exportXlsxStyle]="'plain'"` rend l'ancien classeur brut (en-têtes en gras). La fonction `toStyledXlsx(matrix, options)` est exportée pour produire un classeur de la même façon hors du composant. Le CSV est inchangé.
 ### Étape 18ter — Indicateur de chargement
 
 `[loading]="true"` affiche un overlay centré au milieu de la table (bloque l'interaction avec les lignes tant qu'il est visible) — c'est au parent de le piloter, `ng-table` ne sait pas lui-même qu'une requête est en cours :
@@ -2673,6 +2731,7 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 | `copy?`                                    | `boolean \| {valueAccessor?, tooltip?}`                                | Bouton "copier" sur la cellule. `true` copie `valueAccessor(row)` ; l'objet permet un accessor/tooltip dédiés (`tooltip` = texte déjà résolu). |
 | `exportable?`                              | `boolean`                                                               | Exclut la colonne de l'export CSV si `false` (utile pour une colonne d'actions/boutons). `true` par défaut.                                    |
 | `exportValueAccessor?`                     | `(row: T) => string \| number \| boolean \| null \| undefined`         | Valeur exportée si différente de `valueAccessor` (ex. valeur brute plutôt que le rendu riche d'un `cellTemplate`).                              |
+| `excel?`                                 | `{numFmt?, width?, align?}`                                          | Mise en forme de la colonne dans l'export `xlsx` stylé (format Excel, largeur en caractères, alignement). |
 | `searchable?`                              | `boolean \| (row: T) => string`                                        | Recherche globale : `false` exclut la colonne ; une fonction fournit le texte cherché. Défaut : la valeur de `valueAccessor`.                   |
 | `aggregate?`                               | `'sum' \| 'avg' \| 'min' \| 'max' \| 'count' \| (rows: T[]) => unknown` | Agrégat affiché dans les en-têtes de groupe et la ligne de totaux.                                                                             |
 | `groupable?`                               | `boolean`                                                              | Proposée dans le menu « Grouper ». Défaut : oui si la colonne est triable ou filtrable.                                                         |
@@ -2748,6 +2807,8 @@ interface NgTableFilterConfig {
 | `virtualScroll`             | `boolean`                                                        | `false`   | Défilement virtuel : seules les lignes visibles sont rendues (voir Étape 10quater).                                   |
 | `groupingEnabled`           | `boolean`                                                        | `false`   | Bouton « Grouper » (local et remote), voir Étape 10ter.                                                              |
 | `groupBy`                   | `string \| null` (`model`)                                       | `null`    | Colonne de regroupement ; liable en `[(groupBy)]`, émet `(groupByChange)`.                                          |
+| `groupLevels`               | `string[]` (`model`)                                           | `[]`      | Niveaux de regroupement supplémentaires (sous-groupes), mode local ; liable en `[(groupLevels)]`. |
+| `groupPanel`                | `boolean`                                                      | `false`   | Panneau de regroupement au-dessus du tableau (dépôt d'en-têtes, puces réordonnables) ; avec `groupingEnabled`. |
 | `groupSummaries`            | `readonly NgTableGroupSummary[] \| null`                         | `null`    | Mode `remote` + regroupement : tous les groupes, dans l'ordre, avec compte et agrégats calculés par le serveur. Rend les groupes repliables. |
 | `showTotals`                | `boolean`                                                        | `false`   | Ligne de totaux (colonnes avec `aggregate`, mode local).                                                             |
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
@@ -2775,6 +2836,11 @@ interface NgTableFilterConfig {
 | `exportMode`                 | `'local' \| 'remote'`                                            | `'local'` | Voir "Export".                                                                                                        |
 | `exportFilename`             | `string`                                                         | `'export'`| Nom de fichier (sans extension) du fichier généré en mode `local`.                                                    |
 | `exportFormat`               | `'csv' \| 'xlsx'`                                                | `'csv'`   | Format du fichier généré en mode `local`.                                                                             |
+| `exportXlsxStyle`           | `'styled' \| 'plain'`                                          | `'styled'` | Classeur Excel mis en forme (en-têtes colorés, formats, largeurs, filtre) ou brut. |
+| `exportXlsxOptions`         | `{headerFill?, headerColor?, zebra?, autoFilter?, sheetName?} \| null` | `null` | Réglages du classeur stylé (couleurs, lignes alternées, filtre, nom de feuille). |
+| `workerCompute`             | `boolean`                                                      | `false`   | Tri, filtres et recherche dans un Web Worker au-delà de `workerThreshold` lignes. |
+| `workerThreshold`           | `number`                                                       | `100000`  | Nombre de lignes à partir duquel `workerCompute` s'applique. |
+| `computeWorkerFactory`      | `(() => ComputeWorkerLike) \| null`                            | `null`    | Fabrique d'un worker de calcul, si celui livré (`Blob`) est interdit par la CSP. |
 | `density`                    | `'default' \| 'compact'`                                         | `'default'` | Hauteur des lignes et de l'en-tête.                                                                                 |
 | `maxHeight`                  | `string \| null`                                                 | `null`    | Hauteur maximale de la zone de la table (ex. `'480px'`, `'60vh'`) ; au-delà, défilement vertical.                    |
 | `stickyHeader`               | `boolean`                                                        | `false`   | Garde l'en-tête visible pendant le défilement (à combiner avec `maxHeight`).                                         |
@@ -2808,6 +2874,7 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | Output                   | Payload                                                                       | Description                                                                                                                                                                |
 |--------------------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `rowClick`               | `T`                                                                           | Clic sur une ligne de données.                                                                                                                                             |
+| `computing`              | `boolean`                                                                   | Calcul en worker : `true` au début, `false` à la fin. |
 | `sortsChange`            | `NgTableSortChange[]`                                                         | Tous les niveaux de tri, par priorité, à chaque clic de tri.                                                                                                               |
 | `queryStateChange`       | `NgTableQueryState` (`{sorts, filters, search, pageIndex, pageSize, groupBy, collapsedGroups}`) | Tri, filtres, recherche ou page ont changé, quelle qu'en soit l'origine. Émis aussi une fois au démarrage.                                                                 |
 | `filtersChange`          | `Record<string, string>`                                                      | Tout changement de filtre.                                                                                                                                                 |
@@ -3412,6 +3479,16 @@ La démo présente la lib en trois modes, un par page :
 | Expert | `/expert` | Faux serveur (mode `remote`), état contrôlé par le parent, filtre personnalisé, `applyQueryState()`, export serveur, journal des événements. |
 
 Suivi des évolutions : `CHANGELOG.md` ; feuille de route : `ROADMAP.md`.
+
+### Site de documentation
+
+Le site est généré depuis ce README, le CHANGELOG et la ROADMAP, sans dépendance :
+
+```bash
+npm run docs:build    # écrit dist/docs
+npm run docs:serve    # construit puis sert http://localhost:4400
+```n
+Chaque section de niveau 2 et chaque étape du tutoriel devient une page ; la recherche (touche `/`) lit un index JSON. Le workflow `.github/workflows/docs.yml` le publie sur GitHub Pages (à activer une fois dans Réglages > Pages > Source : GitHub Actions). Écrivez la documentation dans le README : le site suit.
 
 ### Publier une version
 

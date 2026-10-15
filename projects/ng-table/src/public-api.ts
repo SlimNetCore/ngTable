@@ -43,3 +43,7 @@ export {NgTableTooltipDirective} from './lib/tooltip.directive';
 export {NgTableSelectComponent} from './lib/ng-table-select.component';
 export type {NgTableSelectOption} from './lib/ng-table-select.component';
 export {NgTableMenuComponent, NgTableMenuTriggerDirective} from './lib/ng-table-menu';
+export {toStyledXlsx} from './lib/xlsx-styled';
+export type {StyledXlsxCell, StyledXlsxColumn, StyledXlsxOptions} from './lib/xlsx-styled';
+export type {SetFilterValue} from './lib/set-filter';
+export {NgTableSetFilterComponent} from './lib/ng-table-set-filter.component';

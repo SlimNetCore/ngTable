@@ -28,6 +28,16 @@
       type="date"
     />
   </div>
+} @else if (type() === 'set') {
+  <div [class.active]="isActive()" class="set-filter">
+    <ng-table-set-filter
+      (valueChange)="valueChange.emit($event)"
+      [labels]="labels()"
+      [truncated]="setTruncated()"
+      [value]="value()"
+      [values]="setValues()"
+    />
+  </div>
 } @else if (type() === 'numberRange') {
   <div [class.active]="isActive()" class="number-range">
     <div class="field-shell">

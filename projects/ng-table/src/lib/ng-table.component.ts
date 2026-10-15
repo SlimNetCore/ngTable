@@ -50,7 +50,7 @@ import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {compileFilters} from './filter-compile';
 import {searchText, SortLevel} from './row-pipeline';
-import {buildConsecutiveGroups, buildGroups, computeAggregate, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
+import {buildConsecutiveGroups, buildGroupTree, computeAggregate, flattenGroups, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
 import {
   ColumnWindow,
   computeColumnWindow,
@@ -61,6 +61,7 @@ import {
   VirtualRange,
 } from './virtual-window';
 import {buildCellView, buildRowViews, copyText, NgTableCellView, NgTableRowClasses} from './row-view';
+import {distinctSetValues, parseSetFilter, SetFilterValue} from './set-filter';
 import {IncrementalPipeline, NgTableRowTransaction, NgTableTransactionResult, RowStore, RowUpdate} from './live-rows';
 
 /** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
@@ -88,6 +89,8 @@ import {
   toClipboardText,
 } from './cell-range';
 import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
+import {ComputeWorkerClient, ComputeWorkerLike, createDefaultComputeWorker} from './compute-worker-client';
+import {StyledXlsxCell, StyledXlsxColumn, StyledXlsxOptions, toStyledXlsx} from './xlsx-styled';
 import {formatRangeValue, matchesSearchTerms, NgTableTextOperator, searchTerms} from './filter-matching';
 import {
   NG_TABLE_DEFAULT_LABELS,
@@ -132,12 +135,19 @@ function isDataItem<T>(item: TableItem<T>): item is T {
   return !(item instanceof NgTableGroupRow) && !(item instanceof NgTableSpacerRow) && !(item instanceof NgTableLoadingRow);
 }
 
+/** Type de donnée posé en glissant une puce du panneau de regroupement (réordonner les niveaux). */
+const GROUP_LEVEL_DRAG_TYPE = 'application/x-ng-table-group-level';
+
+/** Jointure des niveaux de regroupement pour détecter un changement. */
+const GROUP_LEVELS_JOIN = '\u001f';
+
 /** Clé de la recherche globale dans le flux debouncé des saisies et dans la barre des filtres actifs. */
 const GLOBAL_SEARCH_KEY = '__global_search__';
 
 /** Filtres à choix discret : appliqués immédiatement, jamais debouncés. */
 const DISCRETE_FILTER_TYPES: ReadonlySet<ColumnFilterType> = new Set<ColumnFilterType>([
   'enum',
+  'set',
   'boolean',
   'date',
   'range',
@@ -280,6 +290,8 @@ export interface NgTableRemoteQuery {
    * triées d'abord par cette colonne, puis par `sorts`.
    */
   groupBy?: string | null;
+  /** Niveaux de regroupement supplémentaires (après `groupBy`), mode local. */
+  groupLevels?: string[];
   /**
    * Groupes repliés (clés, voir `NgTableGroupSummary.key`). Le serveur exclut leurs
    * lignes : un groupe replié n'occupe aucune ligne de la pagination.
@@ -449,7 +461,12 @@ export interface NgTableColumn<T> {
   /** `false` exclut la colonne de l'export (ex. une colonne d'actions/boutons). `true` par défaut. */
   exportable?: boolean;
   /** Valeur utilisée pour l'export si elle doit différer de `valueAccessor` (ex. valeur brute vs rendu riche d'un `cellTemplate`). */
-  exportValueAccessor?: (row: T) => string | number | boolean | null | undefined;
+  exportValueAccessor?: (row: T) => string | number | boolean | Date | null | undefined;
+  /**
+   * Mise en forme de la colonne dans un export `xlsx` stylé : format de nombre ou de date Excel (`'#,##0.00 "€"'`, `'0.0%'`,
+   * `'dd/mm/yyyy'`), largeur en caractères, alignement. Sans elle, le format se déduit du contenu.
+   */
+  excel?: StyledXlsxColumn;
 }
 
 export interface NgTableSortChange {
@@ -504,6 +521,8 @@ export interface NgTableViewState {
   referenceColumnId?: string | null;
   /** Colonne de regroupement (voir `groupBy`). */
   groupBy?: string | null;
+  /** Niveaux de regroupement supplémentaires (voir `groupLevels`). */
+  groupLevels?: string[];
   /** Recherche globale. Absente des vues enregistrées avant son ajout (= pas de recherche). */
   search?: string;
   /** Only populated when `pageTrackingEnabled=true` (reuses `[pageIndex]`/`[pageSize]`). */
@@ -526,6 +545,8 @@ export interface NgTableQueryState {
   pageSize: number;
   /** Colonne de regroupement (`null` si aucun). */
   groupBy: string | null;
+  /** Niveaux de regroupement supplémentaires, mode local (absent = aucun). */
+  groupLevels?: string[];
   /** Clés des groupes repliés. */
   collapsedGroups: string[];
 }
@@ -747,11 +768,35 @@ export class NgTableComponent<T = any> implements OnDestroy {
    */
   readonly groupBy = model<string | null>(null);
   /**
+   * Niveaux de regroupement supplémentaires, dans l'ordre : `groupBy` est le premier niveau, ceux-ci les suivants
+   * (sous-groupes). Mode local uniquement ; sans `groupBy` ils sont ignorés. Liable en `[(groupLevels)]`, enregistré dans les vues.
+   */
+  readonly groupLevels = model<string[]>([]);
+  /**
+   * Panneau de regroupement au-dessus du tableau : on y dépose des en-têtes de colonne (ou on les choisit dans la liste)
+   * pour regrouper sur un ou plusieurs niveaux, comme le panneau « row group » d'AG Grid. Demande `[groupingEnabled]`.
+   */
+  readonly groupPanel = input(false);
+  /**
    * Défilement virtuel : seules les lignes visibles (plus une marge) sont rendues, ce
    * qui garde une liste de 50 000 lignes fluide sans pagination. Demande une hauteur
    * fixe (`[maxHeight]`, 70vh par défaut) et des lignes de hauteur uniforme (mesurée).
    */
   readonly virtualScroll = input(false);
+  /**
+   * Tri, filtres et recherche exécutés dans un Web Worker quand le jeu de données dépasse `[workerThreshold]` lignes :
+   * le fil principal reste libre (défilement, saisie) pendant le calcul, et l'ancien résultat reste affiché sous un
+   * indicateur d'attente jusqu'à l'arrivée du nouveau. Mode local uniquement, sans données arborescentes ; un filtre
+   * à `filterPredicate` (fonction) se calcule sur le fil principal. Le worker est livré avec la bibliothèque (chargé
+   * dans un `Blob`) ; voir `[computeWorkerFactory]` si la politique de sécurité de la page l'interdit.
+   */
+  readonly workerCompute = input(false);
+  /** Nombre de lignes à partir duquel `[workerCompute]` s'applique. */
+  readonly workerThreshold = input(100_000);
+  /** Fabrique du worker de calcul, si celui livré (`Blob`) n'est pas utilisable (CSP) : doit renvoyer un `Worker` qui exécute `ng-table.worker`. */
+  readonly computeWorkerFactory = input<(() => ComputeWorkerLike) | null>(null);
+  /** `true` pendant qu'un calcul en worker est en cours, `false` à son arrivée. */
+  readonly computing = output<boolean>();
   /**
    * Modèle serveur par blocs (mode `remote`) : défilement continu sur toutes les lignes du
    * serveur, sans pagination. La table demande au fil du défilement les blocs à afficher
@@ -951,6 +996,13 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * le défaut (séparateur `;`, UTF-8 avec BOM).
    */
   readonly exportFormat = input<NgTableExportFormat>('csv');
+  /**
+   * Réglages de l'export `xlsx` stylé (ignorés en CSV) : couleur d'en-tête (par défaut l'accent `--ngt-primary` du thème),
+   * lignes alternées, filtre automatique, nom de la feuille. `null` : réglages par défaut.
+   */
+  readonly exportXlsxOptions = input<Pick<StyledXlsxOptions, 'headerFill' | 'headerColor' | 'zebra' | 'autoFilter' | 'sheetName'> | null>(null);
+  /** `'styled'` (défaut) : classeur mis en forme (en-têtes colorés, formats, largeurs, filtre) ; `'plain'` : classeur brut, en-têtes en gras. */
+  readonly exportXlsxStyle = input<'styled' | 'plain'>('styled');
   /** Boutons « Exporter » / « Importer » dans le menu des vues (partage de vues entre postes ou utilisateurs). */
   readonly viewsImportExportEnabled = input(false);
 
@@ -1348,6 +1400,110 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * lesquelles sont visibles et de leurs valeurs de filtre. Voir le
    * commentaire de `visibleColumnsUnordered`.
    */
+  // ------------------------------------------------------------------ calcul en Web Worker
+
+  private computeClient: ComputeWorkerClient | null = null;
+  /** Dernier jeu de réglages envoyé au worker : un calcul identique n'est pas redemandé (sinon chaque résultat en relancerait un). */
+  private workerRequested: {
+    source: readonly T[];
+    filters: Record<string, string>;
+    filterColumns: readonly NgTableColumn<T>[];
+    levels: readonly SortLevel<T>[];
+    haystacks: unknown;
+  } | null = null;
+  private readonly workerResult = signal<{rows: T[]} | null>(null);
+  protected readonly workerBusy = signal(false);
+  /** Le worker a échoué (CSP, plantage) : le tri et les filtres reviennent sur le fil principal. */
+  private readonly workerFailed = signal(false);
+  /** Le magasin a été lu sans le pipeline incrémental : celui-ci repart de zéro quand on y revient. */
+  private pipelineStale = false;
+
+  protected readonly workerEligible = computed(
+    () =>
+      this.workerCompute() &&
+      !this.workerFailed() &&
+      this.dataMode() === 'local' &&
+      !this.treeActive() &&
+      (!!this.computeWorkerFactory() || typeof Worker !== 'undefined') &&
+      this.sourceRows().length >= this.workerThreshold(),
+  );
+
+  /** Indicateur d'attente : chargement demandé par l'application, ou calcul en worker en cours. */
+  protected readonly busy = computed(() => this.loading() || this.workerBusy());
+
+  /**
+   * Résultat du dernier calcul en worker, et demande du suivant si les réglages ont changé. Appelé par `pipelineRows` :
+   * il ne peut pas écrire de signal, la demande part donc dans une micro-tâche.
+   */
+  private workerRows(
+    store: RowStore<T>,
+    filterColumns: NgTableColumn<T>[],
+    filters: Record<string, string>,
+    levels: SortLevel<T>[],
+    terms: string[],
+    haystacks: {columns: NgTableColumn<T>[]; cache: WeakMap<object, string>} | null,
+  ): T[] {
+    const source = this.sourceRows();
+    const result = this.workerResult();
+    store.drain(); // le pipeline incrémental n'est pas lu : ses changements en attente ne s'accumulent pas
+    this.pipelineStale = true;
+    if (filterColumns.length === 0 && levels.length === 0 && !haystacks) {
+      return source; // rien à calculer : l'ordre d'arrivée
+    }
+    const last = this.workerRequested;
+    const same =
+      !!last &&
+      last.source === source &&
+      last.filters === filters &&
+      last.haystacks === haystacks &&
+      last.filterColumns.length === filterColumns.length &&
+      last.filterColumns.every((column, index) => column === filterColumns[index]) &&
+      last.levels.length === levels.length &&
+      last.levels.every((level, index) => level.column === levels[index].column && level.factor === levels[index].factor);
+    if (!same) {
+      this.workerRequested = {source, filters, filterColumns, levels, haystacks};
+      queueMicrotask(() => this.startWorkerJob(source, filterColumns, filters, levels, terms, haystacks));
+    }
+    return result?.rows ?? [];
+  }
+
+  private startWorkerJob(
+    source: readonly T[],
+    filterColumns: NgTableColumn<T>[],
+    filters: Record<string, string>,
+    levels: SortLevel<T>[],
+    terms: string[],
+    haystacks: {columns: NgTableColumn<T>[]; cache: WeakMap<object, string>} | null,
+  ): void {
+    const client = (this.computeClient ??= new ComputeWorkerClient(this.computeWorkerFactory() ?? createDefaultComputeWorker));
+    this.workerBusy.set(true);
+    client
+      .compute(source, {
+        filterColumns,
+        filters: Object.fromEntries(filterColumns.map((column) => [column.id, (filters[column.id] ?? '').trim()])),
+        levels,
+        search: haystacks ? {terms, source: haystacks, read: (row: T) => this.searchHaystack(row, haystacks)} : null,
+        collator: {options: {numeric: true, sensitivity: 'base'}},
+      })
+      .then(({order, job}) => {
+        if (!client.isLatest(job)) {
+          return; // une demande plus récente est en cours
+        }
+        const rows = new Array<T>(order.length);
+        for (let i = 0; i < order.length; i++) {
+          rows[i] = source[order[i]];
+        }
+        this.workerResult.set({rows});
+        this.workerBusy.set(false);
+      })
+      .catch((error: unknown) => {
+        this.workerBusy.set(false);
+        this.workerFailed.set(true);
+        this.computeClient?.dispose();
+        this.computeClient = null;
+        console.warn('ng-table : le calcul en worker a échoué, retour au fil principal.', error);
+      });
+  }
   private readonly pipelineRows = computed(() => {
     const store = this.syncedStore();
     this.dataVersion();
@@ -1366,6 +1522,18 @@ export class NgTableComponent<T = any> implements OnDestroy {
         levels.push({column, factor: sort.direction === 'desc' ? -1 : 1});
       }
     }
+    // Grand jeu de données : filtres, recherche et tri se calculent dans un Web Worker.
+    if (this.workerEligible()) {
+      const filterColumns = activeColumns.filter((column) => (filters[column.id] ?? '').trim() !== '');
+      if (!filterColumns.some((column) => column.filterPredicate)) {
+        return this.workerRows(store, filterColumns, filters, levels, terms, haystacks);
+      }
+    }
+    if (this.pipelineStale) {
+      this.pipelineStale = false;
+      this.pipeline = new IncrementalPipeline<T>();
+    }
+
     // Les saisies de filtre sont lues une fois ici ; chaque ligne n'a plus qu'une comparaison à faire.
     const columnFilter = compileFilters(activeColumns, filters);
     const baseMatches = (row: T) =>
@@ -1566,6 +1734,27 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return id ? (this.columns().find((column) => column.id === id) ?? null) : null;
   });
 
+  /** Colonnes de regroupement, dans l'ordre des niveaux ; les niveaux supplémentaires ne valent qu'en mode local. */
+  protected readonly groupColumns = computed(() => {
+    const first = this.groupColumn();
+    if (!first) {
+      return [];
+    }
+    if (this.dataMode() === 'remote') {
+      return [first];
+    }
+    const seen = new Set([first.id]);
+    const more: NgTableColumn<T>[] = [];
+    for (const id of this.groupLevels()) {
+      const column = this.columns().find((candidate) => candidate.id === id);
+      if (column && !seen.has(id)) {
+        seen.add(id);
+        more.push(column);
+      }
+    }
+    return [first, ...more];
+  });
+
   /**
    * En `remote`, replier un groupe demande au serveur d'exclure ses lignes, et la table
    * doit savoir où placer son en-tête : il faut la liste ordonnée des groupes
@@ -1585,6 +1774,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   /** Dernière colonne de regroupement vue par l'effet de changement (`undefined` avant le premier passage). */
   private lastGroupBy: string | null | undefined;
+  private lastGroupLevels: string | undefined;
 
   /** Clés des groupes repliés. Vidé quand la colonne de regroupement change. */
   protected readonly collapsedGroups = signal<ReadonlySet<string>>(new Set());
@@ -1599,7 +1789,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     }
     const sort = this.sortState();
     const descending = sort.columnId === column.id && sort.direction === 'desc';
-    return buildGroups(this.filteredSortedRows(), column, descending, this.collator);
+    return buildGroupTree(this.filteredSortedRows(), this.groupColumns(), descending, this.collator);
   });
 
   /** Unités paginées avec regroupement : lignes des groupes dépliés, un élément par groupe replié. */
@@ -1962,7 +2152,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       }
       return result;
     }
-    for (const group of this.groups() ?? []) {
+    for (const group of flattenGroups(this.groups() ?? [])) {
       result.set(group.key, this.aggregateTexts(columns, group.rows));
     }
     return result;
@@ -2059,6 +2249,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
   private scrollListener: (() => void) | null = null;
 
   constructor() {
+    // Le calcul en worker prévient l'application quand il commence et quand il se termine.
+    effect(() => {
+      const busy = this.workerBusy();
+      untracked(() => this.computing.emit(busy));
+    });
+
     this.filterInputSubject
       .pipe(
         groupBy((entry) => entry.columnId),
@@ -2247,9 +2443,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
     // premier passage : la page peut venir d'une URL ou d'une vue restaurée).
     effect(() => {
       const current = this.groupBy();
+      const levels = this.groupLevels().join(GROUP_LEVELS_JOIN);
       untracked(() => {
         const previousGroupBy = this.lastGroupBy;
-        if (previousGroupBy !== undefined && current !== previousGroupBy) {
+        const levelsChanged = this.lastGroupLevels !== undefined && levels !== this.lastGroupLevels;
+        this.lastGroupLevels = levels;
+        if ((previousGroupBy !== undefined && current !== previousGroupBy) || levelsChanged) {
           this.collapsedGroups.set(new Set());
           if (this.dataMode() === 'remote') {
             this.onQueryStateChanged(); // le serveur doit renvoyer les lignes triées par groupe
@@ -2302,6 +2501,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       this.pageIndex();
       this.pageSize();
       this.groupBy();
+      this.groupLevels();
       this.displayedColumnIds();
       untracked(() => this.clearRangeSelection());
     });
@@ -2379,6 +2579,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
     }
     this.stopResize();
     this.stopScrollTracking();
+    this.computeClient?.dispose();
+    this.computeClient = null;
     // L'ancre a été déplacée dans `document.body` : elle n'est plus détruite avec la vue.
     this.contextMenuAnchor?.remove();
     this.contextMenuAnchor = null;
@@ -2586,6 +2788,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       ...(this.globalSearchTerm() ? {search: this.globalSearchTerm()} : {}),
       ...(this.referenceColumn() !== undefined ? {referenceColumnId: this.referenceColumn()} : {}),
       ...(this.groupBy() ? {groupBy: this.groupBy()} : {}),
+      ...(this.groupBy() && this.groupColumns().length > 1 ? {groupLevels: this.groupColumns().slice(1).map((column) => column.id)} : {}),
       ...(this.pagingActive() ? {pageIndex: this.pageIndex(), pageSize: this.pageSize()} : {}),
     };
   }
@@ -3815,6 +4018,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       pageIndex: this.pageIndex(),
       pageSize: this.pageSize(),
       groupBy: this.groupColumn()?.id ?? null,
+      ...(this.groupColumns().length > 1 ? {groupLevels: this.groupColumns().slice(1).map((column) => column.id)} : {}),
       collapsedGroups: [...this.collapsedGroups()],
     };
   }
@@ -3858,6 +4062,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
       this.lastGroupBy = state.groupBy;
       this.groupBy.set(state.groupBy);
       this.collapsedGroups.set(new Set());
+    }
+    if (state.groupLevels !== undefined) {
+      this.lastGroupLevels = state.groupLevels.join(GROUP_LEVELS_JOIN);
+      this.groupLevels.set([...state.groupLevels]);
     }
     if (state.collapsedGroups) {
       this.collapsedGroups.set(new Set(state.collapsedGroups));
@@ -4071,6 +4279,97 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.exportToPage.set(total);
   }
 
+  /** Le panneau de regroupement survole une colonne glissée : il la prendrait. */
+  protected readonly groupDropOver = signal(false);
+
+  /** Colonnes que le panneau peut encore ajouter (groupables, pas déjà un niveau). */
+  protected readonly addableGroupColumns = computed(() => {
+    const used = new Set(this.groupColumns().map((column) => column.id));
+    return this.groupableColumns().filter((column) => !used.has(column.id));
+  });
+
+  /** Premier niveau de regroupement ; `null` retire tout le regroupement, sous-niveaux compris. */
+  protected setGroupBy(columnId: string | null): void {
+    this.groupBy.set(columnId);
+    if (columnId === null) {
+      this.groupLevels.set([]);
+    }
+  }
+
+  /** Ajoute un niveau de regroupement ; en mode `remote` (un seul niveau) la colonne remplace l'actuelle. */
+  protected addGroupLevel(columnId: string): void {
+    const ids = this.groupColumns().map((column) => column.id);
+    if (ids.includes(columnId)) {
+      return;
+    }
+    this.setGroupColumns(this.dataMode() === 'remote' ? [columnId] : [...ids, columnId]);
+  }
+
+  protected removeGroupLevel(index: number): void {
+    const ids = this.groupColumns().map((column) => column.id);
+    ids.splice(index, 1);
+    this.setGroupColumns(ids);
+  }
+
+  private setGroupColumns(ids: string[]): void {
+    this.groupBy.set(ids[0] ?? null);
+    this.groupLevels.set(ids.slice(1));
+  }
+
+  /** Colonne d'en-tête glissée en ce moment (ce tableau ou un autre), si elle peut servir au regroupement. */
+  private draggedGroupableColumn(): string | null {
+    const id = this.draggingColumnId() ?? draggedTableColumn();
+    return id && this.groupableColumns().some((column) => column.id === id) ? id : null;
+  }
+
+  protected onGroupPanelDragOver(event: DragEvent): void {
+    if (this.draggedGroupableColumn()) {
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'copy';
+      }
+      this.groupDropOver.set(true);
+    }
+  }
+
+  protected onGroupPanelDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.groupDropOver.set(false);
+    const id = this.draggedGroupableColumn() ?? event.dataTransfer?.getData(NG_TABLE_COLUMN_DRAG_TYPE) ?? null;
+    if (id && this.groupableColumns().some((column) => column.id === id)) {
+      this.addGroupLevel(id);
+    }
+  }
+
+  protected onGroupChipDragStart(event: DragEvent, index: number): void {
+    event.dataTransfer?.setData(GROUP_LEVEL_DRAG_TYPE, `${index}`);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+  }
+
+  protected onGroupChipDragOver(event: DragEvent): void {
+    if (event.dataTransfer?.types.includes(GROUP_LEVEL_DRAG_TYPE)) {
+      event.preventDefault();
+    }
+  }
+
+  /** Déplace un niveau sur la place d'un autre (réordonne le regroupement). */
+  protected onGroupChipDrop(event: DragEvent, target: number): void {
+    const from = Number(event.dataTransfer?.getData(GROUP_LEVEL_DRAG_TYPE));
+    if (!Number.isInteger(from)) {
+      return; // une colonne d'en-tête : le panneau s'en charge
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const ids = this.groupColumns().map((column) => column.id);
+    if (from < 0 || from >= ids.length || from === target) {
+      return;
+    }
+    const [moved] = ids.splice(from, 1);
+    ids.splice(target, 0, moved);
+    this.setGroupColumns(ids);
+  }
   /** Déplie ou replie un groupe (clic ou Entrée / Espace sur son en-tête). */
   protected toggleGroup(group: RowGroup<T>): void {
     if (!this.groupsCollapsible()) {
@@ -4122,12 +4421,13 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   /** Libellé de la valeur d'un groupe : libellé d'option du filtre s'il existe, sinon la valeur. */
   protected groupValueLabel(group: RowGroup<T>): string {
-    if (group.key === '') {
+    const key = group.rawKey ?? group.key;
+    if (key === '') {
       return this.effectiveLabels().groupEmpty;
     }
-    const column = this.groupColumn();
+    const column = group.column ?? this.groupColumn();
     const options = column?.filter ? this.resolvedFilterOptions(column.id, column.filter) : [];
-    return options.find((option) => option.value === group.key)?.label ?? group.key;
+    return options.find((option) => option.value === key)?.label ?? key;
   }
 
   /** Nombre de lignes du groupe ; `''` en remote sans résumé serveur (un compte de page tromperait). */
@@ -4196,7 +4496,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const matrix = this.buildExportMatrix(rows);
     const filename = this.exportFilename();
     if (this.exportFormat() === 'xlsx') {
-      downloadFile(toXlsx(matrix) as BlobPart, `${filename}.xlsx`, XLSX_MIME);
+      const content = this.exportXlsxStyle() === 'plain' ? toXlsx(matrix) : toStyledXlsx(this.buildStyledExportMatrix(rows), this.styledXlsxOptions());
+      downloadFile(content as BlobPart, `${filename}.xlsx`, XLSX_MIME);
     } else {
       // BOM UTF-8 : sans lui, Excel interprète le CSV en Latin-1 et corrompt les accents.
       downloadFile('﻿' + toCsv(matrix), `${filename}.csv`, 'text/csv;charset=utf-8;');
@@ -4206,6 +4507,33 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   /** Colonnes exportées (local et remote) : visibles, dans l'ordre affiché, hors `exportable: false`. */
   private readonly exportColumns = computed(() => this.visibleColumns().filter((column) => column.exportable !== false));
+
+  /** Comme `buildExportMatrix`, mais les dates restent des dates (écrites en vraies dates Excel). */
+  private buildStyledExportMatrix(rows: readonly T[]): StyledXlsxCell[][] {
+    const exportColumns = this.exportColumns();
+    const matrix: StyledXlsxCell[][] = [exportColumns.map((column) => column.header)];
+    for (const row of rows) {
+      matrix.push(
+        exportColumns.map((column) => {
+          const value = column.exportValueAccessor ? column.exportValueAccessor(row) : column.valueAccessor(row);
+          return value instanceof Date && !Number.isNaN(value.getTime()) ? value : toExportCell(value);
+        }),
+      );
+    }
+    return matrix;
+  }
+
+  /** Options du classeur stylé : celles du parent, l'accent du thème pour l'en-tête, la mise en forme propre à chaque colonne. */
+  private styledXlsxOptions(): StyledXlsxOptions {
+    const given = this.exportXlsxOptions() ?? {};
+    const accent = getComputedStyle(this.hostElement.nativeElement).getPropertyValue('--ngt-primary').trim();
+    return {
+      sheetName: this.exportFilename(),
+      ...(accent && !given.headerFill ? {headerFill: accent} : {}),
+      ...given,
+      columns: this.exportColumns().map((column) => column.excel),
+    };
+  }
 
   /** En-têtes puis une ligne par enregistrement ; valeurs typées (le CSV les convertit en texte). */
   private buildExportMatrix(rows: readonly T[]): ExportCell[][] {
@@ -4442,6 +4770,39 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return labels.refOptionsEmpty;
     }
     return '';
+  }
+
+  private readonly setValuesCache = new Map<string, {source: readonly T[] | NgTableFilterOption[]; blank: string; result: {values: SetFilterValue[]; truncated: boolean}}>();
+
+  /**
+   * Valeurs distinctes d'une colonne pour son filtre `set`, avec leurs effectifs. En mode local elles viennent des
+   * lignes (recalculées quand les données changent) ; en mode `remote` la table n'a qu'une page : elles viennent de
+   * `filter.options` / `optionsLoader`, sans effectifs.
+   */
+  protected setFilterValues(columnId: string, filter: NgTableFilterConfig): readonly SetFilterValue[] {
+    if (filter.type !== 'set') {
+      return [];
+    }
+    const blank = this.effectiveLabels().blanks;
+    const remote = this.dataMode() !== 'local';
+    const source = remote ? this.resolvedFilterOptions(columnId, filter) : this.sourceRows();
+    const cached = this.setValuesCache.get(columnId);
+    if (cached && cached.source === source && cached.blank === blank) {
+      return cached.result.values;
+    }
+    let result: {values: SetFilterValue[]; truncated: boolean};
+    if (remote) {
+      result = {values: (source as NgTableFilterOption[]).map((option) => ({key: option.value, label: option.label, count: 0})), truncated: false};
+    } else {
+      const column = untracked(() => this.columns()).find((candidate) => candidate.id === columnId);
+      result = column ? distinctSetValues(source as readonly T[], column.valueAccessor, this.collator, blank) : {values: [], truncated: false};
+    }
+    this.setValuesCache.set(columnId, {source, blank, result});
+    return result.values;
+  }
+
+  protected setFilterTruncated(columnId: string): boolean {
+    return this.setValuesCache.get(columnId)?.result.truncated ?? false;
   }
 
   protected resolvedFilterOptions(columnId: string, filter: NgTableFilterConfig): NgTableFilterOption[] {
@@ -4830,6 +5191,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.internalColumnOrder.set([...state.columnOrder]);
     this.referenceColumn.set(state.referenceColumnId);
     this.groupBy.set(state.groupBy ?? null);
+    this.groupLevels.set([...(state.groupLevels ?? [])]);
     const savedSorts = state.sorts?.length ? state.sorts : [state.sort];
     this.sortStates.set(savedSorts.filter((sort) => sort.columnId && sort.direction).map((sort) => ({...sort})));
     this.columnFilters.set({...state.filters});
@@ -4982,6 +5344,16 @@ export class NgTableComponent<T = any> implements OnDestroy {
       if (rawValue === 'false') {
         return labels.no;
       }
+    }
+
+    if (filter.type === 'set') {
+      const keys = parseSetFilter(rawValue);
+      if (!keys) {
+        return rawValue;
+      }
+      const blank = this.effectiveLabels().blanks;
+      const labels = keys.map((key) => (key === '' ? blank : key));
+      return labels.length > 3 ? `${labels.slice(0, 3).join(', ')} +${labels.length - 3}` : labels.join(', ');
     }
 
     const options = this.resolvedFilterOptions(column.id, filter);
