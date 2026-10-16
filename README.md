@@ -3549,21 +3549,16 @@ Chaque section de niveau 2 et chaque étape du tutoriel devient une page ; la re
 
 ### Publier une version
 
-La publication sur npm est automatique : le workflow `.github/workflows/release.yml` se déclenche quand un tag de version est poussé.
+La publication est entièrement automatique : le workflow `.github/workflows/release.yml` se déclenche à chaque push sur `main` qui modifie `projects/ng-table/package.json` (ou à la main depuis l'onglet Actions).
 
 1. **Une seule fois**, configurez la publication npm :
    - soit en activant le **trusted publishing** entre npm et GitHub Actions pour `@sbourahla/ng-table` (recommandé) ;
    - soit en créant un token sur npmjs.com (**Access Tokens → Generate New Token**, type *Granular* avec le droit de publier `@sbourahla/ng-table`, ou *Automation*) et en l'enregistrant dans le dépôt GitHub sous le nom `NPM_TOKEN` (**Settings → Secrets and variables → Actions → New repository secret**).
-2. Mettez à jour `version` dans `projects/ng-table/package.json` et la section du `CHANGELOG.md` (`## [x.y.z] — date`), puis fusionnez dans `main`.
-3. Poussez le tag, identique à la version :
+2. Pour publier : incrémentez `version` dans `projects/ng-table/package.json`, décrivez les changements sous `## [Non publié]` dans `CHANGELOG.md`, puis fusionnez dans `main`. C'est tout.
 
-   ```bash
-   git checkout main && git pull
-   git tag 1.0.0
-   git push origin 1.0.0
-   ```
+Le workflow lit la version ; si le tag existe déjà, il s'arrête. Sinon il enchaîne : lint, tests, documentation, build ; la section « Non publié » du CHANGELOG devient `## [x.y.z] — date` (commit `chore(release)` sur `main`) ; le tag `x.y.z` est posé sur `main` ; publication sur npm avec provenance (ignorée si la version y est déjà) ; Release GitHub dont les notes sont la section du CHANGELOG. Le paquet npm embarque le README, le CHANGELOG et le site de documentation (dossier `docs/`, sans la démo), et son champ `homepage` pointe vers la documentation en ligne. Le site GitHub Pages est ensuite redéployé avec le CHANGELOG daté.
 
-Le workflow vérifie d'abord que le tag correspond à la version du paquet, puis il relance le lint, les tests et le build. Il publie ensuite sur npm, avec une provenance qui atteste que le paquet vient de ce dépôt et de ce commit. Enfin, il crée la Release GitHub, avec pour notes la section du CHANGELOG.
+Si `main` est protégée, autorisez `github-actions` à y pousser : sinon le commit du CHANGELOG est ignoré (avertissement), mais le tag, npm et la Release continuent.
 
 Une préversion (`1.1.0-beta.1`) est publiée sous le dist-tag `next` : `npm install @sbourahla/ng-table` ne la prend pas, `npm install @sbourahla/ng-table@next` oui.
 

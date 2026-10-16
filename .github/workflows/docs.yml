@@ -14,6 +14,11 @@ on:
       - typedoc.json
       - projects/**
       - .github/workflows/docs.yml
+  # Après une publication : le CHANGELOG daté par la Release (poussé avec le jeton du workflow, qui ne déclenche rien) rejoint le site.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

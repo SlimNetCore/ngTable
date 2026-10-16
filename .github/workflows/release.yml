@@ -1,19 +1,27 @@
 name: Release
 
-# Publie @sbourahla/ng-table sur npm quand un tag de version est poussé :
-#   git tag 1.0.0 && git push origin 1.0.0
-# Le tag doit être égal à la version de projects/ng-table/package.json.
-# Prérequis : configurer soit le trusted publishing npm↔GitHub (OIDC), soit un token npm
-# (type « Automation » ou « Granular », droit de publication sur le paquet) dans le
-# secret NPM_TOKEN du dépôt.
+# Publication automatique à chaque push sur main (ou à la main) :
+#   1. la version est celle de projects/ng-table/package.json ; si le tag existe déjà, rien n'est fait ;
+#   2. lint, tests, documentation et build ;
+#   3. « Non publié » du CHANGELOG devient « [x.y.z] — date » (commit « chore(release) » sur main) ;
+#   4. le tag x.y.z est créé sur main ;
+#   5. publication npm (avec README, CHANGELOG et documentation dans le paquet) — ignorée si la version y est déjà ;
+#   6. Release GitHub avec les notes du CHANGELOG.
+# Pour publier : incrémentez la version dans projects/ng-table/package.json, décrivez les changements sous
+# « ## [Non publié] » dans CHANGELOG.md, fusionnez dans main.
+#
+# Prérequis : trusted publishing npm↔GitHub (OIDC) ou secret NPM_TOKEN (type « Automation » ou « Granular »,
+# droit de publication). Si main est protégée, autorisez github-actions à y pousser (ou le commit de CHANGELOG
+# sera ignoré avec un avertissement : le tag et la publication continuent).
 on:
   push:
-    tags:
-      - '[0-9]+.[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+-*'
+    branches: [main]
+    paths:
+      - projects/ng-table/package.json
+  workflow_dispatch:
 
 permissions:
-  contents: write # créer la Release GitHub
+  contents: write # commit du CHANGELOG, tag, Release GitHub
   id-token: write # provenance npm (attestation que le paquet vient de ce dépôt)
 
 concurrency:
@@ -25,6 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -32,48 +43,84 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
-      - name: Vérifier que le tag correspond à la version du paquet
+      - name: Version à publier
+        id: version
         run: |
           VERSION=$(node -p "require('./projects/ng-table/package.json').version")
-          if [ "$VERSION" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME, mais projects/ng-table/package.json est en $VERSION"
-            exit 1
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/$VERSION" > /dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Le tag $VERSION existe déjà : rien à publier (incrémentez la version pour publier)."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run test:ci
-      - run: npm run build
+      - if: steps.version.outputs.exists == 'false'
+        run: npm ci
+      - if: steps.version.outputs.exists == 'false'
+        run: npm run lint
+      - if: steps.version.outputs.exists == 'false'
+        run: npm run test:ci
+
+      - name: Dater le CHANGELOG
+        if: steps.version.outputs.exists == 'false'
+        run: node scripts/release-notes.mjs stamp "${{ steps.version.outputs.version }}"
+
+      # Documentation générée (README, CHANGELOG daté, ROADMAP, référence TypeDoc), embarquée dans le paquet.
+      - if: steps.version.outputs.exists == 'false'
+        run: npm run docs:build
+      - if: steps.version.outputs.exists == 'false'
+        run: npm run build
+
+      - name: Commit du CHANGELOG et tag
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet CHANGELOG.md; then
+            git add CHANGELOG.md
+            git commit -m "chore(release): $VERSION [skip ci]"
+            git push origin HEAD:main || echo "::warning::Push du CHANGELOG refusé (main protégée ?) : le tag est posé sur le commit courant."
+          fi
+          git tag "$VERSION"
+          git push origin "$VERSION"
 
       - name: Publier sur npm
+        if: steps.version.outputs.exists == 'false'
         working-directory: dist/ng-table
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NAME=$(node -p "require('./package.json').name")
+          if npm view "$NAME@$VERSION" version > /dev/null 2>&1; then
+            echo "::notice::$NAME@$VERSION est déjà sur npm : publication ignorée."
+            exit 0
+          fi
           if [ -n "$NODE_AUTH_TOKEN" ]; then
             echo "Publication npm avec le secret NPM_TOKEN"
           else
             echo "::notice::Secret NPM_TOKEN absent ; tentative de publication via trusted publishing GitHub↔npm (OIDC)"
           fi
           # Une préversion (1.1.0-beta.1) va sous le dist-tag « next » : `npm install` ne la prend pas par défaut.
-          case "$GITHUB_REF_NAME" in
+          case "$VERSION" in
             *-*) npm publish --provenance --access public --tag next ;;
             *) npm publish --provenance --access public ;;
           esac
 
-      - name: Créer la Release GitHub (notes du CHANGELOG)
+      - name: Release GitHub (notes du CHANGELOG)
+        if: steps.version.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Section « ## [x.y.z] » du CHANGELOG, jusqu'à la version précédente.
-          awk -v v="$GITHUB_REF_NAME" '
-            index($0, "## [" v "]") == 1 { found = 1; next }
-            found && /^## \[/ { exit }
-            found { print }
-          ' CHANGELOG.md > release-notes.md
+          VERSION="${{ steps.version.outputs.version }}"
+          node scripts/release-notes.mjs notes "$VERSION" > release-notes.md
           if [ ! -s release-notes.md ]; then
-            echo "Voir CHANGELOG.md" > release-notes.md
+            echo "Voir [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)" > release-notes.md
           fi
+          echo "" >> release-notes.md
+          echo "Documentation : https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ — npm : https://www.npmjs.com/package/@sbourahla/ng-table/v/$VERSION" >> release-notes.md
           PRERELEASE=""
-          case "$GITHUB_REF_NAME" in *-*) PRERELEASE="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md $PRERELEASE
+          case "$VERSION" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$VERSION" --verify-tag --title "$VERSION" --notes-file release-notes.md $PRERELEASE
