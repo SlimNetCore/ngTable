@@ -27,6 +27,15 @@ npm install @sbourahla/ng-table
 
 No additional i18n or business dependency is required.
 
+### Installation guidée (`ng add`)
+
+```bash
+ng add @sbourahla/ng-table
+ng add @sbourahla/ng-table --locale=ar      # fr | en | es | de | ar | none (défaut)
+```
+
+Le schéma ajoute `@angular/cdk` (même version majeure qu'`@angular/core`). Avec `--locale`, il enregistre `provideNgTableLabels(() => NG_TABLE_LOCALES['<langue>'])` dans les providers de l'application et pose `lang` (et `dir="rtl"` pour l'arabe) sur `<html>`. Options : `--project`, `--skip-install`. Testé avec `npm run schematics:test`.
+
 ## 🚀 Quick Start
 
 ```ts
@@ -2742,6 +2751,8 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 
 ## Référence API
 
+> La référence **générée depuis le code** (TypeDoc : classes, entrées, sorties, types, commentaires) fait foi : `npm run docs:api` la produit dans `dist/docs/api`, et le site de documentation la publie sous `api/`. Les tableaux ci-dessous sont écrits à la main et peuvent avoir un retard sur le code.
+
 ### `NgTableColumn<T>`
 
 | Champ                                      | Type                                                                   | Description                                                                                                                                    |
@@ -2926,6 +2937,21 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `pageIndexChange`        | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Émis avec `0` quand un filtre/tri doit remettre la page à zéro.                                                             |
 | `remoteExportRequested`  | `NgTableRemoteExportRequest` (requête + `columns`, `format`, `filename`)                      | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
 | `localExportCompleted`   | `NgTableLocalExportEvent` (`{fromPage, toPage, rowCount}`)                    | **`exportMode='local'`.** Émis après la génération et le téléchargement du CSV — informatif (toast, analytics...).                                                         |
+
+## Langues et lecture de droite à gauche (RTL)
+
+Cinq jeux de textes sont livrés : français (défaut), anglais, espagnol, allemand, arabe.
+
+```ts
+import {NG_TABLE_LOCALES, ngTableIsRtl, ngTableLabelsFor, provideNgTableLabels} from '@sbourahla/ng-table';
+
+provideNgTableLabels(() => NG_TABLE_LOCALES['es']);   // ou ngTableLabelsFor('es-MX')
+ngTableIsRtl('ar'); // true
+```
+
+- Le sens de lecture suit la direction de la page (`<html dir="rtl">`, via le `Directionality` du CDK) ou l'entrée `[dir]` du tableau. Toute la mise en page utilise des propriétés logiques : colonnes figées, ombres, menus, listes déroulantes, paginateur et barre d'actions se retournent ; les icônes directionnelles (flèches, chevrons) sont inversées.
+- La démo a un sélecteur de langue dans l'en-tête (mémorisé) qui applique aussi `lang` et `dir`.
+- **Limites** : les textes du pivot et des graphiques ne sont pas traduits ; les traductions es / de / ar sont des premières versions à faire relire par des locuteurs natifs. Une autre langue s'ajoute avec `provideNgTableLabels` (voir ci-dessous).
 
 ## Personnaliser les textes (`NgTableLabels`)
 

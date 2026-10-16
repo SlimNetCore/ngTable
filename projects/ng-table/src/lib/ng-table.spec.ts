@@ -1,4 +1,4 @@
-import {
+﻿import {
   Component,
   computed,
   provideZonelessChangeDetection,
@@ -1020,12 +1020,12 @@ describe('NgTableComponent', () => {
 
       component.applyTransaction({update: [{...ROWS[0], montant: 1300}], remove: [{id: '2'} as Row]});
       await fixture.whenStable();
-      expect(footer()).toMatch(/^Σ 1[\s\u202f]?500$/); // 1300 + 200
+      expect(footer()).toMatch(/^Σ 1[\s\u202f,.\u00a0]?500$/); // 1300 + 200
 
       component['onFilterValue']('actif', 'true');
       component.applyTransaction({update: [{...ROWS[2], montant: 0}]});
       await fixture.whenStable();
-      expect(footer()).toMatch(/^Σ 1[\s\u202f]?300$/);
+      expect(footer()).toMatch(/^Σ 1[\s\u202f,.\u00a0]?300$/);
     });
 
     it('mode remote : les transactions sont ignorées (le serveur est la source)', async () => {

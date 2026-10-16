@@ -49,8 +49,9 @@
   gap: 4px;
   flex: 1 1 220px;
   max-width: 360px;
-  margin-right: auto;
-  padding: 0 4px 0 10px;
+  margin-inline-end: auto;
+  padding-block: 0;
+  padding-inline: 10px 4px;
   height: 40px;
   border: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   border-radius: 999px;
@@ -279,7 +280,7 @@
      invisible hors survol, elle y occupait 26 px pris au libellé, qui tombait à
      0 px dans une colonne étroite. En absolu, pas de décalage du libellé au survol. */
   position: absolute;
-  left: -15px;
+  inset-inline-start: -15px;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
@@ -331,13 +332,14 @@
 }
 
 .ng-table .cdk-header-cell.column-drag-over {
-  box-shadow: inset 2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
+  box-shadow: inset calc(2px * var(--ngt-dir, 1)) 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
   background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
 }
 
-@media (max-width: 760px) {
+/* Écrans étroits ou tactiles : pas de survol pour révéler la poignée, elle reste visible (discrète). */
+@media (max-width: 760px), (hover: none) {
   .drag-handle {
-    display: none;
+    opacity: 0.55;
   }
 }
 
@@ -429,7 +431,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  right: 0;
+  inset-inline-end: 0;
   width: 14px;
   height: auto;
   cursor: col-resize;
@@ -443,7 +445,7 @@
   position: absolute;
   top: 4px;
   bottom: 4px;
-  right: 6px;
+  inset-inline-end: 6px;
   width: 1px;
   background: var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
@@ -576,7 +578,7 @@
 .active-view-chip {
   display: inline-flex;
   align-items: center;
-  margin-left: 6px;
+  margin-inline-start: 6px;
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
@@ -730,7 +732,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -874,7 +876,7 @@
   font-weight: var(--ngt-tooltip-font-weight, 400);
   line-height: var(--ngt-tooltip-line-height, 1.45);
   letter-spacing: 0.01em;
-  text-align: left;
+  text-align: start;
   /* Le texte complet doit pouvoir respirer sur plusieurs lignes : c'est tout
      l'intérêt de la tooltip quand la cellule, elle, est coupée à une ligne. */
   white-space: normal;
@@ -977,7 +979,7 @@
 .ng-table .cdk-header-cell:has(.inline-filter) {
   vertical-align: top;
   padding-top: 8px;
-  padding-right: 16px;
+  padding-inline-end: 16px;
 }
 
 .ng-table .cdk-header-cell:has(.inline-filter) .th-wrap {
@@ -1126,7 +1128,7 @@
   .global-search {
     flex-basis: 100%;
     max-width: none;
-    margin-right: 0;
+    margin-inline-end: 0;
   }
 
   .ng-table {
@@ -1136,7 +1138,7 @@
 
 /* Rang d'un niveau de tri (tri multi-colonnes). */
 .sort-priority {
-  margin-left: -2px;
+  margin-inline-start: -2px;
   font-size: 0.7rem;
   font-weight: 600;
   line-height: 1;
@@ -1333,8 +1335,7 @@
 .ng-table th.col-spacer-cell,
 .ng-table td.col-spacer-cell {
   padding: 0;
-  border-left: 0;
-  border-right: 0;
+  border-inline: 0;
 }
 
 /* --- Lignes épinglées en haut / en bas ---------------------------------- */
@@ -1382,8 +1383,7 @@
 }
 
 .ng-table th.header-group-cell:not(.header-group-cell--empty) {
-  border-left: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
-  border-right: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  border-inline: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
 }
 
@@ -1460,7 +1460,7 @@
 .ngt-editor-error {
   position: absolute;
   top: 100%;
-  left: 0;
+  inset-inline-start: 0;
   z-index: 5;
   padding: 2px 8px;
   border-radius: 4px;
@@ -1503,15 +1503,15 @@
 .ngt-side-panel {
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
   z-index: 200; /* au-dessus des en-têtes fixes, des colonnes figées et des lignes épinglées */
   display: flex;
   flex-direction: column;
   width: min(280px, 90%);
-  border-left: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  border-inline-start: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   background: var(--ngt-surface, var(--app-surface, #ffffff));
-  box-shadow: -8px 0 16px -8px rgba(15, 23, 42, 0.2);
+  box-shadow: calc(-8px * var(--ngt-dir, 1)) 0 16px -8px rgba(15, 23, 42, 0.2);
 }
 
 .ngt-side-panel__tabs {
@@ -1539,7 +1539,7 @@
 .ngt-side-panel__badge {
   display: inline-block;
   min-width: 18px;
-  margin-left: 4px;
+  margin-inline-start: 4px;
   border-radius: 9px;
   background: var(--ngt-primary, var(--app-primary, #2f6fa8));
   color: var(--ngt-on-primary, #ffffff);
@@ -1697,7 +1697,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  margin-right: 2px;
+  margin-inline-end: 2px;
   padding: 0;
   border: 0;
   border-radius: 6px;
@@ -1939,7 +1939,7 @@ button.ngt-tree-toggle:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding-right: 2px;
+  padding-inline-end: 2px;
   font-weight: 600;
 }
 
@@ -2062,8 +2062,51 @@ button.ngt-tree-toggle:focus-visible {
   outline-offset: 2px;
 }
 
+/* Écrans étroits : la barre prend la largeur disponible, passe à la ligne au lieu de défiler, et les actions qui ont
+   une icône n'affichent plus que l'icône (le libellé reste dans l'aria-label et l'info-bulle). */
 @media (max-width: 640px) {
+  .ngt-action-dock {
+    bottom: 12px;
+  }
+
+  .ngt-action-bar {
+    inset-inline: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: none;
+    overflow-x: visible;
+    padding: 8px;
+    white-space: normal;
+  }
+
   .ngt-action-bar__count-text {
     display: none;
   }
+
+  .ngt-action-bar__sep {
+    display: none;
+  }
+
+  .ngt-action-bar__action--icon {
+    width: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .ngt-action-bar__action--icon .ngt-action-bar__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+/* Sens de lecture : --ngt-dir vaut 1 en gauche-à-droite et -1 en droite-à-gauche, pour les ombres et les filets décalés d'un côté. */
+ng-table {
+  --ngt-dir: 1;
+}
+
+ng-table:dir(rtl) {
+  --ngt-dir: -1;
 }

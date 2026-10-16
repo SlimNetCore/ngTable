@@ -268,7 +268,7 @@ const CHART_DEFAULTS = ['#2f6fa8', '#e07a3f', '#5fa36b', '#b5527e', '#8a6fd1', '
     }
 
     .ngt-chart__window {
-      margin-left: 6px;
+      margin-inline-start: 6px;
       color: var(--ngt-text-muted, var(--app-text-muted, #475569));
       font-size: 0.75rem;
     }

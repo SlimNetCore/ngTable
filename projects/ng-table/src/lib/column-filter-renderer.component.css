@@ -104,7 +104,7 @@
 
 .field-icon {
   position: absolute;
-  right: 10px;
+  inset-inline-end: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -140,7 +140,7 @@
 
 :host-context(.inline-filter) .clear-filter {
   position: absolute;
-  right: 4px;
+  inset-inline-end: 4px;
   top: 50%;
   transform: translateY(-50%);
   width: 28px;
@@ -154,7 +154,7 @@
    garde toute sa largeur. */
 :host-context(.inline-filter) .field-shell.active,
 :host-context(.inline-filter) .number-range.active .field-shell:last-child {
-  padding-right: 34px;
+  padding-inline-end: 34px;
 }
 
 :host-context(.inline-filter) .number-range {

@@ -49,3 +49,4 @@ export type {SetFilterValue} from './lib/set-filter';
 export {NgTableSetFilterComponent} from './lib/ng-table-set-filter.component';
 export {resolveSelectionActions} from './lib/selection-actions';
 export type {NgTableSelectionAction, NgTableSelectionActionEvent, NgTableSelectionBarContext, ResolvedSelectionAction} from './lib/selection-actions';
+export {NG_TABLE_LABELS_AR, NG_TABLE_LABELS_DE, NG_TABLE_LABELS_ES, NG_TABLE_LOCALES, ngTableIsRtl, ngTableLabelsFor} from './lib/ng-table-labels-locales';

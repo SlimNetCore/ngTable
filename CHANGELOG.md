@@ -4,6 +4,9 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- Schéma `ng add @sbourahla/ng-table` : ajoute `@angular/cdk`, et avec `--locale` enregistre les textes de la langue et pose `lang` / `dir` sur `<html>` (options `--project`, `--skip-install`). Tests `npm run schematics:test`, compilation dans `npm run build`.
+- Langues et RTL : textes espagnol, allemand et arabe (`NG_TABLE_LABELS_ES/DE/AR`, `NG_TABLE_LOCALES`, `ngTableLabelsFor`, `ngTableIsRtl`) ; mise en page en propriétés logiques et `:dir(rtl)`, entrée `[dir]`, menus et listes alignés selon le sens, icônes directionnelles inversées, colonnes figées selon `Directionality`. Sélecteur de langue dans la démo.
+- Référence d'API générée par TypeDoc (`npm run docs:api`, publiée sous `api/` dans le site de documentation).
 - Filtre par ensemble de valeurs : `filter.type: 'set'` (une case par valeur distincte avec son effectif, recherche, « tout sélectionner », cellules vides ; valeur sérialisée en tableau JSON). Composant `NgTableSetFilterComponent` exporté ; labels `selectAll`, `blanks`, `setFilterTruncated`.
 - Panneau de regroupement (`[groupPanel]`) et regroupement sur plusieurs niveaux (`[groupLevels]`, mode local) : dépôt d'en-têtes de colonnes, puces réordonnables, sous-groupes en retrait, agrégats par niveau, repli à tous les niveaux ; `groupLevels` dans les vues et `getQueryState()`.
 - Export Excel mis en forme (`exportXlsxStyle: 'styled'`, défaut) : en-têtes colorés avec l'accent du thème, lignes alternées, vraies dates Excel, formats de nombres, largeurs ajustées, filtre automatique, ligne d'en-têtes figée et répétée à l'impression. `NgTableColumn.excel`, `[exportXlsxOptions]`, `toStyledXlsx`. Changement : un export `xlsx` est désormais stylé par défaut (`[exportXlsxStyle]="'plain'"` pour l'ancien classeur brut).

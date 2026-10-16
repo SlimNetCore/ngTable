@@ -1,0 +1,9 @@
+{
+  "schematics": {
+    "ng-add": {
+      "description": "Installe @sbourahla/ng-table : dépendance @angular/cdk et, au choix, la langue des textes (et le sens de lecture de droite à gauche pour l'arabe).",
+      "factory": "./ng-add/index#ngAdd",
+      "schema": "./ng-add/schema.json"
+    }
+  }
+}

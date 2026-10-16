@@ -93,7 +93,7 @@ const MARGIN = 8;
       background: none;
       color: inherit;
       font: inherit;
-      text-align: left;
+      text-align: start;
       text-decoration: none;
       cursor: pointer;
     }
@@ -166,6 +166,7 @@ export class NgTableMenuTriggerDirective {
   private current: NgTableMenuComponent | null = null;
   private cleanup: (() => void)[] = [];
   private destroyed = false;
+  private rtl = false;
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
@@ -206,6 +207,9 @@ export class NgTableMenuTriggerDirective {
     if (theme) {
       panel.setAttribute('data-ngt-theme', theme);
     }
+    // Le panneau quitte l'élément du tableau : il garde son sens de lecture (droite à gauche : aligné sur le bord droit du déclencheur).
+    this.rtl = getComputedStyle(this.host).direction === 'rtl';
+    panel.setAttribute('dir', this.rtl ? 'rtl' : 'ltr');
     this.document.body.appendChild(panel);
     // Les menus et fenêtres d'Angular Material vivent dans la « top layer » : aucun z-index ne passe au-dessus.
     if (typeof panel.showPopover === 'function') {
@@ -267,7 +271,12 @@ export class NgTableMenuTriggerDirective {
     const room = Math.max(120, openUp ? above : below);
     panel.style.maxHeight = `${room}px`;
     const shown = Math.min(height, room);
-    panel.style.left = `${Math.min(Math.max(MARGIN, anchor.left), Math.max(MARGIN, view.innerWidth - width - MARGIN))}px`;
+    const start = this.rtl ? anchor.right - width : anchor.left;
+    panel.style.left = `${Math.min(Math.max(MARGIN, start), Math.max(MARGIN, view.innerWidth - width - MARGIN))}px`;
+    if (this.rtl && panel.offsetWidth !== width) {
+      // Un panneau dont la largeur dépend de l'espace restant change de largeur une fois placé : on aligne son bord droit.
+      panel.style.left = `${Math.min(Math.max(MARGIN, anchor.right - panel.offsetWidth), Math.max(MARGIN, view.innerWidth - panel.offsetWidth - MARGIN))}px`;
+    }
     panel.style.top = `${openUp ? Math.max(MARGIN, anchor.top - GAP - shown) : anchor.bottom + GAP}px`;
   }
 

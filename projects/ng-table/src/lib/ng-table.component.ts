@@ -28,6 +28,7 @@ import {NgTableIconComponent} from './ng-table-icon.component';
 import {NgTableMenuComponent, NgTableMenuTriggerDirective} from './ng-table-menu';
 import {NgTableCheckboxChange, NgTableCheckboxComponent} from './ng-table-checkbox.component';
 import {NgTablePageEvent, NgTablePaginatorComponent} from './ng-table-paginator.component';
+import {Dir, Directionality} from '@angular/cdk/bidi';
 import {CdkTableModule} from '@angular/cdk/table';
 import {NgTableTooltipDirective} from './tooltip.directive';
 import {firstValueFrom, Observable, Subject, timer} from 'rxjs';
@@ -603,6 +604,8 @@ export interface NgTableViewsImportEvent {
   templateUrl: './ng-table.component.html',
   styleUrls: ['./theme.css', './buttons.css', './ng-table.component.css'],
   host: {'[attr.data-ngt-theme]': 'theme()'},
+  // [dir]="'rtl'" : sens de lecture propre au tableau (sinon celui de la page) ; le CdkTable en tient compte pour les colonnes figées.
+  hostDirectives: [{directive: Dir, inputs: ['dir']}],
   // Tout l'état interne passe par des signals : `OnPush` suffit et évite de re-vérifier
   // la vue (et ses centaines de cellules) à chaque cycle de détection global.
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -2272,6 +2275,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
   private scrollListener: (() => void) | null = null;
 
   constructor() {
+    // Sans [dir], le tableau suit le sens de lecture de la page : la directive Dir (hôte) fournirait sinon ltr aux
+    // descendants (dont le CdkTable, qui place les colonnes figées) même sur une page de droite à gauche.
+    inject(Dir, {self: true}).dir = inject(Directionality, {skipSelf: true, optional: true})?.value ?? 'ltr';
+
     // Le calcul en worker prévient l'application quand il commence et quand il se termine.
     effect(() => {
       const busy = this.workerBusy();
@@ -4683,11 +4690,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return matrix;
   }
 
-  /** Reorders columns after a header drag-and-drop. Disabled on mobile (columns are already collapsed there). */
+  /** Reorders columns after a header drag-and-drop (disponible à toute largeur : la poignée reste visible quand le tableau se rétrécit). */
   protected onColumnDragStart(event: DragEvent, column: NgTableColumn<T>): void {
-    if (this.isMobileView()) {
-      return;
-    }
     this.draggingColumnId.set(column.id);
     // Une zone de dépôt hors de la table (le pivot) peut accepter la colonne : son identifiant est publié.
     draggedTableColumn.set(column.id);

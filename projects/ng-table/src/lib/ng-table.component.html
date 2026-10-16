@@ -504,7 +504,7 @@
                 (dragstart)="onColumnDragStart($event, column)"
                 (keydown)="onColumnHandleKeydown($event, column)"
                 [attr.aria-label]="effectiveLabels().dragHandleLabel"
-                [attr.draggable]="!isMobileView()"
+                draggable="true"
                 [title]="effectiveLabels().dragToReorder"
                 class="drag-handle"
                 role="button"
@@ -959,14 +959,16 @@
             [class.ngt-action-bar__action--danger]="item.action.appearance === 'danger'"
             [class.ngt-action-bar__action--disabled]="!item.enabled"
             [class.ngt-action-bar__action--primary]="item.action.appearance === 'primary'"
-            [ngTableTooltip]="item.reason"
+            [attr.aria-label]="item.action.label"
+            [class.ngt-action-bar__action--icon]="!!item.action.icon"
+            [ngTableTooltip]="item.reason || item.action.label"
             class="ngt-action-bar__action"
             type="button"
           >
             @if (item.action.icon) {
               <ng-table-icon aria-hidden="true" [name]="item.action.icon"/>
             }
-            {{ item.action.label }}
+            <span class="ngt-action-bar__label">{{ item.action.label }}</span>
           </button>
         }
         @if (moreSelectionActions().length > 0) {

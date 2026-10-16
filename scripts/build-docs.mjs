@@ -140,7 +140,9 @@ function sidebar(current) {
       const open = items.includes(current) ? ' open' : '';
       return `<h2>${group.label}</h2><details${open}><summary>${items.length} étapes</summary><ul>${items.map(link).join('')}</ul></details>`;
     }
-    return `<h2>${group.label}</h2><ul>${items.map(link).join('')}</ul>`;
+    const generated = group.id === 'reference' ? '<li><a href="api/index.html">Référence générée (TypeDoc)</a></li>' : '';
+    const live = group.id === 'start' ? '<li><a href="demo/index.html">Démo en ligne (bac à sable)</a></li>' : '';
+    return `<h2>${group.label}</h2><ul>${items.map(link).join('')}${live}${generated}</ul>`;
   }).join('');
 }
 

@@ -37,6 +37,7 @@ function storedTheme(): DemoTheme {
     nav a small { display: block; font-size: .7rem; font-weight: 400; }
     nav a.active { background: var(--demo-accent); color: var(--demo-surface); }
     nav a:focus-visible, .theme button:focus-visible { outline: 2px solid var(--demo-accent); outline-offset: 2px; }
+    .lang { height: 38px; padding: 0 12px; border: 1px solid var(--demo-border); border-radius: 999px; background: var(--demo-surface); color: var(--demo-text); font: inherit; font-size: .8rem; }
     .theme { display: inline-flex; padding: 3px; background: var(--demo-surface); border: 1px solid var(--demo-border); border-radius: 999px; }
     .theme button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: 999px; background: none; color: var(--demo-muted); font: inherit; font-size: .8rem; cursor: pointer; }
     .theme button[aria-pressed='true'] { background: color-mix(in srgb, var(--demo-accent) 16%, transparent); color: var(--demo-text); }
@@ -53,6 +54,11 @@ function storedTheme(): DemoTheme {
             </a>
           }
         </nav>
+        <select (change)="setLanguage($any($event.target).value)" aria-label="Langue des textes du tableau" class="lang">
+          @for (option of languages; track option.code) {
+            <option [selected]="option.code === language" [value]="option.code">{{ option.label }}</option>
+          }
+        </select>
         <div aria-label="Thème" class="theme" role="group">
           <button (click)="theme.set('light')" [attr.aria-pressed]="theme() === 'light'" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>
@@ -83,6 +89,24 @@ export class AppComponent {
   ];
 
   protected readonly theme = signal<DemoTheme>(storedTheme());
+  protected readonly language = document.documentElement.lang || 'fr';
+  protected readonly languages = [
+    {code: 'fr', label: 'Français'},
+    {code: 'en', label: 'English'},
+    {code: 'es', label: 'Español'},
+    {code: 'de', label: 'Deutsch'},
+    {code: 'ar', label: 'العربية (RTL)'},
+  ];
+
+  /** Mémorise la langue et recharge : le sens de lecture est lu au démarrage. */
+  protected setLanguage(code: string): void {
+    try {
+      localStorage.setItem('ngt-demo-lang', code);
+    } catch {
+      // stockage indisponible : la langue ne sera pas conservée
+    }
+    location.reload();
+  }
 
   constructor() {
     const query = window.matchMedia('(prefers-color-scheme: dark)');

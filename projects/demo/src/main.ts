@@ -1,7 +1,20 @@
 import {bootstrapApplication} from '@angular/platform-browser';
 import {provideZonelessChangeDetection} from '@angular/core';
 import {provideRouter, Routes} from '@angular/router';
+import {NG_TABLE_LOCALES, ngTableIsRtl, provideNgTableLabels} from '@sbourahla/ng-table';
 import {AppComponent} from './app/app.component';
+
+/** Langue de la démo : choisie dans l'en-tête, mémorisée, appliquée avant le démarrage (le sens de lecture suit la page). */
+const storedLanguage = (() => {
+  try {
+    return localStorage.getItem('ngt-demo-lang');
+  } catch {
+    return null;
+  }
+})();
+const language = (storedLanguage && storedLanguage in NG_TABLE_LOCALES ? storedLanguage : 'fr') as keyof typeof NG_TABLE_LOCALES;
+document.documentElement.lang = language;
+document.documentElement.dir = ngTableIsRtl(language) ? 'rtl' : 'ltr';
 
 const routes: Routes = [
   {path: '', pathMatch: 'full', redirectTo: 'simple'},
@@ -15,5 +28,5 @@ const routes: Routes = [
 ];
 
 bootstrapApplication(AppComponent, {
-  providers: [provideZonelessChangeDetection(), provideRouter(routes)],
+  providers: [provideZonelessChangeDetection(), provideRouter(routes), provideNgTableLabels(() => NG_TABLE_LOCALES[language])],
 }).catch((error: unknown) => console.error(error));

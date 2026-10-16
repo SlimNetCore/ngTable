@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "$id": "NgTableNgAdd",
+  "title": "Options de ng add @sbourahla/ng-table",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Projet de l'espace de travail à configurer (par défaut, la première application).",
+      "$default": {"$source": "projectName"}
+    },
+    "locale": {
+      "type": "string",
+      "description": "Langue des textes du tableau, déclarée une fois pour toute l'application (provideNgTableLabels).",
+      "enum": ["none", "fr", "en", "es", "de", "ar"],
+      "default": "none",
+      "x-prompt": {
+        "message": "Langue des textes du tableau ?",
+        "type": "list",
+        "items": [
+          {"value": "none", "label": "Aucune (français par défaut, à régler plus tard)"},
+          {"value": "fr", "label": "Français"},
+          {"value": "en", "label": "English"},
+          {"value": "es", "label": "Español"},
+          {"value": "de", "label": "Deutsch"},
+          {"value": "ar", "label": "العربية (de droite à gauche)"}
+        ]
+      }
+    },
+    "skipInstall": {
+      "type": "boolean",
+      "description": "Ne pas lancer l'installation des paquets après avoir modifié package.json.",
+      "default": false
+    }
+  },
+  "required": []
+}

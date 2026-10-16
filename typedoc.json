@@ -1,0 +1,18 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@sbourahla/ng-table — référence d'API",
+  "entryPoints": ["projects/ng-table/src/public-api.ts"],
+  "tsconfig": "projects/ng-table/tsconfig.lib.json",
+  "out": "dist/docs/api",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "readme": "none",
+  "githubPages": false,
+  "hideGenerator": true,
+  "sort": ["kind", "alphabetical"],
+  "navigation": {"includeCategories": false, "includeGroups": true},
+  "skipErrorChecking": true,
+  "validation": {"notExported": false, "invalidLink": false, "notDocumented": false}
+}

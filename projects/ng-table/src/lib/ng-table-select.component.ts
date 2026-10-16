@@ -111,7 +111,7 @@ const GAP = 4;
       background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
       color: var(--ngt-text, var(--app-text, #14212b));
       font: inherit;
-      text-align: left;
+      text-align: start;
       cursor: pointer;
     }
 
@@ -375,6 +375,8 @@ export class NgTableSelectComponent {
         if (theme) {
           panel.setAttribute('data-ngt-theme', theme); // le panneau quitte l'élément thémé en passant dans <body>
         }
+        this.rtl = getComputedStyle(this.trigger().nativeElement).direction === 'rtl';
+        panel.setAttribute('dir', this.rtl ? 'rtl' : 'ltr');
         this.document.body.appendChild(panel); // hors des ancêtres qui rogneraient ou déplaceraient un panneau fixe
         // Les menus et fenêtres d'Angular Material vivent dans la « top layer » (API Popover) : aucun z-index ne passe
         // au-dessus. Le panneau y entre lui aussi, après eux, donc au-dessus d'eux.
@@ -404,6 +406,7 @@ export class NgTableSelectComponent {
   }
 
   private followFrame = 0;
+  private rtl = false;
 
   /**
    * Le panneau suit son champ : défilement de la page ou d'un conteneur, menu ou fenêtre de filtre qui se déplace,
@@ -454,7 +457,8 @@ export class NgTableSelectComponent {
     const room = openUp ? above : below;
     panel.style.width = `${width}px`;
     panel.style.maxHeight = `${Math.min(PANEL_MAX_HEIGHT, Math.max(120, room))}px`;
-    panel.style.left = `${Math.min(Math.max(8, anchor.left), view.innerWidth - width - 8)}px`;
+    const start = this.rtl ? anchor.right - width : anchor.left;
+    panel.style.left = `${Math.min(Math.max(8, start), view.innerWidth - width - 8)}px`;
     panel.style.top = openUp ? `${Math.max(8, anchor.top - GAP - Math.min(height, room))}px` : `${anchor.bottom + GAP}px`;
   }
 

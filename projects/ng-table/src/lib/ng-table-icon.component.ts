@@ -1,4 +1,7 @@
-import {ChangeDetectionStrategy, Component, input, ViewEncapsulation} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, input, ViewEncapsulation} from '@angular/core';
+
+/** Icônes qui désignent une direction : retournées en lecture de droite à gauche (:dir(rtl) dans la feuille de la table). */
+const DIRECTIONAL_ICONS: ReadonlySet<string> = new Set(['chevron_right', 'dock_to_left']);
 
 /** Les icônes de `ng-table`. */
 export type NgTableIconName =
@@ -47,7 +50,7 @@ export type NgTableIconName =
   selector: 'ng-table-icon',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
-  host: {'aria-hidden': 'true'},
+  host: {'aria-hidden': 'true', '[attr.data-flip]': 'flips() ? "" : null'},
   template: `
     <svg fill="none" height="100%" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
          viewBox="0 0 24 24" width="100%">
@@ -165,8 +168,13 @@ export type NgTableIconName =
     ng-table-icon svg {
       display: block;
     }
+
+    :dir(rtl) ng-table-icon[data-flip] {
+      transform: scaleX(-1);
+    }
   `,
 })
 export class NgTableIconComponent {
   readonly name = input.required<NgTableIconName | string>();
+  protected readonly flips = computed(() => DIRECTIONAL_ICONS.has(this.name()));
 }
