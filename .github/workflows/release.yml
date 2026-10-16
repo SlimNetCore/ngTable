@@ -23,6 +23,7 @@ on:
 permissions:
   contents: write # commit du CHANGELOG, tag, Release GitHub
   id-token: write # provenance npm (attestation que le paquet vient de ce dépôt)
+  packages: write # copie sur GitHub Packages
 
 concurrency:
   group: release
@@ -107,6 +108,36 @@ jobs:
           case "$VERSION" in
             *-*) npm publish --provenance --access public --tag next ;;
             *) npm publish --provenance --access public ;;
+          esac
+
+      # Copie sur GitHub Packages (section « Packages » du dépôt). Le scope doit être celui du compte GitHub :
+      # le paquet y s'appelle donc @slimnetcore/ng-table (le paquet de référence reste @sbourahla/ng-table sur npm).
+      - name: Publier sur GitHub Packages
+        if: steps.version.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SCOPE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          NAME="@$SCOPE/ng-table"
+          rm -rf dist/gpr && cp -r dist/ng-table dist/gpr
+          node -e "
+            const fs = require('fs');
+            const file = 'dist/gpr/package.json';
+            const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+            pkg.name = '$NAME';
+            pkg.publishConfig = {registry: 'https://npm.pkg.github.com', access: 'public'};
+            fs.writeFileSync(file, JSON.stringify(pkg, null, 2));
+          "
+          printf '//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}\n@%s:registry=https://npm.pkg.github.com\n' "$SCOPE" > dist/gpr/.npmrc
+          cd dist/gpr
+          if npm view "$NAME@$VERSION" version > /dev/null 2>&1; then
+            echo "::notice::$NAME@$VERSION est déjà sur GitHub Packages : publication ignorée."
+            exit 0
+          fi
+          case "$VERSION" in
+            *-*) npm publish --tag next ;;
+            *) npm publish ;;
           esac
 
       - name: Release GitHub (notes du CHANGELOG)
