@@ -33,6 +33,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # Active Pages si ce n'est pas déjà fait (nécessite le secret PAGES_ENABLEMENT_TOKEN, un PAT avec les droits admin du dépôt ;
+      # sans lui, activer manuellement Réglages > Pages > Source : « GitHub Actions »).
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+          token: ${{ secrets.PAGES_ENABLEMENT_TOKEN || github.token }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
