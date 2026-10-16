@@ -4,6 +4,8 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+## [4.0.0] — 2026-10-16
+
 - Schéma `ng add @sbourahla/ng-table` : ajoute `@angular/cdk`, et avec `--locale` enregistre les textes de la langue et pose `lang` / `dir` sur `<html>` (options `--project`, `--skip-install`). Tests `npm run schematics:test`, compilation dans `npm run build`.
 - Langues et RTL : textes espagnol, allemand et arabe (`NG_TABLE_LABELS_ES/DE/AR`, `NG_TABLE_LOCALES`, `ngTableLabelsFor`, `ngTableIsRtl`) ; mise en page en propriétés logiques et `:dir(rtl)`, entrée `[dir]`, menus et listes alignés selon le sens, icônes directionnelles inversées, colonnes figées selon `Directionality`. Sélecteur de langue dans la démo.
 - Site de documentation : démo vivante sous `demo/` (`npm run docs:demo`) et bouton « Ouvrir dans StackBlitz » (Quick Start).
