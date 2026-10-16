@@ -20,7 +20,8 @@
     "worker:check": "node scripts/bundle-worker.mjs --check",
     "docs:api": "typedoc",
     "docs:build": "node scripts/build-docs.mjs && typedoc",
-    "docs:serve": "npm run docs:build && node scripts/serve-docs.mjs 4400"
+    "docs:demo": "node scripts/build-demo-docs.mjs",
+    "docs:serve": "npm run docs:build && npm run docs:demo && node scripts/serve-docs.mjs 4400"
   },
   "dependencies": {
     "@angular/cdk": "^22.1.6",

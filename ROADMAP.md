@@ -1,4 +1,4 @@
-# Feuille de route — améliorations de `@sbourahla/ng-table`
+﻿# Feuille de route — améliorations de `@sbourahla/ng-table`
 
 Suivi des améliorations décidées le 2026-09-25. Mettez à jour ce fichier à chaque étape.
 
@@ -118,7 +118,7 @@ Demande du 2026-10-14 : des performances et des options comparables à [AG Grid]
 | G27 | Barre d'actions flottante sur la sélection | `[selectionBar]`, `NgTableSelectionAction`, `selection-actions.ts` | Terminé | Actions avec règles métier (`when`, min / max de lignes, masquée ou grisée avec raison), règle d'affichage, débordement en menu, contenu libre, clavier et ARIA ; pastille inversée sans décalage des lignes. 13 tests. À côté du menu contextuel de ligne, qui reçoit `selectedRows` |
 | G28 | Schéma `ng add` | `projects/ng-table/schematics/ng-add`, `scripts/build-schematics.mjs` | Terminé (non essayé sur une application réelle) | Ajoute le CDK, option `--locale` (providers + `lang` / `dir`). Tests avec `SchematicTestRunner` ; compilé dans `dist/ng-table/schematics`. Reste : `npm pack` puis `ng add` dans une application neuve |
 | G29 | Langues supplémentaires et RTL | `ng-table-labels-locales.ts`, propriétés logiques, `Dir` | Terminé | es, de, ar ; sens de lecture complet (colonnes figées, ombres, menus, listes, icônes) ; tests de parité des clés et de sens ; vérifié dans le navigateur. Reste : relecture par des natifs, pivot et graphiques non traduits |
-| G30 | Référence d'API générée (TypeDoc) | `typedoc.json`, `npm run docs:api` | Terminé | Générée depuis `public-api.ts` dans le site (`api/`) ; le README la désigne comme faisant foi. Démo vivante : le workflow Pages compile la démo sous `/demo/` (lien « Démo en ligne » dans le menu ; absent en local, non vérifié tant que Pages n'est pas activé). Reste : liens StackBlitz, qui exigent le paquet publié sur npm |
+| G30 | Référence d'API générée (TypeDoc) | `typedoc.json`, `npm run docs:api` | Terminé | Générée depuis `public-api.ts` dans le site (`api/`) ; le README la désigne comme faisant foi. Démo vivante sous `/demo/` (`npm run docs:demo`, incluse dans `docs:serve` ; vérifiée en local, repli des routes compris) et bouton « Ouvrir dans StackBlitz » (Quick Start, version du paquet publiée) dans l'accueil et la barre du haut. Le bouton n'a pas pu être essayé depuis ici : à tester une fois le site publié (Pages est publié par le workflow depuis `main` uniquement) |
 
 ## 6. Accessibilité
 

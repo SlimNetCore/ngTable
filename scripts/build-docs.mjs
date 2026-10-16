@@ -180,6 +180,8 @@ function layout({page, content, isHome = false}) {
   <a class="brand" href="index.html">${ICONS.logo}<span>ng-table</span><small>v${escapeHtml(pkg.version)}</small></a>
   <div class="spacer"></div>
   <div class="search" role="search">${ICONS.search}<input type="search" placeholder="Rechercher (/)" aria-label="Rechercher dans la documentation" autocomplete="off"/><div class="results" hidden></div></div>
+  <a class="topbar-link" href="demo/index.html">Démo</a>
+  <button class="topbar-link" type="button" data-stackblitz data-version="${escapeHtml(pkg.version)}">StackBlitz</button>
   <a class="icon-button" href="${escapeHtml(repository)}" aria-label="Dépôt GitHub">${ICONS.github}</a>
   <button class="icon-button" type="button" data-theme-toggle aria-label="Changer de thème">${ICONS.theme}</button>
 </header>
@@ -189,6 +191,7 @@ function layout({page, content, isHome = false}) {
   ${isHome ? '' : toc(page)}
 </div>
 <script src="app.js" defer></script>
+<script src="stackblitz.js" defer></script>
 </body>
 </html>
 `;
@@ -227,7 +230,7 @@ const highlights = [
 const homeHtml =
   `<section class="hero"><h1>${escapeHtml(pkg.name)}</h1>${renderMarkdown(introBody.split('\n\n').slice(0, 1).join('\n\n'))}` +
   `<div class="actions"><a class="button primary" href="${firstOf('start', 'Installation').slug}.html">Commencer</a>` +
-  `<a class="button" href="${firstOf('tutorial').slug}.html">Parcourir le tutoriel</a><a class="button" href="${escapeHtml(repository)}">GitHub</a></div></section>` +
+  `<a class="button" href="${firstOf('tutorial').slug}.html">Parcourir le tutoriel</a><a class="button" href="demo/index.html">Démo en ligne</a><button class="button" type="button" data-stackblitz data-version="${escapeHtml(pkg.version)}">Ouvrir dans StackBlitz</button><a class="button" href="${escapeHtml(repository)}">GitHub</a></div></section>` +
   `<div class="cards">${highlights.map(([title, text]) => `<div class="card"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span></div>`).join('')}</div>` +
   `<h2>Explorer la documentation</h2><div class="cards">${cards}</div>` +
   renderMarkdown(introBody.split('\n\n').slice(1).join('\n\n'));
@@ -271,6 +274,7 @@ for (const page of pages) {
 writeFileSync(join(out, 'search-index.json'), JSON.stringify([{title: 'Accueil', page: 'Accueil', url: 'index.html', level: 1, text: plainText(introBody).slice(0, 1200)}, ...pages.flatMap(searchEntries)]));
 copyFileSync(join(root, 'scripts/docs/style.css'), join(out, 'style.css'));
 copyFileSync(join(root, 'scripts/docs/app.js'), join(out, 'app.js'));
+copyFileSync(join(root, 'scripts/docs/stackblitz.js'), join(out, 'stackblitz.js'));
 writeFileSync(
   join(out, 'favicon.svg'),
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#2f6fa8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9.5h18M9.5 9.5V20"/></svg>',

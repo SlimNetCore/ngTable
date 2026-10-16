@@ -39,10 +39,7 @@ jobs:
       - run: npm ci
       - run: npm run docs:build
       # Démo vivante sous /demo/ : le repli 404 renvoie vers l'application pour les routes (/demo/avance...).
-      - run: |
-          npx ng build demo --base-href /ngTable/demo/ --output-path dist/demo-build
-          mv dist/demo-build/browser dist/docs/demo
-          cp dist/docs/demo/index.html dist/docs/demo/404.html
+      - run: node scripts/build-demo-docs.mjs /ngTable/demo/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/docs

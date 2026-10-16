@@ -21,6 +21,11 @@ createServer(async (request, response) => {
     if ((await stat(file)).isDirectory()) file = join(file, 'index.html');
     response.writeHead(200, {'content-type': types[extname(file)] ?? 'application/octet-stream'}).end(await readFile(file));
   } catch {
+    // Routes de la démo (/demo/avance) : repli sur l'application, comme le 404.html de GitHub Pages.
+    if (path.startsWith('/demo/')) {
+      response.writeHead(200, {'content-type': types['.html']}).end(await readFile(join(dir, 'demo/index.html')).catch(() => 'Démo non compilée : npm run docs:demo'));
+      return;
+    }
     response.writeHead(404, {'content-type': 'text/plain; charset=utf-8'}).end('Page introuvable');
   }
 }).listen(port, () => console.log(`Documentation sur http://localhost:${port}`));
