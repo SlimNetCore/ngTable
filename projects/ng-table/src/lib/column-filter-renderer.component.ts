@@ -2,20 +2,14 @@ import {CommonModule} from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
-  effect,
   input,
   output,
-  signal,
 } from '@angular/core';
-import {MatButtonModule} from '@angular/material/button';
-import {MatNativeDateModule, MatOptionSelectionChange} from '@angular/material/core';
-import {MatDatepickerModule} from '@angular/material/datepicker';
-import {MatFormFieldModule} from '@angular/material/form-field';
-import {MatIconModule} from '@angular/material/icon';
-import {MatInputModule} from '@angular/material/input';
-import {MatSelectModule} from '@angular/material/select';
+import {NgTableIconComponent} from './ng-table-icon.component';
 import {NG_TABLE_DEFAULT_LABELS, NgTableLabels} from './ng-table-labels';
-import {SelectFilterComponent} from './select-filter.component';
+import {NgTableSetFilterComponent} from './ng-table-set-filter.component';
+import type {SetFilterValue} from './set-filter';
+import {NgTableSelectComponent} from './ng-table-select.component';
 
 export type ColumnFilterType =
   | 'text'
@@ -41,7 +35,12 @@ export type ColumnFilterType =
   | 'month'
   | 'week'
   | 'boolean'
-  | 'enum';
+  | 'enum'
+  /**
+   * Ensemble de valeurs : une case par valeur distincte de la colonne (avec son effectif), recherche et « tout sélectionner ».
+   * Valeur sérialisée : tableau JSON des clés cochées, vide quand tout l'est.
+   */
+  | 'set';
 
 /**
  * Renderer standard de filtre de colonne.
@@ -63,14 +62,9 @@ export type ColumnFilterType =
   standalone: true,
   imports: [
     CommonModule,
-    MatButtonModule,
-    MatDatepickerModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatNativeDateModule,
-    MatSelectModule,
-    SelectFilterComponent,
+    NgTableIconComponent,
+    NgTableSelectComponent,
+    NgTableSetFilterComponent,
   ],
   templateUrl: './column-filter-renderer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -88,35 +82,13 @@ export class ColumnFilterRendererComponent {
   readonly labels = input<NgTableLabels>(NG_TABLE_DEFAULT_LABELS);
   /** Options pour les types enum/boolean. */
   readonly options = input<{ value: string; label: string }[]>([]);
+  /** Valeurs distinctes de la colonne, pour le type set. */
+  readonly setValues = input<readonly SetFilterValue[]>([]);
+  readonly setTruncated = input(false);
   /** Emet la nouvelle valeur serialisee vers le parent. */
   readonly valueChange = output<string>();
   /** Demande au parent d'effacer le filtre. */
   readonly clear = output<void>();
-  protected readonly panelFilterOptionValue = '__PANEL_FILTER_OPTION__';
-  protected readonly panelFilter = signal('');
-  protected readonly draftDateRange = signal<{ from: Date | null; to: Date | null }>({
-    from: null,
-    to: null,
-  });
-  /** Brouillon du type `date` (jour unique) — distinct de la période `range`. */
-  protected readonly draftDate = signal<Date | null>(null);
-  private previousType: ColumnFilterType | null = null;
-
-  constructor() {
-    effect(() => {
-      const currentType = this.type();
-      const currentValue = this.value();
-      this.syncDraftDateRange(currentType, currentValue);
-      this.syncDraftDate(currentType, currentValue);
-
-      if (this.previousType !== null && this.previousType !== currentType) {
-        this.panelFilter.set('');
-      }
-
-      this.previousType = currentType;
-    });
-  }
-
   isSelectType(): boolean {
     const type = this.type();
     return type === 'boolean' || type === 'enum';
@@ -166,25 +138,17 @@ export class ColumnFilterRendererComponent {
     return this.labels().filterBy.replace('{field}', this.label());
   }
 
-  onMatSelect(value: string | string[]): void {
-    // Enum multi-select => serialisation CSV pour rester compatible avec le moteur de filtre parent.
-    if (Array.isArray(value)) {
-      this.valueChange.emit(value.filter((v) => !!v && v !== this.panelFilterOptionValue).join(','));
-      return;
-    }
-    if (value === this.panelFilterOptionValue) {
-      return;
-    }
-    this.valueChange.emit(value ?? '');
+  /** Valeur choisie dans la liste : l'énuméré (multiple) est sérialisé en CSV pour rester compatible avec le moteur de filtre. */
+  onSelect(value: string | string[]): void {
+    this.valueChange.emit(Array.isArray(value) ? value.filter((v) => !!v).join(',') : (value ?? ''));
   }
 
   selectedValues(): string[] | string {
-    // Deserialise CSV -> tableau pour le multi-select Angular Material.
     if (!this.isMultiSelect()) return this.value() ?? '';
     return (this.value() ?? '')
       .split(',')
       .map((v) => v.trim())
-      .filter((v) => !!v && v !== this.panelFilterOptionValue);
+      .filter((v) => !!v);
   }
 
   onInput(event: Event): void {
@@ -198,29 +162,6 @@ export class ColumnFilterRendererComponent {
     return this.type() === 'enum';
   }
 
-  onPanelFilterOptionSelection(event: MatOptionSelectionChange): void {
-    if (!event?.isUserInput) return;
-    // Keep this row as a non-selectable interactive header for panel filtering.
-    event.source?.deselect?.();
-  }
-
-  onPanelFilterChange(value: string): void {
-    this.panelFilter.set(value ?? '');
-  }
-
-  isPanelOptionVisible(label: string): boolean {
-    const query = (this.panelFilter() ?? '').trim().toLowerCase();
-    if (!query) return true;
-    return (label ?? '').toLowerCase().includes(query);
-  }
-
-  onDraftDateRangeChange(bound: 'from' | 'to', value: Date | null): void {
-    this.draftDateRange.set({
-      ...this.draftDateRange(),
-      [bound]: this.normalizeDate(value),
-    });
-  }
-
   booleanOptions(): { value: string; label: string }[] {
     const labels = this.labels();
     return [
@@ -229,48 +170,27 @@ export class ColumnFilterRendererComponent {
     ];
   }
 
-  applyDateRange(): void {
-    // Format canonique attendu par ng-table: "YYYY-MM-DD..YYYY-MM-DD".
-    const ordered = this.getOrderedDraftDateRange();
-    this.draftDateRange.set(ordered);
-    this.valueChange.emit(
-      this.serializeDateRange(this.toIsoDate(ordered.from), this.toIsoDate(ordered.to)),
-    );
+  /** Valeur du champ `date` (`YYYY-MM-DD`, ou vide si la valeur reçue n'a pas ce format). */
+  singleDate(): string {
+    return this.normalizeIsoDate(this.value());
   }
 
-  cancelDateRange(): void {
-    this.syncDraftDateRange(this.type(), this.value());
+  /** Bornes courantes d'une période (`"YYYY-MM-DD..YYYY-MM-DD"`). */
+  dateRangeBounds(): { from: string; to: string } {
+    return this.parseDateRange(this.value());
   }
 
-  syncDraftDateRange(type: ColumnFilterType = this.type(), value: string = this.value()): void {
-    // Restaure l'etat de brouillon depuis la valeur serialisee remontee par le parent.
-    if (!this.isDateRangeType(type)) {
-      this.draftDateRange.set({from: null, to: null});
-      return;
-    }
-
-    const parsed = this.parseDateRange(value);
-    this.draftDateRange.set({
-      from: this.isoToDate(parsed.from),
-      to: this.isoToDate(parsed.to),
-    });
+  /** Type `date` : un jour unique, appliqué dès que la saisie est une date complète (ou vidée). */
+  onSingleDateChange(value: string): void {
+    this.valueChange.emit(this.normalizeIsoDate(value));
   }
 
-  /** Type `date` : un jour unique, committé immédiatement (action délibérée, pas de brouillon à valider). */
-  onSingleDateChange(value: Date | null): void {
-    const normalized = this.normalizeDate(value);
-    this.draftDate.set(normalized);
-    this.valueChange.emit(this.toIsoDate(normalized));
+  /** Type `range` : applique la période dès qu'une borne change ; deux bornes inversées sont remises dans l'ordre. */
+  onDateRangeChange(bound: 'from' | 'to', value: string): void {
+    const next = {...this.dateRangeBounds(), [bound]: this.normalizeIsoDate(value)};
+    const ordered = next.from && next.to && next.from > next.to ? {from: next.to, to: next.from} : next;
+    this.valueChange.emit(this.serializeDateRange(ordered.from, ordered.to));
   }
-
-  syncDraftDate(type: ColumnFilterType = this.type(), value: string = this.value()): void {
-    if (!this.isSingleDateType(type)) {
-      this.draftDate.set(null);
-      return;
-    }
-    this.draftDate.set(this.isoToDate(this.normalizeIsoDate(value)));
-  }
-
   isSingleDateType(type: ColumnFilterType = this.type()): boolean {
     return type === 'date';
   }
@@ -285,7 +205,8 @@ export class ColumnFilterRendererComponent {
       !this.isSingleDateType(type) &&
       type !== 'numberRange' &&
       type !== 'boolean' &&
-      type !== 'enum'
+      type !== 'enum' &&
+      type !== 'set'
     );
   }
 
@@ -310,49 +231,8 @@ export class ColumnFilterRendererComponent {
     return `${from}..${to}`;
   }
 
-  private getOrderedDraftDateRange(): { from: Date | null; to: Date | null } {
-    const from = this.normalizeDate(this.draftDateRange().from);
-    const to = this.normalizeDate(this.draftDateRange().to);
-
-    if (from && to && from.getTime() > to.getTime()) {
-      return {from: to, to: from};
-    }
-
-    return {from, to};
-  }
-
-  private isoToDate(value: string): Date | null {
-    const raw = this.normalizeIsoDate(value);
-    if (!raw) return null;
-
-    const [year, month, day] = raw.split('-').map(Number);
-    if (!year || !month || !day) return null;
-
-    return new Date(year, month - 1, day);
-  }
-
   private normalizeIsoDate(value: string): string {
     const raw = (value ?? '').trim();
     return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
-  }
-
-  private normalizeDate(value: Date | null): Date | null {
-    if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
-      return null;
-    }
-
-    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-  }
-
-  private toIsoDate(value: Date | null): string {
-    const normalized = this.normalizeDate(value);
-    if (!normalized) {
-      return '';
-    }
-
-    const year = normalized.getFullYear();
-    const month = `${normalized.getMonth() + 1}`.padStart(2, '0');
-    const day = `${normalized.getDate()}`.padStart(2, '0');
-    return `${year}-${month}-${day}`;
   }
 }

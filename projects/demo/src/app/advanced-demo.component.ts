@@ -2,7 +2,6 @@ import {ChangeDetectionStrategy, Component, computed, effect, signal, TemplateRe
 import {MatButtonModule} from '@angular/material/button';
 import {MatButtonToggleModule} from '@angular/material/button-toggle';
 import {MatIconModule} from '@angular/material/icon';
-import {MatMenuModule} from '@angular/material/menu';
 import {MatSlideToggleModule} from '@angular/material/slide-toggle';
 import {
   NG_TABLE_LABELS_EN,
@@ -11,6 +10,8 @@ import {
   NgTableCopyEvent,
   NgTableExportFormat,
   NgTableFilterOption,
+  NgTableSelectionAction,
+  NgTableSelectionActionEvent,
 } from '@sbourahla/ng-table';
 import {NgTableUrlStateDirective} from '@sbourahla/ng-table/router';
 import {PageBarComponent} from './page-bar.component';
@@ -39,15 +40,14 @@ function addDays(isoDay: string, days: number): string {
     MatButtonToggleModule,
     MatButtonModule,
     MatIconModule,
-    MatMenuModule,
     PageBarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
-    .detail { padding: 8px 16px; color: #4f6573; line-height: 1.5; }
+    .detail { padding: 8px 16px; color: var(--demo-muted); line-height: 1.5; }
     .actions { display: flex; gap: 2px; }
     .actions button { --mat-icon-button-state-layer-size: 32px; width: 32px; height: 32px; padding: 4px; }
-    .loader { display: flex; flex-direction: column; align-items: center; gap: 8px; color: #1d4f91; font-weight: 500; }
+    .loader { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--demo-accent); font-weight: 500; }
     .loader mat-icon { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
   `,
@@ -106,6 +106,20 @@ function addDays(isoDay: string, days: number): string {
       [inlineFilters]="inlineFilters()"
       [multiSort]="multiSort()"
       [cellNavigation]="cellNavigation()"
+      [pinnedTopRows]="pinnedRows() ? pinnedTop() : []"
+      [pinnedBottomRows]="pinnedRows() ? pinnedBottom() : []"
+      [rangeSelection]="rangeSelection()"
+      [rangeCopyHeaders]="true"
+      [rowDrag]="rowDrag()"
+      (rowMoved)="onRowMoved($event.rows)"
+      [statusBar]="statusBar()"
+      [sidePanel]="sidePanel()"
+      (rangeCopied)="rangeInfo.set($event.rowCount + ' × ' + $event.columnCount + ' cellules copiées')"
+      (rangePasted)="rangeInfo.set('Collé : ' + $event.assignments.length + ' cellule(s) cible(s), ' + $event.values.length + ' ligne(s) × ' + ($event.values[0]?.length ?? 0) + ' colonne(s)')"
+      (cellEdited)="editInfo.set($event.column.header + ' : ' + $event.oldValue + ' → ' + $event.newValue + ' (' + $event.source + ')')"
+      [groupPanel]="grouping()"
+      [workerCompute]="worker()"
+      [workerThreshold]="1000"
       [groupingEnabled]="grouping()"
       [(groupBy)]="groupBy"
       [showTotals]="totalsRow()"
@@ -117,6 +131,10 @@ function addDays(isoDay: string, days: number): string {
       [pageSizeOptions]="[10, 25, 100]"
       (filteredCountChange)="filteredTotal.set($event)"
       [rowSelectionEnabled]="selection()"
+      [selectionBar]="actionBar()"
+      [selectionActions]="selectionActions"
+      [selectionBarMaxActions]="4"
+      (selectionAction)="onSelectionAction($event)"
       [columnsMenuEnabled]="columnsMenu()"
       [referenceColumnSelectable]="true"
       [density]="compact() ? 'compact' : 'default'"
@@ -151,6 +169,8 @@ function addDays(isoDay: string, days: number): string {
       {{ rows().length }} lignes
       @if (selection()) { · {{ selectedCount() }} sélectionnée(s) }
       @if (lastClicked()) { · dernière ligne cliquée : {{ lastClicked() }} }
+      @if (rangeInfo()) { · {{ rangeInfo() }} }
+      @if (editInfo()) { · modifié : {{ editInfo() }} }
       @if (copied()) { · copié : « {{ copied() }} » }
     </p>
 
@@ -162,6 +182,8 @@ function addDays(isoDay: string, days: number): string {
           plage numérique (TTC), période, jour exact, booléen.</li>
         <li>Recherche globale (le statut est cherché sur son libellé via <code>searchable</code>).</li>
         <li>Tri, et tri multi-colonnes avec Maj+clic.</li>
+        <li>En-têtes de colonnes groupés sur deux niveaux (<code>headerGroup</code>) : « Commande », « Suivi », « Finance »
+          (Montants, Dates), cellules fusionnées par <code>colspan</code> et suivant le masquage et l'ordre des colonnes.</li>
         <li>Colonnes épinglées (Référence à gauche, Actions à droite), redimensionnables, réordonnables. La colonne
           fixée à gauche se choisit avec la punaise du menu « Colonnes » (<code>referenceColumnSelectable</code>).</li>
         <li>Colonne « Livraison » masquée par défaut : bouton « Colonnes ».</li>
@@ -173,6 +195,10 @@ function addDays(isoDay: string, days: number): string {
         <li>Regroupement (bouton « Grouper », ex. par Statut ou Client), groupes repliables, agrégats par colonne
           (<code>aggregate: 'sum'</code> sur les montants, agrégat personnalisé sur « Urgent ») et ligne de totaux.</li>
         <li>Vues sauvegardées, vue par défaut (étoile), export / import des vues.</li>
+        <li>Sélection de plage de cellules (<code>rangeSelection</code>) : glissez, ou Maj+clic ; Ctrl+C copie (collable dans Excel,
+          avec les en-têtes), Ctrl+A tout, Échap efface ; Ctrl+V émet <code>rangePasted</code>.</li>
+        <li>Lignes épinglées en haut et en bas (<code>[pinnedTopRows]</code>, <code>[pinnedBottomRows]</code>) : elles restent
+          visibles pendant le défilement (activez « En-tête fixe » pour limiter la hauteur).</li>
         <li>Défilement virtuel (<code>[virtualScroll]</code>) : 50 000 lignes sans pagination, seules les lignes
           visibles sont rendues.</li>
         <li>Pagination intégrée (<code>[paginator]</code>), ou paginateur personnalisé branché avec
@@ -209,10 +235,10 @@ function addDays(isoDay: string, days: number): string {
     </ng-template>
 
     <ng-template #contextMenuTpl let-row>
-      <button (click)="lastClicked.set('Ouvrir ' + row.reference)" mat-menu-item type="button">
+      <button (click)="lastClicked.set('Ouvrir ' + row.reference)" ngt-menu-item type="button">
         <mat-icon>open_in_new</mat-icon> Ouvrir {{ row.reference }}
       </button>
-      <button (click)="lastClicked.set('Annuler ' + row.reference)" mat-menu-item type="button">
+      <button (click)="lastClicked.set('Annuler ' + row.reference)" ngt-menu-item type="button">
         <mat-icon>block</mat-icon> Annuler la commande
       </button>
     </ng-template>
@@ -224,7 +250,18 @@ function addDays(isoDay: string, days: number): string {
 })
 export class AdvancedDemoComponent {
   protected readonly rowCount = signal(200);
-  protected readonly rows = computed(() => generateCommandes(this.rowCount()));
+  private readonly generated = computed(() => generateCommandes(this.rowCount()));
+  /** Ordre issu d'un glisser-déposer : valable tant que le jeu de données généré est le même. */
+  private readonly reordered = signal<{ base: Commande[]; rows: Commande[] } | null>(null);
+  protected readonly rows = computed(() => {
+    const base = this.generated();
+    const reordered = this.reordered();
+    return reordered && reordered.base === base ? reordered.rows : base;
+  });
+  protected readonly rowDrag = signal(true);
+  protected onRowMoved(rows: Commande[]): void {
+    this.reordered.set({base: this.generated(), rows});
+  }
   protected readonly exportFormat = signal<NgTableExportFormat>('csv');
 
   protected readonly pagination = signal<'integree' | 'personnalisee' | 'virtuelle' | 'aucune'>('integree');
@@ -236,9 +273,19 @@ export class AdvancedDemoComponent {
   protected readonly multiSort = signal(true);
   protected readonly cellNavigation = signal(true);
   protected readonly totalsRow = signal(true);
+  protected readonly pinnedRows = signal(true);
+  protected readonly rangeSelection = signal(true);
+  protected readonly rangeInfo = signal('');
+  protected readonly cellEditing = signal(true);
+  protected readonly statusBar = signal(true);
+  protected readonly sidePanel = signal(true);
+  protected readonly editInfo = signal('');
+  protected readonly headerGroups = signal(true);
   protected readonly grouping = signal(true);
+  protected readonly worker = signal(false);
   protected readonly groupBy = signal<string | null>(null);
-  protected readonly selection = signal(false);
+  protected readonly selection = signal(true);
+  protected readonly actionBar = signal(true);
   protected readonly detailRows = signal(true);
   protected readonly contextMenu = signal(true);
   protected readonly columnsMenu = signal(true);
@@ -254,8 +301,17 @@ export class AdvancedDemoComponent {
     {label: 'Tri multi-colonnes', value: this.multiSort},
     {label: 'Navigation clavier (grille)', value: this.cellNavigation},
     {label: 'Regroupement', value: this.grouping},
+    {label: 'Calcul en worker (≥ 1 000 lignes)', value: this.worker},
     {label: 'Ligne de totaux', value: this.totalsRow},
+    {label: 'Lignes épinglées', value: this.pinnedRows},
+    {label: 'Sélection de plage', value: this.rangeSelection},
+    {label: 'Édition de cellules', value: this.cellEditing},
+    {label: 'Déplacer les lignes', value: this.rowDrag},
+    {label: 'Barre d’état', value: this.statusBar},
+    {label: 'Panneau latéral', value: this.sidePanel},
+    {label: 'En-têtes groupés', value: this.headerGroups},
     {label: 'Sélection', value: this.selection},
+    {label: 'Barre d’actions de sélection', value: this.actionBar},
     {label: 'Ligne détail', value: this.detailRows},
     {label: 'Menu contextuel', value: this.contextMenu},
     {label: 'Bouton Colonnes', value: this.columnsMenu},
@@ -266,6 +322,31 @@ export class AdvancedDemoComponent {
     {label: 'Loader personnalisé', value: this.customLoader},
     {label: 'Textes en anglais', value: this.english},
   ];
+
+  /** Règles métier : chaque action n'est possible que pour les commandes qui s'y prêtent. */
+  protected readonly selectionActions: NgTableSelectionAction<Commande>[] = [
+    {
+      id: 'valider', label: 'Valider', icon: 'check', appearance: 'primary',
+      when: (rows) => rows.every((row) => row.statut === 'BROUILLON'),
+      otherwise: 'disable', disabledReason: 'Seules les commandes en brouillon peuvent être validées',
+    },
+    {
+      id: 'expedier', label: 'Expédier', icon: 'file_upload',
+      when: (rows) => rows.every((row) => row.statut === 'VALIDEE'),
+      otherwise: 'disable', disabledReason: 'Seules les commandes validées peuvent être expédiées',
+    },
+    {id: 'exporter', label: 'Exporter', icon: 'download'},
+    {
+      id: 'annuler', label: 'Annuler', icon: 'close', appearance: 'danger',
+      when: (rows) => rows.every((row) => row.statut !== 'ANNULEE' && row.statut !== 'EXPEDIEE'),
+      otherwise: 'disable', disabledReason: 'Une commande expédiée ou déjà annulée ne peut plus l’être',
+    },
+    {id: 'dupliquer', label: 'Dupliquer', icon: 'content_copy', maxRows: 1}, // au-delà de 4 actions : menu « Autres actions »
+  ];
+
+  protected onSelectionAction(event: NgTableSelectionActionEvent<Commande>): void {
+    this.lastClicked.set(`${event.action.label} : ${event.rows.length} commande(s)`);
+  }
 
   protected readonly selectedCount = signal(0);
   protected readonly lastClicked = signal('');
@@ -287,12 +368,57 @@ pageIndex = signal(0);
 pageSize = signal(25);
 filteredTotal = signal(0);   // total APRÈS filtres : seul ng-table le connaît`;
   protected readonly rowKey = (row: Commande): string => row.id;
+
+  /** Lignes épinglées : de vraies `Commande`, hors de `[rows]` (clés distinctes). */
+  protected readonly pinnedTop = computed<Commande[]>(() => [
+    {id: 'epingle-1', reference: 'CMD-PRIORITAIRE', client: 'Commande à traiter en premier', statut: 'VALIDEE', montant: 0, dateCommande: '', urgent: true, description: 'Reste visible sous l’en-tête'},
+  ]);
+  protected readonly pinnedBottom = computed<Commande[]>(() => [
+    {id: 'epingle-total', reference: 'TOTAL GÉNÉRAL', client: `${this.rows().length} commandes`, statut: 'VALIDEE',
+      montant: Math.round(this.rows().reduce((total, c) => total + c.montant, 0)), dateCommande: '', urgent: false, description: 'Reste visible au-dessus du bas de la zone'},
+  ]);
   protected readonly rowClass = (row: Commande) => ({'row-urgent': row.urgent});
 
   private readonly statutCell = viewChild<TemplateRef<unknown>>('statutCell');
   private readonly actionsCell = viewChild<TemplateRef<unknown>>('actionsCell');
 
-  protected readonly columns = computed<NgTableColumn<Commande>[]>(() => [
+  protected readonly columns = computed<NgTableColumn<Commande>[]>(() => this.withEditing(this.withHeaderGroups(this.baseColumns())));
+
+  /** Édition de cellules : client (texte), statut (liste), montant HT (nombre, positif). */
+  private withEditing(columns: NgTableColumn<Commande>[]): NgTableColumn<Commande>[] {
+    if (!this.cellEditing()) {
+      return columns;
+    }
+    const editable: Record<string, Partial<NgTableColumn<Commande>>> = {
+      client: {editable: true, valueSetter: (c, v) => ({...c, client: `${v}`})},
+      statut: {editable: true, editor: 'select', valueSetter: (c, v) => ({...c, statut: v as Commande['statut']})},
+      montant: {
+        editable: true,
+        valueSetter: (c, v) => ({...c, montant: (v as number | null) ?? 0}),
+        validate: (v) => ((v as number | null) !== null && (v as number) < 0 ? 'Le montant doit être positif' : null),
+      },
+    };
+    return columns.map((column) => (editable[column.id] ? {...column, ...editable[column.id]} : column));
+  }
+
+  /** Regroupement des en-têtes (`headerGroup`) : colonnes voisines fusionnées sous un libellé, sur deux niveaux. */
+  private withHeaderGroups(columns: NgTableColumn<Commande>[]): NgTableColumn<Commande>[] {
+    if (!this.headerGroups()) {
+      return columns;
+    }
+    const groups: Record<string, string[]> = {
+      reference: ['Commande'],
+      client: ['Commande'],
+      statut: ['Suivi'],
+      montant: ['Finance', 'Montants'],
+      ttc: ['Finance', 'Montants'],
+      dateCommande: ['Finance', 'Dates'],
+      livraison: ['Finance', 'Dates'],
+    };
+    return columns.map((column) => (groups[column.id] ? {...column, headerGroup: groups[column.id]} : column));
+  }
+
+  private readonly baseColumns = computed<NgTableColumn<Commande>[]>(() => [
     {
       id: 'reference',
       header: 'Référence',

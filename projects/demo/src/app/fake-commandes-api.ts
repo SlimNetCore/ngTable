@@ -1,5 +1,5 @@
 import {NgTableGroupSummary, NgTableRemoteExportRequest, NgTableRemoteQuery} from '@sbourahla/ng-table';
-import {CLIENTS, Commande, CommandeStatut, STATUT_LABELS} from './demo-data';
+import {CLIENTS, Commande, CommandeStatut, STATUT_LABELS, tendanceOf} from './demo-data';
 
 export interface CommandesPage {
   rows: Commande[];
@@ -15,6 +15,15 @@ export interface CommandesBackend {
   query(query: NgTableRemoteQuery): Promise<CommandesPage>;
   /** Export côté serveur ; renvoie le message à afficher. */
   export(request: NgTableRemoteExportRequest): Promise<string>;
+  /** Enregistre la modification d'une cellule ; absent quand le serveur ne sait pas modifier ses données. */
+  update?(id: string, patch: CommandePatch): Promise<Commande>;
+}
+
+/** Champs modifiables d'une commande (cellules éditables de la table). */
+export interface CommandePatch {
+  client?: string;
+  statut?: string;
+  montant?: number;
 }
 
 const STATUTS = Object.keys(STATUT_LABELS) as CommandeStatut[];
@@ -145,6 +154,7 @@ export class FakeCommandesApi implements CommandesBackend {
       dateCommande: dateOf(i),
       urgent: i % 5 === 0,
       description: DESCRIPTIONS[i % DESCRIPTIONS.length],
+      tendance: tendanceOf(i + 1),
     };
   }
 
@@ -213,7 +223,8 @@ export class FakeCommandesApi implements CommandesBackend {
   private filter(query: NgTableRemoteQuery): Uint32Array {
     const f = query.filters;
     const reference = f['reference'] ? normalize(f['reference']) : '';
-    const clients = f['client'] ? new Set(f['client'].split(',')) : null;
+    // Filtre « ensemble de valeurs » : tableau JSON des clients cochés (comme le serveur Spring).
+    const clients = f['client'] ? new Set<string>(JSON.parse(f['client']) as string[]) : null;
     const statuts = f['statut'] ? new Set(f['statut'].split(',')) : null;
     const [montantMin, montantMax] = f['montant'] ? range(f['montant']).map((v) => (v ? Number(v) : null)) : [null, null];
     const [dateFrom, dateTo] = f['dateCommande'] ? range(f['dateCommande']) : ['', ''];

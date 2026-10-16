@@ -26,6 +26,9 @@
       ],
       "@sbourahla/ng-table/router": [
         "./projects/ng-table/router/public-api.ts"
+      ],
+      "ag-grid-community": [
+        "./benchmarks/node_modules/ag-grid-community"
       ]
     }
   },

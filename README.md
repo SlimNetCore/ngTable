@@ -1,10 +1,10 @@
-﻿# @sbourahla/ng-table
+# @sbourahla/ng-table
 
 [![npm version](https://img.shields.io/npm/v/@sbourahla/ng-table)](https://www.npmjs.com/package/@sbourahla/ng-table)
 [![npm downloads](https://img.shields.io/npm/dm/@sbourahla/ng-table)](https://www.npmjs.com/package/@sbourahla/ng-table)
 [![license](https://img.shields.io/npm/l/@sbourahla/ng-table)](https://github.com/SlimNetCore/ngTable)
 
-**A powerful and configurable Angular Material data table component built for modern Angular applications.**
+**A powerful and configurable Angular data table component built for modern Angular applications — no Angular Material required.**
 
 `@sbourahla/ng-table` provides a complete, flexible data-table experience with sorting, filtering, pagination, row selection, expandable detail rows, column resizing and reordering, saved views, context menus, responsive layouts, and local or remote data modes.
 
@@ -22,10 +22,19 @@ npm install @sbourahla/ng-table
 
 - `@angular/core`
 - `@angular/common`
-- `@angular/material`
+- `@angular/cdk` (table du CDK, sans Angular Material)
 - `rxjs`
 
 No additional i18n or business dependency is required.
+
+### Installation guidée (`ng add`)
+
+```bash
+ng add @sbourahla/ng-table
+ng add @sbourahla/ng-table --locale=ar      # fr | en | es | de | ar | none (défaut)
+```
+
+Le schéma ajoute `@angular/cdk` (même version majeure qu'`@angular/core`). Avec `--locale`, il enregistre `provideNgTableLabels(() => NG_TABLE_LOCALES['<langue>'])` dans les providers de l'application et pose `lang` (et `dir="rtl"` pour l'arabe) sur `<html>`. Options : `--project`, `--skip-install`. Testé avec `npm run schematics:test`.
 
 ## 🚀 Quick Start
 
@@ -192,7 +201,7 @@ export class CommandeListComponent {
 
 ### Étape 2 — Tri
 
-Ajoutez `sortable: true` sur les colonnes triables. Le clic sur l'en-tête bascule asc → desc → aucun tri, un `mat-icon` indique l'état.
+Ajoutez `sortable: true` sur les colonnes triables. Le clic sur l'en-tête bascule asc → desc → aucun tri, une icône indique l'état.
 
 ```ts
 readonly columns: NgTableColumn<Commande>[] = [
@@ -238,7 +247,7 @@ Chaque type de filtre s'active via `filter: {type: ...}`.
 {id: 'client', header: 'Client', valueAccessor: (c) => c.client, filter: {type: 'text'}}
 ```
 
-**Énuméré** (`enum`, options statiques — rendu en `<mat-select>`) :
+**Énuméré** (`enum`, options statiques — rendu en `<ng-table-select>`, avec recherche) :
 
 ```ts
 {
@@ -327,6 +336,20 @@ Sans `filter`, une colonne n'est simplement pas filtrable (pas d'icône, pas de 
 }
 ```
 
+### Filtre par ensemble de valeurs (`type: 'set'`)
+
+Pour une colonne qui a peu de valeurs distinctes (statut, client, zone), le filtre `set` affiche une case par valeur, avec son effectif, une recherche et « (Tout sélectionner) » :
+
+```ts
+{id: 'client', header: 'Client', valueAccessor: (c) => c.client, filter: {type: 'set'}}
+```
+
+- Les valeurs viennent des lignes elles-mêmes (mode local), triées naturellement, **cellules vides comprises** (« (Vides) ») ; une date est représentée par son jour `YYYY-MM-DD`. Au-delà de 10 000 valeurs distinctes la liste est tronquée et la recherche prend le relais (300 cases affichées à la fois).
+- Tout cocher revient à ne pas filtrer. La valeur du filtre est un **tableau JSON** des clés cochées (`["Nord","Sud, Est",""]`) : une valeur peut contenir une virgule, contrairement à l'`enum` (CSV). `[]` ne garde aucune ligne.
+- La barre des filtres actifs résume le choix (`Dupont SA, Martin SARL, Petit Commerce +2`).
+- En mode `remote`, la table n'a qu'une page : fournissez les valeurs par `filter.options` (ou `optionsLoader`) ; elles s'affichent sans effectif, et le serveur reçoit la valeur JSON dans `NgTableRemoteQuery.filters`. Côté Spring, déclarez la colonne `NgTableColumn.of("client").filter(SET)` : `NgTableJpaSearch` lit le tableau JSON (`IN (...)`, plus `IS NULL` pour la valeur vide ; `[]` ne garde rien ; autre chose qu'un tableau de chaînes : 400).
+- Pour un filtre sur mesure, `compileSetMatcher`, `parseSetFilter`, `serializeSetFilter` et `distinctSetValues` sont dans `set-filter.ts` ; le composant est exporté (`NgTableSetFilterComponent`).
+- Textes : `labels.selectAll`, `labels.blanks`, `labels.setFilterTruncated`.
 ### Étape 4 — Filtres en ligne (inline) vs en menu
 
 Par défaut, chaque colonne filtrable affiche une icône dans l'en-tête ouvrant un mini-menu. Pour afficher le filtre **directement** dans l'en-tête (pas de clic nécessaire) :
@@ -561,7 +584,423 @@ Sans pagination, une table de 50 000 lignes crée 50 000 lignes dans le DOM : l'
 - **Hauteur** : la zone a une hauteur fixe, `[maxHeight]` (70vh par défaut). L'en-tête y est toujours fixe.
 - **Hauteur de ligne** : elle est **mesurée** sur la première ligne rendue, ce qui suit la densité compacte ou votre thème. Les lignes doivent avoir une **hauteur uniforme** : une ligne détail dépliée ou du texte sur plusieurs lignes (`textOverflow: 'wrap'`) décalent un peu la position.
 - **Compatibilité** : filtres, tri, recherche, regroupement, sélection (« tout sélectionner » porte sur toutes les lignes), export et navigation clavier (`cellNavigation`) fonctionnent comme sans défilement virtuel. `displayedRows()` renvoie toujours toutes les lignes.
-- **Limite des navigateurs** : un élément ne peut guère dépasser 30 millions de pixels de haut, soit environ 600 000 lignes de 52 px. Au-delà, préférez `dataMode='remote'` paginé.
+- **Très longues listes** : au-delà de 15 millions de px de hauteur (environ 290 000 lignes de 52 px), la barre de défilement est comprimée pour que la fin de la liste reste atteignable malgré le plafond des navigateurs (voir Étape 10sexies).
+
+### Étape 10quinquies — Mode live (données temps réel)
+
+Pour des données qui changent en continu (cotations, supervision, suivi de commandes...), la table ne retraite que ce qui a changé. C'est le même principe que les transactions d'AG Grid.
+
+**Transactions.** On envoie seulement les lignes ajoutées, modifiées ou retirées, sans renvoyer tout le tableau. Elles sont retrouvées par leur clé : `rowKeyAccessor`, sinon `id`.
+
+```ts
+table = viewChild.required<NgTableComponent<Cotation>>(NgTableComponent);
+
+this.table().applyTransaction({add: [nouvelle], update: [modifiee], remove: [{id: 42}]});
+
+// Flux à haute fréquence : transactions regroupées, un seul recalcul et un seul rendu par lot.
+socket.onmessage = (message) => this.table().applyTransactionAsync({update: JSON.parse(message.data)});
+```
+
+```html
+<ng-table [rows]="cotations" [rowKeyAccessor]="cle" [virtualScroll]="true"
+          [flashCells]="true" [asyncTransactionWaitMillis]="50" ... />
+```
+
+- **Ce qui est recalculé.** Seules les lignes touchées sont refiltrées. Elles sont replacées dans le résultat déjà trié par recherche dichotomique, au lieu de tout retrier. Changer un filtre, le tri ou les colonnes recalcule tout, comme avant.
+- **`applyTransactionAsync(transaction, callback?)`** regroupe les transactions reçues pendant `[asyncTransactionWaitMillis]` (50 ms par défaut). `flushAsyncTransactions()` les applique tout de suite, et `(asyncTransactionsFlushed)` signale chaque lot appliqué.
+- **Données immuables.** Le mode live marche aussi sans transactions : à chaque nouveau tableau `[rows]`, la table compare clé par clé avec le précédent. Seules les lignes dont l'objet a changé sont retraitées. Les lignes doivent donc être de **nouveaux objets** quand elles changent (`{...ligne, prix}`). Si l'ordre du tableau change, ou qu'une ligne est insérée ailleurs qu'à la fin, tout est recalculé.
+- **Surbrillance.** `[flashCells]="true"` surligne les cellules modifiées pendant `[flashDurationMs]` (1 000 ms) : vert si un nombre monte, rouge s'il baisse, bleu sinon. Colonne par colonne : `flashOnChange: true | false`. Les couleurs se règlent avec `--ngt-flash-up-bg`, `--ngt-flash-down-bg` et `--ngt-flash-change-bg`. La cellule porte l'attribut `data-ngt-flash` (`up-0`, `down-1`...) pour un style personnalisé. L'animation est quasi instantanée si l'utilisateur a demandé moins d'animations (`prefers-reduced-motion`).
+- **Avec `[rows]`.** Un nouveau tableau `[rows]` redevient la référence : ce qui n'y figure pas est retiré, y compris les lignes ajoutées par transaction.
+- **Mode `remote`.** Le serveur est la source : les transactions y sont ignorées.
+
+Combinez le mode live avec le défilement virtuel (`[virtualScroll]`) : seules les lignes visibles sont rendues. La page **Live** de la démo envoie jusqu'à 50 000 mises à jour par seconde sur 100 000 instruments, avec compteurs d'images par seconde et de temps par lot.
+
+### Étape 10sexies — Modèle serveur par blocs (défilement continu sur des millions de lignes)
+
+En mode `remote` avec pagination, l'utilisateur navigue page par page. Avec `[remoteDatasource]`, il fait défiler **toutes** les lignes du serveur d'un seul tenant. La table demande les blocs à afficher au fil du défilement. C'est l'équivalent du « Server-Side / Infinite Row Model » d'AG Grid.
+
+```ts
+readonly datasource: NgTableRemoteDatasource<Commande> = {
+  // Promesse ou Observable. `request.page` = {index: n° du bloc, size: taille du bloc} :
+  // un backend paginé existant (celui de l'Étape 17ter par exemple) convient tel quel.
+  getRows: (request) =>
+    this.http.post<{rows: Commande[]; total: number}>('/api/commandes', request)
+      .pipe(map((page) => ({rows: page.rows, totalCount: page.total}))),
+};
+```
+
+```html
+<ng-table [dataMode]="'remote'" [remoteDatasource]="datasource" [cacheBlockSize]="100" ... />
+```
+
+- **Ce qui est chargé.** Seuls les blocs de la zone affichée (plus une marge de 8 lignes) sont demandés. En attendant, des lignes grisées animées prennent leur place. Un défilement rapide ne demande pas les blocs intermédiaires.
+- **Le cache.** Il garde `[maxBlocksInCache]` blocs (50 par défaut) et oublie au-delà les moins récemment affichés. Il y a au plus `[maxConcurrentBlockRequests]` requêtes simultanées (2 par défaut).
+- **Tri, filtres, recherche.** Changer l'un d'eux purge le cache, revient en haut de la liste et redemande les blocs visibles. Une réponse arrivée après ce changement est ignorée. `getRows` reçoit la requête complète (`sort`, `sorts`, `filters`, `search`), plus `startRow` / `endRow`. `(remoteQueryChange)` n'est pas émis dans ce mode.
+- **Erreurs.** Un bloc en échec affiche « Chargement impossible » et émet `(remoteBlockError)`. Il n'est pas redemandé en boucle : `refreshRemoteDatasource()` relance le chargement, et sert aussi après une modification des données côté serveur, en gardant la position.
+- **Très longues listes.** Les navigateurs plafonnent la hauteur d'un élément (environ 33 millions de px pour Chrome, 17,9 millions pour Firefox) : sans précaution, la fin d'un million de lignes serait inatteignable. Au-delà de 15 millions de px, la barre de défilement est **comprimée**, comme dans AG Grid : sa position est convertie proportionnellement en position réelle. Cela vaut aussi pour `[virtualScroll]` en local. `scrollToIndex(n)` amène la ligne `n` en haut de la zone.
+- **Limites.** Pas de paginateur intégré ni de regroupement dans ce mode. La sélection et la navigation clavier portent sur les lignes chargées.
+
+La démo **Expert** (Navigation → « Défilement continu ») le montre sur 1 000 000 de commandes, avec le serveur simulé ou le backend Spring Boot.
+
+### Étape 10septies — Affichage partiel des colonnes (tables très larges)
+
+Avec des dizaines ou des centaines de colonnes, `[virtualColumns]="true"` ne rend que les colonnes de la zone visible, plus 300 px de marge de chaque côté. Les colonnes épinglées sont toujours rendues. Deux colonnes d'espacement donnent sa largeur à la barre de défilement horizontale. Chaque colonne prend une largeur fixe : `widthPx`, sinon `minWidthPx`, sinon 120 px.
+
+```html
+<ng-table [virtualColumns]="true" [virtualScroll]="true" [columns]="centColonnes" ... />
+```
+
+Le modèle de vue (valeurs, textes) n'est calculé que pour les colonnes rendues. L'export, le menu « Colonnes » et les vues portent toujours sur toutes les colonnes. Limite : la navigation clavier cellule par cellule (`cellNavigation`) ne parcourt que les colonnes rendues.
+
+### Étape 10vicies — Premiers composants sans Angular Material
+
+Le paginateur intégré (`<ng-table-paginator>`) et les cases à cocher (`<ng-table-checkbox>`, un vrai `<input type="checkbox">`) ne sont plus ceux de Material. Conséquences à connaître en migrant :
+- **Paginateur** : ses textes viennent de `[labels]` (français par défaut, `NG_TABLE_LABELS_EN` pour l'anglais) et non plus de `MatPaginatorIntl`. `NgTablePaginatorIntl` et `provideNgTablePaginatorIntl()` ont été retirés. `getPaginator()` du harnais renvoie un `NgTablePaginatorHarness`.
+- **Cases à cocher** : `(checkedChange)` à la place de `(change)` quand vous utilisez `<ng-table-checkbox>` ; le harnais n'a rien changé (il lit déjà l'`<input>`).
+- Les deux composants sont exportés et se thèment par les jetons `--ngt-*`.
+- **Icônes** : `<ng-table-icon name="close"/>`, 29 icônes en SVG dessinées au trait, à la couleur du texte (`font-size` et `color` les règlent). Plus besoin de charger la police Material Icons pour la table ; le style est un peu plus « fil de fer » que les glyphes pleins de Material.
+- **Boutons** : de simples `<button>` avec l'attribut `ngt-button`, `ngt-stroked-button`, `ngt-flat-button` ou `ngt-icon-button`, habillés par les jetons de thème (`buttons.css`).
+- **Info-bulle** : `NgTableTooltipDirective` (`[ngTableTooltip]="'texte'"`), une bulle `role="tooltip"` posée dans `<body>`, ouverte au survol (300 ms) et au focus, fermée à Échap, au défilement et à la destruction ; la bulle de troncature en dérive. Les variables `--ngt-tooltip-*` n'ont pas changé ; la classe `.mat-mdc-tooltip-surface` n'existe plus, la bulle est `.ngt-tooltip`.
+- **Liste déroulante** (étape 3) : `<ng-table-select>` remplace `<mat-select>` + `<mat-option>` dans les filtres énumérés et booléens. Sélection simple ou multiple (`[multiple]`), recherche intégrée (`[searchable]`), option « tout » en tête (`[allLabel]`), motif ARIA combobox + listbox (`aria-expanded`, `aria-activedescendant`, `aria-selected`), clavier complet (flèches, Début/Fin, Entrée, Espace, Échap, Tab). Le panneau est posé dans `<body>` (il échappe aux `overflow`), s'ouvre vers le haut quand il manque de place et se ferme au clic extérieur, au défilement et au redimensionnement. Le champ de recherche de `ng-table-select-filter` (basé sur `mat-form-field`) est supprimé : la recherche est dans le panneau. Les classes `.mat-mdc-select-*`, `.column-filter-select-panel` et `.panel-filter-*` n'existent plus ; le déclencheur est `.ngt-select__trigger`, le panneau `.ngt-select__panel`.
+- **Menu** (étape 4) : `<ng-table-menu>` + `[ngTableMenuTriggerFor]` remplacent `<mat-menu>` + `[matMenuTriggerFor]` (colonnes, regroupement, vues, export, filtres de colonne, menu contextuel de ligne). Le panneau (`role="menu"`) est posé dans `<body>` et dans la « top layer » du navigateur (API Popover) : il passe au-dessus de tout `z-index`. Il suit son déclencheur, se ferme au clic extérieur, à `Échap`, quand le focus le quitte et quand le déclencheur est détruit ; flèches, Début et Fin parcourent les éléments. Un clic sur un `ngt-menu-item` ferme le menu sauf s'il est arrêté (`$event.stopPropagation()`). Dans vos modèles de **menu contextuel de ligne** (`[rowContextMenu]`), remplacez `mat-menu-item` par `ngt-menu-item` ; l'ancien attribut reste stylé et fonctionnel, mais n'a plus besoin de `MatMenuModule`. L'API du déclencheur reste `openMenu()`, `closeMenu()`, `menuOpen`, `updatePosition()`, `(menuOpened)`, `(menuClosed)` ; `(closed)` sur le menu. Les classes `.mat-mdc-menu-panel` / `.mat-mdc-menu-content` / `.mat-mdc-menu-item` deviennent `.ngt-menu-panel` / `.ngt-menu-content` / `[ngt-menu-item]`. Les panneaux copient l'attribut `data-ngt-theme` de leur tableau : `[theme]="'dark'"` s'applique aussi aux menus et listes.
+- **Dates** (étape 5) : les filtres `date` et `range` sont des `<input type="date">` natifs (comme dans AG Grid) : calendrier, clavier et accessibilité du navigateur, format d'affichage de la langue du système, valeur toujours sérialisée `YYYY-MM-DD` / `YYYY-MM-DD..YYYY-MM-DD`. La période s'applique dès qu'une borne change (plus de boutons OK / Annuler) ; deux bornes inversées sont remises dans l'ordre, et `min` / `max` empêchent d'en choisir. Plus besoin de `MatNativeDateModule` ni de `MAT_DATE_LOCALE`. Les libellés `ok` et `cancel` de `NgTableLabels` ne sont plus utilisés par la table.
+- **Tableau** (étape 6) : le moteur est le `CdkTable` du CDK (`<table cdk-table>`, `cdkColumnDef`, `cdkRowDef`...) au lieu de `mat-table` : même API, mêmes colonnes figées et en-têtes collants. Les styles de base du tableau (hauteurs de ligne 52 px / en-tête 56 px, bordures, fond) sont désormais ceux de la bibliothèque, en `:where()` pour rester surchargeables. Les classes changent : `mat-mdc-cell` → `cdk-cell`, `mat-mdc-header-cell` → `cdk-header-cell`, `mat-mdc-row` → `cdk-row`, `mat-mdc-header-row` → `cdk-header-row`, `mat-column-<id>` → `cdk-column-<id>`, `mat-mdc-table-sticky` → `cdk-table-sticky`. `@angular/material` n'est plus un peer dependency ; `NgTablePaginatorIntl` et `provideNgTablePaginatorIntl()` sont retirés de l'API publique.
+- **Il ne reste aucun composant Angular Material dans la bibliothèque.**
+
+### Étape 10novodecies — Thème : jetons CSS et thème sombre
+
+Tous les styles de la bibliothèque lisent des **jetons de conception** `--ngt-*`. Redéfinissez-en un sur n'importe quel ancêtre (`:root`, un conteneur, l'élément `ng-table` lui-même) et il s'applique, y compris aux menus et filtres qui s'ouvrent en surcouche :
+
+```css
+:root {
+  --ngt-primary: #7c3aed;        /* accent : tri actif, focus, sélection */
+  --ngt-surface: #fffdf8;        /* fond du tableau et des panneaux */
+  --ngt-border: rgba(0, 0, 0, .1);
+}
+```
+
+| Jeton | Rôle | Clair | Sombre |
+|-------|------|-------|--------|
+| `--ngt-primary` | Accent | `#2f6fa8` | `#7fb4d6` |
+| `--ngt-primary-soft`, `--ngt-primary-outline` | Fond léger / contour de l'accent | | |
+| `--ngt-text`, `--ngt-text-muted` | Texte principal / secondaire | `#14212b`, `#5f7080` | `#e7edf3`, `#93a4b4` |
+| `--ngt-border`, `--ngt-border-strong` | Séparateurs / contours des champs | | |
+| `--ngt-surface`, `--ngt-surface-alt`, `--ngt-surface-soft` | Fonds du tableau, des lignes épinglées et totaux, des zones légères | `#ffffff`, `#f4f6f9`, `#f8fafc` | `#11171d`, `#19212a`, `#151c24` |
+| `--ngt-hover-surface`, `--ngt-field-bg`, `--ngt-field-hover-bg`, `--ngt-filter-panel-bg` | Survol, champs, panneaux de filtre | | |
+| `--ngt-shadow-soft` | Ombre des cartes | | |
+| `--ngt-danger` | Erreurs de saisie | `#b3261e` | `#f2b8b5` |
+| `--ngt-success`, `--ngt-warning` | Confirmation (vue mise à jour) / favori et avertissement | `#2e7d32`, `#c98a00` | `#7fdba3`, `#f0c15a` |
+| `--ngt-on-primary` | Texte sur fond d'accent ou d'erreur (pastilles, bouton plein) | `#ffffff` | `#0b1620` |
+| `--ngt-chart-1` … `--ngt-chart-8` | Palette des séries des graphiques (elle tourne sur 8 couleurs) | `#2f6fa8`, `#e07a3f`… | `#7fb4d6`, `#f0955f`… |
+| `--ngt-radius-card`, `--ngt-radius-control` | Rayon des cartes et panneaux / des champs, listes et menus | `16px`, `10px` | idem |
+| `--ngt-row-height`, `--ngt-header-height` | Hauteur d'une ligne / de la ligne d'en-têtes (la densité compacte remplace la première) | `48px`, `46px` | idem |
+| `--ngt-row-height-compact`, `--ngt-header-height-compact` | Mêmes hauteurs en densité compacte | `36px`, `44px` | idem |
+| `--ngt-radius-button` | Rayon des boutons et de la recherche (pastille par défaut ; `8px` pour des boutons carrés) | `999px` | idem |
+| `--ngt-font-family`, `--ngt-font-size` | Police du tableau et de ses panneaux (celle de la page par défaut) / taille du texte des cellules | `inherit`, `0.84rem` | idem |
+| `--ngt-header-font-size`, `--ngt-header-font-weight` | Taille et graisse des en-têtes | `0.8125rem`, `600` | idem |
+
+La liste complète (38 jetons), avec les descriptions, est exportée : `NG_TABLE_TOKENS`. Un jeton défini sur `:root` ou sur un conteneur s'applique partout, y compris aux menus, listes et graphiques ; la forme des boutons, la typographie et les hauteurs de la densité compacte se règlent aussi par jetons. Les anciens noms `--app-*` (et `--mat-sys-error`) restent lus en repli : une application qui les définissait n'a rien à changer.
+
+**Thème sombre**, de trois façons :
+- `[theme]="'dark'"` sur `<ng-table>`, `<ng-table-pivot>`, `<ng-table-chart>` ou `<ng-table-sparkline>` ; `'auto'` suit `prefers-color-scheme` ; `'light'` force le clair ; `null` (défaut) ne force rien.
+- La classe `ngt-dark` sur `<html>` ou `<body>` : c'est la façon de thémer **toute l'application**, y compris les menus et filtres ouverts en surcouche (ils sont rattachés à `<body>`, pas à la table).
+- Appliquer `NG_TABLE_THEME_DARK` (un objet `{'--ngt-primary': '#7fb4d6', ...}`) sur le conteneur de votre choix.
+
+Les composants de la table lisent directement les jetons `--ngt-*`. `NG_TABLE_MATERIAL_BRIDGE` (variables `--mat-sys-*`) ne sert plus qu'aux composants Angular Material de *votre* application placés dans un conteneur sombre.
+
+Les règles du thème sombre sont dans `projects/ng-table/src/lib/theme.css`, **généré** depuis la table de jetons (`npm run theme:css`) ; `npm run theme:check` échoue si le fichier n'est pas à jour.
+
+**Dépendances.** `ng-table` n'a plus besoin d'Angular Material : ni paquet, ni thème, ni police d'icônes. Il utilise le CDK Angular (`@angular/cdk/table`) pour le moteur de tableau.
+
+### Étape 10octodecies — Benchmark face à AG Grid Community
+
+La page `/benchmark` de la démo met `ng-table` et AG Grid Community (34.x, installé à part dans `benchmarks/`, il n'est pas livré avec la bibliothèque) côte à côte, dans le **même navigateur**, **une grille à la fois**, sur les **mêmes données** (10 000, 100 000 ou 1 000 000 de lignes) :
+
+```bash
+cd benchmarks && npm install        # une fois : installe ag-grid-community
+npm start                           # à la racine, puis ouvrez http://localhost:4200/benchmark
+```
+
+Opérations mesurées : chargement, tri numérique, tri texte (valeurs distinctes), tri sur deux niveaux, filtre texte, filtre numérique, saut à 90 % de la liste, lot de 1 000 mises à jour. Chaque mesure va de l'appel de l'opération à la **fin de la deuxième image peinte** qui suit : le rendu est compté, pas seulement le calcul. On garde la médiane de 5 passages. Aucun réglage particulier pour l'une ou l'autre grille (défilement virtuel, lignes compactes, pas d'animation), et le bouton « Copier le rapport » produit un tableau Markdown avec le navigateur et le nombre de cœurs.
+
+**Première mesure** — 1 000 000 de lignes, Chrome 153 (Windows, 8 cœurs logiques), médiane de 5 passages, fenêtre au premier plan :
+
+| Opération | ng-table (ms) | AG Grid (ms) | Rapport |
+|---|---:|---:|---:|
+| Chargement des lignes (premier affichage) | 444 | 1 489 | 3,35 × |
+| Tri numérique (montant) | 187 | 5 362 | 28,7 × |
+| Tri texte, valeurs distinctes (référence) | 1 434 | 3 406 | 2,37 × |
+| Tri sur deux niveaux (client, montant) | 406 | 7 066 | 17,4 × |
+| Filtre texte « contient » | 74 | 1 737 | 23,4 × |
+| Filtre numérique « > 5 000 » | 189 | 3 161 | 16,8 × |
+| Saut à 90 % de la liste | 17 | 14 | 0,82 × |
+| 1 000 mises à jour d'un coup (lot) | 35 | 3 715 | 105 × |
+
+À lire avec prudence :
+- **Les deux dernières lignes sont à refaire.** Dans cette première version, le filtre numérique du scénario précédent restait actif pendant « saut » et « mises à jour » (dans les deux grilles). Les scénarios remettent maintenant tri et filtres à zéro avant ces deux mesures ; le chiffre de 105 × en particulier n'est pas représentatif tant qu'il n'est pas relancé.
+- **Le saut à 90 % est le seul où AG Grid est (très légèrement) devant** : 14 ms contre 17 ms, soit un écart de l'ordre d'une image.
+- Ce sont les réglages par défaut d'AG Grid Community. Il offre des options (traitement asynchrone des transactions `applyTransactionAsync`, tampon de lignes...) que ce benchmark n'explore pas ; ng-table de son côté trie par un tri par base spécialisé (étape 10sexdecies). Un écart de 28 × en tri numérique dit surtout que cette voie est très rapide pour des colonnes de nombres, pas que toute la grille est 28 fois plus rapide.
+- Une seule machine, Chrome avec l'extension Avast. Relancez la mesure chez vous avant de citer ces chiffres.
+
+À savoir pour des chiffres honnêtes :
+- **Gardez la fenêtre au premier plan.** Un onglet masqué ne peint pas d'images et ralentit les minuteurs ; la page détecte ce cas et mesure alors seulement jusqu'à la mise en page (le rapport l'indique), ce qui n'est comparable à rien d'autre.
+- Les résultats dépendent de la machine : comparez les deux colonnes entre elles, pas avec un autre poste.
+- Ce sont les réglages par défaut de chaque grille. AG Grid propose des options de réglage (tampon de lignes, `suppressAnimationFrame`...) que ce benchmark n'explore pas ; si vous publiez des chiffres, indiquez la version, le navigateur et la machine.
+
+### Étape 10septdecies — Branché sur le backend Spring Boot
+
+Tout ce qui précède se démontre aussi sur un vrai serveur : `examples/spring-boot-backend` (H2 en mémoire, JPA). Lancez-le (`mvnw.cmd spring-boot:run`), puis dans la démo :
+
+| Page | Ce que Spring Boot fournit |
+|------|----------------------------|
+| **Expert** → *Spring Boot* | Pages et **modèle par blocs** (`POST /api/commandes/search`), export, **édition de cellules** (`PATCH /api/commandes/{id}` : le serveur valide le montant et le statut, la table se recharge avec sa valeur), mini-graphiques (`tendance`), barre d'état, panneau latéral, plage de cellules |
+| **Live** → *Spring Boot (SSE)* | Instantané `GET /api/quotes?size=N`, puis flux de transactions en Server-Sent Events `GET /api/quotes/stream?size=N&rate=R` (un paquet toutes les 100 ms), appliquées par `applyTransactionAsync` |
+| **Analyse** → *Spring Boot* | **Pivot calculé par la base** (`POST /api/commandes/pivot` : un `GROUP BY` JPA, totaux recombinés), arbre de 5 096 dossiers à plat (`GET /api/dossiers`, `[treeParent]`), commandes avec mini-graphiques |
+
+Le pivot serveur reçoit exactement `PivotServerRequest` (`rows`, `columns`, `values`, `columnSort`, `filters`) : les champs sont désignés par leur identifiant et validés contre une liste blanche (`client`, `statut`, `mois`, `urgent` ; mesure `montant`), jamais utilisés tels quels dans une requête. Les filtres et la recherche de la table restreignent le pivot aux mêmes lignes. Au-delà de 20 000 groupes le serveur répond 400. Détail des classes dans `examples/spring-boot-backend/README.md`.
+
+### Calcul en Web Worker (grands jeux de données)
+
+Au-delà de quelques centaines de milliers de lignes, un tri de texte ou un filtre bloque le fil principal (la saisie et le défilement se figent). `[workerCompute]` déplace le **tri, les filtres et la recherche globale** dans un Web Worker :
+
+```html
+<ng-table [columns]="columns" [rows]="rows" [workerCompute]="true" [workerThreshold]="200000"
+          (computing)="busy.set($event)"/>
+```
+
+- **Comment** : un worker ne reçoit pas de fonctions. La table lui envoie les **colonnes de valeurs** (les résultats des accesseurs ; les colonnes numériques partent en `Float64Array`, transférées sans copie), **une seule fois par jeu de données**. Le worker y exécute les mêmes modules que le fil principal (filtres compilés, tri par base, recherche) et renvoie l'ordre des lignes retenues. Les tris et filtres suivants n'envoient plus que quelques réglages.
+- **Pendant le calcul**, l'ancien résultat reste affiché sous l'indicateur d'attente (`aria-busy`), la table reste utilisable ; `(computing)` signale le début et la fin. Une demande plus récente remplace celle en cours.
+- **S'applique** en mode local, sans données arborescentes, quand le nombre de lignes atteint `[workerThreshold]` (100 000 par défaut). Un filtre à `filterPredicate` (fonction) se calcule sur le fil principal.
+- **Données vivantes** : chaque transaction recalcule tout dans le worker. Pour un flux d'écritures fréquentes, gardez le calcul sur le fil principal (pipeline incrémental) : il fusionne 1 000 mises à jour sur 1 000 000 de lignes en quelques millisecondes.
+- **Échec** (CSP interdisant les `Blob`, plantage du worker) : la table revient d'elle-même au fil principal, avec un avertissement dans la console. Avec une politique de sécurité stricte, fournissez votre worker par `[computeWorkerFactory]` : il doit exécuter `ng-table.worker` (le fichier est dans les sources de la bibliothèque).
+- **Coût sur le fil principal**, mesuré sur 1 000 000 de lignes (Node, machine de développement) : extraire et empaqueter une colonne numérique ~40 ms, une colonne de textes ~155 ms (les textes partent en **un seul tampon** UTF-8 transféré sans copie ; les copier un par un coûtait ~560 ms), puis reconstituer les lignes triées ~20 à 80 ms. Le tri lui-même (0,2 à 2,5 s selon la colonne et le nombre de valeurs distinctes) se fait dans le worker ; un second tri sur une colonne déjà envoyée ne coûte plus que ses ~80 ms. La page `/benchmark` a un banc « Calcul en Web Worker » qui mesure le gel du fil principal avec et sans worker.
+- Le worker est livré **empaqueté dans la bibliothèque** (une source JavaScript de 12 Ko chargée dans un `Blob`, générée par `npm run worker:bundle`) : aucune configuration de l'application.
+### Étape 10sexdecies — Performances sur de gros volumes
+
+Mesures sur **1 000 000 de lignes** en mémoire (poste de développement ; `PERF_ROWS=1000000 npm run test:ci` les rejoue, 200 000 lignes par défaut). Chaque temps comprend le chargement des lignes dans la table (de 300 à 500 ms à lui seul pour un million) :
+
+| Opération | Avant | Maintenant |
+|-----------|------:|-----------:|
+| Tri numérique ou date | 2,7 s | 0,35 – 0,65 s |
+| Tri sur deux niveaux | 3,1 s | 0,4 – 0,8 s |
+| Tri texte, valeurs peu nombreuses (statut) | 1,6 s | 0,3 – 0,4 s |
+| Tri texte, un million de valeurs distinctes (références) | 6,4 s | 1,0 – 2,4 s |
+| Filtre texte, nombre, liste, période, booléen | 0,5 – 1,1 s | 0,2 – 0,45 s |
+| Pivot (2 champs × 1 colonne pivot) | 1,0 s | 0,2 – 0,3 s |
+| Graphique de 1 000 000 de points (courbe ou barres) | débordement de la pile | 35 – 70 ms |
+| Lot de 1 000 mises à jour live sur 100 000 lignes | 12 ms | 6 – 8 ms |
+
+Ce qui a changé :
+
+- **Tri par base (radix)** : chaque niveau de tri devient une colonne de nombres (valeur, date, booléen, rang du texte), puis les indices sont triés par un tri par base stable, du niveau le moins important au plus important. Pas de comparateur, pas d'objet par ligne. Les mêmes règles qu'avant s'appliquent (vides en dernier dans les deux sens, égalités dans l'ordre d'origine) : un test compare le résultat à l'ancien tri sur des données aléatoires. Un niveau qu'on ne sait pas ranger en nombres (types mêlés, date invalide, `NaN`) retombe sur l'ancien tri par comparaisons.
+- **Texte** : le rang d'une valeur vient d'un tri des valeurs *distinctes*. Pour les textes ASCII, la table construit des **clés de tri en octets** (chiffres comparés par valeur, casse ignorée) triées elles aussi par base ; ces clés sont **vérifiées contre `Intl.Collator`** sur un corpus avant le premier usage, et abandonnées au moindre écart : le résultat reste celui du collateur. Texte accentué ou non ASCII : le collateur, comme avant.
+- **Filtres compilés** : `>5000`, `10..50`, `Validée,Annulée` ou une période sont lus *une fois* par changement de filtre au lieu d'une fois par ligne. Un test compare le prédicat compilé à l'ancien sur plus de 12 000 couples valeur / saisie.
+- **Pas de travail inutile** : un recalcul complet ne construit plus ni l'index par clé ni les clés de tri du résultat ; la première fusion live qui suit les construit (une fois). La clé de ligne est lue une fois, pas un signal par ligne.
+- **Pivot en une passe** : chaque ligne ne touche qu'un accumulateur par valeur ; totaux de ligne et total général se déduisent ensuite des accumulateurs (une moyenne est recombinée à partir de sommes et de nombres).
+- **Graphiques** : minimum et maximum par boucle (plus de `Math.min(...)` qui faisait déborder la pile au-delà de ~100 000 points), réduction à `[maxPoints]` points qui garde pics et creux, zoom en fenêtre.
+- **Recherche globale** : le texte normalisé d'une ligne est calculé une fois et mis en cache (premier passage : environ 1,2 s pour un million de lignes sur 6 colonnes, ensuite quelques dizaines de ms par saisie) ; le texte ASCII évite la décomposition Unicode.
+- **Rendu** : défilement virtuel (lignes et colonnes) et modèle serveur par blocs ; le temps de rendu d'une page ne dépend pas du nombre total de lignes.
+
+### Étape 10quindecies — Données arborescentes et maître / détail imbriqué
+
+```html
+<!-- Lignes à plat : chacune donne la clé de son parent -->
+<ng-table [treeData]="true" [treeParent]="(f) => f.parentId" [rowKeyAccessor]="(f) => f.id" [treeDefaultExpanded]="1" ... />
+
+<!-- Lignes imbriquées : [rows] ne contient que les racines -->
+<ng-table [treeData]="true" [treeChildren]="(n) => n.children" ... />
+```
+
+La première colonne reçoit le retrait (`[treeIndent]`, 20 px par niveau) et un bouton déplier / replier. `[treeDefaultExpanded]` : `true` pour tout, ou un nombre de niveaux. Méthodes : `setTreeExpanded(row, bool)`, `expandAllTree()`, `collapseAllTree()` ; `(treeToggle)` à chaque changement ; Alt + → / Alt + ← sur une cellule (avec `[cellNavigation]`). `aria-level` et `aria-expanded` sont posés sur les lignes.
+
+- **Tri** : entre frères, l'arbre reste intact. **Filtre et recherche** : une ligne reste si elle correspond ou si l'un de ses descendants correspond ; ses ancêtres sont dépliés pour la montrer. **Pagination** : sur les lignes visibles.
+- **Transactions** (`applyTransaction`) : prises en compte avec `[treeParent]`. Avec `[treeChildren]` les lignes sont aplaties une fois depuis `[rows]` : modifiez `[rows]` plutôt que de passer par une transaction.
+- **Performance** : l'ensemble des lignes à garder est recalculé à chaque changement de filtre ou de données (le pipeline incrémental n'est pas utilisé en mode arbre). L'index parent / enfant se construit en une passe, sans récursion, et supporte des arbres très profonds.
+- **Inactif en mode arbre** : regroupement, déplacement de lignes. Un lien vers un parent inconnu fait de la ligne une racine ; un cycle est coupé.
+- **Maître / détail imbriqué** : une `ng-table` dans `[detailRowTemplate]` fonctionne telle quelle (test à l'appui) : chaque ligne maître déplie son propre tableau, avec son tri et ses filtres.
+
+### Étape 10quaterdecies — Analyse : pivot, graphiques et mini-graphiques
+
+Trois outils, sans dépendance supplémentaire : tout est calculé dans le navigateur et dessiné en SVG. Démo : page `/analyse`.
+
+**Tableau croisé dynamique** — `<ng-table-pivot>` est une `ng-table` dont les lignes et les colonnes viennent d'un pivot :
+
+```html
+<ng-table-pivot [rows]="ventes()" [config]="pivot" />
+```
+```ts
+pivot: PivotConfig<Vente> = {
+  rows: [{id: 'region', header: 'Région', accessor: (v) => v.region}],            // une ou plusieurs colonnes
+  columns: {id: 'annee', header: 'Année', accessor: (v) => v.annee},                // chaque valeur devient une colonne
+  values: [{id: 'montant', header: 'Montant', accessor: (v) => v.montant, aggregate: 'sum'}],  // sum | avg | min | max | count
+  // rowTotals, grandTotal (true par défaut), totalLabel, columnSort: 'asc' | 'desc'
+};
+```
+
+**Plusieurs champs en colonnes** : `columns: [annee, statut]` (ou en glissant plusieurs champs dans « Colonnes ») donne une colonne par combinaison, les valeurs du champ externe coiffant celles du champ interne ; les totaux couvrent toutes les colonnes. Colonnes groupées sous l'en-tête de la colonne pivot, colonne « Total », ligne de total général épinglée en bas. Tri, filtres, recherche, export et `[statusBar]` fonctionnent comme sur toute table. Le pivot se recalcule quand `[rows]` ou `[config]` changent. Les moyennes se calculent sur les lignes, pas sur des moyennes de moyennes. Pour brancher le pivot sur votre propre `ng-table`, `buildPivotModel(rows, config)` renvoie `{columns, rows, pinnedBottom}`; `computePivot` donne le résultat brut.
+
+**Graphiques** — `<ng-table-chart>` dessine barres, courbes, zones, secteurs ou anneau :
+
+```html
+<ng-table #table [rangeSelection]="true" ... />
+<ng-table-chart [data]="table.rangeChartData()" type="bar" title="Plage sélectionnée" />
+```
+
+`rangeChartData()` transforme la plage sélectionnée : les colonnes numériques deviennent des séries, la première colonne de texte les catégories. Vous pouvez aussi fournir vos séries : `{categories: string[], series: {name, values}[]}`. Couleurs par `--ngt-chart-1` à `--ngt-chart-8`. Accessibilité : infobulle sur chaque forme, légende qui estompe les autres séries au survol, et un tableau masqué reprend les données pour les lecteurs d'écran. `[height]` règle la hauteur, la largeur suit le conteneur.
+
+**Mini-graphiques** — une colonne dont `valueAccessor` renvoie une série de nombres :
+
+```ts
+{id: 'tendance', header: 'Tendance', valueAccessor: (c) => c.sixDerniersMois,
+ sparkline: {type: 'area' /* line | area | bar */, width: 96, height: 24, color: '#3a7ca5'},
+ sortValueAccessor: (c) => c.sixDerniersMois.at(-1)}   // pour pouvoir trier
+```
+
+`<ng-table-sparkline [values]="…" type="bar" />` s'utilise aussi seul. La dernière valeur d'une courbe est marquée ; les barres négatives sont en rouge.
+
+**Pivot composé par glisser-déposer.** Avec `[configurator]`, l'utilisateur glisse des champs entre « Champs », « Lignes », « Colonnes » et « Valeurs », et choisit l'agrégat de chaque valeur :
+
+```html
+<ng-table-pivot [rows]="ventes()" [(config)]="pivot" [dimensions]="dimensions" [measures]="mesures" [configurator]="true" />
+```
+
+`dimensions` : les champs qui peuvent être lignes ou colonne ; `measures` : ceux qu'on peut agréger. Une dimension ne va pas dans « Valeurs », une mesure ne va pas en « Lignes » ; « Colonnes » n'accepte qu'un champ ; lâcher un champ sur « Champs » le retire. Au clavier : chaque zone a une liste « + » pour ajouter un champ, « × » pour le retirer. **Depuis la table** : l'en-tête d'une colonne de `ng-table` se glisse directement dans une zone du pivot (son identifiant est celui du champ ; les colonnes qui ne sont pas des champs du pivot sont refusées au survol, une mesure n'entre pas dans « Lignes »). Les règles de composition sont des fonctions pures (`placeInLayout`, `removeFromLayout`, `configFromLayout`).
+
+**Pivot calculé par le serveur.** Pour de gros volumes, c'est la base de données qui agrège :
+
+```ts
+pivotServeur: PivotDatasource = (request, {signal}) =>
+  fetch('/api/pivot', {method: 'POST', body: JSON.stringify(request), signal}).then((r) => r.json());
+// request : {rows: ['region'], columns: ['annee', 'statut'], values: [{id: 'montant', aggregate: 'sum'}], columnSort: 'asc', filters?}
+// réponse : {columns?: [['2025', 'Validée'], ['2026', 'Validée']],   // un chemin par colonne
+//            rows: [{labels: ['Nord'], cells: {'2025\u001fValidée': {montant: 10}, ...}, totals: {montant: 40}}], grandTotal: {cells, totals}}
+// les cellules d'une ligne sont rangées sous chemin.join(PIVOT_PATH_SEPARATOR), soit « \u001f »
+```
+```html
+<ng-table-pivot [datasource]="pivotServeur" [(config)]="pivot" [dimensions]="dimensions" [measures]="mesures" [configurator]="true" [filters]="filtres" />
+```
+
+Les champs sont envoyés par leur `id` (les `accessor` ne servent pas). Chaque changement de configuration annule la requête en cours (`AbortSignal`) et ignore sa réponse si elle arrive en retard. Pendant le calcul le tableau affiche son indicateur de chargement ; une erreur s'affiche avec un bouton « Réessayer » et émet `(pivotError)`. `pivotToServerResult(computePivot(...))` fabrique une réponse valide : utile pour un faux serveur de test.
+
+**Zoom.** Barres, courbes et zones se zooment : glissez sur le tracé pour sélectionner une période, ou Ctrl + molette (autour du pointeur), ou les boutons + / − / ◀ / ▶ / Tout, ou le clavier (`+`, `-`, flèches, Origine) ; double-clic pour tout revoir. `(zoomChange)` émet la fenêtre `{start, end}`, `[zoomable]="false"` désactive. L'échelle verticale suit la fenêtre.
+
+**Grandes séries.** Au-delà de `[maxPoints]` (600) points ou barres par série, chaque tranche garde son plus petit et son plus grand point : aucun pic, aucun creux ne disparaît, et le tracé reste fluide avec des centaines de milliers de valeurs. Un « ≈ » signale la réduction ; zoomer montre les points exacts.
+
+**Limites.** Les graphiques ne sont pas interactifs au-delà de l'infobulle, de la légende et du zoom (pas d'export image) ; le pivot composé ne gère qu'une colonne pivot et pas de sous-totaux intermédiaires.
+
+### Étape 10terdecies — Déplacer des lignes (glisser-déposer)
+
+```html
+<ng-table [rowDrag]="true" (rowMoved)="rows.set($event.rows)" [rows]="rows()" ... />
+```
+
+Une poignée (⋮⋮) en tête de chaque ligne. Glissez-la sur une autre ligne : un trait indique si la ligne sera placée avant (moitié haute) ou après (moitié basse). Au clavier, **Alt + ↑ / ↓** sur la poignée monte ou descend la ligne d'un cran. La zone défile toute seule quand on glisse près de son bord.
+
+- **La table ne réordonne pas vos données.** `(rowMoved)` donne `{row, target, position, fromIndex, toIndex, rows}` : `rows` est la liste complète dans le nouvel ordre, à réinjecter dans `[rows]`. Les éditions de cellules et les transactions déjà appliquées y sont comprises.
+- **Actif** en mode local, sans tri ni regroupement (l'ordre est alors celui de `[rows]`). Avec un filtre, l'ordre complet est calculé par rapport aux lignes visibles. Les lignes épinglées n'ont pas de poignée.
+- `moveRow(row, target, 'before' | 'after')` fait la même chose par programme. Un lecteur d'écran annonce la nouvelle position.
+
+### Étape 10duodecies — Barre d'état et panneau latéral
+
+```html
+<ng-table [statusBar]="true" [sidePanel]="true" [rangeSelection]="true" ... />
+```
+
+- **Barre d'état** : « 1 250 sur 10 000 lignes » (filtrées / total, en mode par blocs le total connu du serveur), lignes sélectionnées, et, pour une plage de cellules, nombre, somme, moyenne, min et max des valeurs numériques.
+- **Panneau latéral** : un bouton « Panneau » l'ouvre sur le côté. Onglet *Colonnes* (afficher / masquer) et onglet *Filtres* (filtres actifs, supprimables un par un ou tous). `[(sidePanelOpen)]` pilote l'ouverture, `toggleSidePanel('columns' | 'filters')` aussi. Échap le ferme.
+
+### Étape 10undecies — Édition de cellules
+
+Des cellules modifiables au clavier ou à la souris, avec validation, annuler / rétablir et collage dans les cellules.
+
+```ts
+{
+  id: 'montant', header: 'Montant', valueAccessor: (c) => c.montant,
+  editable: true,                                   // ou (row) => row.statut === 'BROUILLON'
+  editor: 'number',                                 // text | number | date | select | checkbox (déduit du filtre sinon)
+  valueSetter: (c, value) => ({...c, montant: value as number}),   // renvoie la NOUVELLE ligne
+  validate: (value) => (value as number) < 0 ? 'Montant négatif' : null,
+}
+```
+
+```html
+<ng-table [columns]="columns" [rows]="rows" [cellNavigation]="true" [rangeSelection]="true"
+          (cellEdited)="log($event)" (cellEditRejected)="warn($event)" />
+```
+
+| Geste | Effet |
+|-------|-------|
+| Double-clic, Entrée ou F2 | Ouvre l'éditeur (Entrée / F2 avec `[cellNavigation]`). |
+| Taper un caractère sur une cellule | Ouvre l'éditeur avec ce caractère. |
+| Entrée / Tab / Maj+Tab | Valide et passe à la cellule du dessous / de droite / de gauche. |
+| Échap | Abandonne. La perte de focus valide ; une saisie invalide est alors abandonnée. |
+| Ctrl+Z, Ctrl+Y (ou Ctrl+Maj+Z) | Défait / rétablit, depuis une cellule. |
+| Case à cocher éditable | Un clic enregistre la valeur. |
+| Ctrl+V sur une plage | Écrit dans les cellules éditables (`[editOnPaste]`), en **un seul lot annulable**. |
+
+- **Données immuables.** `valueSetter` renvoie la nouvelle ligne ; en mode local la table l'applique par `applyTransaction({update})` (tri, filtre et totaux suivent, la ligne reste à sa place si la clé est stable). Sans `valueSetter`, ou en mode distant, seul `(cellEdited)` est émis : l'application enregistre (appel serveur…) et met `[rows]` à jour.
+- **Validation.** Nombre (virgule ou point) et date (AAAA-MM-JJ) sont contrôlés par la table, `validate` par vous. Une saisie refusée garde l'éditeur ouvert avec son message (`role="alert"`, `aria-invalid`) et émet `(cellEditRejected)`.
+- **Événements.** `(cellEdited)` : `{row, newRow, column, oldValue, newValue, source: 'edit' | 'paste' | 'undo' | 'redo'}`. `(rangePasted)` gagne `applied`, le nombre de cellules modifiées.
+- **Méthodes.** `undo()`, `redo()`, `canUndo()`, `canRedo()`, `startEditing(row, columnId)`, `stopEditing(cancel?)`. `[undoRedoLimit]` (100) borne l'historique.
+- **Limites.** Les lignes épinglées ne s'éditent pas. L'historique annuler / rétablir ne couvre que le mode local.
+
+### Étape 10decies — Sélection de plage et copier-coller
+
+Comme dans un tableur : sélectionner un rectangle de cellules, le copier vers Excel ou Google Sheets, et recevoir ce qu'on colle.
+
+```html
+<ng-table [rangeSelection]="true" [rangeCopyHeaders]="true" [cellNavigation]="true"
+          (rangeCopied)="toast($event)" (rangePasted)="appliquer($event)" ... />
+```
+
+| Geste | Effet |
+|-------|-------|
+| Glisser, ou Maj+clic | Sélectionne le rectangle entre deux cellules. |
+| Maj+flèches (avec `[cellNavigation]`) | Étend la plage depuis la cellule de départ. Une flèche seule la réduit à la cellule atteinte. |
+| Ctrl+C (Cmd+C) | Copie la plage en texte tabulé, collable dans Excel et Google Sheets. |
+| Ctrl+A | Sélectionne toutes les cellules de la page affichée. |
+| Échap | Efface la plage. |
+| Ctrl+V | Émet `(rangePasted)` avec les cellules cibles. |
+
+- **Texte copié.** Colonnes séparées par une tabulation, lignes par un saut de ligne. Une valeur qui contient une tabulation, un saut de ligne ou un guillemet est entourée de guillemets. La valeur est celle de `exportValueAccessor`, sinon de `valueAccessor`. `[rangeCopyHeaders]` ajoute la ligne des en-têtes. Le copier passe par l'API du presse-papiers, avec un repli (`execCommand`) quand le navigateur la refuse.
+- **Collage.** La table **ne modifie pas vos données** : `(rangePasted)` donne `assignments` (`{row, column, value}`, déjà limités à la grille) et le texte brut découpé en `values`. Le texte est posé à partir de la cellule en haut à gauche de la plage. Une valeur unique collée sur une plage remplit toutes ses cellules, comme dans Excel. À vous d'appliquer les valeurs (pour une colonne éditable, voir l'édition de cellules).
+- **Ce qui est sélectionnable.** Les cellules de données de la page affichée : pas la colonne de cases à cocher, ni les lignes épinglées, ni les boutons des cellules (ils gardent leur clic). Un tri, un filtre, une recherche, un changement de page ou de colonnes efface la plage ; les transactions du mode live la laissent en place.
+- **Méthodes.** `getSelectedRange()` (lignes, colonnes, texte), `copySelectedRange()`, `pasteIntoRange(texte)`, `selectAllCells()`, `clearRangeSelection()`.
+- **Accessibilité.** Avec `[cellNavigation]`, les cellules de la plage portent `aria-selected="true"`. Sans lui, la plage se fait à la souris seulement.
+- **Limites.** Pas avec `[remoteDatasource]` (les lignes ne sont chargées que par blocs). Pas de défilement automatique en glissant au bord de la zone : utilisez Maj+clic ou Maj+flèches pour une plage plus longue.
+
+### Étape 10nonies — En-têtes de colonnes groupés
+
+Un libellé commun au-dessus de plusieurs colonnes, sur un ou plusieurs niveaux, comme les « column groups » d'AG Grid.
+
+```ts
+{id: 'nom',    header: 'Nom',    valueAccessor: (c) => c.nom,    headerGroup: ['Client', 'Identité']},
+{id: 'prenom', header: 'Prénom', valueAccessor: (c) => c.prenom, headerGroup: ['Client', 'Identité']},
+{id: 'mail',   header: 'E-mail', valueAccessor: (c) => c.mail,   headerGroup: ['Client', 'Contact']},
+{id: 'ca',     header: 'CA',     valueAccessor: (c) => c.ca,     headerGroup: 'Finance'},   // un seul niveau
+```
+
+- `headerGroup` est un libellé, ou un chemin du plus externe au plus interne. Une ligne d'en-tête est ajoutée **par niveau**, au-dessus de celle des colonnes.
+- Les colonnes **voisines** qui partagent un groupe sont fusionnées en une cellule (`colspan`). Deux groupes de même nom sous des parents différents restent distincts, et un groupe séparé par une autre colonne donne deux cellules.
+- Les cellules suivent la table : colonne masquée (le groupe rétrécit, ou disparaît), colonne déplacée par glisser-déposer, colonne de sélection (cellule vide), virtualisation horizontale.
+- Un groupe **ne traverse jamais** la limite des colonnes épinglées : la partie épinglée est une cellule à part, épinglée comme sa colonne, qui répète le libellé.
+- Avec `[stickyHeader]` ou `[virtualScroll]`, toutes les lignes d'en-tête restent visibles. Les lignes épinglées se placent sous leur total.
+- Sans `headerGroup` sur aucune colonne, la table n'ajoute aucune ligne. Limites : l'export (CSV, Excel) n'inclut pas ces lignes, et un groupe ne se déplace pas d'un bloc (les colonnes se déplacent une à une).
+
+### Étape 10octies — Lignes épinglées en haut et en bas
+
+Des lignes qui restent visibles pendant le défilement vertical, sous l'en-tête ou au-dessus du bas de la zone : synthèse, favoris, ligne « nouvelle saisie »...
+
+```html
+<ng-table [pinnedTopRows]="[prioritaire]" [pinnedBottomRows]="[total]" [maxHeight]="'60vh'" ... />
+```
+
+- Ce sont de vraies lignes rendues par les mêmes cellules (`cellTemplate`, `rowClassFn`, copie...). Elles sont **hors de `[rows]`** : ni filtrées, ni triées, ni paginées, ni comptées par `(filteredCountChange)`, et leur clé doit différer de celles de `[rows]`.
+- Elles ne sont pas sélectionnables (pas de case à cocher), sans ligne détail, et non exportées.
+- Elles s'appuient sur une zone de défilement à hauteur limitée : `[maxHeight]`, `[stickyHeader]` ou `[virtualScroll]` (70vh par défaut). Sans cela, la table n'a pas de défilement propre et elles restent à leur place naturelle.
+- Le décalage sous l'en-tête et au-dessus de la ligne de totaux (`[showTotals]`) vient des hauteurs réellement mesurées : densité, thème et police sont suivis.
+- Avec `[virtualScroll]` ou `[remoteDatasource]`, elles encadrent la tranche rendue et ne comptent pas dans la hauteur de la liste.
+- Une ligne épinglée modifiée (un total en direct, par exemple) se met à jour en passant un nouveau tableau ou de nouveaux objets.
 
 ### Étape 10ter — Regroupement et totaux
 
@@ -583,7 +1022,7 @@ Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`),
 - **Ordre** : les groupes suivent l'ordre de leur valeur, décroissant si la table est triée à l'envers sur cette colonne. Dans un groupe, les lignes gardent le tri courant.
 - **Replier un groupe** : un clic sur son en-tête, ou Entrée / Espace au clavier. L'en-tête porte `aria-expanded`.
 - **Pagination** (mode local) : elle porte sur les lignes, et un groupe replié compte pour une ligne. Un groupe coupé entre deux pages garde son en-tête sur chaque page. Ses agrégats portent toujours sur **tout** le groupe. `(filteredCountChange)` suit ce même compte, pour un paginateur externe.
-- **Ligne de totaux** : `[showTotals]` affiche en bas de la table les agrégats sur toutes les lignes filtrées, avec ou sans regroupement.
+- **Ligne de totaux** : `[showTotals]` affiche en bas de la table les agrégats sur toutes les lignes filtrées, avec ou sans regroupement. En mode live, les sommes et moyennes sont tenues par différence à chaque lot, sans relire toutes les lignes.
 - **En mode `remote`**, la table n'a qu'une page de lignes. Regrouper cette page seule donnerait des groupes coupés et des totaux faux. Le travail est donc partagé avec le serveur :
   1. `groupBy` part dans `NgTableRemoteQuery.groupBy`. Le serveur renvoie les lignes triées **d'abord** par cette colonne, puis par `sorts`.
   2. La table dessine un en-tête à chaque changement de valeur dans la page reçue. Un groupe à cheval sur deux pages a son en-tête sur chacune.
@@ -603,6 +1042,20 @@ Les lignes peuvent être regroupées par la valeur d'une colonne (mode `local`),
   <ng-table [dataMode]="'remote'" [groupingEnabled]="true" [groupSummaries]="groupSummaries()" (remoteQueryChange)="load($event)" ... />
   ```
 
+### Regroupement sur plusieurs niveaux et panneau de regroupement
+
+`[groupBy]` est le premier niveau de regroupement ; `[groupLevels]` ajoute les niveaux suivants (sous-groupes), en mode local :
+
+```html
+<ng-table [columns]="columns" [rows]="rows" [groupingEnabled]="true" [groupPanel]="true"
+          [(groupBy)]="groupBy" [(groupLevels)]="groupLevels"/>
+```
+
+- **Panneau** (`[groupPanel]`, avec `[groupingEnabled]`) : une barre au-dessus du tableau. On y **dépose un en-tête de colonne** (glisser-déposer) ou on choisit une colonne par le bouton « + » ; chaque niveau est une puce que l'on retire par sa croix et que l'on **réordonne en la glissant** sur une autre. L'ordre des puces est l'ordre des niveaux.
+- Les en-têtes de sous-groupe sont **en retrait** (20 px par niveau), avec leur effectif et leurs agrégats (`NgTableColumn.aggregate`). Replier un groupe masque ses sous-groupes ; replier un sous-groupe garde son parent déplié. La pagination compte un groupe replié pour une ligne, à tous les niveaux.
+- Le menu « Grouper » règle toujours le premier niveau (« Aucun regroupement » retire aussi les sous-niveaux). `groupLevels` est enregistré dans les vues et dans `getQueryState()` / `applyQueryState()` ; il n'est pas dans l'URL de `ngTableUrlState`.
+- **Limite** : un seul niveau en mode `remote` (le serveur ne reçoit que `groupBy`) ; un niveau ajouté au panneau y remplace le premier.
+- Le panneau se règle par les jetons `--ngt-*` (rayon `--ngt-radius-control`, accent). Textes : `labels.groupPanelLabel`, `groupPanelHint`, `groupRemove`, `groupAdd`.
 ### Étape 11 — Visibilité des colonnes
 
 Un bouton "Colonnes" (menu à cases à cocher) est présent par défaut — rien à activer. Pour le masquer (par exemple si vous pilotez la visibilité autrement, ou ne voulez pas laisser l'utilisateur y toucher) :
@@ -650,6 +1103,36 @@ onSelectionChange(event: NgTableSelectionChangeEvent<Commande>): void {
 
 `rowKeyAccessor` est recommandé dès que la sélection est utilisée, pour une clé de ligne fiable (ici `row.id`, mais utile si votre backend n'expose pas toujours un `id` stable). Mode contrôlé disponible via `[selectedRowKeys]`, symétrique au pattern de la visibilité des colonnes.
 
+### Barre d'actions flottante sur la sélection
+
+Quand l'utilisateur coche des lignes, une **barre flottante** apparaît en bas du tableau avec le nombre de lignes et les actions possibles. Elle s'active **seule ou avec le menu contextuel** (étape 14) : ce sont deux manières indépendantes d'agir sur les lignes (`[selectionBar]` et `[rowContextMenuEnabled]`).
+
+```html
+<ng-table [columns]="columns" [rows]="rows" [rowSelectionEnabled]="true"
+          [selectionBar]="true" [selectionActions]="actions" (selectionAction)="onAction($event)"/>
+```
+
+```ts
+actions: NgTableSelectionAction<Commande>[] = [
+  {id: 'valider', label: 'Valider', icon: 'check', appearance: 'primary',
+   when: (rows) => rows.every((c) => c.statut === 'BROUILLON'),                 // règle métier sur la sélection
+   otherwise: 'disable', disabledReason: 'Seules les commandes en brouillon peuvent être validées',
+   run: (rows) => this.api.valider(rows)},                                      // exécutée au clic
+  {id: 'exporter', label: 'Exporter', icon: 'download'},                         // toujours possible
+  {id: 'modifier', label: 'Modifier', icon: 'content_copy', maxRows: 1},         // une seule ligne : sinon masquée
+  {id: 'annuler', label: 'Annuler', icon: 'close', appearance: 'danger',
+   when: (rows) => rows.every((c) => c.statut !== 'EXPEDIEE')},
+];
+```
+
+- **Règles métier par action** : `when(rows)` (prédicat sur les lignes sélectionnées), `minRows` (défaut 1) et `maxRows`. Une règle non respectée **masque** l'action (défaut) ou, avec `otherwise: 'disable'`, la **grise** et affiche `disabledReason` (texte ou fonction de la sélection) en info-bulle. Une règle qui lève une exception compte comme non respectée.
+- **Règle d'affichage de la barre** : `[selectionBarWhen]="(rows) => rows.every(...)"` : la barre n'apparaît que si la sélection la satisfait (sinon dès qu'une ligne est cochée).
+- **Apparence** : pastille « inversée » (sombre en thème clair, claire en thème sombre) qui flotte au bas de la fenêtre tant que le bas du tableau n'est pas visible, sans décaler les lignes. `appearance: 'primary'` donne un bouton plein, `'danger'` une action destructrice. Elle se règle par les jetons `--ngt-*` (rayon, accent, texte, surface) ; `prefers-reduced-motion` coupe l'animation.
+- **Dans la barre** : le compteur, ✕ « Tout désélectionner » (aussi la touche Échap dans la barre), « Tout sélectionner (N) » (toutes les lignes filtrées, mode local), puis les actions. Au-delà de `[selectionBarMaxActions]` (4 par défaut), les suivantes passent dans le menu « Autres actions ». `[selectionBarTemplate]` ajoute du contenu libre (contexte : `rows`, `count`, `clear()`).
+- **Retour** : `(selectionAction)` émet `{action, rows}` ; `clearSelection()` et `selectAllFiltered()` sont publiques. `icon` est un nom de `ng-table-icon` (`check`, `download`, `delete`, `close`, `file_upload`, `content_copy`...).
+- **Menu contextuel** : le gabarit reçoit aussi `selectedRows` (`let-row` + `let-selectedRows="selectedRows"`) pour une action « sur la sélection ».
+- **Mode distant** : les lignes sélectionnées sont celles de la page courante plus celles déjà vues quand elles ont été cochées ; une clé fournie en `[selectedRowKeys]` mais jamais affichée n'a pas de ligne associée.
+- Accessibilité : `role="toolbar"` nommé, compteur annoncé (`aria-live`), action grisée en `aria-disabled` avec sa raison en info-bulle. Textes : `labels.selectionBarLabel`, `selectionCountOne`, `selectionCountMany`, `selectionClear`, `selectionSelectAll`, `selectionMore`.
 ### Étape 13 — Ligne détail (master/detail)
 
 Affichez le détail d'une commande (ses lignes) en dépliant la ligne au clic — mode non contrôlé, le plus simple :
@@ -697,19 +1180,19 @@ onDetailToggle(event: NgTableDetailToggleEvent<Commande>): void {
 <ng-table [rowContextMenuEnabled]="true" [rowContextMenuTemplate]="rowMenu" (rowContextMenu)="onRowContextMenu($event)" ... />
 
 <ng-template #rowMenu let-row>
-  <button mat-menu-item (click)="viewOrder(row)">
-    <mat-icon>visibility</mat-icon><span>Voir</span>
+  <button ngt-menu-item (click)="viewOrder(row)">
+    <ng-table-icon name="visibility"/><span>Voir</span>
   </button>
-  <button mat-menu-item (click)="duplicateOrder(row)">
-    <mat-icon>content_copy</mat-icon><span>Dupliquer</span>
+  <button ngt-menu-item (click)="duplicateOrder(row)">
+    <ng-table-icon name="content_copy"/><span>Dupliquer</span>
   </button>
-  <button mat-menu-item [disabled]="row.statut === 'ANNULEE'" (click)="cancelOrder(row)">
-    <mat-icon>cancel</mat-icon><span>Annuler</span>
+  <button ngt-menu-item [disabled]="row.statut === 'ANNULEE'" (click)="cancelOrder(row)">
+    <ng-table-icon name="cancel"/><span>Annuler</span>
   </button>
 </ng-template>
 ```
 
-Le menu Material s'ouvre exactement au point de clic. `(rowContextMenu)` est émis en plus, si vous avez besoin de connaître la ligne/position en dehors du template (analytics, par exemple).
+Le menu s'ouvre exactement au point de clic. `(rowContextMenu)` est émis en plus, si vous avez besoin de connaître la ligne/position en dehors du template (analytics, par exemple).
 
 ### Étape 15 — Colonne d'action mobile et responsive
 
@@ -857,6 +1340,7 @@ Exemple de corps envoyé (regroupement par statut, deux groupes repliés, trois 
    |---|---|---|
    | `text`, `search`... | `dupont` | contient (ou `filter.operator` : `equals`, `startsWith`, `endsWith`), sans tenir compte de la casse |
    | `enum` / `select` | `VALIDEE,EXPEDIEE` | une des valeurs (séparées par des virgules) |
+   | `set` | `["Nord","Sud, Est",""]` | une des valeurs : tableau JSON de clés (`[]` : aucune ; `""` : cellules vides) |
    | `boolean` | `true` / `false` | égalité |
    | `number` | `42`, `>100`, `<=50`, `!=0`, `10..50` | comparaison ou plage (bornes incluses, virgule décimale acceptée) |
    | `numberRange` | `10..50`, `10..`, `..50` | plage, une borne peut être vide |
@@ -2023,41 +2507,9 @@ Dépendance à ajouter pour le XLSX :
 - **Performances** : trois requêtes par chargement (page, total, résumés). Indexez les colonnes filtrées, triées et regroupées. Une recherche `LIKE '%mot%'` n'utilise pas d'index B-tree : sur de gros volumes, préférez un index trigramme (`pg_trgm`) ou une recherche plein texte.
 - **Associations** : un attribut imbriqué (`NgTableColumn.of("client", "client.nom")`) passe par une jointure implicite, donc interne. Les lignes sans client disparaissent : déclarez une jointure externe si besoin.
 
-### Étape 17bis — Traduire votre `<mat-paginator>`
+### Étape 17bis — Pagination et traduction
 
-`ng-table` ne rend pas de pagination lui-même (voir les Étapes 16/17) — vous branchez votre propre `<mat-paginator>`. Son i18n est un mécanisme **entièrement séparé** de `labels`/`provideNgTableLabels()` : sans rien faire, ses textes ("Items per page", "of"...) restent en anglais même si le reste de la table est traduit. `NgTablePaginatorIntl` fournit une traduction française prête à l'emploi :
-
-```ts
-// Pour toute l'application (app.config.ts)
-import {provideNgTablePaginatorIntl} from '@sbourahla/ng-table';
-
-export const appConfig: ApplicationConfig = {
-  providers: [provideNgTablePaginatorIntl(), /* ... */],
-};
-```
-
-```ts
-// Ou juste pour le composant qui affiche le <mat-paginator>
-@Component({
-  providers: [provideNgTablePaginatorIntl()],
-  // ...
-})
-export class CommandeListComponent {}
-```
-
-Pour ne changer qu'un texte ponctuellement, étendez la classe plutôt que d'utiliser d'autres clés :
-
-```ts
-import {NgTablePaginatorIntl} from '@sbourahla/ng-table';
-import {MatPaginatorIntl} from '@angular/material/paginator';
-
-class MyPaginatorIntl extends NgTablePaginatorIntl {
-  override itemsPerPageLabel = 'Lignes par page';
-}
-
-// providers du composant :
-providers: [{provide: MatPaginatorIntl, useClass: MyPaginatorIntl}]
-```
+Le paginateur intégré (`[paginator]="true"`) tire ses textes de `[labels]` : rien d'autre à traduire. `NgTablePaginatorIntl` et `provideNgTablePaginatorIntl()` ont été retirés avec la dépendance à Angular Material ; si vous utilisez votre propre `<mat-paginator>` ailleurs, fournissez votre `MatPaginatorIntl`.
 
 ### Étape 18 — Vues sauvegardées
 
@@ -2155,6 +2607,20 @@ onExportRequested(request: NgTableRemoteExportRequest): void {
 
 Un backend Spring Boot qui génère ce fichier est décrit à l'Étape 17ter. Aucun appel serveur n'est fait par `ng-table` : c'est le seul mode qui a du sens pour un export portant sur des données que le composant n'a pas (le grid affiche peut-être une page, mais l'export porte sur l'ensemble des lignes correspondant aux filtres côté back).
 
+### Export Excel mis en forme (`exportFormat: 'xlsx'`)
+
+Avec `[exportFormat]="'xlsx'"`, le classeur est **mis en forme** par défaut, sans aucune dépendance (le fichier est écrit à la main, vérifié dans Excel) :
+
+- **En-têtes** colorés (l'accent `--ngt-primary` du thème, texte blanc ou foncé selon le contraste), texte en gras, ligne figée et **répétée à l'impression**, **filtre automatique** sur la ligne d'en-têtes.
+- **Lignes alternées**, filets fins, quadrillage masqué, largeurs de colonnes ajustées au contenu (8 à 60 caractères), mise en page paysage sur une page de large.
+- **Vrais types Excel** : les `Date` deviennent de vraies dates (`jj/mm/aaaa`, ou avec l'heure s'il y en a une), les nombres décimaux sont à 2 chiffres avec séparateur de milliers, les entiers de 100 000 et plus ont le séparateur, les booléens sont centrés.
+
+```ts
+{id: 'montant', header: 'Montant', valueAccessor: (c) => c.montant,
+ excel: {numFmt: '#,##0.00 "€"', width: 16, align: 'right'}}
+```
+
+`NgTableColumn.excel` règle une colonne (format de nombre ou de date Excel, largeur, alignement). Côté tableau : `[exportXlsxOptions]="{headerFill: '#7c3aed', zebra: '#f5f3ff', autoFilter: true, sheetName: 'Commandes'}"`. `[exportXlsxStyle]="'plain'"` rend l'ancien classeur brut (en-têtes en gras). La fonction `toStyledXlsx(matrix, options)` est exportée pour produire un classeur de la même façon hors du composant. Le CSV est inchangé.
 ### Étape 18ter — Indicateur de chargement
 
 `[loading]="true"` affiche un overlay centré au milieu de la table (bloque l'interaction avec les lignes tant qu'il est visible) — c'est au parent de le piloter, `ng-table` ne sait pas lui-même qu'une requête est en cours :
@@ -2285,6 +2751,8 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 
 ## Référence API
 
+> La référence **générée depuis le code** (TypeDoc : classes, entrées, sorties, types, commentaires) fait foi : `npm run docs:api` la produit dans `dist/docs/api`, et le site de documentation la publie sous `api/`. Les tableaux ci-dessous sont écrits à la main et peuvent avoir un retard sur le code.
+
 ### `NgTableColumn<T>`
 
 | Champ                                      | Type                                                                   | Description                                                                                                                                    |
@@ -2305,6 +2773,7 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 | `copy?`                                    | `boolean \| {valueAccessor?, tooltip?}`                                | Bouton "copier" sur la cellule. `true` copie `valueAccessor(row)` ; l'objet permet un accessor/tooltip dédiés (`tooltip` = texte déjà résolu). |
 | `exportable?`                              | `boolean`                                                               | Exclut la colonne de l'export CSV si `false` (utile pour une colonne d'actions/boutons). `true` par défaut.                                    |
 | `exportValueAccessor?`                     | `(row: T) => string \| number \| boolean \| null \| undefined`         | Valeur exportée si différente de `valueAccessor` (ex. valeur brute plutôt que le rendu riche d'un `cellTemplate`).                              |
+| `excel?`                                 | `{numFmt?, width?, align?}`                                          | Mise en forme de la colonne dans l'export `xlsx` stylé (format Excel, largeur en caractères, alignement). |
 | `searchable?`                              | `boolean \| (row: T) => string`                                        | Recherche globale : `false` exclut la colonne ; une fonction fournit le texte cherché. Défaut : la valeur de `valueAccessor`.                   |
 | `aggregate?`                               | `'sum' \| 'avg' \| 'min' \| 'max' \| 'count' \| (rows: T[]) => unknown` | Agrégat affiché dans les en-têtes de groupe et la ligne de totaux.                                                                             |
 | `groupable?`                               | `boolean`                                                              | Proposée dans le menu « Grouper ». Défaut : oui si la colonne est triable ou filtrable.                                                         |
@@ -2360,9 +2829,28 @@ interface NgTableFilterConfig {
 | `columnsMenuEnabled`        | `boolean`                                                        | `true`    | Affiche le bouton "Colonnes" (sélecteur de visibilité). Ne désactive que le bouton — le mécanisme de visibilité (`visible: false`, `[columnVisibility]`) reste actif. |
 | `filterDebounceMs`          | `number`                                                         | `350`     | Délai avant prise en compte d'une saisie au clavier (texte, nombre, recherche...) (`0` = immédiat). Les filtres à choix fixe (enum/booléen/date/période) ne sont jamais debouncés. |
 | `cellNavigation`            | `boolean`                                                        | `false`   | Navigation clavier cellule par cellule (motif « grid » WAI-ARIA), voir « Accessibilité ».                            |
+| `remoteDatasource`          | `NgTableRemoteDatasource<T> \| null`                            | `null`    | Modèle serveur par blocs : défilement continu, blocs chargés à la demande (Étape 10sexies).                          |
+| `cacheBlockSize`            | `number`                                                         | `100`     | Lignes par bloc demandé au serveur.                                                                                  |
+| `maxBlocksInCache`          | `number`                                                         | `50`      | Blocs gardés en mémoire.                                                                                             |
+| `maxConcurrentBlockRequests`| `number`                                                         | `2`       | Requêtes de blocs simultanées au plus.                                                                               |
+| `virtualColumns`            | `boolean`                                                        | `false`   | Affichage partiel des colonnes (Étape 10septies).                                                                     |
+| `editOnPaste`               | `boolean`                                                        | `true`    | Un collage écrit dans les cellules éditables de la plage (Étape 10undecies).                                          |
+| `undoRedoLimit`             | `number`                                                         | `100`     | Taille de l'historique annuler / rétablir.                                                                            |
+| `rowDrag`                   | `boolean`                                                        | `false`   | Poignée de déplacement des lignes ; émet `(rowMoved)` (Étape 10terdecies).                                            |
+| `statusBar`                 | `boolean`                                                        | `false`   | Barre d'état : lignes, sélection, statistiques de la plage (Étape 10duodecies).                                       |
+| `sidePanel` / `[(sidePanelOpen)]` | `boolean`                                                  | `false`   | Panneau latéral colonnes / filtres.                                                                                   |
+| `rangeSelection`            | `boolean`                                                        | `false`   | Sélection d'une plage de cellules et copier-coller (Étape 10decies).                                                  |
+| `rangeCopyHeaders`          | `boolean`                                                        | `false`   | Ajoute les en-têtes de colonnes au texte copié.                                                                       |
+| `pinnedTopRows`             | `readonly T[]`                                                   | `[]`      | Lignes épinglées sous l'en-tête (Étape 10octies).                                                                    |
+| `pinnedBottomRows`          | `readonly T[]`                                                   | `[]`      | Lignes épinglées en bas de la zone.                                                                                  |
+| `flashCells`                | `boolean`                                                        | `false`   | Mode live : surligne les cellules dont la valeur change (voir Étape 10quinquies).                                   |
+| `flashDurationMs`           | `number`                                                         | `1000`    | Durée de la surbrillance (ms).                                                                                       |
+| `asyncTransactionWaitMillis`| `number`                                                         | `50`      | Délai de regroupement de `applyTransactionAsync()` (ms).                                                             |
 | `virtualScroll`             | `boolean`                                                        | `false`   | Défilement virtuel : seules les lignes visibles sont rendues (voir Étape 10quater).                                   |
 | `groupingEnabled`           | `boolean`                                                        | `false`   | Bouton « Grouper » (local et remote), voir Étape 10ter.                                                              |
 | `groupBy`                   | `string \| null` (`model`)                                       | `null`    | Colonne de regroupement ; liable en `[(groupBy)]`, émet `(groupByChange)`.                                          |
+| `groupLevels`               | `string[]` (`model`)                                           | `[]`      | Niveaux de regroupement supplémentaires (sous-groupes), mode local ; liable en `[(groupLevels)]`. |
+| `groupPanel`                | `boolean`                                                      | `false`   | Panneau de regroupement au-dessus du tableau (dépôt d'en-têtes, puces réordonnables) ; avec `groupingEnabled`. |
 | `groupSummaries`            | `readonly NgTableGroupSummary[] \| null`                         | `null`    | Mode `remote` + regroupement : tous les groupes, dans l'ordre, avec compte et agrégats calculés par le serveur. Rend les groupes repliables. |
 | `showTotals`                | `boolean`                                                        | `false`   | Ligne de totaux (colonnes avec `aggregate`, mode local).                                                             |
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
@@ -2390,6 +2878,11 @@ interface NgTableFilterConfig {
 | `exportMode`                 | `'local' \| 'remote'`                                            | `'local'` | Voir "Export".                                                                                                        |
 | `exportFilename`             | `string`                                                         | `'export'`| Nom de fichier (sans extension) du fichier généré en mode `local`.                                                    |
 | `exportFormat`               | `'csv' \| 'xlsx'`                                                | `'csv'`   | Format du fichier généré en mode `local`.                                                                             |
+| `exportXlsxStyle`           | `'styled' \| 'plain'`                                          | `'styled'` | Classeur Excel mis en forme (en-têtes colorés, formats, largeurs, filtre) ou brut. |
+| `exportXlsxOptions`         | `{headerFill?, headerColor?, zebra?, autoFilter?, sheetName?} \| null` | `null` | Réglages du classeur stylé (couleurs, lignes alternées, filtre, nom de feuille). |
+| `workerCompute`             | `boolean`                                                      | `false`   | Tri, filtres et recherche dans un Web Worker au-delà de `workerThreshold` lignes. |
+| `workerThreshold`           | `number`                                                       | `100000`  | Nombre de lignes à partir duquel `workerCompute` s'applique. |
+| `computeWorkerFactory`      | `(() => ComputeWorkerLike) \| null`                            | `null`    | Fabrique d'un worker de calcul, si celui livré (`Blob`) est interdit par la CSP. |
 | `density`                    | `'default' \| 'compact'`                                         | `'default'` | Hauteur des lignes et de l'en-tête.                                                                                 |
 | `maxHeight`                  | `string \| null`                                                 | `null`    | Hauteur maximale de la zone de la table (ex. `'480px'`, `'60vh'`) ; au-delà, défilement vertical.                    |
 | `stickyHeader`               | `boolean`                                                        | `false`   | Garde l'en-tête visible pendant le défilement (à combiner avec `maxHeight`).                                         |
@@ -2411,6 +2904,10 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `toggleDefaultView(view)`, `isDefaultView(view)` | Vue par défaut. |
 | `exportViews()`, `importViews(json, mode?)`, `downloadViews()` | Partager des vues. |
 | `openExportDialog()` | Lancer l'export, comme le bouton « Exporter ». |
+| `applyTransaction(tx)`, `applyTransactionAsync(tx, callback?)`, `flushAsyncTransactions()` | Mode live : ajouter, modifier, retirer des lignes (voir Étape 10quinquies). |
+| `getSelectedRange()`, `copySelectedRange()`, `pasteIntoRange(texte)`, `selectAllCells()`, `clearRangeSelection()` | Sélection de plage et presse-papiers (Étape 10decies). |
+| `scrollToIndex(n)` | Amène la ligne `n` en haut de la zone (défilement virtuel ou modèle par blocs). |
+| `refreshRemoteDatasource()`, `remoteRowCount()` | Modèle par blocs : recharger les blocs affichés, nombre total de lignes côté serveur. |
 | `expandAllGroups()`, `collapseAllGroups()` | Déplier / replier tous les groupes. |
 | `getQueryState()`, `applyQueryState(partiel)` | Lire / appliquer tri, filtres, recherche, page et regroupement (`NgTableQueryState`) en une fois. |
 
@@ -2419,6 +2916,7 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | Output                   | Payload                                                                       | Description                                                                                                                                                                |
 |--------------------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `rowClick`               | `T`                                                                           | Clic sur une ligne de données.                                                                                                                                             |
+| `computing`              | `boolean`                                                                   | Calcul en worker : `true` au début, `false` à la fin. |
 | `sortsChange`            | `NgTableSortChange[]`                                                         | Tous les niveaux de tri, par priorité, à chaque clic de tri.                                                                                                               |
 | `queryStateChange`       | `NgTableQueryState` (`{sorts, filters, search, pageIndex, pageSize, groupBy, collapsedGroups}`) | Tri, filtres, recherche ou page ont changé, quelle qu'en soit l'origine. Émis aussi une fois au démarrage.                                                                 |
 | `filtersChange`          | `Record<string, string>`                                                      | Tout changement de filtre.                                                                                                                                                 |
@@ -2439,6 +2937,21 @@ Accessibles via `viewChild.required<NgTableComponent<Commande>>(NgTableComponent
 | `pageIndexChange`        | `number`                                                                      | **Mode `local` + `pageTrackingEnabled=true`.** Émis avec `0` quand un filtre/tri doit remettre la page à zéro.                                                             |
 | `remoteExportRequested`  | `NgTableRemoteExportRequest` (requête + `columns`, `format`, `filename`)                      | **`exportMode='remote'`.** L'utilisateur a cliqué sur "Exporter" — à vous de lancer la requête serveur (avec vos propres paramètres additionnels) et de gérer le fichier obtenu. |
 | `localExportCompleted`   | `NgTableLocalExportEvent` (`{fromPage, toPage, rowCount}`)                    | **`exportMode='local'`.** Émis après la génération et le téléchargement du CSV — informatif (toast, analytics...).                                                         |
+
+## Langues et lecture de droite à gauche (RTL)
+
+Cinq jeux de textes sont livrés : français (défaut), anglais, espagnol, allemand, arabe.
+
+```ts
+import {NG_TABLE_LOCALES, ngTableIsRtl, ngTableLabelsFor, provideNgTableLabels} from '@sbourahla/ng-table';
+
+provideNgTableLabels(() => NG_TABLE_LOCALES['es']);   // ou ngTableLabelsFor('es-MX')
+ngTableIsRtl('ar'); // true
+```
+
+- Le sens de lecture suit la direction de la page (`<html dir="rtl">`, via le `Directionality` du CDK) ou l'entrée `[dir]` du tableau. Toute la mise en page utilise des propriétés logiques : colonnes figées, ombres, menus, listes déroulantes, paginateur et barre d'actions se retournent ; les icônes directionnelles (flèches, chevrons) sont inversées.
+- La démo a un sélecteur de langue dans l'en-tête (mémorisé) qui applique aussi `lang` et `dir`.
+- **Limites** : les textes du pivot et des graphiques ne sont pas traduits ; les traductions es / de / ar sont des premières versions à faire relire par des locuteurs natifs. Une autre langue s'ajoute avec `provideNgTableLabels` (voir ci-dessous).
 
 ## Personnaliser les textes (`NgTableLabels`)
 
@@ -2598,7 +3111,7 @@ De la même façon, `column.header`, `filter.label`, `copy.tooltip` et les `labe
 | `--app-frost`           | Fond du bouton "effacer"                    | `#ffffff`                           | `rgba(255, 255, 255, 0.04)`       |
 | `--app-text`            | Texte principal                             | `#0d1d26`                           | `#eff8fb`                         |
 | `--app-muted`           | Texte secondaire                            | `#4f6573`                           | `#8aa8b3`                         |
-| `--app-primary`         | Couleur d'accent                            | `#3a7ca5`                           | `#61d8df`                         |
+| `--app-primary`         | Couleur d'accent                            | `#2f6fa8`                           | `#61d8df`                         |
 | `--app-primary-soft`    | Fond teinté à l'accent                      | `rgba(58, 124, 165, 0.16)`          | `rgba(97, 216, 223, 0.14)`        |
 | `--app-primary-outline` | Contour teinté à l'accent                   | `rgba(58, 124, 165, 0.34)`          | `rgba(97, 216, 223, 0.38)`        |
 | `--app-shadow-soft`     | Ombre portée                                | `0 8px 20px rgba(15, 23, 42, 0.09)` | `0 16px 48px rgba(0, 0, 0, 0.24)` |
@@ -2644,7 +3157,7 @@ La tooltip affichée au survol d'une cellule tronquée (`textOverflow: 'truncate
 
 ⚠️ **À déclarer globalement** (`:root`, `html`, `body`...), **pas** sur l'élément `<ng-table>` : la tooltip est rendue par le CDK dans son conteneur d'overlay, à la racine du `<body>`, donc hors de l'arbre DOM de la table — des variables posées sur `<ng-table>` ne l'atteindraient jamais.
 
-Pour un contrôle total au-delà de ces variables, la bulle porte la classe `.ngt-truncate-tooltip` (la surface visible étant `.ngt-truncate-tooltip .mat-mdc-tooltip-surface`).
+Pour un contrôle total au-delà de ces variables, la bulle est un `div.ngt-tooltip.ngt-truncate-tooltip` (`role="tooltip"`) posé dans `<body>`.
 
 ## Mode local / distant
 
@@ -2704,7 +3217,7 @@ Un backend Spring Boot complet (filtres, recherche, tri, regroupement, groupes r
 
 Deux façons de paginer :
 
-- **`[paginator]="true"`** : un `<mat-paginator>` intégré, déjà branché. En mode `remote`, fournissez `[totalCount]` (le total côté serveur). Chaque changement de page émet alors `remoteQueryChange` avec la nouvelle page.
+- **`[paginator]="true"`** : un paginateur intégré (`<ng-table-paginator>`, sans Angular Material), déjà branché ; ses textes viennent de `[labels]` (`paginatorItemsPerPage`, `paginatorRange`...). En mode `remote`, fournissez `[totalCount]` (le total côté serveur). Chaque changement de page émet alors `remoteQueryChange` avec la nouvelle page.
 - **`pageTrackingEnabled`** avec votre propre paginateur, comme ci-dessous.
 
 `pageIndex` et `pageSize` sont des `model()` : ils acceptent `[(pageIndex)]`, et le composant les met à jour lui-même (retour en page 0 après un filtre, restauration d'une vue). Chaque changement émet `(pageIndexChange)` / `(pageSizeChange)`.
@@ -2825,7 +3338,7 @@ Non contrôlé par défaut (checkbox interne + case "tout sélectionner"). Contr
 ```html
 <ng-table [rowContextMenuEnabled]="true" [rowContextMenuTemplate]="rowMenu" (rowContextMenu)="onRowContextMenu($event)" />
 <ng-template #rowMenu let-row>
-  <button mat-menu-item (click)="openDetails(row)"><mat-icon>visibility</mat-icon><span>Voir</span></button>
+  <button ngt-menu-item (click)="openDetails(row)"><ng-table-icon name="visibility"/><span>Voir</span></button>
 </ng-template>
 ```
 
@@ -2970,7 +3483,7 @@ expect(await table.getRowCount()).toBe(1);
 
 const [row] = await table.getRows();
 await row.toggleSelection();
-await (await table.getPaginator())?.goToNextPage();  // MatPaginatorHarness du paginateur intégré
+await (await table.getPaginator())?.goToNextPage();  // NgTablePaginatorHarness du paginateur intégré
 ```
 
 | Méthode | Rôle |
@@ -2979,7 +3492,7 @@ await (await table.getPaginator())?.goToNextPage();  // MatPaginatorHarness du p
 | `getHeaderTexts()`, `getCellTexts()`, `getColumnTexts(header)` | Contenu, colonne identifiée par son libellé. Le texte des boutons (copier...) est exclu. |
 | `sortBy(header, {additive?})`, `getSortDirection(header)` | Tri. |
 | `search(text)`, `getSearchValue()` | Recherche globale. |
-| `getPaginator()` | `MatPaginatorHarness` du paginateur intégré, ou `null`. |
+| `getPaginator()` | `NgTablePaginatorHarness` du paginateur intégré (`goToNextPage()`, `goToPreviousPage()`, `goToFirstPage()`, `goToLastPage()`, `getRangeLabel()`, `getPageSize()`, `setPageSize()`), ou `null`. |
 | `getEmptyText()`, `isLoading()`, `getLiveAnnouncement()`, `getAriaLabel()` | États affichés et accessibilité. |
 
 ## Migrer de 0.4 vers 1.0
@@ -3023,6 +3536,16 @@ La démo présente la lib en trois modes, un par page :
 | Expert | `/expert` | Faux serveur (mode `remote`), état contrôlé par le parent, filtre personnalisé, `applyQueryState()`, export serveur, journal des événements. |
 
 Suivi des évolutions : `CHANGELOG.md` ; feuille de route : `ROADMAP.md`.
+
+### Site de documentation
+
+Le site est généré depuis ce README, le CHANGELOG et la ROADMAP, sans dépendance :
+
+```bash
+npm run docs:build    # écrit dist/docs
+npm run docs:serve    # construit puis sert http://localhost:4400
+```n
+Chaque section de niveau 2 et chaque étape du tutoriel devient une page ; la recherche (touche `/`) lit un index JSON. Le workflow `.github/workflows/docs.yml` le publie sur GitHub Pages (à activer une fois dans Réglages > Pages > Source : GitHub Actions). Écrivez la documentation dans le README : le site suit.
 
 ### Publier une version
 

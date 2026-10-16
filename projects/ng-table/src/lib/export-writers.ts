@@ -65,12 +65,12 @@ function csvEscape(value: string): string {
 
 // --- XLSX -----------------------------------------------------------------
 
-const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
-const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
-const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
-const DOC_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+export const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+export const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+export const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+export const DOC_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
-const CONTENT_TYPES =
+export const CONTENT_TYPES =
   XML_HEADER +
   '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
@@ -80,13 +80,13 @@ const CONTENT_TYPES =
   '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
   '</Types>';
 
-const ROOT_RELS =
+export const ROOT_RELS =
   XML_HEADER +
   `<Relationships xmlns="${REL_NS}">` +
   `<Relationship Id="rId1" Type="${DOC_REL}/officeDocument" Target="xl/workbook.xml"/>` +
   '</Relationships>';
 
-const WORKBOOK_RELS =
+export const WORKBOOK_RELS =
   XML_HEADER +
   `<Relationships xmlns="${REL_NS}">` +
   `<Relationship Id="rId1" Type="${DOC_REL}/worksheet" Target="worksheets/sheet1.xml"/>` +
@@ -154,7 +154,7 @@ function cellXml(cell: ExportCell, ref: string, style: string): string {
 }
 
 /** Échappe le XML et retire les caractères de contrôle interdits en XML 1.0. */
-function escapeXml(value: string): string {
+export function escapeXml(value: string): string {
   return value
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
@@ -165,14 +165,14 @@ function escapeXml(value: string): string {
 }
 
 /** Excel refuse les noms de feuille de plus de 31 caractères ou contenant `[]:*?/\`. */
-function sanitizeSheetName(name: string): string {
+export function sanitizeSheetName(name: string): string {
   const cleaned = name.replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31);
   return cleaned || 'Export';
 }
 
 // --- Zip ("stored", sans compression) -------------------------------------
 
-interface ZipEntry {
+export interface ZipEntry {
   name: string;
   content: string;
 }
@@ -203,7 +203,7 @@ const DOS_DATE = (0 << 9) | (1 << 5) | 1;
 /** Bit 11 : noms de fichiers en UTF-8. */
 const UTF8_FLAG = 0x0800;
 
-function zipStored(entries: readonly ZipEntry[]): Uint8Array {
+export function zipStored(entries: readonly ZipEntry[]): Uint8Array {
   const encoder = new TextEncoder();
   const localParts: Uint8Array[] = [];
   const centralParts: Uint8Array[] = [];

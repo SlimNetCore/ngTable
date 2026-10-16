@@ -152,8 +152,12 @@ export function formatRangeValue(rawValue: string): string {
 }
 
 /** Minuscules, sans accents : « Élodie » est trouvée en tapant « elodie ». */
+const NON_ASCII = /[\u0080-￿]/;
+
 export function normalizeSearchText(value: unknown): string {
-  return `${value ?? ''}`.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  const text = typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value);
+  // Texte ASCII (le cas courant) : ni accent ni décomposition à traiter, un passage en minuscules suffit.
+  return NON_ASCII.test(text) ? text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase() : text.toLowerCase();
 }
 
 /** Découpe une recherche globale en mots normalisés (vide = pas de recherche). */
@@ -170,7 +174,7 @@ export function matchesSearchTerms(haystack: string, terms: readonly string[]): 
   return terms.every((term) => haystack.includes(term));
 }
 
-function normalizeIsoDay(value: string): string {
+export function normalizeIsoDay(value: string): string {
   const raw = (value ?? '').trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
 }
@@ -181,7 +185,7 @@ function formatIsoDay(value: Date): string {
   return `${value.getFullYear()}-${month}-${day}`;
 }
 
-function parseNumber(value: unknown): number | null {
+export function parseNumber(value: unknown): number | null {
   if (typeof value === 'number') {
     return Number.isNaN(value) ? null : value;
   }

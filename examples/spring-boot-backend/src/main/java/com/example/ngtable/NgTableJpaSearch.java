@@ -166,6 +166,14 @@ public class NgTableJpaSearch<E> {
     return summaries;
   }
 
+  /**
+   * Filtres et recherche globale d'une requête, sans regroupement ni pagination : de quoi restreindre
+   * une autre requête (le pivot) aux lignes que la table affiche.
+   */
+  public Predicate filterPredicate(NgTable.Query query, CriteriaBuilder cb, Root<E> root) {
+    return where(query, null, false, cb, root);
+  }
+
   private Predicate where(NgTable.Query query, NgTableColumn group, boolean excludeCollapsed, CriteriaBuilder cb, Root<E> root) {
     List<Predicate> predicates = new ArrayList<>();
     query.filters().forEach((columnId, value) -> {
@@ -219,6 +227,7 @@ public class NgTableJpaSearch<E> {
           .filter(part -> !part.isEmpty())
           .map(part -> convert(path.getJavaType(), part))
           .toList());
+      case SET -> setFilter(value, cb, path);
       case BOOLEAN -> cb.equal(path, "true".equalsIgnoreCase(value) || "1".equals(value));
       case NUMBER -> numberFilter(value, cb, (Expression<? extends Number>) (Expression<?>) path, path);
       case DATE -> dateFilter(value, cb, path);
@@ -226,6 +235,67 @@ public class NgTableJpaSearch<E> {
     };
   }
 
+  /**
+   * Filtre « ensemble de valeurs » : {@code path IN (...)}, plus {@code IS NULL} quand la valeur vide est cochée. Aucune
+   * valeur cochée ({@code []}) ne garde aucune ligne.
+   */
+  private Predicate setFilter(String json, CriteriaBuilder cb, Path<Object> path) {
+    List<String> keys = parseStringArray(json);
+    boolean blank = keys.contains("");
+    List<Object> values = keys.stream().filter(key -> !key.isEmpty()).distinct().map(key -> convert(path.getJavaType(), key)).toList();
+    Predicate in = values.isEmpty() ? cb.disjunction() : path.in(values);
+    return blank ? cb.or(in, cb.isNull(path)) : in;
+  }
+
+  /** Tableau JSON de chaînes, sans dépendance : {@code ["a","b\"c"]}. Toute autre forme est refusée (400 côté contrôleur). */
+  public static List<String> parseStringArray(String json) {
+    String text = json.trim();
+    if (!text.startsWith("[") || !text.endsWith("]")) {
+      throw new IllegalArgumentException("Un filtre « set » est un tableau JSON de chaînes : " + json);
+    }
+    List<String> values = new ArrayList<>();
+    int i = 1;
+    int end = text.length() - 1;
+    while (i < end) {
+      char c = text.charAt(i);
+      if (c == ' ' || c == ',' || c == '\n' || c == '\t' || c == '\r') {
+        i++;
+      } else if (c == '"') {
+        StringBuilder value = new StringBuilder();
+        i++;
+        while (true) {
+          if (i >= end + 1) {
+            throw new IllegalArgumentException("Chaîne JSON non terminée : " + json);
+          }
+          char d = text.charAt(i++);
+          if (d == '"') {
+            break;
+          }
+          if (d != '\\') {
+            value.append(d);
+            continue;
+          }
+          char escaped = text.charAt(i++);
+          switch (escaped) {
+            case 'n' -> value.append('\n');
+            case 't' -> value.append('\t');
+            case 'r' -> value.append('\r');
+            case 'b' -> value.append('\b');
+            case 'f' -> value.append('\f');
+            case 'u' -> {
+              value.append((char) Integer.parseInt(text.substring(i, i + 4), 16));
+              i += 4;
+            }
+            default -> value.append(escaped); // \" \\ \/
+          }
+        }
+        values.add(value.toString());
+      } else {
+        throw new IllegalArgumentException("Un filtre « set » ne contient que des chaînes : " + json);
+      }
+    }
+    return values;
+  }
   /** {@code 42}, {@code =42}, {@code !=42}, {@code >42}, {@code >=42}, {@code <42}, {@code <=42}, {@code 10..50}. */
   private Predicate numberFilter(String value, CriteriaBuilder cb, Expression<? extends Number> number, Path<Object> path) {
     if (value.contains("..")) {

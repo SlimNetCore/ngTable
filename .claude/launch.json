@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["ng", "serve", "demo", "--port", "4300"],
       "port": 4300
+    },
+    {
+      "name": "docs-4400",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve-docs.mjs", "4400"],
+      "port": 4400
     }
   ]
 }

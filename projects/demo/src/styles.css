@@ -1,3 +1,27 @@
+/* Palette de la démo : suit le thème de la bibliothèque (classe `ngt-dark` sur <html>, posée par le sélecteur d'en-tête). */
+:root {
+  --demo-bg: #f3f5f8;
+  --demo-surface: #ffffff;
+  --demo-border: rgba(20, 33, 43, 0.09);
+  --demo-text: #14212b;
+  --demo-muted: #5f7080;
+  --demo-accent: #2f6fa8;
+  --demo-code-bg: #0f1a22;
+  --demo-code-text: #e3eefb;
+  color-scheme: light;
+}
+
+:root.ngt-dark {
+  --demo-bg: #0b1015;
+  --demo-surface: #11171d;
+  --demo-border: rgba(255, 255, 255, 0.1);
+  --demo-text: #e7edf3;
+  --demo-muted: #93a4b4;
+  --demo-accent: #7fb4d6;
+  --demo-code-bg: #0a0f14;
+  --demo-code-text: #cfe0f1;
+  color-scheme: dark;
+}
 html,
 body {
   height: 100%;
@@ -5,24 +29,25 @@ body {
 
 body {
   margin: 0;
-  font-family: Roboto, "Helvetica Neue", sans-serif;
-  background: #f5f7fa;
-  color: #0d1d26;
+  font-family: Inter, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  background: var(--demo-bg);
+  color: var(--demo-text);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* --- Blocs communs aux trois modes de la démo ------------------------------ */
 
 .demo-intro {
   margin: 0 0 16px;
-  color: #4f6573;
+  color: var(--demo-muted);
   line-height: 1.5;
 }
 
 .demo-card {
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.13);
+  background: var(--demo-surface);
+  border: 1px solid var(--demo-border);
   border-radius: 12px;
 }
 
@@ -42,7 +67,7 @@ body {
 .demo-settings .setting-label {
   margin-right: 8px;
   font-size: 0.85rem;
-  color: #4f6573;
+  color: var(--demo-muted);
 }
 
 .demo-features {
@@ -51,21 +76,21 @@ body {
   columns: 2 320px;
   font-size: 0.85rem;
   line-height: 1.6;
-  color: #4f6573;
+  color: var(--demo-muted);
 }
 
 .demo-features code,
 .demo-intro code {
   font-size: 0.8rem;
-  color: #1d4f91;
+  color: var(--demo-accent);
 }
 
 .demo-code {
   margin: 8px 0 0;
   padding: 12px;
   overflow-x: auto;
-  background: #0d1d26;
-  color: #e3eefb;
+  background: var(--demo-code-bg);
+  color: var(--demo-code-text);
   border-radius: 8px;
   font-size: 0.8rem;
   line-height: 1.5;
@@ -74,7 +99,7 @@ body {
 .demo-meta {
   margin-top: 8px;
   font-size: 0.8rem;
-  color: #4f6573;
+  color: var(--demo-muted);
 }
 
 /* Pastilles de statut (cellTemplate) */
@@ -86,12 +111,16 @@ body {
   font-weight: 500;
 }
 
-.statut--BROUILLON { background: #eef2f6; color: #4f6573; }
+.statut--BROUILLON { background: #eef2f6; color: #5f7080; }
 .statut--VALIDEE { background: #e3f4ea; color: #1b6b3a; }
 .statut--EXPEDIEE { background: #e3eefb; color: #1d4f91; }
 .statut--ANNULEE { background: #fdeaea; color: #a3261e; }
+.ngt-dark .statut--BROUILLON { background: rgba(147, 164, 180, 0.16); color: #b6c4d1; }
+.ngt-dark .statut--VALIDEE { background: rgba(74, 190, 120, 0.16); color: #7fdba3; }
+.ngt-dark .statut--EXPEDIEE { background: rgba(127, 180, 214, 0.18); color: #a9cfe8; }
+.ngt-dark .statut--ANNULEE { background: rgba(242, 120, 112, 0.16); color: #f4a39d; }
 
 /* Ligne mise en avant par rowClassFn */
-.row-urgent td.mat-mdc-cell:first-child {
+.row-urgent td.cdk-cell:first-child {
   box-shadow: inset 3px 0 0 #c98a00;
 }

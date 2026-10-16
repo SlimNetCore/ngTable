@@ -23,6 +23,12 @@ export interface NgTableLabels {
   all: string;
   search: string;
   noData: string;
+  /** Filtre par ensemble : case « tout » en tête de liste. */
+  selectAll: string;
+  /** Filtre par ensemble : libellé des cellules vides. */
+  blanks: string;
+  /** Filtre par ensemble : la liste est tronquée (trop de valeurs distinctes ou de cases à montrer). */
+  setFilterTruncated: string;
   sort: string;
   sortAsc: string;
   sortDesc: string;
@@ -111,6 +117,11 @@ export interface NgTableLabels {
   groupCount: string;
   /** Libellé d'un groupe dont la valeur est vide. */
   groupEmpty: string;
+  /** Panneau de regroupement : nom accessible, invite, retrait d'un niveau (`{column}`), ajout d'un niveau. */
+  groupPanelLabel: string;
+  groupPanelHint: string;
+  groupRemove: string;
+  groupAdd: string;
   /** Menu « Grouper » : déplier tous les groupes. */
   expandAllGroups: string;
   /** Menu « Grouper » : replier tous les groupes. */
@@ -123,6 +134,57 @@ export interface NgTableLabels {
   aggregateCount: string;
   /** Libellé de la ligne de totaux (`[showTotals]`). */
   totalsLabel: string;
+  /** Modèle par blocs : texte des lignes dont le bloc n'a pas pu être chargé. */
+  blockLoadError: string;
+  /** Édition : texte saisi qui n'est pas un nombre. */
+  editInvalidNumber: string;
+  /** Édition : texte saisi qui n'est pas une date AAAA-MM-JJ. */
+  editInvalidDate: string;
+  /** Annonce lecteur d'écran après une édition ; `{column}` = en-tête de la colonne. */
+  announceCellEdited: string;
+  announceEditUndone: string;
+  announceEditRedone: string;
+  /** Barre d'état. `{count}` et `{total}` sont remplacés. */
+  statusBarLabel: string;
+  statusRows: string;
+  statusRowsOf: string;
+  statusSelected: string;
+  /** Barre d'actions de sélection : nom accessible, nombre de lignes, désélection, tout sélectionner, autres actions. */
+  selectionBarLabel: string;
+  /** Texte à côté du nombre de lignes (le nombre est dans la pastille) : « ligne sélectionnée » / « lignes sélectionnées ». */
+  selectionCountOne: string;
+  selectionCountMany: string;
+  selectionClear: string;
+  selectionSelectAll: string;
+  selectionMore: string;
+  statusCells: string;
+  statusSum: string;
+  statusAvg: string;
+  statusMin: string;
+  statusMax: string;
+  /** Panneau latéral. */
+  sidePanelButton: string;
+  sidePanelTitle: string;
+  sidePanelColumns: string;
+  sidePanelFilters: string;
+  sidePanelNoFilters: string;
+  sidePanelClose: string;
+  sidePanelPin: string;
+  /** Arbre : `{row}` n'est pas utilisé, les libellés sont génériques. */
+  treeExpand: string;
+  treeCollapse: string;
+  /** Paginateur intégré. `{from}`, `{to}` et `{total}` sont remplacés. */
+  paginatorLabel: string;
+  paginatorItemsPerPage: string;
+  paginatorFirst: string;
+  paginatorPrevious: string;
+  paginatorNext: string;
+  paginatorLast: string;
+  paginatorRange: string;
+  paginatorRangeEmpty: string;
+  /** Glisser-déposer de lignes. `{position}` = nouvelle position (à partir de 1). */
+  rowDragHandle: string;
+  announceRowMoved: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -142,6 +204,9 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   all: 'Tous',
   search: 'Rechercher',
   noData: 'Aucune donnée',
+  selectAll: '(Tout sélectionner)',
+  blanks: '(Vides)',
+  setFilterTruncated: 'Liste tronquée : affinez avec la recherche.',
   sort: 'Trier',
   sortAsc: 'Trié croissant',
   sortDesc: 'Trié décroissant',
@@ -189,6 +254,10 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   groupNone: 'Aucun regroupement',
   groupCount: '{count} ligne(s)',
   groupEmpty: '(vide)',
+  groupPanelLabel: 'Regroupement des lignes',
+  groupPanelHint: 'Glissez une colonne ici pour regrouper',
+  groupRemove: 'Retirer le regroupement par {column}',
+  groupAdd: 'Ajouter un niveau de regroupement',
   expandAllGroups: 'Tout déplier',
   collapseAllGroups: 'Tout replier',
   aggregateSum: 'Σ',
@@ -197,6 +266,46 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   aggregateMax: 'Max',
   aggregateCount: 'Nb',
   totalsLabel: 'Total',
+  blockLoadError: 'Chargement impossible',
+  editInvalidNumber: 'Nombre invalide',
+  editInvalidDate: 'Date invalide (AAAA-MM-JJ)',
+  announceCellEdited: 'Cellule « {column} » modifiée',
+  announceEditUndone: 'Modification annulée',
+  announceEditRedone: 'Modification rétablie',
+  statusBarLabel: 'Barre d’état',
+  statusRows: '{count} lignes',
+  statusRowsOf: '{count} sur {total} lignes',
+  statusSelected: '{count} sélectionnée(s)',
+  selectionBarLabel: 'Actions sur la sélection',
+  selectionCountOne: 'ligne sélectionnée',
+  selectionCountMany: 'lignes sélectionnées',
+  selectionClear: 'Tout désélectionner',
+  selectionSelectAll: 'Tout sélectionner ({count})',
+  selectionMore: 'Autres actions',
+  statusCells: '{count} cellules',
+  statusSum: 'Somme',
+  statusAvg: 'Moyenne',
+  statusMin: 'Min',
+  statusMax: 'Max',
+  sidePanelButton: 'Panneau',
+  sidePanelTitle: 'Panneau latéral',
+  sidePanelColumns: 'Colonnes',
+  sidePanelFilters: 'Filtres',
+  sidePanelNoFilters: 'Aucun filtre actif',
+  sidePanelClose: 'Fermer le panneau',
+  sidePanelPin: 'Fixer le panneau à droite',
+  treeExpand: 'Déplier',
+  treeCollapse: 'Replier',
+  paginatorLabel: 'Pagination',
+  paginatorItemsPerPage: 'Éléments par page',
+  paginatorFirst: 'Première page',
+  paginatorPrevious: 'Page précédente',
+  paginatorNext: 'Page suivante',
+  paginatorLast: 'Dernière page',
+  paginatorRange: '{from} – {to} sur {total}',
+  paginatorRangeEmpty: '0 sur {total}',
+  rowDragHandle: 'Déplacer la ligne (Alt + flèches haut / bas)',
+  announceRowMoved: 'Ligne déplacée en position {position}',
 };
 
 /**
@@ -224,6 +333,9 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   all: 'All',
   search: 'Search',
   noData: 'No data',
+  selectAll: '(Select all)',
+  blanks: '(Blanks)',
+  setFilterTruncated: 'List truncated: narrow it down with the search.',
   sort: 'Sort',
   sortAsc: 'Sorted ascending',
   sortDesc: 'Sorted descending',
@@ -271,6 +383,10 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   groupNone: 'No grouping',
   groupCount: '{count} row(s)',
   groupEmpty: '(empty)',
+  groupPanelLabel: 'Row grouping',
+  groupPanelHint: 'Drag a column here to group',
+  groupRemove: 'Stop grouping by {column}',
+  groupAdd: 'Add a grouping level',
   expandAllGroups: 'Expand all',
   collapseAllGroups: 'Collapse all',
   aggregateSum: 'Σ',
@@ -279,6 +395,46 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   aggregateMax: 'Max',
   aggregateCount: 'Count',
   totalsLabel: 'Total',
+  blockLoadError: 'Could not load rows',
+  editInvalidNumber: 'Invalid number',
+  editInvalidDate: 'Invalid date (YYYY-MM-DD)',
+  announceCellEdited: 'Cell "{column}" edited',
+  announceEditUndone: 'Edit undone',
+  announceEditRedone: 'Edit redone',
+  statusBarLabel: 'Status bar',
+  statusRows: '{count} rows',
+  statusRowsOf: '{count} of {total} rows',
+  statusSelected: '{count} selected',
+  selectionBarLabel: 'Actions on the selection',
+  selectionCountOne: 'row selected',
+  selectionCountMany: 'rows selected',
+  selectionClear: 'Clear selection',
+  selectionSelectAll: 'Select all ({count})',
+  selectionMore: 'More actions',
+  statusCells: '{count} cells',
+  statusSum: 'Sum',
+  statusAvg: 'Average',
+  statusMin: 'Min',
+  statusMax: 'Max',
+  sidePanelButton: 'Panel',
+  sidePanelTitle: 'Side panel',
+  sidePanelColumns: 'Columns',
+  sidePanelFilters: 'Filters',
+  sidePanelNoFilters: 'No active filter',
+  sidePanelClose: 'Close panel',
+  sidePanelPin: 'Dock the panel on the right',
+  treeExpand: 'Expand',
+  treeCollapse: 'Collapse',
+  paginatorLabel: 'Pagination',
+  paginatorItemsPerPage: 'Items per page',
+  paginatorFirst: 'First page',
+  paginatorPrevious: 'Previous page',
+  paginatorNext: 'Next page',
+  paginatorLast: 'Last page',
+  paginatorRange: '{from} – {to} of {total}',
+  paginatorRangeEmpty: '0 of {total}',
+  rowDragHandle: 'Move row (Alt + up / down arrows)',
+  announceRowMoved: 'Row moved to position {position}',
 };
 
 /**

@@ -1,26 +1,27 @@
-<section class="list-panel">
+<!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- écoute globale (clic à l'extérieur du panneau latéral), rien d'interactif -->
+<section (document:click)="onDocumentClick($event)" class="list-panel">
   <div aria-atomic="true" class="ngt-visually-hidden ngt-live-region" role="status">{{ liveAnnouncement() }}</div>
 
   @if (rowContextMenuEnabled() && rowContextMenuTemplate()) {
     <div
-      #rowContextMenuTrigger="matMenuTrigger"
-      [matMenuTriggerFor]="contextMenu"
+      #rowContextMenuTrigger="ngTableMenuTrigger"
+      [ngTableMenuTriggerFor]="contextMenu"
       [style.left.px]="contextMenuPosition().x"
       [style.top.px]="contextMenuPosition().y"
       class="context-menu-anchor"
     ></div>
 
-    <mat-menu #contextMenu="matMenu" (closed)="onRowContextMenuClosed()">
+    <ng-table-menu #contextMenu (closed)="onRowContextMenuClosed()">
       @if (contextMenuRow(); as row) {
-        <ng-container *ngTemplateOutlet="rowContextMenuTemplate()!; context: { $implicit: row, row: row }"/>
+        <ng-container *ngTemplateOutlet="rowContextMenuTemplate()!; context: { $implicit: row, row: row, selectedRows: contextSelectedRows() }"/>
       }
-    </mat-menu>
+    </ng-table-menu>
   }
 
   <div class="list-actions">
     @if (globalSearchEnabled()) {
       <div class="global-search" role="search">
-        <mat-icon aria-hidden="true" class="global-search__icon">search</mat-icon>
+        <ng-table-icon aria-hidden="true" class="global-search__icon" name="search"/>
         <input
           (input)="onGlobalSearchInput($any($event.target).value)"
           (keydown.enter)="applyGlobalSearchNow()"
@@ -37,35 +38,35 @@
             [attr.aria-label]="effectiveLabels().clearGlobalSearch"
             [title]="effectiveLabels().clearGlobalSearch"
             class="global-search__clear"
-            mat-icon-button
+            ngt-icon-button
             type="button"
           >
-            <mat-icon aria-hidden="true">close</mat-icon>
+            <ng-table-icon aria-hidden="true" name="close"/>
           </button>
         }
       </div>
     }
 
     @if (columnsMenuEnabled()) {
-      <button [disabled]="!hasColumns()" [matMenuTriggerFor]="columnsMenu" mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">view_column</mat-icon>
+      <button [disabled]="!hasColumns()" [ngTableMenuTriggerFor]="columnsMenu" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="view_column"/>
         {{ effectiveLabels().columnsButton }}
       </button>
 
-      <mat-menu #columnsMenu="matMenu" class="ngt-columns-menu-panel">
+      <ng-table-menu #columnsMenu class="ngt-columns-menu-panel">
         @for (column of columnsMenuItems(); track column.id) {
-          <!-- `<div mat-menu-item>` et non `<button>` : un `<mat-checkbox>` est lui-même
+          <!-- `<div ngt-menu-item>` et non `<button>` : un `<ng-table-checkbox>` est lui-même
                un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
                et perturbe la navigation clavier/lecteur d'écran (contrôle dans contrôle). -->
           <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
-          <div (click)="$event.stopPropagation()" mat-menu-item>
-            <mat-checkbox
-              (change)="onToggleColumnVisibility(column.id, $event.checked)"
+          <div (click)="$event.stopPropagation()" ngt-menu-item>
+            <ng-table-checkbox
+              (checkedChange)="onToggleColumnVisibility(column.id, $event.checked)"
               [checked]="isColumnVisible(column.id)"
               class="columns-menu-checkbox"
             >
               {{ column.header }}
-            </mat-checkbox>
+            </ng-table-checkbox>
             @if (referenceColumnSelectable()) {
               <button
                 (click)="toggleReferenceColumn(column)"
@@ -75,62 +76,70 @@
                 [disabled]="!isColumnVisible(column.id)"
                 [title]="isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn.replace('{column}', column.header) : effectiveLabels().setReferenceColumn.replace('{column}', column.header)"
                 class="reference-pin"
-                mat-icon-button
+                ngt-icon-button
                 type="button"
               >
-                <mat-icon aria-hidden="true">push_pin</mat-icon>
+                <ng-table-icon aria-hidden="true" name="push_pin"/>
               </button>
             }
           </div>
         }
-      </mat-menu>
+      </ng-table-menu>
+    }
+
+    @if (sidePanel()) {
+      <button (click)="toggleSidePanel()" [attr.aria-expanded]="sidePanelOpen()" class="ngt-side-panel-toggle" [attr.aria-pressed]="sidePanelOpen()"
+              ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="dock_to_left"/>
+        {{ effectiveLabels().sidePanelButton }}
+      </button>
     }
 
     @if (groupingEnabled()) {
-      <button [matMenuTriggerFor]="groupMenu" mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">account_tree</mat-icon>
+      <button [ngTableMenuTriggerFor]="groupMenu" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="account_tree"/>
         {{ effectiveLabels().groupButton }}
         @if (groupColumn(); as grouped) {
           <span class="active-view-chip">{{ grouped.header }}</span>
         }
       </button>
 
-      <mat-menu #groupMenu="matMenu">
-        <button (click)="groupBy.set(null)" [attr.aria-checked]="!groupColumn()" mat-menu-item role="menuitemradio" type="button">
-          <mat-icon aria-hidden="true">{{ groupColumn() ? 'radio_button_unchecked' : 'radio_button_checked' }}</mat-icon>
+      <ng-table-menu #groupMenu>
+        <button (click)="setGroupBy(null)" [attr.aria-checked]="!groupColumn()" ngt-menu-item role="menuitemradio" type="button">
+          <ng-table-icon aria-hidden="true" [name]="groupColumn() ? 'radio_button_unchecked' : 'radio_button_checked'"/>
           {{ effectiveLabels().groupNone }}
         </button>
         @for (column of groupableColumns(); track column.id) {
-          <button (click)="groupBy.set(column.id)" [attr.aria-checked]="groupBy() === column.id" mat-menu-item
+          <button (click)="setGroupBy(column.id)" [attr.aria-checked]="groupBy() === column.id" ngt-menu-item
                   role="menuitemradio" type="button">
-            <mat-icon aria-hidden="true">{{ groupBy() === column.id ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+            <ng-table-icon aria-hidden="true" [name]="groupBy() === column.id ? 'radio_button_checked' : 'radio_button_unchecked'"/>
             {{ column.header }}
           </button>
         }
         @if (groupColumn() && groupsCollapsible()) {
           <div class="views-divider"></div>
-          <button (click)="expandAllGroups()" mat-menu-item type="button">
-            <mat-icon aria-hidden="true">unfold_more</mat-icon>
+          <button (click)="expandAllGroups()" ngt-menu-item type="button">
+            <ng-table-icon aria-hidden="true" name="unfold_more"/>
             {{ effectiveLabels().expandAllGroups }}
           </button>
-          <button (click)="collapseAllGroups()" mat-menu-item type="button">
-            <mat-icon aria-hidden="true">unfold_less</mat-icon>
+          <button (click)="collapseAllGroups()" ngt-menu-item type="button">
+            <ng-table-icon aria-hidden="true" name="unfold_less"/>
             {{ effectiveLabels().collapseAllGroups }}
           </button>
         }
-      </mat-menu>
+      </ng-table-menu>
     }
 
     @if (viewsEnabled()) {
-      <button (menuOpened)="viewsImportFeedback.set('')" [matMenuTriggerFor]="viewsMenu" mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">bookmark</mat-icon>
+      <button (menuOpened)="viewsImportFeedback.set('')" [ngTableMenuTriggerFor]="viewsMenu" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="bookmark"/>
         {{ effectiveLabels().viewsButton }}
         @if (activeView(); as av) {
           <span class="active-view-chip">{{ av.name }}</span>
         }
       </button>
 
-      <mat-menu #viewsMenu="matMenu" class="ngt-views-menu-panel">
+      <ng-table-menu #viewsMenu class="ngt-views-menu-panel">
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
         <div (click)="$event.stopPropagation()" class="views-menu-body">
           <div class="views-save-row">
@@ -147,11 +156,11 @@
               [attr.aria-label]="effectiveLabels().saveView"
               [disabled]="!newViewName().trim()"
               class="views-save-btn"
-              mat-icon-button
+              ngt-icon-button
               [title]="effectiveLabels().saveView"
               type="button"
             >
-              <mat-icon aria-hidden="true">save</mat-icon>
+              <ng-table-icon aria-hidden="true" name="save"/>
             </button>
           </div>
 
@@ -161,7 +170,7 @@
               <div [class.active]="view.id === activeViewId()" class="view-row">
                 <button (click)="activateView(view)" [attr.aria-current]="view.id === activeViewId() ? 'true' : null"
                         class="view-row-label" type="button">
-                  <mat-icon aria-hidden="true">{{ view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" [name]="view.id === activeViewId() ? 'radio_button_checked' : 'radio_button_unchecked'"/>
                   <span>{{ view.name }}</span>
                 </button>
                 <button (click)="toggleDefaultView(view)"
@@ -170,22 +179,22 @@
                         [class.view-row-default--on]="isDefaultView(view)"
                         [title]="isDefaultView(view) ? effectiveLabels().unsetDefaultView : effectiveLabels().setDefaultView"
                         class="view-row-default"
-                        mat-icon-button
+                        ngt-icon-button
                         type="button">
-                  <mat-icon aria-hidden="true">{{ isDefaultView(view) ? 'star' : 'star_outline' }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" [name]="isDefaultView(view) ? 'star' : 'star_outline'"/>
                 </button>
                 <button (click)="updateView(view)" [attr.aria-label]="effectiveLabels().updateView"
                         [title]="effectiveLabels().updateView" class="view-row-update"
                         [class.view-row-update--done]="viewUpdateIconName(view) === 'check'"
-                        mat-icon-button
+                        ngt-icon-button
                         type="button">
-                  <mat-icon aria-hidden="true">{{ viewUpdateIconName(view) }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" [name]="viewUpdateIconName(view)"/>
                 </button>
                 <button (click)="deleteView(view)" [attr.aria-label]="effectiveLabels().deleteView"
                         [title]="effectiveLabels().deleteView" class="view-row-delete"
-                        mat-icon-button
+                        ngt-icon-button
                         type="button">
-                  <mat-icon aria-hidden="true">delete</mat-icon>
+                  <ng-table-icon aria-hidden="true" name="delete"/>
                 </button>
               </div>
             }
@@ -196,12 +205,12 @@
           @if (viewsImportExportEnabled()) {
             <div class="views-divider"></div>
             <div class="views-transfer-row">
-              <button (click)="downloadViews()" [disabled]="viewsList().length === 0" mat-button type="button">
-                <mat-icon aria-hidden="true">file_download</mat-icon>
+              <button (click)="downloadViews()" [disabled]="viewsList().length === 0" ngt-button type="button">
+                <ng-table-icon aria-hidden="true" name="file_download"/>
                 {{ effectiveLabels().exportViews }}
               </button>
-              <button (click)="viewsFileInput.click()" mat-button type="button">
-                <mat-icon aria-hidden="true">file_upload</mat-icon>
+              <button (click)="viewsFileInput.click()" ngt-button type="button">
+                <ng-table-icon aria-hidden="true" name="file_upload"/>
                 {{ effectiveLabels().importViews }}
               </button>
               <input #viewsFileInput (change)="onViewsFileSelected(viewsFileInput)" accept="application/json,.json"
@@ -212,21 +221,21 @@
             }
           }
         </div>
-      </mat-menu>
+      </ng-table-menu>
     }
 
     @if (exportEnabled()) {
       <button
         (click)="openExportDialog()"
-        [matMenuTriggerFor]="exportMode() === 'local' && exportTotalPages() > 1 ? exportMenu : null"
-        mat-stroked-button
+        [ngTableMenuTriggerFor]="exportMode() === 'local' && exportTotalPages() > 1 ? exportMenu : null"
+        ngt-stroked-button
         type="button"
       >
-        <mat-icon aria-hidden="true">download</mat-icon>
+        <ng-table-icon aria-hidden="true" name="download"/>
         {{ effectiveLabels().exportButton }}
       </button>
 
-      <mat-menu #exportMenu="matMenu" class="ngt-export-menu-panel">
+      <ng-table-menu #exportMenu class="ngt-export-menu-panel">
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
         <div (click)="$event.stopPropagation()" class="export-menu-body">
           <p class="export-menu-title">{{ effectiveLabels().exportDialogTitle }}</p>
@@ -256,19 +265,66 @@
             </label>
           </div>
 
-          <button (click)="confirmExportDialog()" class="export-confirm-btn" mat-flat-button type="button">
-            <mat-icon aria-hidden="true">download</mat-icon>
+          <button (click)="confirmExportDialog()" class="export-confirm-btn" ngt-flat-button type="button">
+            <ng-table-icon aria-hidden="true" name="download"/>
             {{ effectiveLabels().exportConfirm }}
           </button>
         </div>
-      </mat-menu>
+      </ng-table-menu>
     }
   </div>
 
+  @if (groupPanel() && groupingEnabled()) {
+    <div
+      (dragleave)="groupDropOver.set(false)"
+      (dragover)="onGroupPanelDragOver($event)"
+      (drop)="onGroupPanelDrop($event)"
+      [attr.aria-label]="effectiveLabels().groupPanelLabel"
+      [class.ngt-group-panel--over]="groupDropOver()"
+      class="ngt-group-panel"
+      role="group"
+    >
+      <ng-table-icon aria-hidden="true" class="ngt-group-panel__icon" name="account_tree"/>
+      @for (column of groupColumns(); track column.id; let index = $index) {
+        @if (index > 0) {
+          <ng-table-icon aria-hidden="true" class="ngt-group-panel__sep" name="chevron_right"/>
+        }
+        <span
+          (dragover)="onGroupChipDragOver($event)"
+          (dragstart)="onGroupChipDragStart($event, index)"
+          (drop)="onGroupChipDrop($event, index)"
+          class="ngt-group-chip"
+          draggable="true"
+        >
+          {{ column.header }}
+          <button
+            (click)="removeGroupLevel(index)"
+            [attr.aria-label]="effectiveLabels().groupRemove.replace('{column}', column.header)"
+            class="ngt-group-chip__remove"
+            type="button"
+          >
+            <ng-table-icon aria-hidden="true" name="close"/>
+          </button>
+        </span>
+      } @empty {
+        <span class="ngt-group-panel__hint">{{ effectiveLabels().groupPanelHint }}</span>
+      }
+      @if (addableGroupColumns().length > 0) {
+        <button [ngTableMenuTriggerFor]="groupAddMenu" [attr.aria-label]="effectiveLabels().groupAdd" class="ngt-group-panel__add" ngt-icon-button type="button">
+          <ng-table-icon aria-hidden="true" name="add"/>
+        </button>
+        <ng-table-menu #groupAddMenu>
+          @for (column of addableGroupColumns(); track column.id) {
+            <button (click)="addGroupLevel(column.id)" ngt-menu-item type="button">{{ column.header }}</button>
+          }
+        </ng-table-menu>
+      }
+    </div>
+  }
   @if (showActiveFiltersBar() && activeFilterSummaries().length > 0) {
     <div class="active-filters-bar">
       <span class="active-filters-bar__label">
-        <mat-icon aria-hidden="true">filter_alt</mat-icon>
+        <ng-table-icon aria-hidden="true" name="filter_alt"/>
         {{ effectiveLabels().activeFilters }}
       </span>
 
@@ -281,79 +337,180 @@
               (click)="clearFilter(summary.columnId)"
               [attr.aria-label]="effectiveLabels().clearFilter"
               class="active-filter-chip__clear"
-              mat-icon-button
+              ngt-icon-button
               type="button"
             >
-              <mat-icon aria-hidden="true">close</mat-icon>
+              <ng-table-icon aria-hidden="true" name="close"/>
             </button>
           </span>
         }
       </div>
 
-      <button (click)="clearAllFilters()" class="active-filters-bar__reset" mat-stroked-button type="button">
-        <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+      <button (click)="clearAllFilters()" class="active-filters-bar__reset" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="filter_alt_off"/>
         {{ effectiveLabels().resetFiltersButton }}
       </button>
     </div>
   }
 
-  <div [attr.aria-busy]="loading() ? 'true' : null" [class.table-viewport--loading]="loading()" class="table-viewport">
+  <div [attr.aria-busy]="busy() ? 'true' : null" [class.table-viewport--docked]="sidePanel() && sidePanelOpen() && sidePanelPinned()"
+       [class.table-viewport--loading]="busy()" class="table-viewport">
+  @if (sidePanel() && sidePanelOpen()) {
+    <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- seul Échap ferme, géré par keydown -->
+    <aside (keydown.escape)="sidePanelOpen.set(false)" [attr.aria-label]="effectiveLabels().sidePanelTitle"
+           [class.ngt-side-panel--docked]="sidePanelPinned()" class="ngt-side-panel">
+      <div class="ngt-side-panel__tabs" role="tablist">
+        <button (click)="sidePanelTab.set('columns')" [attr.aria-selected]="sidePanelTab() === 'columns'"
+                [class.ngt-side-panel__tab--on]="sidePanelTab() === 'columns'" class="ngt-side-panel__tab" role="tab" type="button">
+          {{ effectiveLabels().sidePanelColumns }}
+        </button>
+        <button (click)="sidePanelTab.set('filters')" [attr.aria-selected]="sidePanelTab() === 'filters'"
+                [class.ngt-side-panel__tab--on]="sidePanelTab() === 'filters'" class="ngt-side-panel__tab" role="tab" type="button">
+          {{ effectiveLabels().sidePanelFilters }}
+          @if (activeFilterSummaries().length > 0) {
+            <span class="ngt-side-panel__badge">{{ activeFilterSummaries().length }}</span>
+          }
+        </button>
+        <button (click)="sidePanelPinned.set(!sidePanelPinned())" [attr.aria-label]="effectiveLabels().sidePanelPin"
+                [attr.aria-pressed]="sidePanelPinned()" [class.ngt-side-panel__pin--on]="sidePanelPinned()"
+                [title]="effectiveLabels().sidePanelPin" class="ngt-side-panel__pin" type="button">
+          <ng-table-icon aria-hidden="true" name="push_pin"/>
+        </button>
+        <button (click)="sidePanelOpen.set(false)" [attr.aria-label]="effectiveLabels().sidePanelClose"
+                [title]="effectiveLabels().sidePanelClose" class="ngt-side-panel__close" type="button">
+          <ng-table-icon aria-hidden="true" name="close"/>
+        </button>
+      </div>
+      <div class="ngt-side-panel__body" role="tabpanel">
+        @if (sidePanelTab() === 'columns') {
+          @for (column of columnsMenuItems(); track column.id) {
+            <div class="ngt-side-panel__column">
+              <ng-table-checkbox (checkedChange)="onToggleColumnVisibility(column.id, $event.checked)" [checked]="isColumnVisible(column.id)"
+                            class="ngt-side-panel__item">
+                {{ column.header }}
+              </ng-table-checkbox>
+              <button (click)="toggleReferenceColumn(column)"
+                      [attr.aria-label]="(isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn : effectiveLabels().setReferenceColumn).replace('{column}', column.header)"
+                      [attr.aria-pressed]="isReferenceColumn(column)" [class.reference-pin--on]="isReferenceColumn(column)"
+                      [disabled]="!isColumnVisible(column.id)"
+                      [title]="(isReferenceColumn(column) ? effectiveLabels().unsetReferenceColumn : effectiveLabels().setReferenceColumn).replace('{column}', column.header)"
+                      class="reference-pin" ngt-icon-button type="button">
+                <ng-table-icon aria-hidden="true" name="push_pin"/>
+              </button>
+            </div>
+          }
+        } @else {
+          @for (summary of activeFilterSummaries(); track summary.columnId) {
+            <div class="ngt-side-panel__filter">
+              <span class="active-filter-chip__field">{{ summary.label }}</span>
+              <span class="active-filter-chip__value">{{ summary.value }}</span>
+              <button (click)="clearFilter(summary.columnId)" [attr.aria-label]="effectiveLabels().clearFilter"
+                      class="active-filter-chip__clear" ngt-icon-button type="button">
+                <ng-table-icon aria-hidden="true" name="close"/>
+              </button>
+            </div>
+          } @empty {
+            <p class="ngt-side-panel__empty">{{ effectiveLabels().sidePanelNoFilters }}</p>
+          }
+          @if (activeFilterSummaries().length > 0) {
+            <button (click)="clearAllFilters()" ngt-stroked-button type="button">
+              <ng-table-icon aria-hidden="true" name="filter_alt_off"/>
+              {{ effectiveLabels().resetFiltersButton }}
+            </button>
+          }
+        }
+      </div>
+    </aside>
+  }
   <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" class="table-wrap">
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
-    <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event)"
+    <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event); onRangeKeydown($event); onEditKeydown($event)"
            [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="cellNavigation() ? 'grid' : null"
            [dataSource]="tableRows()"
+           [style.--ngt-flash-duration]="flashDurationMs() + 'ms'"
+           [style.--ngt-row-h]="rowHeight() + 'px'"
+           [style.--ngt-header-h]="pinHeaderOffset() + 'px'"
+           [style.--ngt-footer-h]="pinFooterOffset() + 'px'"
            [class.ngt-density-compact]="density() === 'compact'"
+           [class.ngt-range-enabled]="rangeSelection()"
+           (mousedown)="onRangeMouseDown($event)"
+           (paste)="onRangePaste($event)"
            [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
+           [style.width.px]="columnVirtualization() ? tableMinWidthPx() : null"
            [trackBy]="resolvedTrackBy"
-           class="ng-table" mat-table multiTemplateDataRows>
+           class="ng-table" cdk-table multiTemplateDataRows>
+      <!-- Largeurs des colonnes : en `table-layout: fixed` elles viennent de la première ligne, qui est une ligne
+           d'en-têtes groupés (sans largeur) dès qu'il y en a. Le `<colgroup>` les donne indépendamment des lignes. -->
+      <colgroup>
+        @for (id of displayedColumnIds(); track id) {
+          <col [style.width.px]="colWidthFor(id)"/>
+        }
+      </colgroup>
+      @if (rowDragActive()) {
+        <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_drag__">
+          <th *cdkHeaderCellDef class="row-drag-cell" cdk-header-cell></th>
+          <td *cdkFooterCellDef class="totals-cell" cdk-footer-cell></td>
+          <td *cdkCellDef="let row" class="row-drag-cell" cdk-cell>
+            @if (!pinInfo(row)) {
+              <button (click)="$event.stopPropagation()" (dragend)="onRowDragEnd()" (dragstart)="onRowDragStart($event, row)"
+                      (keydown)="onRowHandleKeydown($event, row)" [attr.aria-label]="effectiveLabels().rowDragHandle"
+                      [title]="effectiveLabels().rowDragHandle" class="ngt-row-handle" draggable="true" type="button">
+                <ng-table-icon aria-hidden="true" name="drag_indicator"/>
+              </button>
+            }
+          </td>
+        </ng-container>
+      }
+
       @if (rowSelectionEnabled()) {
-        <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__row_selection__">
-          <th *matHeaderCellDef class="selection-header-cell" mat-header-cell>
-            <mat-checkbox
-              (change)="onToggleAllDisplayedRows($event)"
-              [aria-label]="effectiveLabels().selectAllRows"
+        <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_selection__">
+          <th *cdkHeaderCellDef class="selection-header-cell" cdk-header-cell>
+            <ng-table-checkbox
+              (checkedChange)="onToggleAllDisplayedRows($event)"
+              [ariaLabel]="effectiveLabels().selectAllRows"
               [checked]="areAllDisplayedRowsSelected()"
               [indeterminate]="hasPartiallySelectedDisplayedRows()"
             />
           </th>
-          <td *matFooterCellDef class="totals-cell" mat-footer-cell></td>
-          <td *matCellDef="let row; let rowIndex = dataIndex" class="selection-cell" mat-cell>
-            <mat-checkbox
-              (change)="onToggleRowSelection($event, row)"
-              (click)="$event.stopPropagation()"
-              [aria-label]="rowSelectAriaLabel(rowIndex)"
-              [checked]="isRowSelected(row)"
-            />
+          <td *cdkFooterCellDef class="totals-cell" cdk-footer-cell></td>
+          <td *cdkCellDef="let row; let rowIndex = dataIndex" class="selection-cell" cdk-cell>
+            @if (!pinInfo(row)) {
+              <ng-table-checkbox
+                (checkedChange)="onToggleRowSelection($event, row)"
+                (click)="$event.stopPropagation()"
+                [ariaLabel]="rowSelectAriaLabel(rowIndex)"
+                [checked]="isRowSelected(row)"
+              />
+            }
           </td>
         </ng-container>
       }
 
       @for (column of columns(); track trackByColumn($index, column)) {
-        <ng-container [matColumnDef]="column.id" [sticky]="pinnedSide(column) === 'left'"
+        <ng-container [cdkColumnDef]="column.id" [sticky]="pinnedSide(column) === 'left'"
                       [stickyEnd]="pinnedSide(column) === 'right'">
           <th (dragleave)="onColumnDragLeave(column)"
               (dragover)="onColumnDragOver($event, column)"
               (drop)="onColumnDrop($event, column)"
-              *matHeaderCellDef
+              *cdkHeaderCellDef
               [attr.aria-sort]="ariaSortValue(column)"
               [class.column-drag-over]="dragOverColumnId() === column.id"
               [class.column-dragging]="draggingColumnId() === column.id"
               [style.max-width.px]="column.maxWidthPx ?? null" [style.min-width.px]="column.minWidthPx ?? null"
-              [style.width.px]="columnWidthPx(column)" mat-header-cell>
+              [style.width.px]="columnWidthPx(column)" cdk-header-cell>
             <div class="th-wrap">
               <span
                 (dragend)="onColumnDragEnd()"
                 (dragstart)="onColumnDragStart($event, column)"
                 (keydown)="onColumnHandleKeydown($event, column)"
                 [attr.aria-label]="effectiveLabels().dragHandleLabel"
-                [attr.draggable]="!isMobileView()"
+                draggable="true"
                 [title]="effectiveLabels().dragToReorder"
                 class="drag-handle"
                 role="button"
                 tabindex="0"
               >
-                <mat-icon aria-hidden="true">drag_indicator</mat-icon>
+                <ng-table-icon aria-hidden="true" name="drag_indicator"/>
               </span>
               <button
                 (click)="onHeaderSort(column, $event)"
@@ -365,7 +522,7 @@
               >
                 <span [ngTableTruncateTooltip]="column.header" class="header-label">{{ column.header }}</span>
                 @if (column.sortable) {
-                  <mat-icon aria-hidden="true" class="sort-icon">{{ currentSortIcon(column) }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" class="sort-icon" [class.sort-icon--active]="currentSortIcon(column) !== 'swap_vert'" [name]="currentSortIcon(column)"/>
                   @if (sortPriority(column); as priority) {
                     <span aria-hidden="true" class="sort-priority">{{ priority }}</span>
                   }
@@ -375,20 +532,20 @@
               @if (column.filter; as filter) {
                 @if (!shouldRenderInlineFilter(column)) {
                   <button
-                    #filterTrigger="matMenuTrigger"
+                    #filterTrigger="ngTableMenuTrigger"
                     (menuClosed)="onFilterMenuClosed(column.id)"
                     (menuOpened)="onFilterMenuOpened(column.id, filterTrigger, filter)"
                     [attr.aria-label]="filterByAriaLabel(column)"
                     [class.filter-active]="isFilterActive(column.id)"
-                    [matMenuTriggerFor]="menu"
+                    [ngTableMenuTriggerFor]="menu"
                     class="filter-button"
-                    mat-icon-button
+                    ngt-icon-button
                     type="button"
                   >
-                    <mat-icon aria-hidden="true">{{ isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off' }}</mat-icon>
+                    <ng-table-icon aria-hidden="true" [name]="isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off'"/>
                   </button>
 
-                  <mat-menu #menu="matMenu" class="ngt-filter-menu-panel">
+                  <ng-table-menu #menu class="ngt-filter-menu-panel">
                     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
                     <div
                       (click)="$event.stopPropagation()"
@@ -397,7 +554,7 @@
                     >
                       @if (filterMenuTitle(column); as menuTitle) {
                         <div class="filter-menu-title">
-                          <mat-icon aria-hidden="true">filter_alt</mat-icon>
+                          <ng-table-icon aria-hidden="true" name="filter_alt"/>
                           <span>{{ menuTitle }}</span>
                         </div>
                       }
@@ -429,12 +586,14 @@
                           [labels]="effectiveLabels()"
                           [options]="resolvedFilterOptions(column.id, filter)"
                           [placeholder]="filter.placeholder ?? ''"
+                          [setTruncated]="setFilterTruncated(column.id)"
+                          [setValues]="setFilterValues(column.id, filter)"
                           [type]="filter.type ?? 'text'"
                           [value]="currentFilterValue(column.id)"
                         />
                       }
                     </div>
-                  </mat-menu>
+                  </ng-table-menu>
                 }
               }
 
@@ -469,6 +628,8 @@
                     [labels]="effectiveLabels()"
                     [options]="resolvedFilterOptions(column.id, filter)"
                     [placeholder]="filter.placeholder ?? ''"
+                    [setTruncated]="setFilterTruncated(column.id)"
+                    [setValues]="setFilterValues(column.id, filter)"
                     [type]="filter.type ?? 'text'"
                     [value]="currentFilterValue(column.id)"
                   />
@@ -493,19 +654,74 @@
             }
           </th>
 
-          <td *matFooterCellDef [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="columnWidthPx(column)"
-              class="totals-cell" mat-footer-cell>
+          <td *cdkFooterCellDef [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="columnWidthPx(column)"
+              class="totals-cell" cdk-footer-cell>
             @if (totals()?.[column.id]; as total) {
               {{ total }}
             } @else if (column.id === leadColumnId()) {
               <span class="totals-label">{{ effectiveLabels().totalsLabel }}</span>
             }
           </td>
-          <td *matCellDef="let row; let rowIndex = dataIndex" [style.max-width.px]="column.maxWidthPx ?? null"
-              [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" mat-cell>
+          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.data-ngt-flash]="cellView(row, column).flash || null"
+              [attr.aria-selected]="cellRangeSelected(row, column)"
+              [attr.data-ngt-col]="cellsTagged() ? column.id : null"
+              [attr.data-ngt-editable]="hasEditableColumns() && isEditable(row, column) ? '' : null"
+              (dblclick)="onCellDoubleClick($event, row, column)"
+              [attr.data-ngt-range]="cellRangeAttr(row, column)"
+              [style.max-width.px]="column.maxWidthPx ?? null"
+              [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" cdk-cell>
             @let cell = cellView(row, column);
-            <div class="cell-content" [class.cell-content--wrap]="column.textOverflow === 'wrap'">
-              @if (column.cellTemplate) {
+            @if (isEditing(row, column)) {
+              <div class="cell-editor">
+                @switch (editorKind(column)) {
+                  @case ('select') {
+                    <select (blur)="onEditorBlur()" (change)="onEditSelect($any($event.target).value)"
+                            (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                            [attr.aria-label]="column.header" class="ngt-editor">
+                      <option [selected]="!editing()?.draft" value="">—</option>
+                      @for (option of editorOptions(column); track option.value) {
+                        <option [selected]="option.value === editing()?.draft" [value]="option.value">{{ option.label }}</option>
+                      }
+                    </select>
+                  }
+                  @case ('date') {
+                    <input (blur)="onEditorBlur()" (input)="onEditInput($any($event.target).value)"
+                           (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                           [attr.aria-label]="column.header" [value]="editing()?.draft ?? ''" class="ngt-editor" type="date"/>
+                  }
+                  @default {
+                    <input (blur)="onEditorBlur()" (input)="onEditInput($any($event.target).value)"
+                           (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                           [attr.aria-label]="column.header" [attr.inputmode]="editorKind(column) === 'number' ? 'decimal' : null"
+                           [value]="editing()?.draft ?? ''" class="ngt-editor" type="text"/>
+                  }
+                }
+                @if (editing()?.error; as error) {
+                  <span class="ngt-editor-error" role="alert">{{ error }}</span>
+                }
+              </div>
+            } @else if (isInlineCheckbox(row, column)) {
+              <input (change)="onInlineCheckbox(row, column, $any($event.target).checked)" (click)="$event.stopPropagation()"
+                     [attr.aria-label]="column.header" [checked]="!!cell.value" class="ngt-inline-check" type="checkbox"/>
+            }
+            <div class="cell-content" [class.cell-content--hidden]="isEditing(row, column) || isInlineCheckbox(row, column)"
+                 [class.cell-content--wrap]="column.textOverflow === 'wrap'">
+              @if (treeActive() && column.id === leadColumnId()) {
+                <span [style.width.px]="treeDepth(row) * treeIndent()" aria-hidden="true" class="ngt-tree-indent"></span>
+                @if (treeHasChildren(row)) {
+                  <button (click)="onTreeToggle($event, row)" [attr.aria-expanded]="isTreeExpanded(row)"
+                          [attr.aria-label]="isTreeExpanded(row) ? effectiveLabels().treeCollapse : effectiveLabels().treeExpand"
+                          class="ngt-tree-toggle" type="button">
+                    <ng-table-icon aria-hidden="true" [name]="isTreeExpanded(row) ? 'expand_more' : 'chevron_right'"/>
+                  </button>
+                } @else {
+                  <span aria-hidden="true" class="ngt-tree-toggle"></span>
+                }
+              }
+              @if (column.sparkline; as spark) {
+                <ng-table-sparkline [color]="spark.color ?? null" [height]="spark.height ?? 24" [type]="spark.type ?? 'line'"
+                               [values]="cell.value" [width]="spark.width ?? 96"/>
+              } @else if (column.cellTemplate) {
                 <span class="cell-text" [class.cell-text--truncate]="column.textOverflow !== 'wrap'"
                       [class.cell-text--wrap]="column.textOverflow === 'wrap'">
                   <ng-container *ngTemplateOutlet="column.cellTemplate; context: cell.context" />
@@ -520,12 +736,12 @@
                 <button
                   (click)="onCopyCellValue($event, column, row, rowIndex)"
                   [attr.aria-label]="copyTooltip(column)"
-                  [matTooltip]="copyTooltip(column)"
+                  [ngTableTooltip]="copyTooltip(column)"
                   class="copy-action-btn"
-                  mat-icon-button
+                  ngt-icon-button
                   type="button"
                 >
-                  <mat-icon aria-hidden="true">{{ copyIconName(column, row, rowIndex) }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" [name]="copyIconName(column, row, rowIndex)"/>
                 </button>
               }
             </div>
@@ -534,21 +750,24 @@
       }
 
       <!-- En-têtes de groupe : une cellule par colonne affichée, pour aligner les agrégats. -->
-      <ng-container [sticky]="hasLeftPinnedColumns()" matColumnDef="__group____row_selection__">
-        <td *matCellDef="let item" class="group-cell" mat-cell></td>
+      <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__group____row_selection__">
+        <td *cdkCellDef="let item" class="group-cell" cdk-cell></td>
+      </ng-container>
+      <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__group____row_drag__">
+        <td *cdkCellDef="let item" class="group-cell" cdk-cell></td>
       </ng-container>
       @for (column of columns(); track trackByColumn($index, column)) {
-        <ng-container [matColumnDef]="'__group__' + column.id" [sticky]="pinnedSide(column) === 'left'"
+        <ng-container [cdkColumnDef]="'__group__' + column.id" [sticky]="pinnedSide(column) === 'left'"
                       [stickyEnd]="pinnedSide(column) === 'right'">
-          <td *matCellDef="let item" [class.group-cell--lead]="column.id === leadColumnId()" class="group-cell" mat-cell>
+          <td *cdkCellDef="let item" [class.group-cell--lead]="column.id === leadColumnId()" class="group-cell" cdk-cell>
             @if (column.id === leadColumnId()) {
-              <span class="group-label">
+              <span [style.padding-inline-start.px]="item.depth * 20" class="group-label">
                 @if (groupsCollapsible()) {
-                  <mat-icon aria-hidden="true" class="group-chevron">{{ item.collapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                  <ng-table-icon aria-hidden="true" class="group-chevron" [name]="item.collapsed ? 'chevron_right' : 'expand_more'"/>
                 }
                 <!-- Espaces DANS les textes : Angular retire ceux entre les balises, et le nom lu
                      par un lecteur d'écran deviendrait « Statut :Brouillon1 ligne(s) ». -->
-                <span class="group-name">{{ groupColumn()?.header }} : </span>
+                <span class="group-name">{{ (item.group.column ?? groupColumn())?.header }} : </span>
                 <span class="group-value">{{ groupValueLabel(item.group) }} </span>
                 @if (groupCountLabel(item.group); as count) {
                   <span class="group-count">{{ count }}</span>
@@ -561,8 +780,8 @@
         </ng-container>
       }
 
-      <ng-container matColumnDef="__mobile_actions__">
-        <td *matCellDef="let row" [attr.colspan]="mobileActionsColspan()" class="mobile-actions-cell" mat-cell>
+      <ng-container cdkColumnDef="__mobile_actions__">
+        <td *cdkCellDef="let row" [attr.colspan]="mobileActionsColspan()" class="mobile-actions-cell" cdk-cell>
           @if (actionColumn()?.cellTemplate && mobileActionsCellContext(row); as context) {
             <ng-container *ngTemplateOutlet="actionColumn()!.cellTemplate; context: context"/>
           }
@@ -570,70 +789,117 @@
       </ng-container>
 
       <!-- Défilement virtuel : espacement pour les lignes non rendues au-dessus / au-dessous. -->
-      <ng-container matColumnDef="__spacer__">
-        <td *matCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="item.height" class="spacer-cell"
-            mat-cell></td>
+      <ng-container cdkColumnDef="__spacer__">
+        <td *cdkCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="spacerHeight(item.position)" class="spacer-cell"
+            cdk-cell></td>
       </ng-container>
 
-      <ng-container matColumnDef="__detail_row__">
-        <td *matCellDef="let row; let rowIndex = dataIndex" [attr.colspan]="detailRowColspan()" class="detail-row"
-            mat-cell>
+      <!-- En-têtes de colonnes groupés : une ligne par niveau, cellules fusionnées par `colspan`. -->
+      @for (level of headerGroupLevels(); track $index) {
+        @for (run of level.runs; track run.key) {
+          <ng-container [cdkColumnDef]="run.key" [sticky]="run.pin === 'left'" [stickyEnd]="run.pin === 'right'">
+            <th *cdkHeaderCellDef [attr.colspan]="run.span" [class.header-group-cell--empty]="!run.label"
+                class="header-group-cell" cdk-header-cell scope="colgroup">{{ run.label }}</th>
+          </ng-container>
+        }
+        <tr *cdkHeaderRowDef="level.ids; sticky: stickyHeader() || virtualActive()" class="header-group-row" cdk-header-row></tr>
+      }
+
+      <!-- Virtualisation horizontale : largeur des colonnes non rendues, à gauche et à droite. -->
+      @for (side of columnSpacerSides; track side) {
+        <ng-container [cdkColumnDef]="'__colspacer_' + side + '__'">
+          <th *cdkHeaderCellDef [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
+              cdk-header-cell></th>
+          <td *cdkCellDef="let row" [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
+              cdk-cell></td>
+          <td *cdkFooterCellDef aria-hidden="true" class="col-spacer-cell" cdk-footer-cell></td>
+        </ng-container>
+        <ng-container [cdkColumnDef]="'__group____colspacer_' + side + '__'">
+          <td *cdkCellDef="let item" aria-hidden="true" class="group-cell col-spacer-cell" cdk-cell></td>
+        </ng-container>
+      }
+
+      <!-- Modèle par blocs : ligne en attente de son bloc (ou bloc en échec). -->
+      <ng-container cdkColumnDef="__loading__">
+        <td *cdkCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="loadingRowHeight()"
+            class="loading-cell" cdk-cell>
+          @if (isFailedLoadingRow(item)) {
+            <span class="loading-failed">{{ effectiveLabels().blockLoadError }}</span>
+          } @else {
+            <span aria-hidden="true" class="loading-skeleton"></span>
+          }
+        </td>
+      </ng-container>
+
+      <ng-container cdkColumnDef="__detail_row__">
+        <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.colspan]="detailRowColspan()" class="detail-row"
+            cdk-cell>
           @if (detailRowTemplate() && isDetailExpanded(rowIndex, row)) {
             <ng-container *ngTemplateOutlet="detailRowTemplate()!; context: { $implicit: row, row: row }"/>
           }
         </td>
       </ng-container>
 
-      <tr *matHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualScroll()" mat-header-row></tr>
-      <tr *matRowDef="let item; columns: spacerColumns; when: spacerRowWhen" aria-hidden="true" class="spacer-row"
-          mat-row></tr>
+      <tr *cdkHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualActive()" cdk-header-row></tr>
+      <tr *cdkRowDef="let item; columns: loadingColumns; when: loadingRowWhen" class="loading-row" cdk-row></tr>
+      <tr *cdkRowDef="let item; columns: spacerColumns; when: spacerRowWhen" aria-hidden="true" class="spacer-row"
+          cdk-row></tr>
       <tr
         (click)="toggleGroup(item.group)"
         (keydown.enter)="toggleGroup(item.group)"
         (keydown.space)="$event.preventDefault(); toggleGroup(item.group)"
-        *matRowDef="let item; columns: groupRowColumns(); when: groupRowWhen"
+        *cdkRowDef="let item; columns: groupRowColumns(); when: groupRowWhen"
         [attr.aria-expanded]="groupsCollapsible() ? !item.collapsed : null"
         [attr.tabindex]="groupsCollapsible() ? 0 : null"
         [class.group-row--static]="!groupsCollapsible()"
         class="group-row"
-        mat-row
+        cdk-row
       ></tr>
       @if (totals()) {
-        <tr *matFooterRowDef="displayedColumnIds(); sticky: stickyHeader()" class="totals-row" mat-footer-row></tr>
+        <tr *cdkFooterRowDef="displayedColumnIds(); sticky: stickyHeader()" class="totals-row" cdk-footer-row></tr>
       }
       <tr
         (click)="onRowClick(row)"
         (contextmenu)="onRowContextMenu($event, row)"
+        (dragover)="onRowDragOver($event, row)"
+        (drop)="onRowDrop($event, row)"
         (keydown)="onRowKeydown($event, row)"
-        *matRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
-        [attr.aria-expanded]="detailRowTemplate() ? isDetailExpanded(rowIndex, row) : null"
+        *cdkRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
+        [attr.aria-expanded]="detailRowTemplate() && !pinInfo(row) ? isDetailExpanded(rowIndex, row) : treeAriaExpanded(row)"
+        [attr.aria-level]="treeActive() ? treeDepth(row) + 1 : null"
+        [attr.data-ngt-drop]="rowDropAttr(row)"
+        [class.ngt-row-dragging]="isRowDragging(row)"
+        [attr.data-ngt-pin]="pinInfo(row)?.side ?? null"
+        [attr.data-ngt-row]="rowRangeIndex(row)"
+        [attr.data-ngt-pin-edge]="pinInfo(row)?.edge ? '' : null"
         [attr.tabindex]="isRowInteractive() && !cellNavigation() ? 0 : null"
+        [style.--ngt-pin-index]="pinInfo(row)?.index ?? null"
         [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
         [ngClass]="rowClasses(row)"
         class="data-row"
-        mat-row
+        cdk-row
       ></tr>
       <tr
-        *matRowDef="let row; let rowIndex = dataIndex; columns: detailRowColumns; when: detailRowRenderWhen"
+        *cdkRowDef="let row; let rowIndex = dataIndex; columns: detailRowColumns; when: detailRowRenderWhen"
         [class.detail-row-collapsed]="!isDetailExpanded(rowIndex, row)"
         class="detail-row-container"
-        mat-row
+        cdk-row
       ></tr>
       <tr
-        *matRowDef="let row; columns: mobileActionRowColumns(); when: mobileActionsRowWhen"
+        *cdkRowDef="let row; columns: mobileActionRowColumns(); when: mobileActionsRowWhen"
         [attr.data-mobile-row-key]="mobileRowKey(row)"
         class="mobile-actions-row"
-        mat-row
+        cdk-row
       ></tr>
-      <tr *matNoDataRow class="mat-mdc-row">
-        <td [attr.colspan]="displayedColumnIds().length || 1" class="mat-mdc-cell no-data-cell">
+      <tr *cdkNoDataRow class="cdk-row">
+        <td [attr.colspan]="displayedColumnIds().length || 1" class="cdk-cell no-data-cell">
           {{ resolvedEmptyLabel() }}
         </td>
       </tr>
     </table>
   </div>
 
-  @if (loading()) {
+  @if (busy()) {
     <div aria-live="polite" class="ngt-loading-overlay" role="status">
       <div class="ngt-loading-overlay__backdrop"></div>
       <div class="ngt-loading-overlay__content">
@@ -648,9 +914,104 @@
   }
   </div>
 
-  @if (paginator()) {
-    <mat-paginator
+  @if (selectionBarVisible()) {
+    <!-- Ancre sans hauteur, collée au bas de la fenêtre tant que le bas du tableau n'est pas visible : la barre flotte sans décaler les lignes. -->
+    <div class="ngt-action-dock">
+      <div
+        (keydown.escape)="clearSelection()"
+        [attr.aria-label]="effectiveLabels().selectionBarLabel"
+        class="ngt-action-bar"
+        role="toolbar"
+        tabindex="-1"
+      >
+        <span aria-live="polite" class="ngt-action-bar__count">
+          <span aria-hidden="true" class="ngt-action-bar__badge">{{ selectedRowsCount() }}</span>
+          <span class="ngt-action-bar__count-text"><span class="ngt-visually-hidden">{{ selectedRowsCount() }} </span>{{ selectionCountLabel() }}</span>
+        </span>
+        <button
+          (click)="clearSelection()"
+          [attr.aria-label]="effectiveLabels().selectionClear"
+          [ngTableTooltip]="effectiveLabels().selectionClear"
+          class="ngt-action-bar__clear"
+          type="button"
+        >
+          <ng-table-icon aria-hidden="true" name="close"/>
+        </button>
+
+        @if (selectableTotal() > selectedRowsCount()) {
+          <button (click)="selectAllFiltered()" class="ngt-action-bar__link" type="button">
+            {{ effectiveLabels().selectionSelectAll.replace('{count}', '' + selectableTotal()) }}
+          </button>
+        }
+
+        @if (selectionBarTemplate()) {
+          <span aria-hidden="true" class="ngt-action-bar__sep"></span>
+          <ng-container *ngTemplateOutlet="selectionBarTemplate()!; context: selectionContext()"/>
+        }
+
+        @if (shownSelectionActions().length > 0 || moreSelectionActions().length > 0) {
+          <span aria-hidden="true" class="ngt-action-bar__sep"></span>
+        }
+        @for (item of shownSelectionActions(); track item.action.id) {
+          <button
+            (click)="onSelectionAction(item)"
+            [attr.aria-disabled]="item.enabled ? null : 'true'"
+            [class.ngt-action-bar__action--danger]="item.action.appearance === 'danger'"
+            [class.ngt-action-bar__action--disabled]="!item.enabled"
+            [class.ngt-action-bar__action--primary]="item.action.appearance === 'primary'"
+            [attr.aria-label]="item.action.label"
+            [class.ngt-action-bar__action--icon]="!!item.action.icon"
+            [ngTableTooltip]="item.reason || item.action.label"
+            class="ngt-action-bar__action"
+            type="button"
+          >
+            @if (item.action.icon) {
+              <ng-table-icon aria-hidden="true" [name]="item.action.icon"/>
+            }
+            <span class="ngt-action-bar__label">{{ item.action.label }}</span>
+          </button>
+        }
+        @if (moreSelectionActions().length > 0) {
+          <button [attr.aria-label]="effectiveLabels().selectionMore" [ngTableMenuTriggerFor]="selectionMoreMenu" class="ngt-action-bar__action" type="button">
+            <ng-table-icon aria-hidden="true" name="more_horiz"/>
+          </button>
+          <ng-table-menu #selectionMoreMenu class="ngt-action-bar-menu">
+            @for (item of moreSelectionActions(); track item.action.id) {
+              <button (click)="onSelectionAction(item)" [attr.aria-disabled]="item.enabled ? null : 'true'" [class.ngt-menu-item--danger]="item.action.appearance === 'danger'" [ngTableTooltip]="item.reason" ngt-menu-item type="button">
+                @if (item.action.icon) {
+                  <ng-table-icon aria-hidden="true" [name]="item.action.icon"/>
+                }
+                {{ item.action.label }}
+              </button>
+            }
+          </ng-table-menu>
+        }
+      </div>
+    </div>
+  }
+  @if (statusBar()) {
+    <div [attr.aria-label]="effectiveLabels().statusBarLabel" class="ngt-status-bar" role="status">
+      <span class="ngt-status-bar__item">{{ statusRowsText() }}</span>
+      @if (rowSelectionEnabled() && selectedRowsCount() > 0) {
+        <span class="ngt-status-bar__item">{{ statusText(effectiveLabels().statusSelected, selectedRowsCount()) }}</span>
+      }
+      @if (rangeStats(); as stats) {
+        <span class="ngt-status-bar__spacer"></span>
+        <span class="ngt-status-bar__item">{{ statusText(effectiveLabels().statusCells, stats.count) }}</span>
+        @if (stats.numericCount > 0) {
+          <span class="ngt-status-bar__item">{{ effectiveLabels().statusSum }} : <b>{{ formatStat(stats.sum) }}</b></span>
+          <span class="ngt-status-bar__item">{{ effectiveLabels().statusAvg }} : <b>{{ formatStat(stats.avg) }}</b></span>
+          <span class="ngt-status-bar__item">{{ effectiveLabels().statusMin }} : <b>{{ formatStat(stats.min) }}</b></span>
+          <span class="ngt-status-bar__item">{{ effectiveLabels().statusMax }} : <b>{{ formatStat(stats.max) }}</b></span>
+        }
+      }
+    </div>
+  }
+
+  @if (paginator() && !blockMode()) {
+    <ng-table-paginator
       (page)="onPage($event)"
+      [labels]="effectiveLabels()"
       [length]="paginatorLength()"
       [pageIndex]="pageIndex()"
       [pageSizeOptions]="pageSizeOptions()"

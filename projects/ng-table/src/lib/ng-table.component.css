@@ -27,10 +27,10 @@
 }
 
 .list-panel {
-  border: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   border-radius: 20px;
-  background: var(--app-surface, #ffffff);
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16)));
 }
 
 .list-actions {
@@ -49,21 +49,22 @@
   gap: 4px;
   flex: 1 1 220px;
   max-width: 360px;
-  margin-right: auto;
-  padding: 0 4px 0 10px;
+  margin-inline-end: auto;
+  padding-block: 0;
+  padding-inline: 10px 4px;
   height: 40px;
-  border: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
   border-radius: 999px;
-  background: var(--app-surface, #ffffff);
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
 .global-search:focus-within {
-  border-color: var(--app-primary, #3a7ca5);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #3a7ca5) 20%, transparent);
+  border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 20%, transparent);
 }
 
 .global-search__icon {
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   font-size: 20px;
   width: 20px;
   height: 20px;
@@ -84,14 +85,15 @@
   appearance: none;
 }
 
-.global-search__clear.mat-mdc-icon-button {
-  --mat-icon-button-state-layer-size: 32px;
+.global-search__clear[ngt-icon-button] {
+  width: 32px;
+  height: 32px;
   width: 32px;
   height: 32px;
   padding: 4px;
 }
 
-.global-search__clear mat-icon {
+.global-search__clear ng-table-icon {
   font-size: 18px;
   width: 18px;
   height: 18px;
@@ -112,36 +114,38 @@
 
 .table-wrap {
   overflow: auto;
-  border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
 
-/* Densité compacte : on passe par les tokens de Material plutôt que de forcer des
-   hauteurs, pour rester cohérent avec le reste du thème. */
-.ng-table.ngt-density-compact {
-  --mat-table-row-item-container-height: 36px;
-  --mat-table-header-container-height: 44px;
+/* Densité compacte : lignes de 36 px et en-têtes de 44 px (52 et 56 par défaut). */
+.ng-table.ngt-density-compact td.cdk-cell {
+  height: var(--ngt-row-height-compact, 36px);
 }
 
-.ng-table.ngt-density-compact td.mat-mdc-cell {
+.ng-table.ngt-density-compact th.cdk-header-cell {
+  height: var(--ngt-header-height-compact, 44px);
+}
+
+.ng-table.ngt-density-compact td.cdk-cell {
   padding-top: 2px;
   padding-bottom: 2px;
 }
 
 /* Cellules figées (en-tête sticky, colonnes épinglées) : fond opaque, sinon les
    lignes qui défilent dessous restent visibles à travers. */
-.ng-table .mat-mdc-table-sticky {
-  background: var(--app-surface, #ffffff);
+.ng-table .cdk-table-sticky {
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
-.ng-table .mat-mdc-table-sticky-border-elem-left {
+.ng-table .cdk-table-sticky-border-elem-left {
   box-shadow: 6px 0 8px -6px rgba(15, 23, 42, 0.18);
 }
 
-.ng-table .mat-mdc-table-sticky-border-elem-right {
+.ng-table .cdk-table-sticky-border-elem-right {
   box-shadow: -6px 0 8px -6px rgba(15, 23, 42, 0.18);
 }
 
-.ng-table .mat-mdc-table-sticky-border-elem-top {
+.ng-table .cdk-table-sticky-border-elem-top {
   box-shadow: 0 6px 8px -6px rgba(15, 23, 42, 0.18);
 }
 
@@ -158,7 +162,7 @@
 .ngt-loading-overlay__backdrop {
   position: absolute;
   inset: 0;
-  background: var(--app-surface, #ffffff);
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
   opacity: 0.85;
 }
 
@@ -176,7 +180,7 @@
  * cellule en `white-space: nowrap` élargit sa colonne pour contenir tout le
  * texte — plus rien ne déborde, donc plus aucun "…" possible.
  *
- * Material pose `.mat-mdc-table { table-layout: auto; white-space: normal; }`,
+ * Material pose `.cdk-table { table-layout: auto; white-space: normal; }`,
  * de MÊME spécificité (0,1,0) que `.ng-table` : selon l'ordre d'injection des
  * feuilles de style, c'est Material qui gagnait et le layout repassait en
  * `auto`. D'où la double ceinture : `[fixedLayout]="true"` côté template (le
@@ -185,18 +189,51 @@
  * l'ordre.
  */
 .ng-table,
-.ng-table.mat-mdc-table {
+.ng-table.cdk-table {
   width: 100%;
   table-layout: fixed;
 }
 
-.ng-table .mat-mdc-header-cell,
-.ng-table .mat-mdc-header-row,
-.ng-table .mat-mdc-row {
+/*
+ * Styles de base du tableau, autrefois fournis par Angular Material. Écrits avec `:where()` (spécificité nulle) :
+ * toute règle de la bibliothèque ou de l'application les surcharge sans surenchère.
+ */
+:where(.ng-table) {
+  font-family: var(--ngt-font-family, inherit);
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
+  color: var(--ngt-text, var(--app-text, #14212b));
+  font-size: 0.875rem;
+  line-height: 20px;
+  white-space: normal;
+}
+
+:where(.ng-table) :where(td.cdk-cell, th.cdk-header-cell, td.cdk-footer-cell) {
+  box-sizing: border-box;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
+  color: inherit;
+  text-align: start;
+  vertical-align: middle;
+}
+
+:where(.ng-table) :where(td.cdk-cell, td.cdk-footer-cell) {
+  height: var(--ngt-row-height, 48px);
+}
+
+:where(.ng-table) :where(th.cdk-header-cell) {
+  height: var(--ngt-header-height, 46px);
+  font-weight: 500;
+}
+.ng-table .cdk-header-cell,
+.ng-table .cdk-header-row,
+.ng-table .cdk-row {
   overflow: visible;
 }
 
-.ng-table .mat-mdc-header-cell {
+.ng-table .cdk-header-cell {
   position: relative;
   overflow: visible;
 }
@@ -206,11 +243,11 @@
    d'une voisine), et sans découpe le contenu se superposerait à la colonne suivante.
    Exclut la ligne de détail et la ligne d'actions mobile, qui occupent toute la
    largeur et doivent rester libres. */
-.ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell):not(.group-cell--lead) {
+.ng-table td.cdk-cell:not(.detail-row):not(.mobile-actions-cell):not(.group-cell--lead) {
   overflow: hidden;
 }
 
-.ng-table td.mat-mdc-cell:not(.detail-row):not(.mobile-actions-cell) .cell-content {
+.ng-table td.cdk-cell:not(.detail-row):not(.mobile-actions-cell) .cell-content {
   max-width: 100%;
   min-width: 0;
 }
@@ -224,8 +261,8 @@
   text-align: center;
 }
 
-.selection-header-cell .mdc-checkbox,
-.selection-cell .mdc-checkbox {
+.selection-header-cell ng-table-checkbox,
+.selection-cell ng-table-checkbox {
   margin: 0 auto;
 }
 
@@ -243,7 +280,7 @@
      invisible hors survol, elle y occupait 26 px pris au libellé, qui tombait à
      0 px dans une colonne étroite. En absolu, pas de décalage du libellé au survol. */
   position: absolute;
-  left: -15px;
+  inset-inline-start: -15px;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
@@ -251,25 +288,25 @@
   justify-content: center;
   width: 14px;
   height: 18px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   cursor: grab;
   opacity: 0;
   transition: opacity 0.15s ease, color 0.15s ease;
 }
 
-.drag-handle mat-icon {
+.drag-handle ng-table-icon {
   font-size: 16px;
   width: 16px;
   height: 16px;
 }
 
-.ng-table .mat-mdc-header-cell:hover .drag-handle,
-.ng-table .mat-mdc-header-cell:focus-within .drag-handle {
+.ng-table .cdk-header-cell:hover .drag-handle,
+.ng-table .cdk-header-cell:focus-within .drag-handle {
   opacity: 1;
 }
 
 .drag-handle:hover {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 /* La poignée n'est visible qu'au survol/focus de l'en-tête (`opacity: 0` par
@@ -277,10 +314,10 @@
    invisible même après le `:focus-within` ci-dessus (qui gère seulement
    l'opacité), violant WCAG 2.4.7 (indicateur de focus visible). */
 .drag-handle:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: 2px;
   border-radius: 4px;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .drag-handle:active {
@@ -290,18 +327,19 @@
 /* Native HTML5 drag-and-drop: header cell being dragged / hovered as a drop target.
    No live sibling reflow is attempted (that's what broke the table layout with CDK's
    transform-based approach) — columns simply swap once, on drop. */
-.ng-table .mat-mdc-header-cell.column-dragging {
+.ng-table .cdk-header-cell.column-dragging {
   opacity: 0.4;
 }
 
-.ng-table .mat-mdc-header-cell.column-drag-over {
-  box-shadow: inset 2px 0 0 var(--app-primary, #3a7ca5);
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+.ng-table .cdk-header-cell.column-drag-over {
+  box-shadow: inset calc(2px * var(--ngt-dir, 1)) 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
 }
 
-@media (max-width: 760px) {
+/* Écrans étroits ou tactiles : pas de survol pour révéler la poignée, elle reste visible (discrète). */
+@media (max-width: 760px), (hover: none) {
   .drag-handle {
-    display: none;
+    opacity: 0.55;
   }
 }
 
@@ -312,7 +350,7 @@
   gap: 4px;
   border: 0;
   background: transparent;
-  color: var(--app-text, #0d1d26);
+  color: var(--ngt-text, var(--app-text, #14212b));
   padding: 0;
   margin: 0;
   min-width: 0;
@@ -339,12 +377,13 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 /* Sans le jeton, Material impose sa taille par défaut (40 px) malgré `width` ci-dessous. */
-.ng-table .filter-button.mat-mdc-icon-button {
-  --mat-icon-button-state-layer-size: 28px;
+.ng-table .filter-button[ngt-icon-button] {
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
@@ -359,11 +398,11 @@
   height: 28px;
   padding: 0;
   line-height: 1;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   border-radius: 10px;
 }
 
-.filter-button .mat-icon {
+.filter-button .ng-table-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -374,25 +413,25 @@
 }
 
 .filter-button:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: 2px;
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
 }
 
 .filter-button.filter-active {
-  color: var(--mat-sys-error, #b3261e);
-  background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 14%, transparent);
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
+  background: color-mix(in srgb, var(--ngt-danger, var(--mat-sys-error, #b3261e)) 14%, transparent);
 }
 
-.filter-button.filter-active .mat-icon {
-  color: var(--mat-sys-error, #b3261e) !important;
+.filter-button.filter-active .ng-table-icon {
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e)) !important;
 }
 
 .resize-handle {
   position: absolute;
   top: 0;
   bottom: 0;
-  right: 0;
+  inset-inline-end: 0;
   width: 14px;
   height: auto;
   cursor: col-resize;
@@ -406,27 +445,27 @@
   position: absolute;
   top: 4px;
   bottom: 4px;
-  right: 6px;
+  inset-inline-end: 6px;
   width: 1px;
-  background: var(--app-border, rgba(15, 23, 42, 0.13));
+  background: var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
 
 .resize-handle:hover {
-  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 10%, transparent);
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 10%, transparent);
 }
 
 .resize-handle:hover::after {
-  background: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .resize-handle:focus-visible {
-  background: color-mix(in srgb, var(--app-primary, #3a7ca5) 16%, transparent);
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 16%, transparent);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
 
 .resize-handle:focus-visible::after {
-  background: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .menu-body {
@@ -442,15 +481,15 @@
   gap: 6px;
   margin: -2px 0 10px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
-  color: var(--app-primary, #3a7ca5);
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.filter-menu-title mat-icon {
+.filter-menu-title ng-table-icon {
   font-size: 16px;
   width: 16px;
   height: 16px;
@@ -468,8 +507,8 @@
   display: inline-block;
   width: 18px;
   height: 18px;
-  border: 2px solid var(--app-primary-soft, rgba(58, 124, 165, 0.16));
-  border-top-color: var(--app-primary, #3a7ca5);
+  border: 2px solid var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  border-top-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   border-radius: 50%;
   animation: ngt-spin 0.7s linear infinite;
 }
@@ -494,29 +533,29 @@
 
 .filter-loading-label {
   font-size: 12px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .filter-loading-error {
   margin-bottom: 8px;
   font-size: 12px;
-  color: var(--mat-sys-error, #b3261e);
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
   font-weight: 600;
 }
 
-.ngt-filter-menu-panel.mat-mdc-menu-panel {
+.ngt-filter-menu-panel.ngt-menu-panel {
   min-width: min(92vw, 380px) !important;
   max-width: min(92vw, 380px) !important;
   max-height: none !important;
   overflow: hidden !important;
-  border-radius: 20px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
-  background: var(--app-filter-panel-bg, #ffffff);
+  border-radius: var(--ngt-radius-card, 16px);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16)));
+  background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
   backdrop-filter: blur(var(--app-blur, 0px));
 }
 
-.ngt-filter-menu-panel .mat-mdc-menu-content {
+.ngt-filter-menu-panel .ngt-menu-content {
   display: flex;
   justify-content: center;
   padding: 0 !important;
@@ -539,11 +578,11 @@
 .active-view-chip {
   display: inline-flex;
   align-items: center;
-  margin-left: 6px;
+  margin-inline-start: 6px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
-  color: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-size: 0.72rem;
   font-weight: 700;
   max-width: 140px;
@@ -552,13 +591,13 @@
   white-space: nowrap;
 }
 
-.ngt-views-menu-panel.mat-mdc-menu-panel {
+.ngt-views-menu-panel.ngt-menu-panel {
   min-width: min(92vw, 320px) !important;
   max-width: min(92vw, 320px) !important;
-  border-radius: 20px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
-  background: var(--app-filter-panel-bg, #ffffff);
+  border-radius: var(--ngt-radius-card, 16px);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16)));
+  background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
 }
 
 .views-menu-body {
@@ -579,41 +618,41 @@
   min-width: 0;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
   border-radius: 10px;
-  background: var(--app-field-bg, #ffffff);
+  background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
   color: inherit;
   font: inherit;
 }
 
 .views-name-input:focus {
   outline: none;
-  border-color: var(--app-primary, #3a7ca5);
+  border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .views-save-btn {
   flex: 0 0 auto;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .views-divider {
   margin: 10px 0 6px;
-  border-top: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
 }
 
 .views-empty-note {
   margin: 10px 2px 2px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   font-size: 0.8rem;
 }
 
-.ngt-export-menu-panel.mat-mdc-menu-panel {
+.ngt-export-menu-panel.ngt-menu-panel {
   min-width: min(92vw, 280px) !important;
   max-width: min(92vw, 280px) !important;
-  border-radius: 20px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
-  box-shadow: var(--app-shadow-soft, 0 8px 20px rgba(15, 23, 42, 0.09));
-  background: var(--app-filter-panel-bg, #ffffff);
+  border-radius: var(--ngt-radius-card, 16px);
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  box-shadow: var(--ngt-shadow-soft, var(--app-shadow-soft, 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.16)));
+  background: var(--ngt-filter-panel-bg, var(--app-filter-panel-bg, #ffffff));
 }
 
 .export-menu-body {
@@ -640,22 +679,22 @@
   flex-direction: column;
   gap: 4px;
   font-size: 0.78rem;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .export-range-input {
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
+  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
   border-radius: 10px;
-  background: var(--app-field-bg, #ffffff);
-  color: var(--app-text, #0d1d26);
+  background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
+  color: var(--ngt-text, var(--app-text, #14212b));
   font: inherit;
 }
 
 .export-range-input:focus {
   outline: none;
-  border-color: var(--app-primary, #3a7ca5);
+  border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .export-confirm-btn {
@@ -674,11 +713,11 @@
 }
 
 .view-row:hover {
-  background: var(--app-hover-surface, #f6fbff);
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
 }
 
 .view-row.active .view-row-label {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-weight: 700;
 }
 
@@ -693,7 +732,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -703,21 +742,21 @@
   white-space: nowrap;
 }
 
-.view-row-label mat-icon {
+.view-row-label ng-table-icon {
   flex: 0 0 auto;
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .view-row-default {
   flex: 0 0 auto;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .view-row-default--on {
-  color: #c98a00;
+  color: var(--ngt-warning, #c98a00);
 }
 
 .views-transfer-row {
@@ -729,30 +768,30 @@
 .views-import-feedback {
   margin: 6px 4px 0;
   font-size: 0.8rem;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .view-row-update {
   flex: 0 0 auto;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .view-row-update:hover {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .view-row-update--done,
 .view-row-update--done:hover {
-  color: #2e7d32;
+  color: var(--ngt-success, #2e7d32);
 }
 
 .view-row-delete {
   flex: 0 0 auto;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .view-row-delete:hover {
-  color: #c62828;
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
 }
 
 .data-row {
@@ -763,7 +802,7 @@
    détail expansible ou menu contextuel) ; une ligne non focusable n'a jamais ce
    focus visible à afficher. */
 .data-row:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
 
@@ -780,13 +819,13 @@
 }
 
 /*
- * Spécificité renforcée (`.ng-table td.mat-mdc-cell ...`, même niveau que la
+ * Spécificité renforcée (`.ng-table td.cdk-cell ...`, même niveau que la
  * règle d'`overflow` sur le `<td>` plus haut) : les styles de typographie
- * internes de Material sur `.mat-mdc-cell` (ex. `white-space`) sont sinon
+ * internes de Material sur `.cdk-cell` (ex. `white-space`) sont sinon
  * prioritaires selon l'ordre d'injection des styles, et l'ellipsis ne
  * s'affichait jamais malgré des règles correctes en apparence.
  */
-.ng-table td.mat-mdc-cell .cell-text--truncate {
+.ng-table td.cdk-cell .cell-text--truncate {
   display: block;
   min-width: 0;
   max-width: 100%;
@@ -796,7 +835,7 @@
   cursor: default;
 }
 
-.ng-table td.mat-mdc-cell .cell-text--wrap {
+.ng-table td.cdk-cell .cell-text--wrap {
   display: block;
   min-width: 0;
   white-space: normal;
@@ -809,10 +848,9 @@
  * puis sur une valeur en dur : sans rien configurer, la tooltip suit déjà le
  * thème de la table.
  *
- * IMPORTANT : la tooltip est rendue dans le conteneur d'overlay du CDK, à la
- * racine du `<body>` — donc HORS de l'arbre de `ng-table`. Les variables
- * doivent être déclarées globalement (`:root`, `html`, `body`...) et non sur
- * l'élément `<ng-table>`, sinon elles n'atteignent jamais la bulle.
+ * IMPORTANT : la bulle est posée dans `<body>`, donc HORS de l'arbre de `ng-table`. Les variables doivent être
+ * déclarées globalement (`:root`, `html`, `body`...) et non sur l'élément `<ng-table>`, sinon elles n'atteignent
+ * jamais la bulle.
  *
  *   :root {
  *     --ngt-tooltip-bg: #1f2937;
@@ -820,35 +858,25 @@
  *     --ngt-tooltip-radius: 12px;
  *     --ngt-tooltip-max-width: 520px;
  *   }
- *
- * Les deux niveaux sont couverts : les tokens Material (pour ce que Material
- * pilote lui-même) ET la surface `.mat-mdc-tooltip-surface`, qui est la bulle
- * réellement visible — styler seulement le panneau `.ngt-truncate-tooltip` ne
- * change rien à l'écran, c'est la surface qui porte fond, padding et rayon.
  */
-.ngt-truncate-tooltip {
-  --mat-tooltip-container-color: var(--ngt-tooltip-bg, var(--app-text, #0d1d26));
-  --mat-tooltip-supporting-text-color: var(--ngt-tooltip-color, var(--app-surface, #ffffff));
-  --mat-tooltip-supporting-text-size: var(--ngt-tooltip-font-size, 0.78rem);
-  --mat-tooltip-supporting-text-line-height: var(--ngt-tooltip-line-height, 1.45);
-  --mat-tooltip-supporting-text-weight: var(--ngt-tooltip-font-weight, 400);
-  --mat-tooltip-container-shape: var(--ngt-tooltip-radius, 10px);
-}
-
-.ngt-truncate-tooltip .mat-mdc-tooltip-surface {
+.ngt-tooltip {
+  position: fixed;
+  z-index: 3000;
+  box-sizing: border-box;
+  pointer-events: none;
   max-width: var(--ngt-tooltip-max-width, 420px);
   padding: var(--ngt-tooltip-padding, 8px 12px);
   border-radius: var(--ngt-tooltip-radius, 10px);
   border: var(--ngt-tooltip-border, 1px solid rgba(255, 255, 255, 0.08));
   box-shadow: var(--ngt-tooltip-shadow, 0 10px 30px rgba(15, 23, 42, 0.28));
-  background: var(--ngt-tooltip-bg, var(--app-text, #0d1d26));
-  color: var(--ngt-tooltip-color, var(--app-surface, #ffffff));
+  background: var(--ngt-tooltip-bg, var(--ngt-text, var(--app-text, #14212b)));
+  color: var(--ngt-tooltip-color, var(--ngt-surface, var(--app-surface, #ffffff)));
   font-family: var(--ngt-tooltip-font-family, inherit);
   font-size: var(--ngt-tooltip-font-size, 0.78rem);
   font-weight: var(--ngt-tooltip-font-weight, 400);
   line-height: var(--ngt-tooltip-line-height, 1.45);
   letter-spacing: 0.01em;
-  text-align: left;
+  text-align: start;
   /* Le texte complet doit pouvoir respirer sur plusieurs lignes : c'est tout
      l'intérêt de la tooltip quand la cellule, elle, est coupée à une ligne. */
   white-space: normal;
@@ -856,7 +884,8 @@
 }
 
 .copy-action-btn {
-  --mdc-icon-button-state-layer-size: 28px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -866,11 +895,11 @@
   line-height: 1;
   border-radius: 10px;
   opacity: 0;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   transition: opacity 140ms ease, color 140ms ease;
 }
 
-.copy-action-btn .mat-icon {
+.copy-action-btn .ng-table-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -887,27 +916,27 @@
 
 .copy-action-btn:hover,
 .copy-action-btn:focus-visible {
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .no-data-cell {
   text-align: center;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   padding: 16px;
 }
 
-.mobile-actions-row .mat-mdc-cell {
+.mobile-actions-row .cdk-cell {
   padding-top: 8px;
   padding-bottom: 10px;
   border-top: 0;
-  background: var(--app-surface-soft, #f7fbfe);
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc));
 }
 
 .mobile-actions-cell {
   width: 100%;
 }
 
-.detail-row-container .mat-mdc-cell {
+.detail-row-container .cdk-cell {
   padding: 0;
   border-top: 0;
   border-bottom: 0;
@@ -947,39 +976,24 @@
   margin-inline: auto;
 }
 
-.inline-filter .mat-mdc-form-field {
-  width: 100%;
-  font-size: 0.8rem;
-}
-
-.inline-filter .mat-mdc-form-field-infix {
-  min-height: 36px;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-}
-
-.inline-filter .mat-mdc-form-field-subscript-wrapper {
-  display: none;
-}
-
-.ng-table .mat-mdc-header-cell:has(.inline-filter) {
+.ng-table .cdk-header-cell:has(.inline-filter) {
   vertical-align: top;
   padding-top: 8px;
-  padding-right: 16px;
+  padding-inline-end: 16px;
 }
 
-.ng-table .mat-mdc-header-cell:has(.inline-filter) .th-wrap {
+.ng-table .cdk-header-cell:has(.inline-filter) .th-wrap {
   width: 100%;
   min-width: 0;
   justify-content: center;
 }
 
-.ng-table .mat-mdc-header-cell:has(.inline-filter) .header-button {
+.ng-table .cdk-header-cell:has(.inline-filter) .header-button {
   width: 100%;
   justify-content: center;
 }
 
-.ng-table .mat-mdc-header-cell:has(.inline-filter) .header-label {
+.ng-table .cdk-header-cell:has(.inline-filter) .header-label {
   text-align: center;
 }
 
@@ -990,8 +1004,8 @@
   flex-wrap: wrap;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--app-border, rgba(15, 23, 42, 0.13));
-  background: var(--app-surface-soft, #f7fbfe);
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc));
   border-radius: 20px 20px 0 0;
 }
 
@@ -1003,15 +1017,15 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   white-space: nowrap;
 }
 
-.active-filters-bar__label mat-icon {
+.active-filters-bar__label ng-table-icon {
   width: 16px;
   height: 16px;
   font-size: 16px;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 .active-filters-bar__chips {
@@ -1029,9 +1043,9 @@
   max-width: 100%;
   padding: 4px 6px 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--app-primary-outline, rgba(58, 124, 165, 0.34));
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
-  color: var(--app-primary, #3a7ca5);
+  border: 1px solid var(--ngt-primary-outline, var(--app-primary-outline, rgba(47, 111, 168, 0.32)));
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -1050,21 +1064,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 220px;
-  color: var(--app-text, #0d1d26);
+  color: var(--ngt-text, var(--app-text, #14212b));
 }
 
 .active-filter-chip__clear {
-  --mdc-icon-button-state-layer-size: 22px;
+  width: 22px;
+  height: 22px;
   width: 22px;
   height: 22px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
-.active-filter-chip__clear .mat-icon {
+.active-filter-chip__clear .ng-table-icon {
   width: 14px;
   height: 14px;
   font-size: 14px;
@@ -1072,7 +1087,7 @@
 }
 
 .active-filter-chip__clear:hover {
-  color: var(--mat-sys-error, #b3261e);
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
 }
 
 .active-filters-bar__reset {
@@ -1113,7 +1128,7 @@
   .global-search {
     flex-basis: 100%;
     max-width: none;
-    margin-right: 0;
+    margin-inline-end: 0;
   }
 
   .ng-table {
@@ -1123,39 +1138,32 @@
 
 /* Rang d'un niveau de tri (tri multi-colonnes). */
 .sort-priority {
-  margin-left: -2px;
+  margin-inline-start: -2px;
   font-size: 0.7rem;
   font-weight: 600;
   line-height: 1;
-  color: var(--app-primary, #3a7ca5);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
 /* Menu « Colonnes » : case à cocher + punaise de la colonne de référence. */
-.ngt-columns-menu-panel .mat-mdc-menu-item {
+.ngt-columns-menu-panel [ngt-menu-item] {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
-.ngt-columns-menu-panel .mat-mdc-menu-item .mat-mdc-menu-item-text {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-}
-
-.ngt-columns-menu-panel .reference-pin.mat-mdc-icon-button {
-  --mat-icon-button-state-layer-size: 32px;
+.ngt-columns-menu-panel .reference-pin[ngt-icon-button] {
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
   width: 32px;
   height: 32px;
   padding: 4px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
-.ngt-columns-menu-panel .reference-pin mat-icon {
+.ngt-columns-menu-panel .reference-pin ng-table-icon {
   font-size: 18px;
   width: 18px;
   height: 18px;
@@ -1165,50 +1173,50 @@
   transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
-.ngt-columns-menu-panel .reference-pin--on.mat-mdc-icon-button {
-  color: var(--app-primary, #3a7ca5);
+.ngt-columns-menu-panel .reference-pin--on[ngt-icon-button] {
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
-.ngt-columns-menu-panel .reference-pin--on mat-icon {
+.ngt-columns-menu-panel .reference-pin--on ng-table-icon {
   transform: none;
   opacity: 1;
 }
 
 /* Navigation cellule par cellule : cellule active bien visible au clavier. */
-.ng-table[role='grid'] td.mat-mdc-cell:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+.ng-table[role='grid'] td.cdk-cell:focus-visible {
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
 
 /* --- Regroupement et totaux -------------------------------------------- */
 .ng-table tr.group-row {
   cursor: pointer;
-  background: var(--app-surface-alt, #f1f5f9);
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
 }
 
 .ng-table tr.group-row:hover {
-  background: var(--app-hover-surface, #e8f0f8);
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #e8f0f8));
 }
 
 /* Les cellules épinglées ont un fond opaque (blanc) pour masquer ce qui défile dessous :
    dans une ligne de groupe, elles prennent la couleur de la ligne. */
-.ng-table tr.group-row td.mat-mdc-table-sticky {
-  background: var(--app-surface-alt, #f1f5f9);
+.ng-table tr.group-row td.cdk-table-sticky {
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
 }
 
-.ng-table tr.group-row:hover td.mat-mdc-table-sticky {
-  background: var(--app-hover-surface, #e8f0f8);
+.ng-table tr.group-row:hover td.cdk-table-sticky {
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #e8f0f8));
 }
 
 .ng-table tr.group-row:focus-visible {
-  outline: 2px solid var(--app-primary, #3a7ca5);
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
 
 .ng-table td.group-cell {
   font-weight: 600;
   font-size: 0.85rem;
-  color: var(--app-text, #0d1d26);
+  color: var(--ngt-text, var(--app-text, #14212b));
   white-space: nowrap;
 }
 
@@ -1229,33 +1237,33 @@
   font-size: 20px;
   width: 20px;
   height: 20px;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 .group-name {
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
   font-weight: 500;
 }
 
 .group-count {
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--app-primary-soft, rgba(58, 124, 165, 0.16));
-  color: var(--app-primary, #3a7ca5);
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
   font-size: 0.75rem;
 }
 
 .ng-table tr.totals-row td.totals-cell {
   font-weight: 700;
-  border-top: 2px solid var(--app-border-strong, rgba(15, 23, 42, 0.24));
-  background: var(--app-surface, #ffffff);
+  border-top: 2px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
 .totals-label {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 0.75rem;
-  color: var(--app-muted, #4f6573);
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
 
 /* --- Défilement virtuel ----------------------------------------------- */
@@ -1270,4 +1278,835 @@
 /* Mode remote : en-têtes de groupe non repliables. */
 .ng-table tr.group-row.group-row--static {
   cursor: default;
+}
+
+/* --- Mode live : surbrillance des cellules modifiées ----------------- */
+/* Deux animations identiques en alternance (-0 / -1) : changer de nom de classe
+   redémarre l'animation quand la même cellule change à nouveau. */
+@keyframes ngt-flash-up-0 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); } }
+@keyframes ngt-flash-up-1 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); } }
+@keyframes ngt-flash-down-0 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); } }
+@keyframes ngt-flash-down-1 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); } }
+@keyframes ngt-flash-change-0 { from { background-color: var(--ngt-flash-change-bg, rgba(47, 111, 168, 0.3)); } }
+@keyframes ngt-flash-change-1 { from { background-color: var(--ngt-flash-change-bg, rgba(47, 111, 168, 0.3)); } }
+
+.ng-table td[data-ngt-flash='up-0'] { animation: ngt-flash-up-0 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='up-1'] { animation: ngt-flash-up-1 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='down-0'] { animation: ngt-flash-down-0 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='down-1'] { animation: ngt-flash-down-1 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='change-0'] { animation: ngt-flash-change-0 var(--ngt-flash-duration, 1s) ease-out; }
+.ng-table td[data-ngt-flash='change-1'] { animation: ngt-flash-change-1 var(--ngt-flash-duration, 1s) ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ng-table td[data-ngt-flash] { animation-duration: 1ms; }
+}
+
+/* --- Modèle serveur par blocs : lignes en attente ---------------------- */
+.ng-table td.loading-cell {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.loading-skeleton {
+  display: block;
+  height: 12px;
+  max-width: 60%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.06) 25%, rgba(15, 23, 42, 0.12) 50%, rgba(15, 23, 42, 0.06) 75%);
+  background-size: 200% 100%;
+  animation: ngt-skeleton 1.2s ease-in-out infinite;
+}
+
+.loading-failed {
+  color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
+  font-size: 0.85rem;
+}
+
+@keyframes ngt-skeleton {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-skeleton { animation: none; }
+}
+
+/* --- Virtualisation horizontale : colonnes d'espacement ---------------- */
+.ng-table th.col-spacer-cell,
+.ng-table td.col-spacer-cell {
+  padding: 0;
+  border-inline: 0;
+}
+
+/* --- Lignes épinglées en haut / en bas ---------------------------------- */
+/* Les mesures (--ngt-row-h, --ngt-header-h, --ngt-footer-h) viennent du composant. Le rang
+   (--ngt-pin-index) est compté depuis le bord le plus proche. */
+.ng-table tr[data-ngt-pin='top'] td {
+  position: sticky;
+  top: calc(var(--ngt-header-h, 0px) + var(--ngt-pin-index, 0) * var(--ngt-row-h, 48px));
+  z-index: 2;
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
+  font-weight: 500;
+}
+
+.ng-table tr[data-ngt-pin='bottom'] td {
+  position: sticky;
+  bottom: calc(var(--ngt-footer-h, 0px) + var(--ngt-pin-index, 0) * var(--ngt-row-h, 48px));
+  z-index: 2;
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
+  font-weight: 500;
+}
+
+/* Une colonne épinglée à gauche / à droite reste au-dessus des cellules qui défilent.
+   Material pose `z-index: 1` en style inline sur les cellules de colonne figée : seul
+   `!important` passe devant, et la ligne épinglée doit dépasser les colonnes figées du corps. */
+.ng-table tr[data-ngt-pin] td.cdk-table-sticky {
+  z-index: 3 !important;
+}
+
+.ng-table tr[data-ngt-pin='top'][data-ngt-pin-edge] td {
+  box-shadow: 0 6px 8px -6px rgba(15, 23, 42, 0.25);
+}
+
+.ng-table tr[data-ngt-pin='bottom'][data-ngt-pin-edge] td {
+  box-shadow: 0 -6px 8px -6px rgba(15, 23, 42, 0.25);
+}
+
+/* --- En-têtes de colonnes groupés --------------------------------------- */
+.ng-table th.header-group-cell {
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+}
+
+.ng-table th.header-group-cell:not(.header-group-cell--empty) {
+  border-inline: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
+}
+
+/* Ligne de groupes : plus basse que la ligne des colonnes. */
+.ng-table tr.header-group-row {
+  height: 36px;
+}
+
+/* --- Sélection d'une plage de cellules ---------------------------------- */
+.ng-table.ngt-range-enabled td.cdk-cell {
+  user-select: none;
+  cursor: cell;
+}
+
+/* Contour de la plage : un ombrage intérieur par côté, combinés par des variables CSS. */
+.ng-table td[data-ngt-range~='in'] {
+  background-color: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 14%, transparent);
+  box-shadow: var(--ngt-rs-t, 0 0 #0000), var(--ngt-rs-r, 0 0 #0000), var(--ngt-rs-b, 0 0 #0000), var(--ngt-rs-l, 0 0 #0000);
+}
+
+.ng-table td[data-ngt-range~='top'] { --ngt-rs-t: inset 0 2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8)); }
+.ng-table td[data-ngt-range~='right'] { --ngt-rs-r: inset -2px 0 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8)); }
+.ng-table td[data-ngt-range~='bottom'] { --ngt-rs-b: inset 0 -2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8)); }
+.ng-table td[data-ngt-range~='left'] { --ngt-rs-l: inset 2px 0 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8)); }
+
+/* Les cellules épinglées ont un fond opaque : la teinte de la plage s'y mélange à ce fond. */
+.ng-table td.cdk-table-sticky[data-ngt-range~='in'] {
+  background-color: color-mix(in srgb, var(--ngt-surface, var(--app-surface, #ffffff)) 86%, var(--ngt-primary, var(--app-primary, #2f6fa8)));
+}
+
+/* La cellule active (navigation clavier) garde son contour de focus par-dessus celui de la plage. */
+.ng-table[role='grid'] td.cdk-cell:focus-visible[data-ngt-range~='in'] {
+  outline-offset: -2px;
+}
+
+/* --- Édition de cellules ------------------------------------------------ */
+.ng-table td[data-ngt-editable] {
+  cursor: text;
+}
+
+.ng-table td[data-ngt-editable]:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 40%, transparent);
+}
+
+.cell-content--hidden {
+  display: none;
+}
+
+.cell-editor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.ngt-editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
+  border-radius: 6px;
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.ngt-editor[aria-invalid='true'] {
+  border-color: var(--ngt-danger, var(--mat-sys-error, #b3261e));
+}
+
+.ngt-editor-error {
+  position: absolute;
+  top: 100%;
+  inset-inline-start: 0;
+  z-index: 5;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--ngt-danger, var(--mat-sys-error, #b3261e));
+  color: var(--ngt-on-primary, #ffffff);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.ngt-inline-check {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  cursor: pointer;
+}
+
+/* --- Barre d'état ------------------------------------------------------- */
+.ngt-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 20px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
+  font-size: 0.8125rem;
+}
+
+.ngt-status-bar__spacer {
+  flex: 1;
+}
+
+.ngt-status-bar b {
+  color: var(--ngt-text, var(--app-text, #0f172a));
+  font-weight: 600;
+}
+
+/* --- Panneau latéral ---------------------------------------------------- */
+.ngt-side-panel {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
+  bottom: 0;
+  z-index: 200; /* au-dessus des en-têtes fixes, des colonnes figées et des lignes épinglées */
+  display: flex;
+  flex-direction: column;
+  width: min(280px, 90%);
+  border-inline-start: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+  background: var(--ngt-surface, var(--app-surface, #ffffff));
+  box-shadow: calc(-8px * var(--ngt-dir, 1)) 0 16px -8px rgba(15, 23, 42, 0.2);
+}
+
+.ngt-side-panel__tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--ngt-border, var(--app-border, rgba(20, 33, 43, 0.09)));
+}
+
+.ngt-side-panel__tab {
+  flex: 1;
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ngt-side-panel__tab--on {
+  border-bottom-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  font-weight: 600;
+}
+
+.ngt-side-panel__badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-inline-start: 4px;
+  border-radius: 9px;
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  color: var(--ngt-on-primary, #ffffff);
+  font-size: 0.7rem;
+  line-height: 18px;
+  text-align: center;
+}
+
+.ngt-side-panel__pin,
+.ngt-side-panel__close {
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ngt-side-panel__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 4px;
+  padding: 8px 12px;
+  overflow: auto;
+}
+
+.ngt-side-panel__filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ngt-side-panel__empty {
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
+}
+
+/* --- Glisser-déposer de lignes ------------------------------------------ */
+.row-drag-cell {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding-inline: 4px !important;
+  text-align: center;
+}
+
+.ngt-row-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
+  cursor: grab;
+}
+
+.ngt-row-handle:hover,
+.ngt-row-handle:focus-visible {
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 14%, transparent);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+.ngt-row-handle:active {
+  cursor: grabbing;
+}
+
+.ng-table tr.ngt-row-dragging {
+  opacity: 0.45;
+}
+
+.ng-table tr[data-ngt-drop='before'] td {
+  box-shadow: inset 0 2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+/* Panneau latéral fixé : il prend sa place à gauche au lieu de recouvrir le tableau. */
+.table-viewport--docked {
+  display: flex;
+  align-items: stretch;
+}
+
+.table-viewport--docked > .table-wrap {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.ngt-side-panel--docked {
+  position: static;
+  flex: 0 0 260px;
+  width: 260px;
+  order: 1; /* après le tableau : le panneau fixé reste à droite */
+  box-shadow: none;
+}
+
+/* Punaise « enfoncée » : l'icône se couche à l'horizontale. */
+.ngt-side-panel__pin--on {
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+.ngt-side-panel__pin--on .ng-table-icon {
+  transform: rotate(90deg);
+}
+
+.ngt-side-panel .reference-pin[ngt-icon-button] {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+}
+
+.ngt-side-panel .reference-pin ng-table-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  opacity: 0.6;
+}
+
+/* Colonne fixée : la punaise se couche à l'horizontale et prend la couleur principale. */
+.ngt-side-panel .reference-pin--on[ngt-icon-button] {
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+.ngt-side-panel .reference-pin--on ng-table-icon {
+  transform: rotate(90deg);
+  opacity: 1;
+}
+
+.ngt-side-panel__column {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ng-table tr[data-ngt-drop='after'] td {
+  box-shadow: inset 0 -2px 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+/* --- Données arborescentes ---------------------------------------------- */
+.ngt-tree-indent {
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 1px;
+}
+
+.ngt-tree-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-inline-end: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
+}
+
+button.ngt-tree-toggle {
+  cursor: pointer;
+}
+
+button.ngt-tree-toggle:hover,
+button.ngt-tree-toggle:focus-visible {
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 14%, transparent);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+/* --- Finition visuelle -------------------------------------------------------
+   Une couche de raffinement par-dessus la structure : carte arrondie, en-têtes calmes, filets fins,
+   survol de ligne, icônes de tri discrètes. Tout passe par les jetons --ngt-*. */
+.list-panel {
+  overflow: clip;
+  border-radius: var(--ngt-radius-card, 16px);
+}
+
+.list-actions {
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.global-search {
+  height: 38px;
+  border-radius: var(--ngt-radius-button, 999px);
+  border-color: var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.global-search:hover:not(:focus-within) {
+  border-color: var(--ngt-primary-outline, var(--app-primary-outline, rgba(47, 111, 168, 0.32)));
+}
+
+.global-search__input::placeholder {
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+}
+
+.ng-table th.cdk-header-cell {
+  height: var(--ngt-header-height, 46px);
+  border-bottom: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc));
+}
+
+.header-button {
+  font-size: var(--ngt-header-font-size, 0.8125rem);
+  font-weight: var(--ngt-header-font-weight, 600);
+  letter-spacing: 0.01em;
+}
+
+.sort-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+  opacity: 0.45;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.sort-icon--active {
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  opacity: 1;
+}
+
+.header-button:hover:not(:disabled) .sort-icon {
+  opacity: 0.9;
+}
+
+.filter-button .ng-table-icon,
+.filter-button ng-table-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.ng-table td.cdk-cell {
+  height: var(--ngt-row-height, 48px);
+  font-size: var(--ngt-font-size, 0.84rem);
+}
+
+.ng-table td.cdk-cell,
+.ng-table td.cdk-cell.cdk-table-sticky {
+  transition: background-color 0.12s ease;
+}
+
+.ng-table tr.data-row:not([data-ngt-pin]):hover td.cdk-cell:not(.detail-row):not([data-ngt-range~='in']) {
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
+}
+
+/* --- Panneau de regroupement ------------------------------------------------ */
+.ngt-group-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 0 16px 12px;
+  padding: 6px 10px;
+  border: 1px dashed var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  border-radius: var(--ngt-radius-control, 10px);
+  background: var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc));
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+  font-size: 0.8125rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.ngt-group-panel--over {
+  border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  border-style: solid;
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+}
+
+.ngt-group-panel__icon,
+.ngt-group-panel__sep {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  opacity: 0.7;
+}
+
+.ngt-group-panel__hint {
+  font-style: italic;
+}
+
+.ngt-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--ngt-primary-outline, var(--app-primary-outline, rgba(47, 111, 168, 0.32)));
+  border-radius: var(--ngt-radius-button, 999px);
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  color: var(--ngt-text, var(--app-text, #14212b));
+  font-weight: 600;
+  cursor: grab;
+}
+
+.ngt-group-chip__remove {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ngt-text-muted, var(--app-muted, #5f7080));
+  cursor: pointer;
+}
+
+.ngt-group-chip__remove:hover {
+  background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+.ngt-group-chip__remove ng-table-icon {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+}
+
+.ngt-group-panel__add[ngt-icon-button] {
+  width: 28px;
+  height: 28px;
+}
+
+.ngt-group-panel__add ng-table-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+/* --- Barre d'actions flottante de la sélection -------------------------------
+   Ancre sans hauteur, collée au bas de la fenêtre (sticky) tant que le bas du tableau n'est pas visible ; la barre flotte
+   au-dessus des lignes sans les décaler. Elle est « inversée » : fond sombre en thème clair, clair en thème sombre. */
+.ngt-action-dock {
+  position: sticky;
+  bottom: 20px;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  height: 0;
+  pointer-events: none;
+}
+
+.ngt-action-bar {
+  --bar-bg: var(--ngt-text, var(--app-text, #14212b));
+  --bar-fg: var(--ngt-surface, var(--app-surface, #ffffff));
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: calc(100% - 24px);
+  padding: 7px 8px 7px 12px;
+  overflow-x: auto;
+  border-radius: calc(var(--ngt-radius-card, 16px) + 4px);
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  font-size: 0.84rem;
+  white-space: nowrap;
+  box-shadow:
+    0 22px 44px -14px rgba(15, 23, 42, 0.55),
+    0 3px 8px rgba(15, 23, 42, 0.22),
+    inset 0 0 0 1px color-mix(in srgb, var(--bar-fg) 14%, transparent);
+  pointer-events: auto;
+  animation: ngt-bar-in 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  scrollbar-width: none;
+}
+
+.ngt-action-bar:focus {
+  outline: none;
+}
+
+.ngt-action-bar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes ngt-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ngt-action-bar {
+    animation: none;
+  }
+}
+
+.ngt-action-bar__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline-end: 2px;
+  font-weight: 600;
+}
+
+.ngt-action-bar__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  color: var(--ngt-on-primary, #ffffff);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ngt-action-bar__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: color-mix(in srgb, var(--bar-fg) 70%, transparent);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.ngt-action-bar__clear:hover {
+  background: color-mix(in srgb, var(--bar-fg) 16%, transparent);
+  color: var(--bar-fg);
+}
+
+.ngt-action-bar__clear ng-table-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.ngt-action-bar__link {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--bar-fg) 72%, transparent);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--bar-fg) 35%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ngt-action-bar__link:hover {
+  color: var(--bar-fg);
+}
+
+.ngt-action-bar__sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: color-mix(in srgb, var(--bar-fg) 20%, transparent);
+}
+
+.ngt-action-bar__action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--ngt-radius-button, 999px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.ngt-action-bar__action:hover:not(.ngt-action-bar__action--disabled) {
+  background: color-mix(in srgb, var(--bar-fg) 16%, transparent);
+}
+
+.ngt-action-bar__action:active:not(.ngt-action-bar__action--disabled) {
+  transform: scale(0.97);
+}
+
+.ngt-action-bar__action ng-table-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+.ngt-action-bar__action--primary {
+  background: var(--bar-fg);
+  color: var(--bar-bg);
+}
+
+.ngt-action-bar__action--primary:hover:not(.ngt-action-bar__action--disabled) {
+  background: color-mix(in srgb, var(--bar-fg) 88%, var(--bar-bg));
+}
+
+.ngt-action-bar__action--danger {
+  color: color-mix(in srgb, var(--ngt-danger, #b3261e) 38%, var(--bar-fg));
+}
+
+.ngt-action-bar__action--disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.ngt-action-bar button:focus-visible {
+  outline: 2px solid var(--bar-fg);
+  outline-offset: 2px;
+}
+
+/* Écrans étroits : la barre prend la largeur disponible, passe à la ligne au lieu de défiler, et les actions qui ont
+   une icône n'affichent plus que l'icône (le libellé reste dans l'aria-label et l'info-bulle). */
+@media (max-width: 640px) {
+  .ngt-action-dock {
+    bottom: 12px;
+  }
+
+  .ngt-action-bar {
+    inset-inline: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: none;
+    overflow-x: visible;
+    padding: 8px;
+    white-space: normal;
+  }
+
+  .ngt-action-bar__count-text {
+    display: none;
+  }
+
+  .ngt-action-bar__sep {
+    display: none;
+  }
+
+  .ngt-action-bar__action--icon {
+    width: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .ngt-action-bar__action--icon .ngt-action-bar__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+/* Sens de lecture : --ngt-dir vaut 1 en gauche-à-droite et -1 en droite-à-gauche, pour les ombres et les filets décalés d'un côté. */
+ng-table {
+  --ngt-dir: 1;
+}
+
+ng-table:dir(rtl) {
+  --ngt-dir: -1;
 }

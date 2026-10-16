@@ -6,17 +6,19 @@ import {MatIconModule} from '@angular/material/icon';
 import {MatSlideToggleModule} from '@angular/material/slide-toggle';
 import {
   NG_TABLE_LABELS_EN,
+  NgTableCellEditEvent,
   NgTableColumn,
   NgTableComponent,
   NgTableGroupSummary,
   NgTableExportFormat,
   NgTableQueryState,
   NgTableRemoteExportRequest,
+  NgTableRemoteDatasource,
   NgTableRemoteQuery,
   NgTableViewsStore,
 } from '@sbourahla/ng-table';
 import {CLIENTS, Commande, CommandeStatut, STATUT_LABELS, STATUT_OPTIONS} from './demo-data';
-import {CommandesBackend, FakeCommandesApi} from './fake-commandes-api';
+import {CommandePatch, CommandesBackend, FakeCommandesApi} from './fake-commandes-api';
 import {SpringCommandesApi, UNREACHABLE} from './spring-commandes-api';
 import {MontantPresetFilterComponent} from './montant-preset-filter.component';
 
@@ -44,17 +46,17 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
     @media (max-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr); } }
     .actions-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .log { margin: 0; padding: 0; list-style: none; max-height: 360px; overflow: auto; font-size: .75rem; }
-    .log li { padding: 4px 0; border-bottom: 1px solid rgba(15, 23, 42, .08); }
-    .log .event { font-weight: 600; color: #1d4f91; }
+    .log li { padding: 4px 0; border-bottom: 1px solid var(--demo-border); }
+    .log .event { font-weight: 600; color: var(--demo-accent); }
     .log .time { color: #8a99a6; margin-right: 6px; }
-    .log .detail { display: block; color: #4f6573; word-break: break-all; }
-    .state { margin: 0; font-size: .72rem; max-height: 220px; overflow: auto; background: #f5f7fa; padding: 8px; border-radius: 8px; }
-    .server { font-size: .8rem; color: #4f6573; }
+    .log .detail { display: block; color: var(--demo-muted); word-break: break-all; }
+    .state { margin: 0; font-size: .72rem; max-height: 220px; overflow: auto; background: var(--demo-bg); padding: 8px; border-radius: 8px; }
+    .server { font-size: .8rem; color: var(--demo-muted); }
     .server--error { color: #b3261e; font-weight: 600; }
     .perf { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
-    .perf div { padding: 8px 10px; background: #f5f7fa; border-radius: 8px; }
-    .perf strong { display: block; font-size: 1.1rem; color: #0d1d26; }
-    .perf span { font-size: .75rem; color: #4f6573; }
+    .perf div { padding: 8px 10px; background: var(--demo-bg); border-radius: 8px; }
+    .perf strong { display: block; font-size: 1.1rem; color: var(--demo-text); }
+    .perf span { font-size: .75rem; color: var(--demo-muted); }
   `,
   template: `
     <p class="demo-intro">
@@ -85,6 +87,16 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
         }
       </div>
       <div class="actions-row">
+        <span class="setting-label">Navigation</span>
+        <mat-button-toggle-group [value]="continuous()" (change)="setContinuous($event.value)">
+          <mat-button-toggle [value]="false">Pages</mat-button-toggle>
+          <mat-button-toggle [value]="true">Défilement continu (blocs)</mat-button-toggle>
+        </mat-button-toggle-group>
+        @if (continuous()) {
+          <span class="server">Blocs de 100 lignes chargés au fil du défilement (<code>[remoteDatasource]</code>) ; regroupement indisponible.</span>
+        }
+      </div>
+      <div class="actions-row">
         <span class="setting-label">Format d'export</span>
         <mat-button-toggle-group [value]="exportFormat()" (change)="exportFormat.set($event.value)">
           <mat-button-toggle value="csv">CSV</mat-button-toggle>
@@ -94,7 +106,11 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
       </div>
       <div class="perf">
         <div><strong>{{ total().toLocaleString('fr-FR') }}</strong><span>lignes correspondantes côté serveur</span></div>
-        <div><strong>{{ renderedRows() }}</strong><span>lignes rendues dans la table</span></div>
+        @if (continuous()) {
+          <div><strong>{{ blocksRequested() }}</strong><span>blocs demandés au serveur</span></div>
+        } @else {
+          <div><strong>{{ renderedRows() }}</strong><span>lignes rendues dans la table</span></div>
+        }
         <div><strong>{{ lastServerMs() }} ms</strong><span>{{ backend() === 'spring' ? 'aller-retour HTTP (Spring Boot + H2)' : 'calcul serveur (filtre, tri, résumés)' }}</span></div>
         <div><strong>{{ lastRenderMs() }} ms</strong><span>rendu de la table (réponse → écran)</span></div>
       </div>
@@ -116,7 +132,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           <mat-icon>deselect</mat-icon> Vider la sélection ({{ selectedKeys().length }})
         </button>
         <mat-slide-toggle [checked]="english()" (change)="english.set($event.checked)">Textes en anglais</mat-slide-toggle>
-        <mat-slide-toggle [checked]="grouping()" (change)="setGrouping($event.checked)">Regroupement (côté serveur)</mat-slide-toggle>
+        <mat-slide-toggle [checked]="grouping()" [disabled]="continuous()" (change)="setGrouping($event.checked)">Regroupement (côté serveur)</mat-slide-toggle>
       </div>
     </div>
 
@@ -136,7 +152,10 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           [(groupBy)]="groupBy"
           [groupSummaries]="groupSummaries()"
           [showActiveFiltersBar]="true"
-          [paginator]="true"
+          [paginator]="!continuous()"
+          [remoteDatasource]="continuous() ? datasource : null"
+          [maxHeight]="continuous() ? '60vh' : null"
+          (remoteBlockError)="showServerError($event.error)"
           [totalCount]="total()"
           [(pageIndex)]="pageIndex"
           [(pageSize)]="pageSize"
@@ -167,6 +186,11 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           (globalSearchChange)="log('globalSearchChange', $event)"
           (pageIndexChange)="log('pageIndexChange', $event)"
           (rowClick)="log('rowClick', $event.reference)"
+          [statusBar]="true"
+          [sidePanel]="true"
+          [rangeSelection]="!continuous()"
+          (cellEdited)="onCellEdited($event)"
+          (cellEditRejected)="log('cellEditRejected', $event.error)"
         />
         <p [class.server--error]="serverError()" class="demo-meta server">{{ serverStatus() }}</p>
       </div>
@@ -208,6 +232,9 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
         <li>Export généré côté serveur (<code>exportMode='remote'</code>) : <code>(remoteExportRequested)</code> porte la
           requête, les colonnes affichées (dans l'ordre), le format et le nom de fichier ; Spring Boot renvoie le CSV ou le
           XLSX de toutes les lignes.</li>
+        <li>Avec Spring Boot : cellules éditables (client, statut, montant) — chaque modification part en
+          <code>PATCH /api/commandes/&#123;id&#125;</code>, le serveur valide (montant positif, statut connu) puis la table se recharge ;
+          barre d'état, panneau latéral, sélection de plage et mini-graphiques sur les données du serveur.</li>
         <li>Colonne de référence choisie avec la punaise du menu « Colonnes » (<code>referenceColumnSelectable</code>).</li>
         <li>Textes traduits via <code>[labels]</code> (<code>NG_TABLE_LABELS_EN</code>).</li>
         <li>En test : <code>NgTableHarness</code> (<code>&#64;sbourahla/ng-table/testing</code>) pilote cette table comme
@@ -220,7 +247,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
     </ng-template>
 
     <ng-template #detailTpl let-row>
-      <div style="padding: 8px 16px; color: #4f6573">{{ row.description }}</div>
+      <div style="padding: 8px 16px; color: var(--demo-muted)">{{ row.description }}</div>
     </ng-template>
   `,
 })
@@ -249,6 +276,27 @@ export class ExpertDemoComponent {
   protected readonly grouping = signal(false);
   protected readonly groupBy = signal<string | null>(null);
   protected readonly groupSummaries = signal<NgTableGroupSummary[] | null>(null);
+  /** Défilement continu : la table demande elle-même les blocs à afficher (`getRows`). */
+  protected readonly continuous = signal(false);
+  protected readonly blocksRequested = signal(0);
+
+  /**
+   * Source du modèle par blocs. Chaque bloc est une page pour le serveur (`page.index`,
+   * `page.size`) : le même backend (simulé ou Spring Boot) sert les deux modes.
+   */
+  protected readonly datasource: NgTableRemoteDatasource<Commande> = {
+    getRows: async (request) => {
+      this.log('getRows', `lignes ${request.startRow}–${request.endRow - 1}`);
+      this.lastQuery = request;
+      this.blocksRequested.update((count) => count + 1);
+      const page = await this.api.query(request);
+      this.serverError.set(false);
+      this.total.set(page.total);
+      this.lastServerMs.set(Math.round(page.serverMs));
+      this.serverStatus.set(`Serveur : ${page.total.toLocaleString('fr-FR')} commande(s) ; bloc ${request.page.index + 1} reçu.`);
+      return {rows: page.rows, totalCount: page.total};
+    },
+  };
 
   // État tenu par le parent (mode contrôlé).
   protected readonly pageIndex = signal(0);
@@ -275,7 +323,9 @@ export class ExpertDemoComponent {
       valueAccessor: (c) => c.client,
       sortable: true,
       groupable: true,
-      filter: {type: 'enum', options: CLIENTS.map((client) => ({value: client, label: client}))},
+      editable: this.backend() === 'spring',
+      // Filtre par ensemble de valeurs : en mode serveur la table n'a qu'une page, les valeurs viennent donc de options.
+      filter: {type: 'set', options: CLIENTS.map((client) => ({value: client, label: client}))},
     },
     {
       id: 'statut',
@@ -284,6 +334,7 @@ export class ExpertDemoComponent {
       sortable: true,
       groupable: true,
       cellTemplate: this.statutCell() as CellTemplate,
+      editable: this.backend() === 'spring',
       filter: {type: 'enum', options: STATUT_OPTIONS},
     },
     {
@@ -293,6 +344,9 @@ export class ExpertDemoComponent {
       sortable: true,
       groupable: false,
       aggregate: 'sum', // somme calculée par le serveur (groupSummaries)
+      editable: this.backend() === 'spring',
+      editor: 'number',
+      validate: (value) => ((value as number | null) !== null && (value as number) < 0 ? 'Le montant doit être positif' : null),
       filter: {type: 'numberRange', label: 'Tranche de montant', component: MontantPresetFilterComponent},
     },
     {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, groupable: true, filter: {type: 'range'}},
@@ -304,12 +358,27 @@ export class ExpertDemoComponent {
       groupable: false,
       filter: {type: 'boolean'},
     },
+    {id: 'tendance', header: 'Tendance', valueAccessor: (c) => c.tendance, sparkline: {type: 'area', width: 90}, groupable: false, widthPx: 120},
     {id: 'description', header: 'Description', valueAccessor: (c) => c.description, widthPx: 260},
   ]);
 
   constructor() {
     // Premier chargement : ng-table n'émet `remoteQueryChange` qu'au premier changement.
     void this.load(this.lastQuery);
+  }
+
+  /** Pages (le parent charge sur `remoteQueryChange`) ou défilement continu (la table charge par blocs). */
+  protected setContinuous(continuous: boolean): void {
+    this.continuous.set(continuous);
+    this.loading.set(false);
+    this.blocksRequested.set(0);
+    if (continuous) {
+      this.grouping.set(false);
+      this.groupBy.set(null);
+    } else {
+      this.pageIndex.set(0);
+      void this.load({...this.lastQuery, page: {index: 0, size: this.pageSize()}});
+    }
   }
 
   /** Change la taille de la « base » du serveur et recharge la même requête. */
@@ -332,6 +401,10 @@ export class ExpertDemoComponent {
    */
   private switchApi(api: CommandesBackend): void {
     this.api = api;
+    if (this.continuous()) {
+      this.table().refreshRemoteDatasource();
+      return;
+    }
     this.table().applyQueryState({pageIndex: 0});
   }
 
@@ -364,6 +437,28 @@ export class ExpertDemoComponent {
     this.serverStatus.set(`Serveur : ${page.total.toLocaleString('fr-FR')} commande(s) correspondent, page ${query.page.index + 1} reçue.`);
   }
 
+  /** Une cellule a été modifiée : le serveur valide et enregistre, puis la page se recharge avec la valeur du serveur. */
+  protected async onCellEdited(event: NgTableCellEditEvent<Commande>): Promise<void> {
+    this.log('cellEdited', `${event.column.header} : ${String(event.oldValue)} → ${String(event.newValue)}`);
+    if (!this.api.update) {
+      return;
+    }
+    try {
+      await this.api.update(event.row.id, {[event.column.id]: event.newValue} as CommandePatch);
+      this.serverError.set(false);
+      this.serverStatus.set(`Commande ${event.row.reference} enregistrée par le serveur (${event.column.header}).`);
+    } catch (error) {
+      this.serverError.set(true);
+      this.serverStatus.set(`Modification refusée : ${error instanceof Error ? error.message : String(error)}.`);
+    }
+    // Quoi qu'il arrive, la table reprend ce que le serveur a : la valeur acceptée ou l'ancienne.
+    if (this.continuous()) {
+      this.table().refreshRemoteDatasource();
+    } else {
+      void this.load(this.lastQuery);
+    }
+  }
+
   protected async exportOnServer(request: NgTableRemoteExportRequest): Promise<void> {
     this.log('remoteExportRequested', request);
     this.serverStatus.set('Export en cours côté serveur…');
@@ -375,7 +470,7 @@ export class ExpertDemoComponent {
     }
   }
 
-  private showServerError(error: unknown): void {
+  protected showServerError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     this.loading.set(false);
     this.rows.set([]);

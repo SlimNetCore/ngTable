@@ -14,6 +14,11 @@ public final class NgTableColumn {
     TEXT,
     /** {@code enum} (valeurs séparées par des virgules) ou {@code select} (une valeur). */
     ENUM,
+    /**
+     * {@code set} : tableau JSON des valeurs cochées ({@code ["Nord","Sud, Est",""]}) ; la chaîne vide désigne les valeurs
+     * vides (NULL). Une valeur peut contenir une virgule, contrairement à {@link #ENUM}.
+     */
+    SET,
     /** {@code boolean} : {@code "true"} / {@code "false"}. */
     BOOLEAN,
     /** {@code number} ({@code 42}, {@code >100}, {@code <=50}, {@code !=0}, {@code 10..50}) ou {@code numberRange} ({@code min..max}). */

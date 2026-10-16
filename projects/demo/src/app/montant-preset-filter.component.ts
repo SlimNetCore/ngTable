@@ -13,10 +13,10 @@ import {ChangeDetectionStrategy, Component, input, output} from '@angular/core';
   styles: `
     :host { display: flex; flex-wrap: wrap; gap: 6px; }
     button {
-      padding: 4px 10px; border: 1px solid rgba(15, 23, 42, .2); border-radius: 999px;
-      background: #fff; font: inherit; font-size: .78rem; cursor: pointer; white-space: nowrap;
+      padding: 4px 10px; border: 1px solid var(--demo-border); border-radius: 999px;
+      background: var(--demo-surface); color: var(--demo-text); font: inherit; font-size: .78rem; cursor: pointer; white-space: nowrap;
     }
-    button[aria-pressed='true'] { background: #e3eefb; border-color: #1d4f91; color: #1d4f91; font-weight: 600; }
+    button[aria-pressed='true'] { background: color-mix(in srgb, var(--demo-accent) 14%, transparent); border-color: var(--demo-accent); color: var(--demo-accent); font-weight: 600; }
   `,
   template: `
     @for (preset of presets; track preset.value) {

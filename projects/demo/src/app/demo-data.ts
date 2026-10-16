@@ -9,7 +9,12 @@ export interface Commande {
   dateCommande: string;
   urgent: boolean;
   description: string;
+  /** Six valeurs par commande : de quoi tracer un mini-graphique (sparkline). */
+  tendance?: number[];
 }
+
+/** Mêmes valeurs que `CommandeDto.tendance` côté Spring Boot, tirées de l'identifiant (1, 2, 3…). */
+export const tendanceOf = (id: number): number[] => Array.from({length: 6}, (_, month) => (((id + 2) * (month + 2) * 7919) % 90) + 10);
 
 export const CLIENTS = ['Dupont SA', 'Martin SARL', 'Bernard & Fils', 'Petit Commerce', 'Leroy Industries', 'Moreau Logistique'];
 
@@ -45,6 +50,7 @@ export function generateCommandes(count: number): Commande[] {
       dateCommande: `2026-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
       urgent: i % 5 === 0,
       description: DESCRIPTIONS[i % DESCRIPTIONS.length],
+      tendance: tendanceOf(i + 1),
     });
   }
   return rows;

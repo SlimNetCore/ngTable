@@ -6,12 +6,22 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve demo",
-    "build": "ng build ng-table && node scripts/copy-package-files.mjs",
+    "build": "node scripts/bundle-worker.mjs && ng build ng-table && node scripts/copy-package-files.mjs && node scripts/build-schematics.mjs",
     "build:demo": "ng build demo",
     "watch": "ng build ng-table --watch --configuration development",
     "test": "ng test ng-table",
     "test:ci": "ng test ng-table --watch=false",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "theme:css": "node scripts/generate-theme-css.mjs",
+    "theme:check": "node scripts/generate-theme-css.mjs --check",
+    "schematics:check": "tsc -p projects/ng-table/schematics/tsconfig.json",
+    "schematics:test": "node --test scripts/test-schematics.mjs",
+    "worker:bundle": "node scripts/bundle-worker.mjs",
+    "worker:check": "node scripts/bundle-worker.mjs --check",
+    "docs:api": "typedoc",
+    "docs:build": "node scripts/build-docs.mjs && typedoc",
+    "docs:demo": "node scripts/build-demo-docs.mjs",
+    "docs:serve": "npm run docs:build && npm run docs:demo && node scripts/serve-docs.mjs 4400"
   },
   "dependencies": {
     "@angular/cdk": "^22.1.6",
@@ -30,10 +40,12 @@
     "@angular/cli": "^22.2.0",
     "@angular/compiler-cli": "^22.2.0",
     "@eslint/js": "^9.0.0",
+    "ag-grid-community": "^36.2.0",
     "angular-eslint": "^22.0.0",
     "eslint": "^9.0.0",
     "jsdom": "^27.0.0",
     "ng-packagr": "^22.2.0",
+    "typedoc": "^0.28.20",
     "typescript": ">=6.0 <6.1",
     "typescript-eslint": "^8.0.0",
     "vitest": "^4.0.0"

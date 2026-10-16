@@ -1,0 +1,121 @@
+/* Généré par scripts/generate-theme-css.mjs depuis theme.ts : ne pas modifier à la main. */
+
+/* Thème sombre : `[theme]="'dark'"` sur le composant, ou la classe `ngt-dark` sur <html> / <body> (elle thème aussi
+   les menus et filtres ouverts en surcouche). */
+.ngt-dark,
+ng-table[data-ngt-theme='dark'],
+ng-table-chart[data-ngt-theme='dark'],
+ng-table-pivot[data-ngt-theme='dark'],
+ng-table-sparkline[data-ngt-theme='dark'],
+.ngt-overlay[data-ngt-theme='dark'] {
+  --ngt-primary: #7fb4d6;
+  --ngt-primary-soft: rgba(127, 180, 214, 0.18);
+  --ngt-primary-outline: rgba(127, 180, 214, 0.42);
+  --ngt-text: #e7edf3;
+  --ngt-text-muted: #93a4b4;
+  --ngt-border: rgba(255, 255, 255, 0.1);
+  --ngt-border-strong: rgba(255, 255, 255, 0.2);
+  --ngt-surface: #11171d;
+  --ngt-surface-alt: #19212a;
+  --ngt-surface-soft: #151c24;
+  --ngt-hover-surface: #1c2630;
+  --ngt-field-bg: #161d25;
+  --ngt-field-hover-bg: #1d2630;
+  --ngt-filter-panel-bg: #171f27;
+  --ngt-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px -12px rgba(0, 0, 0, 0.6);
+  --ngt-danger: #f2b8b5;
+  --ngt-success: #7fdba3;
+  --ngt-warning: #f0c15a;
+  --ngt-on-primary: #0b1620;
+  --ngt-chart-1: #7fb4d6;
+  --ngt-chart-2: #f0955f;
+  --ngt-chart-3: #86c493;
+  --ngt-chart-4: #d77fa6;
+  --ngt-chart-5: #b3a0ea;
+  --ngt-chart-6: #e6c460;
+  --ngt-chart-7: #6cc9c2;
+  --ngt-chart-8: #a9b3bd;
+  --mat-sys-surface: var(--ngt-surface, #11171d);
+  --mat-sys-background: var(--ngt-surface, #11171d);
+  --mat-sys-surface-container: var(--ngt-surface-alt, #19212a);
+  --mat-sys-surface-container-low: var(--ngt-surface, #11171d);
+  --mat-sys-surface-container-lowest: var(--ngt-surface, #11171d);
+  --mat-sys-surface-container-high: var(--ngt-surface-alt, #19212a);
+  --mat-sys-surface-container-highest: var(--ngt-hover-surface, #1c2630);
+  --mat-sys-surface-variant: var(--ngt-surface-alt, #19212a);
+  --mat-sys-on-surface: var(--ngt-text, #e7edf3);
+  --mat-sys-on-background: var(--ngt-text, #e7edf3);
+  --mat-sys-on-surface-variant: var(--ngt-text-muted, #93a4b4);
+  --mat-sys-outline: var(--ngt-border-strong, rgba(255, 255, 255, 0.3));
+  --mat-sys-outline-variant: var(--ngt-border, rgba(255, 255, 255, 0.16));
+  --mat-sys-primary: var(--ngt-primary, #7fb4d6);
+  --mat-sys-on-primary: #0b1620;
+  --mat-sys-secondary-container: var(--ngt-primary-soft, rgba(127, 180, 214, 0.24));
+  --mat-sys-on-secondary-container: var(--ngt-text, #e7edf3);
+  --mat-sys-error: var(--ngt-danger, #f2b8b5);
+  color-scheme: dark;
+}
+
+/* `[theme]="'auto'"` : suit le réglage du système. */
+@media (prefers-color-scheme: dark) {
+    ng-table[data-ngt-theme='auto'],
+    ng-table-chart[data-ngt-theme='auto'],
+    ng-table-pivot[data-ngt-theme='auto'],
+    ng-table-sparkline[data-ngt-theme='auto'],
+    .ngt-overlay[data-ngt-theme='auto'] {
+    --ngt-primary: #7fb4d6;
+    --ngt-primary-soft: rgba(127, 180, 214, 0.18);
+    --ngt-primary-outline: rgba(127, 180, 214, 0.42);
+    --ngt-text: #e7edf3;
+    --ngt-text-muted: #93a4b4;
+    --ngt-border: rgba(255, 255, 255, 0.1);
+    --ngt-border-strong: rgba(255, 255, 255, 0.2);
+    --ngt-surface: #11171d;
+    --ngt-surface-alt: #19212a;
+    --ngt-surface-soft: #151c24;
+    --ngt-hover-surface: #1c2630;
+    --ngt-field-bg: #161d25;
+    --ngt-field-hover-bg: #1d2630;
+    --ngt-filter-panel-bg: #171f27;
+    --ngt-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px -12px rgba(0, 0, 0, 0.6);
+    --ngt-danger: #f2b8b5;
+    --ngt-success: #7fdba3;
+    --ngt-warning: #f0c15a;
+    --ngt-on-primary: #0b1620;
+    --ngt-chart-1: #7fb4d6;
+    --ngt-chart-2: #f0955f;
+    --ngt-chart-3: #86c493;
+    --ngt-chart-4: #d77fa6;
+    --ngt-chart-5: #b3a0ea;
+    --ngt-chart-6: #e6c460;
+    --ngt-chart-7: #6cc9c2;
+    --ngt-chart-8: #a9b3bd;
+    --mat-sys-surface: var(--ngt-surface, #11171d);
+    --mat-sys-background: var(--ngt-surface, #11171d);
+    --mat-sys-surface-container: var(--ngt-surface-alt, #19212a);
+    --mat-sys-surface-container-low: var(--ngt-surface, #11171d);
+    --mat-sys-surface-container-lowest: var(--ngt-surface, #11171d);
+    --mat-sys-surface-container-high: var(--ngt-surface-alt, #19212a);
+    --mat-sys-surface-container-highest: var(--ngt-hover-surface, #1c2630);
+    --mat-sys-surface-variant: var(--ngt-surface-alt, #19212a);
+    --mat-sys-on-surface: var(--ngt-text, #e7edf3);
+    --mat-sys-on-background: var(--ngt-text, #e7edf3);
+    --mat-sys-on-surface-variant: var(--ngt-text-muted, #93a4b4);
+    --mat-sys-outline: var(--ngt-border-strong, rgba(255, 255, 255, 0.3));
+    --mat-sys-outline-variant: var(--ngt-border, rgba(255, 255, 255, 0.16));
+    --mat-sys-primary: var(--ngt-primary, #7fb4d6);
+    --mat-sys-on-primary: #0b1620;
+    --mat-sys-secondary-container: var(--ngt-primary-soft, rgba(127, 180, 214, 0.24));
+    --mat-sys-on-secondary-container: var(--ngt-text, #e7edf3);
+    --mat-sys-error: var(--ngt-danger, #f2b8b5);
+    color-scheme: dark;
+  }
+}
+
+ng-table[data-ngt-theme='light'],
+ng-table-chart[data-ngt-theme='light'],
+ng-table-pivot[data-ngt-theme='light'],
+ng-table-sparkline[data-ngt-theme='light'],
+.ngt-overlay[data-ngt-theme='light'] {
+  color-scheme: light;
+}

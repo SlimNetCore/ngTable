@@ -54,4 +54,8 @@ public class Commande {
   public LocalDate getDateCommande() { return dateCommande; }
   public boolean isUrgent() { return urgent; }
   public String getDescription() { return description; }
+
+  public void setClient(String client) { this.client = client; }
+  public void setStatut(CommandeStatut statut) { this.statut = statut; }
+  public void setMontant(BigDecimal montant) { this.montant = montant; }
 }

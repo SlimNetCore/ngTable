@@ -13,19 +13,19 @@ import {ChangeDetectionStrategy, Component, computed, input, model} from '@angul
   styles: `
     :host {
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
-      margin-top: 8px; padding: 10px 14px; background: #fff; border: 1px solid rgba(15, 23, 42, .13); border-radius: 12px;
-      font-size: .85rem; color: #4f6573;
+      margin-top: 8px; padding: 10px 14px; background: var(--demo-surface); color: var(--demo-text); border: 1px solid var(--demo-border); border-radius: 12px;
+      font-size: .85rem; color: var(--demo-muted);
     }
     nav { display: flex; align-items: center; gap: 4px; }
     button {
-      min-width: 34px; height: 34px; padding: 0 8px; border: 1px solid rgba(15, 23, 42, .16); border-radius: 8px;
-      background: #fff; color: #0d1d26; font: inherit; cursor: pointer;
+      min-width: 34px; height: 34px; padding: 0 8px; border: 1px solid var(--demo-border); border-radius: 8px;
+      background: var(--demo-surface); color: var(--demo-text); color: var(--demo-text); font: inherit; cursor: pointer;
     }
     button:disabled { opacity: .4; cursor: default; }
-    button[aria-current='page'] { background: #1d4f91; border-color: #1d4f91; color: #fff; font-weight: 600; }
-    button:focus-visible, select:focus-visible { outline: 2px solid #1d4f91; outline-offset: 2px; }
+    button[aria-current='page'] { background: var(--demo-accent); border-color: var(--demo-accent); color: var(--demo-surface); font-weight: 600; }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--demo-accent); outline-offset: 2px; }
     .gap { padding: 0 4px; }
-    select { height: 34px; margin-left: 6px; border-radius: 8px; border: 1px solid rgba(15, 23, 42, .16); font: inherit; }
+    select { height: 34px; margin-left: 6px; border-radius: 8px; border: 1px solid var(--demo-border); font: inherit; }
   `,
   template: `
     <span>{{ rangeLabel() }}</span>
