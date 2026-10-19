@@ -1161,6 +1161,35 @@ export class NgTableComponent<T = any> implements OnDestroy {
     ];
   });
 
+  /** Rang (à partir de 1) de chaque colonne dans l'ordre complet : colonnes techniques, épinglées à gauche, libres, épinglées à droite. */
+  private readonly ariaColumnRanks = computed(() => {
+    const order = new Map<string, number>();
+    if (!this.columnVirtualization()) {
+      return order;
+    }
+    const sides = this.pinnedSides();
+    const visible = this.visibleColumns();
+    const ids = [
+      ...(this.rowDragActive() ? [this.rowDragColumnId] : []),
+      ...(this.rowSelectionEnabled() ? [this.selectionColumnId] : []),
+      ...visible.filter((column) => sides.get(column.id) === 'left').map((column) => column.id),
+      ...visible.filter((column) => !sides.has(column.id)).map((column) => column.id),
+      ...visible.filter((column) => sides.get(column.id) === 'right').map((column) => column.id),
+    ];
+    ids.forEach((id, index) => order.set(id, index + 1));
+    return order;
+  });
+
+  /**
+   * `aria-colcount` : nombre total de colonnes quand la virtualisation horizontale n'en rend qu'une fenêtre. Associé à
+   * `aria-colindex` sur chaque cellule rendue, il évite qu'un lecteur d'écran annonce « colonne 3 sur 10 » pour 108 colonnes.
+   */
+  protected readonly ariaColCount = computed<number | null>(() => (this.columnVirtualization() ? this.ariaColumnRanks().size : null));
+
+  protected ariaColIndex(id: string): number | null {
+    return this.columnVirtualization() ? (this.ariaColumnRanks().get(id) ?? null) : null;
+  }
+
   /** Largeur d'une colonne d'espacement de la virtualisation horizontale. */
   protected columnSpacerWidth(side: 'left' | 'right'): number {
     const window = this.columnWindow();
@@ -1992,6 +2021,37 @@ export class NgTableComponent<T = any> implements OnDestroy {
     }
     return [new NgTableSpacerRow('top', 0), ...items.slice(range.start, range.end), new NgTableSpacerRow('bottom', 0)];
   });
+
+  /** Lignes d'en-têtes : un niveau par regroupement de colonnes, plus la ligne des colonnes. */
+  protected readonly headerRowCount = computed(() => this.headerGroupLevels().length + 1);
+
+  /**
+   * `aria-rowcount` : nombre total de lignes de la table (en-têtes et totaux compris) quand le défilement virtuel n'en
+   * rend qu'une tranche. Sans lui, un lecteur d'écran annonce « 21 lignes » pour 100 000. `null` hors virtualisation :
+   * le DOM est complet, le navigateur compte lui-même.
+   */
+  protected readonly ariaRowCount = computed<number | null>(() =>
+    this.virtualActive() ? this.headerRowCount() + this.virtualCount() + (this.totals() ? 1 : 0) : null,
+  );
+
+  /** `aria-rowindex` (à partir de 1) des lignes de la tranche rendue, en défilement virtuel. */
+  private readonly ariaRowIndexes = computed(() => {
+    const indexes = new Map<unknown, number>();
+    const range = this.virtualRange();
+    if (!range) {
+      return indexes;
+    }
+    const body = this.bodyRows();
+    const base = this.headerRowCount() + range.start;
+    for (let i = 1; i < body.length - 1; i++) {
+      indexes.set(body[i], base + i);
+    }
+    return indexes;
+  });
+
+  protected ariaRowIndex(item: unknown): number | null {
+    return this.ariaRowCount() === null ? null : (this.ariaRowIndexes().get(item) ?? null);
+  }
 
   /** Index (dans `displayedRows()`) de la première ligne de données rendue : tranche virtuelle et groupes. */
   private readonly renderedRowBase = computed(() => {
