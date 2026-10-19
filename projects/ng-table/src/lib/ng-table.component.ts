@@ -1993,6 +1993,37 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return [new NgTableSpacerRow('top', 0), ...items.slice(range.start, range.end), new NgTableSpacerRow('bottom', 0)];
   });
 
+  /** Lignes d'en-têtes : un niveau par regroupement de colonnes, plus la ligne des colonnes. */
+  protected readonly headerRowCount = computed(() => this.headerGroupLevels().length + 1);
+
+  /**
+   * `aria-rowcount` : nombre total de lignes de la table (en-têtes et totaux compris) quand le défilement virtuel n'en
+   * rend qu'une tranche. Sans lui, un lecteur d'écran annonce « 21 lignes » pour 100 000. `null` hors virtualisation :
+   * le DOM est complet, le navigateur compte lui-même.
+   */
+  protected readonly ariaRowCount = computed<number | null>(() =>
+    this.virtualActive() ? this.headerRowCount() + this.virtualCount() + (this.totals() ? 1 : 0) : null,
+  );
+
+  /** `aria-rowindex` (à partir de 1) des lignes de la tranche rendue, en défilement virtuel. */
+  private readonly ariaRowIndexes = computed(() => {
+    const indexes = new Map<unknown, number>();
+    const range = this.virtualRange();
+    if (!range) {
+      return indexes;
+    }
+    const body = this.bodyRows();
+    const base = this.headerRowCount() + range.start;
+    for (let i = 1; i < body.length - 1; i++) {
+      indexes.set(body[i], base + i);
+    }
+    return indexes;
+  });
+
+  protected ariaRowIndex(item: unknown): number | null {
+    return this.ariaRowCount() === null ? null : (this.ariaRowIndexes().get(item) ?? null);
+  }
+
   /** Index (dans `displayedRows()`) de la première ligne de données rendue : tranche virtuelle et groupes. */
   private readonly renderedRowBase = computed(() => {
     const range = this.virtualRange();

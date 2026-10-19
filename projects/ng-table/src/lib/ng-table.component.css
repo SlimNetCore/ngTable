@@ -2110,3 +2110,187 @@ ng-table {
 ng-table:dir(rtl) {
   --ngt-dir: -1;
 }
+
+/* Cibles tactiles (WCAG 2.5.8, 24 × 24 px) : la poignée de colonne reste discrète (14 × 18 px) mais sa zone cliquable est élargie. */
+.drag-handle::before {
+  content: '';
+  position: absolute;
+  inset: -3px -5px;
+}
+
+/* Mode contraste élevé (Windows « Thèmes de contraste », `forced-colors`) : le navigateur impose ses couleurs système et
+   supprime les ombres et les fonds. Tout ce qui ne reposait que sur un fond, une ombre ou une teinte reçoit un contour ou un
+   trait en couleur système (`CanvasText`, `Highlight`, `ButtonText`…), pour que l'état reste visible. */
+@media (forced-colors: active) {
+  /* Focus : toujours un contour, jamais une simple ombre. */
+  .ng-table :focus-visible,
+  .ngt-action-bar :focus-visible,
+  .ngt-menu-panel :focus-visible,
+  .ngt-select__panel :focus-visible,
+  .ngt-side-panel :focus-visible,
+  .ngt-group-panel :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* Structure : traits et cadres qui étaient de simples nuances. */
+  .ng-table th.cdk-header-cell {
+    border-bottom: 1px solid CanvasText;
+  }
+
+  .ng-table tr.group-row td,
+  .ng-table tr.totals-row td.totals-cell {
+    border-block: 1px solid CanvasText;
+    font-weight: 700;
+  }
+
+  .ng-table tr[data-ngt-pin='top'][data-ngt-pin-edge] td {
+    border-bottom: 2px solid CanvasText;
+  }
+
+  .ng-table tr[data-ngt-pin='bottom'][data-ngt-pin-edge] td {
+    border-top: 2px solid CanvasText;
+  }
+
+  .ng-table th.header-group-cell:not(.header-group-cell--empty) {
+    border: 1px solid CanvasText;
+  }
+
+  /* Poignée de redimensionnement : le trait est un fond. */
+  .resize-handle::after {
+    background: ButtonText;
+    forced-color-adjust: none;
+  }
+
+  .resize-handle:hover::after,
+  .resize-handle:focus-visible::after {
+    background: Highlight;
+  }
+
+  /* Tri actif, glisser-déposer de colonne ou de ligne, zone de dépôt du regroupement. */
+  .sort-icon--active {
+    color: Highlight;
+    forced-color-adjust: none;
+  }
+
+  .ng-table .cdk-header-cell.column-drag-over {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .ng-table .cdk-header-cell.column-dragging,
+  .ng-table tr.ngt-row-dragging {
+    outline: 1px dashed CanvasText;
+    outline-offset: -2px;
+  }
+
+  .ngt-group-panel {
+    border: 1px dashed CanvasText;
+  }
+
+  .ngt-group-panel--over {
+    border: 2px solid Highlight;
+  }
+
+  .ngt-group-chip {
+    border: 1px solid ButtonText;
+  }
+
+  /* Plage de cellules sélectionnée et cellule éditable : le contour est une ombre. */
+  .ng-table td[data-ngt-range~='in'] {
+    background-color: Canvas;
+    forced-color-adjust: none;
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+
+  .ng-table td[data-ngt-range~='top'] { border-top: 2px solid Highlight; }
+  .ng-table td[data-ngt-range~='right'] { border-right: 2px solid Highlight; }
+  .ng-table td[data-ngt-range~='bottom'] { border-bottom: 2px solid Highlight; }
+  .ng-table td[data-ngt-range~='left'] { border-left: 2px solid Highlight; }
+
+  .ng-table td[data-ngt-editable]:hover {
+    outline: 1px dashed Highlight;
+    outline-offset: -1px;
+  }
+
+  /* Squelette de chargement : un fond. */
+  .loading-skeleton {
+    border: 1px solid GrayText;
+    background: transparent;
+  }
+
+  /* Panneaux flottants (menus, listes, panneau latéral, info-bulles) : cadre explicite à la place de l'ombre. */
+  .ngt-menu-panel,
+  .ngt-select__panel,
+  .ngt-overlay,
+  .ngt-side-panel {
+    border: 1px solid CanvasText;
+  }
+
+  .ngt-side-panel__tab--on {
+    border-bottom: 3px solid Highlight;
+  }
+
+  /* Barre d'actions : fond inversé et pastille de compteur sont des fonds. */
+  .ngt-action-bar {
+    border: 2px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    forced-color-adjust: none;
+  }
+
+  .ngt-action-bar__badge {
+    border: 1px solid CanvasText;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .ngt-action-bar__action {
+    border: 1px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+  }
+
+  .ngt-action-bar__action--primary {
+    border-width: 2px;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .ngt-action-bar__action--disabled {
+    border-color: GrayText;
+    color: GrayText;
+    opacity: 1;
+  }
+
+  .ngt-action-bar__action:hover:not(.ngt-action-bar__action--disabled),
+  .ngt-action-bar__link:hover {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .ngt-action-bar__link {
+    color: LinkText;
+  }
+
+  .ngt-action-bar__sep {
+    background: CanvasText;
+  }
+
+  /* Liste déroulante et menus : option active (aria-activedescendant) et option choisie ne tiennent qu'à un fond. */
+  .ngt-select__option--active,
+  .ngt-menu-panel [ngt-menu-item]:hover {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .ngt-select__option--selected,
+  .ngt-menu-panel [role='menuitemradio'][aria-checked='true'] {
+    font-weight: 700;
+  }
+
+  .ngt-select__box {
+    border: 1px solid ButtonText;
+  }
+}

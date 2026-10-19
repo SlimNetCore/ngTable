@@ -425,7 +425,7 @@
   <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" class="table-wrap">
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
     <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event); onRangeKeydown($event); onEditKeydown($event)"
-           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="rowsExpandable() ? 'treegrid' : cellNavigation() ? 'grid' : null"
+           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.aria-rowcount]="ariaRowCount()" [attr.role]="rowsExpandable() ? 'treegrid' : cellNavigation() ? 'grid' : null"
            [dataSource]="tableRows()"
            [style.--ngt-flash-duration]="flashDurationMs() + 'ms'"
            [style.--ngt-row-h]="rowHeight() + 'px'"
@@ -802,7 +802,7 @@
                 class="header-group-cell" cdk-header-cell scope="colgroup">{{ run.label }}</th>
           </ng-container>
         }
-        <tr *cdkHeaderRowDef="level.ids; sticky: stickyHeader() || virtualActive()" class="header-group-row" cdk-header-row></tr>
+        <tr *cdkHeaderRowDef="level.ids; sticky: stickyHeader() || virtualActive()" [attr.aria-rowindex]="ariaRowCount() === null ? null : $index + 1" class="header-group-row" cdk-header-row></tr>
       }
 
       <!-- Virtualisation horizontale : largeur des colonnes non rendues, à gauche et à droite. -->
@@ -840,8 +840,8 @@
         </td>
       </ng-container>
 
-      <tr *cdkHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualActive()" cdk-header-row></tr>
-      <tr *cdkRowDef="let item; columns: loadingColumns; when: loadingRowWhen" class="loading-row" cdk-row></tr>
+      <tr *cdkHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualActive()" [attr.aria-rowindex]="ariaRowCount() === null ? null : headerRowCount()" cdk-header-row></tr>
+      <tr *cdkRowDef="let item; columns: loadingColumns; when: loadingRowWhen" [attr.aria-rowindex]="ariaRowIndex(item)" class="loading-row" cdk-row></tr>
       <tr *cdkRowDef="let item; columns: spacerColumns; when: spacerRowWhen" aria-hidden="true" class="spacer-row"
           cdk-row></tr>
       <tr
@@ -850,6 +850,7 @@
         (keydown.space)="$event.preventDefault(); toggleGroup(item.group)"
         *cdkRowDef="let item; columns: groupRowColumns(); when: groupRowWhen"
         [attr.aria-expanded]="groupsCollapsible() ? !item.collapsed : null"
+        [attr.aria-rowindex]="ariaRowIndex(item)"
         [attr.tabindex]="groupsCollapsible() ? 0 : null"
         [class.group-row--static]="!groupsCollapsible()"
         class="group-row"
@@ -867,6 +868,7 @@
         *cdkRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
         [attr.aria-expanded]="detailRowTemplate() && !pinInfo(row) ? isDetailExpanded(rowIndex, row) : treeAriaExpanded(row)"
         [attr.aria-level]="treeActive() ? treeDepth(row) + 1 : null"
+        [attr.aria-rowindex]="ariaRowIndex(row)"
         [attr.data-ngt-drop]="rowDropAttr(row)"
         [class.ngt-row-dragging]="isRowDragging(row)"
         [attr.data-ngt-pin]="pinInfo(row)?.side ?? null"
