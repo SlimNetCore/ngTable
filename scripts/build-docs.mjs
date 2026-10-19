@@ -142,7 +142,7 @@ function sidebar(current) {
       return `<h2>${group.label}</h2><details${open}><summary>${items.length} étapes</summary><ul>${items.map(link).join('')}</ul></details>`;
     }
     const generated = group.id === 'reference' ? '<li><a href="api/index.html">Référence générée (TypeDoc)</a></li>' : '';
-    const live = group.id === 'start' ? '<li><a href="demo/index.html">Démo en ligne (bac à sable)</a></li>' : '';
+    const live = group.id === 'start' ? '<li><a href="demo/#/simple">Démo en ligne (bac à sable)</a></li>' : '';
     return `<h2>${group.label}</h2><ul>${items.map(link).join('')}${live}${generated}</ul>`;
   }).join('');
 }
@@ -181,7 +181,7 @@ function layout({page, content, isHome = false}) {
   <a class="brand" href="index.html">${ICONS.logo}<span>ng-table</span><small>v${escapeHtml(pkg.version)}</small></a>
   <div class="spacer"></div>
   <div class="search" role="search">${ICONS.search}<input type="search" placeholder="Rechercher (/)" aria-label="Rechercher dans la documentation" autocomplete="off"/><div class="results" hidden></div></div>
-  <a class="topbar-link" href="demo/index.html">Démo</a>
+  <a class="topbar-link" href="demo/#/simple">Démo</a>
   <button class="topbar-link" type="button" data-stackblitz data-version="${escapeHtml(pkg.version)}">StackBlitz</button>
   <a class="icon-button" href="${escapeHtml(repository)}" aria-label="Dépôt GitHub">${ICONS.github}</a>
   <button class="icon-button" type="button" data-theme-toggle aria-label="Changer de thème">${ICONS.theme}</button>
@@ -231,7 +231,7 @@ const highlights = [
 const homeHtml =
   `<section class="hero"><h1>${escapeHtml(pkg.name)}</h1>${renderMarkdown(introBody.split('\n\n').slice(0, 1).join('\n\n'))}` +
   `<div class="actions"><a class="button primary" href="${firstOf('start', 'Installation').slug}.html">Commencer</a>` +
-  `<a class="button" href="${firstOf('tutorial').slug}.html">Parcourir le tutoriel</a><a class="button" href="demo/index.html">Démo en ligne</a><button class="button" type="button" data-stackblitz data-version="${escapeHtml(pkg.version)}">Ouvrir dans StackBlitz</button><a class="button" href="${escapeHtml(repository)}">GitHub</a></div></section>` +
+  `<a class="button" href="${firstOf('tutorial').slug}.html">Parcourir le tutoriel</a><a class="button" href="demo/#/simple">Démo en ligne</a><button class="button" type="button" data-stackblitz data-version="${escapeHtml(pkg.version)}">Ouvrir dans StackBlitz</button><a class="button" href="${escapeHtml(repository)}">GitHub</a></div></section>` +
   `<div class="cards">${highlights.map(([title, text]) => `<div class="card"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span></div>`).join('')}</div>` +
   `<h2>Explorer la documentation</h2><div class="cards">${cards}</div>` +
   renderMarkdown(introBody.split('\n\n').slice(1).join('\n\n'));
