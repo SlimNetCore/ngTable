@@ -58,9 +58,9 @@ function makeQuote(id: number): Quote {
     .metrics div { padding: 8px 10px; background: var(--demo-bg); border-radius: 8px; }
     .metrics strong { display: block; font-size: 1.15rem; color: var(--demo-text); font-variant-numeric: tabular-nums; }
     .metrics span { font-size: .75rem; color: var(--demo-muted); }
-    .metrics .bad strong { color: #a3261e; }
-    .up { color: #15803d; font-variant-numeric: tabular-nums; }
-    .down { color: #b91c1c; font-variant-numeric: tabular-nums; }
+    .metrics .bad strong { color: var(--demo-bad); }
+    .up { color: var(--demo-good); font-variant-numeric: tabular-nums; }
+    .down { color: var(--demo-bad); font-variant-numeric: tabular-nums; }
     .num { font-variant-numeric: tabular-nums; }
     .error { color: #b3261e; font-weight: 600; }
     .hint { margin: 8px 0 0; color: var(--demo-muted); }

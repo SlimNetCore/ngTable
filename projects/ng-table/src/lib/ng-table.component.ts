@@ -1787,6 +1787,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * (`[groupSummaries]`). Sans elle, les groupes ne se replient pas.
    */
   protected readonly groupsCollapsible = computed(() => this.dataMode() === 'local' || !!this.groupSummaries());
+  /** Des lignes se déplient (arbre, ligne détail, groupes) : `aria-expanded` n'est permis sur une ligne que dans un `treegrid`. */
+  protected readonly rowsExpandable = computed(
+    () => this.treeActive() || !!this.detailRowTemplate() || (this.groupColumns().length > 0 && this.groupsCollapsible()),
+  );
 
   /** Résumés serveur par clé de groupe. */
   private readonly summariesByKey = computed(
@@ -3026,12 +3030,13 @@ export class NgTableComponent<T = any> implements OnDestroy {
   protected currentSortAriaLabel(column: NgTableColumn<T>): string {
     const sort = this.columnSort(column);
     const labels = this.effectiveLabels();
+    // Le nom accessible commence par le libellé visible de l'en-tête (WCAG 2.5.3 « Label in Name »).
     if (!sort) {
-      return labels.sort;
+      return `${column.header}, ${labels.sort}`;
     }
     const label = sort.direction === 'asc' ? labels.sortAsc : labels.sortDesc;
     const priority = this.sortPriority(column);
-    return priority ? `${label}, ${labels.sortPriority.replace('{priority}', `${priority}`)}` : label;
+    return `${column.header}, ${priority ? `${label}, ${labels.sortPriority.replace('{priority}', `${priority}`)}` : label}`;
   }
 
   /**

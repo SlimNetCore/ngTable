@@ -48,7 +48,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
     .log { margin: 0; padding: 0; list-style: none; max-height: 360px; overflow: auto; font-size: .75rem; }
     .log li { padding: 4px 0; border-bottom: 1px solid var(--demo-border); }
     .log .event { font-weight: 600; color: var(--demo-accent); }
-    .log .time { color: #8a99a6; margin-right: 6px; }
+    .log .time { color: var(--demo-muted); margin-right: 6px; }
     .log .detail { display: block; color: var(--demo-muted); word-break: break-all; }
     .state { margin: 0; font-size: .72rem; max-height: 220px; overflow: auto; background: var(--demo-bg); padding: 8px; border-radius: 8px; }
     .server { font-size: .8rem; color: var(--demo-muted); }

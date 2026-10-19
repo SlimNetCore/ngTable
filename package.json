@@ -21,7 +21,9 @@
     "docs:api": "typedoc",
     "docs:build": "node scripts/build-docs.mjs && typedoc",
     "docs:demo": "node scripts/build-demo-docs.mjs",
-    "docs:serve": "npm run docs:build && npm run docs:demo && node scripts/serve-docs.mjs 4400"
+    "docs:serve": "npm run docs:build && npm run docs:demo && node scripts/serve-docs.mjs 4400",
+    "e2e": "npm run build:demo && playwright test",
+    "e2e:run": "playwright test"
   },
   "dependencies": {
     "@angular/cdk": "^22.1.6",
@@ -39,7 +41,9 @@
     "@angular/build": "^22.2.0",
     "@angular/cli": "^22.2.0",
     "@angular/compiler-cli": "^22.2.0",
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.64.1",
     "ag-grid-community": "^36.2.0",
     "angular-eslint": "^22.0.0",
     "eslint": "^9.0.0",

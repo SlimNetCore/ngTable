@@ -3367,6 +3367,8 @@ Sous 760px, la table bascule en vue mobile : seule la colonne marquée `mobileRo
 
 `ng-table` vise WCAG 2.1 AA et les patterns WAI-ARIA APG (table triable, window splitter, menu contextuel). Rien à activer : le tableau de base est utilisable au clavier et par lecteur d'écran dès l'installation.
 
+**Vérifié automatiquement** : la CI lance un audit axe (WCAG 2.0 à 2.2, niveaux A et AA) dans un vrai navigateur sur chaque page de la démo, en thème clair et sombre, plus des états interactifs (barre d'actions, menu des colonnes, lecture de droite à gauche en arabe, écran étroit, tri au clavier). `npm run e2e` les lance en local. axe détecte une partie seulement des défauts : un test avec un lecteur d'écran reste nécessaire. Le rôle de la table devient `treegrid` quand des lignes se déplient (arbre, ligne détail, groupes), seul cas où `aria-expanded` est permis sur une ligne ; le bouton de tri a pour nom accessible « libellé de l'en-tête, action ».
+
 ### Nom accessible de la table
 
 ```html
