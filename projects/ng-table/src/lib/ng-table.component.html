@@ -425,7 +425,7 @@
   <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" class="table-wrap">
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
     <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event); onRangeKeydown($event); onEditKeydown($event)"
-           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.aria-rowcount]="ariaRowCount()" [attr.role]="rowsExpandable() ? 'treegrid' : cellNavigation() ? 'grid' : null"
+           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.aria-rowcount]="ariaRowCount()" [attr.aria-colcount]="ariaColCount()" [attr.role]="rowsExpandable() ? 'treegrid' : cellNavigation() ? 'grid' : null"
            [dataSource]="tableRows()"
            [style.--ngt-flash-duration]="flashDurationMs() + 'ms'"
            [style.--ngt-row-h]="rowHeight() + 'px'"
@@ -448,9 +448,9 @@
       </colgroup>
       @if (rowDragActive()) {
         <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_drag__">
-          <th *cdkHeaderCellDef class="row-drag-cell" cdk-header-cell></th>
-          <td *cdkFooterCellDef class="totals-cell" cdk-footer-cell></td>
-          <td *cdkCellDef="let row" class="row-drag-cell" cdk-cell>
+          <th *cdkHeaderCellDef [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" class="row-drag-cell" cdk-header-cell></th>
+          <td *cdkFooterCellDef [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" class="totals-cell" cdk-footer-cell></td>
+          <td *cdkCellDef="let row" [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" class="row-drag-cell" cdk-cell>
             @if (!pinInfo(row)) {
               <button (click)="$event.stopPropagation()" (dragend)="onRowDragEnd()" (dragstart)="onRowDragStart($event, row)"
                       (keydown)="onRowHandleKeydown($event, row)" [attr.aria-label]="effectiveLabels().rowDragHandle"
@@ -464,7 +464,7 @@
 
       @if (rowSelectionEnabled()) {
         <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_selection__">
-          <th *cdkHeaderCellDef class="selection-header-cell" cdk-header-cell>
+          <th *cdkHeaderCellDef [attr.aria-colindex]="ariaColIndex(selectionColumnId)" class="selection-header-cell" cdk-header-cell>
             <ng-table-checkbox
               (checkedChange)="onToggleAllDisplayedRows($event)"
               [ariaLabel]="effectiveLabels().selectAllRows"
@@ -472,8 +472,8 @@
               [indeterminate]="hasPartiallySelectedDisplayedRows()"
             />
           </th>
-          <td *cdkFooterCellDef class="totals-cell" cdk-footer-cell></td>
-          <td *cdkCellDef="let row; let rowIndex = dataIndex" class="selection-cell" cdk-cell>
+          <td *cdkFooterCellDef [attr.aria-colindex]="ariaColIndex(selectionColumnId)" class="totals-cell" cdk-footer-cell></td>
+          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.aria-colindex]="ariaColIndex(selectionColumnId)" class="selection-cell" cdk-cell>
             @if (!pinInfo(row)) {
               <ng-table-checkbox
                 (checkedChange)="onToggleRowSelection($event, row)"
@@ -493,6 +493,7 @@
               (dragover)="onColumnDragOver($event, column)"
               (drop)="onColumnDrop($event, column)"
               *cdkHeaderCellDef
+              [attr.aria-colindex]="ariaColIndex(column.id)"
               [attr.aria-sort]="ariaSortValue(column)"
               [class.column-drag-over]="dragOverColumnId() === column.id"
               [class.column-dragging]="draggingColumnId() === column.id"
@@ -654,7 +655,7 @@
             }
           </th>
 
-          <td *cdkFooterCellDef [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="columnWidthPx(column)"
+          <td *cdkFooterCellDef [attr.aria-colindex]="ariaColIndex(column.id)" [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="columnWidthPx(column)"
               class="totals-cell" cdk-footer-cell>
             @if (totals()?.[column.id]; as total) {
               {{ total }}
@@ -662,7 +663,7 @@
               <span class="totals-label">{{ effectiveLabels().totalsLabel }}</span>
             }
           </td>
-          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.data-ngt-flash]="cellView(row, column).flash || null"
+          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.aria-colindex]="ariaColIndex(column.id)" [attr.data-ngt-flash]="cellView(row, column).flash || null"
               [attr.aria-selected]="cellRangeSelected(row, column)"
               [attr.data-ngt-col]="cellsTagged() ? column.id : null"
               [attr.data-ngt-editable]="hasEditableColumns() && isEditable(row, column) ? '' : null"

@@ -35,6 +35,32 @@ test.describe('défilement virtuel : aria-rowcount et aria-rowindex', () => {
     expect(scrolled.at(-1)!).toBeLessThanOrEqual(count);
   });
 
+  test('virtualisation des colonnes : aria-colcount et aria-colindex suivent le défilement horizontal', async ({page}) => {
+    await open(page, 'live');
+    await page.getByText('108 (affichage partiel)').click();
+    const table = page.locator('ng-table table').first();
+    await expect.poll(async () => Number(await table.getAttribute('aria-colcount'))).toBeGreaterThanOrEqual(108);
+    const count = Number(await table.getAttribute('aria-colcount'));
+
+    const indexes = () => page.locator('tr.data-row').first().locator('td[aria-colindex]').evaluateAll((cells) => cells.map((cell) => Number(cell.getAttribute('aria-colindex'))));
+    const first = await indexes();
+    expect(first.length).toBeGreaterThan(3);
+    expect(first.length).toBeLessThan(count); // seule une fenêtre de colonnes est rendue
+    expect(Math.max(...first)).toBeLessThan(count / 2);
+
+    await table.evaluate((element) => {
+      let parent = element.parentElement;
+      while (parent && getComputedStyle(parent).overflowX === 'visible') {
+        parent = parent.parentElement;
+      }
+      parent!.scrollLeft = 6000;
+    });
+    await expect.poll(async () => Math.max(...(await indexes()))).toBeGreaterThan(30);
+    const scrolled = await indexes();
+    expect(Math.max(...scrolled)).toBeLessThanOrEqual(count);
+    expect(new Set(scrolled).size).toBe(scrolled.length); // aucun doublon
+  });
+
   test('sans virtualisation, aucun aria-rowcount', async ({page}) => {
     await open(page, 'simple');
     await expect(page.locator('ng-table table').first()).not.toHaveAttribute('aria-rowcount', /.*/);

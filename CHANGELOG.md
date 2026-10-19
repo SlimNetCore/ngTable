@@ -4,6 +4,8 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- Accessibilité : `aria-colcount` et `aria-colindex` en virtualisation des colonnes (le nombre total de colonnes est annoncé, pas seulement la fenêtre rendue). Test e2e sur la page Live à 108 colonnes.
+
 - Accessibilité : `aria-rowcount` et `aria-rowindex` en défilement virtuel et en modèle par blocs (le total réel est annoncé, plus seulement les lignes rendues) ; mode contraste élevé (`@media (forced-colors: active)`) pour le focus, le tri actif, les plages de cellules, les zones de dépôt, les lignes épinglées, de groupe et de totaux, les menus, listes et panneaux, et la barre d'actions ; zone cliquable de 24 × 24 px pour la poignée de déplacement de colonne. 5 tests e2e de plus.
 
 - Accessibilité, corrigée après un premier audit axe (WCAG 2.2 A/AA) : le bouton de tri a pour nom « libellé de l'en-tête, action » (WCAG 2.5.3) ; la table prend le rôle `treegrid` quand des lignes se déplient (arbre, ligne détail, groupes), puisque `aria-expanded` n'est permis sur une ligne que là ; la poignée de redimensionnement porte toujours `aria-valuenow` ; l'ancre du menu contextuel n'expose plus `aria-expanded` ; le menu des colonnes est un `dialog` nommé et non un `menu` (il contient des cases à cocher) — `ng-table-menu` gagne `panelRole` et `panelLabel`. Démo : contrastes de la page Live en thème sombre, blocs de code défilants atteignables au clavier.
