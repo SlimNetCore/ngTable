@@ -14,7 +14,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, process.argv[2] ?? 'dist/docs');
 const read = (name) => readFileSync(join(root, name), 'utf8').replace(/^﻿/, '').replace(/\r\n/g, '\n');
 const pkg = JSON.parse(readFileSync(join(root, 'projects/ng-table/package.json'), 'utf8'));
-const repository = (pkg.homepage ?? '').replace(/#readme$/, '') || 'https://github.com/SlimNetCore/ngTable';
+// Dépôt GitHub (et non `homepage`, qui pointe vers ce site).
+const repository = (typeof pkg.repository === 'string' ? pkg.repository : (pkg.repository?.url ?? '')).replace(/^git\+/, '').replace(/\.git$/, '') || 'https://github.com/SlimNetCore/ngTable';
 
 /** Titre sans emoji ni symbole de tête. */
 const cleanTitle = (title) => plainText(title.replace(/^[^\p{L}\p{N}`]+/u, ''));
