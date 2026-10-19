@@ -1,6 +1,6 @@
 import {bootstrapApplication} from '@angular/platform-browser';
 import {provideZonelessChangeDetection} from '@angular/core';
-import {provideRouter, Routes} from '@angular/router';
+import {provideRouter, Routes, withHashLocation} from '@angular/router';
 import {NG_TABLE_LOCALES, ngTableIsRtl, provideNgTableLabels} from '@sbourahla/ng-table';
 import {AppComponent} from './app/app.component';
 
@@ -28,5 +28,7 @@ const routes: Routes = [
 ];
 
 bootstrapApplication(AppComponent, {
-  providers: [provideZonelessChangeDetection(), provideRouter(routes), provideNgTableLabels(() => NG_TABLE_LOCALES[language])],
+  providers: [provideZonelessChangeDetection(), // Routage par « # » : la démo est servie en fichiers statiques (GitHub Pages), où recharger /demo/simple donnerait une 404.
+    provideRouter(routes, withHashLocation()),
+    provideNgTableLabels(() => NG_TABLE_LOCALES[language])],
 }).catch((error: unknown) => console.error(error));
