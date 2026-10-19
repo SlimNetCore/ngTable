@@ -265,7 +265,7 @@ describe('NgTableComponent', () => {
       expect(ids(component.displayedRows())).toEqual(['2', '1', '3']); // montant décroissant
       expect(component['sortPriority'](statut)).toBe(1);
       expect(component['sortPriority'](montant)).toBe(2);
-      expect(component['currentSortAriaLabel'](montant)).toBe('Trié décroissant, priorité 2');
+      expect(component['currentSortAriaLabel'](montant)).toBe('Montant, Trié décroissant, priorité 2'); // commence par le libellé visible (WCAG 2.5.3)
       expect(component['ariaSortValue'](montant)).toBe('none'); // aria-sort : tri principal seulement
 
       component['onHeaderSort'](montant, shift); // 3e Maj+clic : retire ce niveau

@@ -161,7 +161,7 @@ function addDays(isoDay: string, days: number): string {
       <app-page-bar [total]="filteredTotal()" [(pageIndex)]="pageIndex" [(pageSize)]="pageSize" [sizes]="[10, 25, 100]"/>
       <div class="demo-card" style="margin-top: 12px">
         <h2>Brancher son propre paginateur</h2>
-        <pre class="demo-code">{{ customPaginatorCode }}</pre>
+        <pre class="demo-code" tabindex="0">{{ customPaginatorCode }}</pre>
       </div>
     }
 

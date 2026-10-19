@@ -53,7 +53,7 @@
         {{ effectiveLabels().columnsButton }}
       </button>
 
-      <ng-table-menu #columnsMenu class="ngt-columns-menu-panel">
+      <ng-table-menu #columnsMenu [panelLabel]="effectiveLabels().columnsButton" class="ngt-columns-menu-panel" panelRole="dialog">
         @for (column of columnsMenuItems(); track column.id) {
           <!-- `<div ngt-menu-item>` et non `<button>` : un `<ng-table-checkbox>` est lui-même
                un contrôle interactif, l'imbriquer dans un `<button>` est invalide en HTML
@@ -425,7 +425,7 @@
   <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" class="table-wrap">
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
     <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event); onRangeKeydown($event); onEditKeydown($event)"
-           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="cellNavigation() ? 'grid' : null"
+           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.role]="rowsExpandable() ? 'treegrid' : cellNavigation() ? 'grid' : null"
            [dataSource]="tableRows()"
            [style.--ngt-flash-duration]="flashDurationMs() + 'ms'"
            [style.--ngt-row-h]="rowHeight() + 'px'"
@@ -645,7 +645,7 @@
                 [attr.aria-label]="effectiveLabels().resizeHandleLabel"
                 [attr.aria-valuemax]="column.maxWidthPx ?? null"
                 [attr.aria-valuemin]="column.minWidthPx ?? null"
-                [attr.aria-valuenow]="columnWidthPx(column)"
+                [attr.aria-valuenow]="columnWidthPx(column) ?? column.minWidthPx ?? 0"
                 aria-orientation="vertical"
                 class="resize-handle"
                 role="separator"

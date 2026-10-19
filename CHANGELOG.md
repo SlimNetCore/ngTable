@@ -4,6 +4,9 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- Accessibilité, corrigée après un premier audit axe (WCAG 2.2 A/AA) : le bouton de tri a pour nom « libellé de l'en-tête, action » (WCAG 2.5.3) ; la table prend le rôle `treegrid` quand des lignes se déplient (arbre, ligne détail, groupes), puisque `aria-expanded` n'est permis sur une ligne que là ; la poignée de redimensionnement porte toujours `aria-valuenow` ; l'ancre du menu contextuel n'expose plus `aria-expanded` ; le menu des colonnes est un `dialog` nommé et non un `menu` (il contient des cases à cocher) — `ng-table-menu` gagne `panelRole` et `panelLabel`. Démo : contrastes de la page Live en thème sombre, blocs de code défilants atteignables au clavier.
+- Tests de bout en bout dans un vrai navigateur (Playwright, `npm run e2e`) avec audit axe de chaque page de la démo en clair et en sombre, de la barre d'actions (grand et petit écran), du menu des colonnes, de l'arabe (RTL) et du tri au clavier ; job ajouté à la CI.
+
 ## [4.0.0] — 2026-10-16
 
 - Schéma `ng add @sbourahla/ng-table` : ajoute `@angular/cdk`, et avec `--locale` enregistre les textes de la langue et pose `lang` / `dir` sur `<html>` (options `--project`, `--skip-install`). Tests `npm run schematics:test`, compilation dans `npm run build`.

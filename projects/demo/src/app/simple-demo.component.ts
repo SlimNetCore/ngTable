@@ -31,7 +31,7 @@ const STATUTS = Object.values(STATUT_LABELS).map((label) => ({value: label, labe
 
     <div class="demo-card" style="margin-top: 16px">
       <h2>Le code de cette page</h2>
-      <pre class="demo-code">{{ code }}</pre>
+      <pre class="demo-code" tabindex="0">{{ code }}</pre>
     </div>
   `,
 })

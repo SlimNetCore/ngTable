@@ -44,7 +44,7 @@ const MARGIN = 8;
   encapsulation: ViewEncapsulation.None,
   template: `
     <ng-template>
-      <div class="ngt-menu-panel ngt-overlay" role="menu" tabindex="-1">
+      <div class="ngt-menu-panel ngt-overlay" [attr.role]="panelRole()" [attr.aria-label]="panelLabel()" tabindex="-1">
         <div class="ngt-menu-content">
           <ng-content/>
         </div>
@@ -129,6 +129,10 @@ const MARGIN = 8;
 export class NgTableMenuComponent {
   /** Émis à la fermeture du menu, quelle qu'en soit la cause. */
   readonly closed = output<void>();
+  /** `menu` (éléments `menuitem`) ou `dialog` (non modal) quand le panneau contient des contrôles, comme des cases à cocher, et pas des commandes. */
+  readonly panelRole = input<'menu' | 'dialog'>('menu');
+  /** Nom accessible du panneau (requis pour un `dialog`). */
+  readonly panelLabel = input<string | null>(null);
   /** Le modèle du panneau, instancié par le déclencheur. */
   readonly template = viewChild.required(TemplateRef);
   readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
@@ -146,8 +150,8 @@ export class NgTableMenuComponent {
   selector: '[ngTableMenuTriggerFor]',
   exportAs: 'ngTableMenuTrigger',
   host: {
-    'aria-haspopup': 'menu',
-    '[attr.aria-expanded]': 'menu() ? opened() : null',
+    '[attr.aria-haspopup]': "menu()?.panelRole() ?? 'menu'",
+    '[attr.aria-expanded]': 'menu() && exposesState() ? opened() : null',
     '(click)': 'onClick($event)',
   },
 })
@@ -167,6 +171,11 @@ export class NgTableMenuTriggerDirective {
   private cleanup: (() => void)[] = [];
   private destroyed = false;
   private rtl = false;
+
+  /** `aria-expanded` n'est permis que sur un élément qui a un rôle : pas sur l'ancre `<div>` nue d'un menu contextuel. */
+  protected exposesState(): boolean {
+    return this.host.hasAttribute('role') || !['DIV', 'SPAN'].includes(this.host.tagName);
+  }
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
