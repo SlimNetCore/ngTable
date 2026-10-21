@@ -24,8 +24,8 @@ const selectors = ['.ngt-dark', ...ELEMENTS.map((element) => `${element}[data-ng
 const autoSelectors = ELEMENTS.map((element) => `    ${element}[data-ngt-theme='auto']`).join(',\n');
 
 const declarations = (values) => Object.entries(values).map(([name, value]) => `  ${name}: ${value};`).join('\n');
-const contrastLight = declarations(theme.NG_TABLE_CONTRAST_OVERRIDES.light);
-const contrastDark = declarations(theme.NG_TABLE_CONTRAST_OVERRIDES.dark);
+const contrastLight = declarations(theme.NG_TABLE_LOOK_OVERRIDES.light);
+const contrastDark = declarations(theme.NG_TABLE_LOOK_OVERRIDES.dark);
 
 const css = `/* Généré par scripts/generate-theme-css.mjs depuis theme.ts : ne pas modifier à la main. */
 
@@ -48,19 +48,19 @@ ${ELEMENTS.map((element) => `${element}[data-ngt-theme='light']`).join(',\n')} {
   color-scheme: light;
 }
 
-/* Apparence « contrasté » (\`provideNgTableLook('contrast')\` : classe \`ngt-contrast\` sur <html>) : texte et traits noirs en
-   thème clair, blancs en thème sombre. Placée après les règles sombres ; les sélecteurs sombres ont une classe de plus. */
-.ngt-contrast {
+/* Apparence « material » (\`provideNgTableLook('material')\` : classe \`ngt-look-material\` sur <html>) : texte noir en thème
+   clair, blanc en thème sombre. Placée après les règles sombres ; les sélecteurs sombres ont une classe de plus. */
+.ngt-look-material {
 ${contrastLight}
 }
 
-.ngt-contrast.ngt-dark,
-${ELEMENTS.map((element) => `.ngt-contrast ${element}[data-ngt-theme='dark']`).join(',\n')} {
+.ngt-look-material.ngt-dark,
+${ELEMENTS.map((element) => `.ngt-look-material ${element}[data-ngt-theme='dark']`).join(',\n')} {
 ${contrastDark}
 }
 
 @media (prefers-color-scheme: dark) {
-${ELEMENTS.map((element) => `  .ngt-contrast ${element}[data-ngt-theme='auto']`).join(',\n')} {
+${ELEMENTS.map((element) => `  .ngt-look-material ${element}[data-ngt-theme='auto']`).join(',\n')} {
 ${contrastDark.replace(/^/gm, '  ')}
   }
 }

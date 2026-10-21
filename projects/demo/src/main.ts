@@ -16,10 +16,10 @@ const language = (storedLanguage && storedLanguage in NG_TABLE_LOCALES ? storedL
 document.documentElement.lang = language;
 document.documentElement.dir = ngTableIsRtl(language) ? 'rtl' : 'ltr';
 
-/** Apparence de la démo : « contrasté » (traits et texte noirs, icônes pleines) ou défaut, choisie dans l'en-tête et mémorisée. */
+/** Apparence de la démo : « material » (texte noir, icônes pleines, lignes de la grille noires) ou défaut, choisie dans l'en-tête et mémorisée. */
 const look = (() => {
   try {
-    return localStorage.getItem('ngt-demo-look') === 'contrast' ? 'contrast' : 'default';
+    return localStorage.getItem('ngt-demo-look') === 'material' ? 'material' : 'default';
   } catch {
     return 'default';
   }

@@ -1,5 +1,5 @@
 /*
- * Icônes pleines du préréglage « contrasté » (`provideNgTableLook('contrast')`).
+ * Icônes pleines du préréglage « material » (`provideNgTableLook('material')`).
  * Tracés tirés de Material Icons (style « filled », paquet @material-design-icons/svg 0.14.15),
  * © Google, licence Apache 2.0 : https://www.apache.org/licenses/LICENSE-2.0
  * Fichier généré ; pour le régénérer, relire les tracés du paquet ci-dessus.

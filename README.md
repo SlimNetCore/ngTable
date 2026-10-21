@@ -3093,17 +3093,17 @@ export interface NgTableLabels {
 
 De la même façon, `column.header`, `filter.label`, `copy.tooltip` et les `label` des `filter.options` sont du **texte déjà résolu** — traduisez-les avant de construire vos `NgTableColumn[]` (typiquement dans un `computed()` qui dépend du même signal de langue).
 
-## Apparence « contrasté » : traits noirs, icônes pleines
+## Apparence « material » : texte noir, icônes pleines, lignes noires
 
-Un préréglage donne au tableau des traits et un texte noirs, des icônes pleines et la police de la page (c'est déjà la police par défaut : `--ngt-font-family: inherit`) :
+Un préréglage donne au tableau le rendu d'un tableau Angular Material : texte noir, icônes pleines, lignes de la grille noires, police de la page (c'est déjà la police par défaut : `--ngt-font-family: inherit`). Les boutons, champs et cartes gardent leurs traits habituels.
 
 ```ts
 import {provideNgTableLook} from '@sbourahla/ng-table';
 
-bootstrapApplication(App, {providers: [provideNgTableLook('contrast')]});   // 'default' (défaut) | 'contrast'
+bootstrapApplication(App, {providers: [provideNgTableLook('material')]});   // 'default' (défaut) | 'material'
 ```
 
-- **Traits et texte** : le fournisseur pose la classe `ngt-contrast` sur `<html>`, qui redéfinit `--ngt-text`, `--ngt-text-muted`, `--ngt-border` et `--ngt-border-strong` (noirs en thème clair, blancs en thème sombre ; `NG_TABLE_CONTRAST_OVERRIDES` donne les valeurs). Le reste du thème (accent, surfaces, tailles) ne change pas, et chaque jeton reste réglable. Sans le fournisseur, poser la classe à la main donne les traits et le texte noirs avec les icônes au trait.
+- **Texte et lignes** : le fournisseur pose la classe `ngt-look-material` sur `<html>`. Elle redéfinit `--ngt-text` et `--ngt-text-muted` (noirs en thème clair, blancs en thème sombre ; `NG_TABLE_LOOK_OVERRIDES` donne les valeurs) et donne aux lignes de la grille (entre les lignes, sous l'en-tête) la couleur du texte. `--ngt-border` et `--ngt-border-strong`, utilisés par les boutons, champs et cartes, ne changent pas, ni l'accent, les surfaces ou les tailles ; chaque jeton reste réglable. Sans le fournisseur, poser la classe à la main donne le texte et les lignes noirs avec les icônes au trait.
 - **Icônes pleines** : les 31 icônes de la bibliothèque (tri, filtre, colonnes, vues, export…) passent en version pleine, tirée de Material Icons (Apache 2.0, © Google). Le jeton `NG_TABLE_ICON_STYLE` (`'outline'` ou `'filled'`) les commande séparément. L'icône de tri passe en accent, pleine opacité. Les icônes de vos propres colonnes ne sont pas touchées.
 - La démo a un sélecteur « Apparence » dans l'en-tête (rechargement : les icônes sont choisies au démarrage).
 

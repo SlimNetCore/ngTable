@@ -1,8 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import {expect, Page, test} from '@playwright/test';
 
-// Apparence « contrasté » : traits et texte noirs (blancs en sombre), icônes pleines, police de la page.
-async function open(page: Page, scheme: 'light' | 'dark', look: 'contrast' | 'default'): Promise<void> {
+// Apparence « material » : texte noir (blanc en sombre), icônes pleines, lignes de la grille noires, police de la page.
+// Les boutons, champs et cartes gardent leurs traits habituels.
+async function open(page: Page, scheme: 'light' | 'dark', look: 'material' | 'default'): Promise<void> {
   await page.emulateMedia({colorScheme: scheme, reducedMotion: 'reduce'});
   await page.addInitScript(
     ([lookValue, themeValue]) => {
@@ -17,13 +18,15 @@ async function open(page: Page, scheme: 'light' | 'dark', look: 'contrast' | 'de
 }
 
 for (const scheme of ['light', 'dark'] as const) {
-  test(`contrasté (${scheme}) : traits et texte ${scheme === 'light' ? 'noirs' : 'blancs'}, icônes pleines`, async ({page}) => {
-    await open(page, scheme, 'contrast');
+  test(`material (${scheme}) : texte et lignes de la grille ${scheme === 'light' ? 'noirs' : 'blancs'}, icônes pleines`, async ({page}) => {
+    await open(page, scheme, 'material');
     const expected = scheme === 'light' ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)';
     const styles = await page.evaluate(() => {
       const cell = document.querySelector('td.cdk-cell')!;
       const header = document.querySelector('th.cdk-header-cell')!;
+      const button = document.querySelector('[ngt-stroked-button]')!;
       return {
+        buttonLine: getComputedStyle(button).borderTopColor,
         text: getComputedStyle(cell).color,
         line: getComputedStyle(cell).borderBottomColor,
         headerLine: getComputedStyle(header).borderBottomColor,
@@ -36,13 +39,14 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(styles.text).toBe(expected);
     expect(styles.line).toBe(expected);
     expect(styles.headerLine).toBe(expected);
+    expect(styles.buttonLine).not.toBe(expected); // les boutons gardent leur trait habituel
     expect(styles.filled).toBeGreaterThan(5);
     expect(styles.stroked).toBe(0);
     expect(styles.cellFont).toBe(styles.pageFont); // police héritée de la page
   });
 
-  test(`contrasté (${scheme}) : audit axe`, async ({page}) => {
-    await open(page, scheme, 'contrast');
+  test(`material (${scheme}) : audit axe`, async ({page}) => {
+    await open(page, scheme, 'material');
     const {violations} = await new AxeBuilder({page}).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(violations.map((violation) => `${violation.id} ×${violation.nodes.length}: ${violation.nodes.slice(0, 3).map((node) => node.target.join(' ')).join(' | ')}`)).toEqual([]);
   });

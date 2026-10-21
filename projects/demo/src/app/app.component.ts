@@ -61,7 +61,7 @@ function storedTheme(): DemoTheme {
         </select>
         <select (change)="setLook($any($event.target).value)" aria-label="Apparence du tableau" class="lang">
           <option [selected]="look === 'default'" value="default">Apparence : défaut</option>
-          <option [selected]="look === 'contrast'" value="contrast">Apparence : contrastée</option>
+          <option [selected]="look === 'material'" value="material">Apparence : Material</option>
         </select>
         <div aria-label="Thème" class="theme" role="group">
           <button (click)="theme.set('light')" [attr.aria-pressed]="theme() === 'light'" type="button">
@@ -102,7 +102,7 @@ export class AppComponent {
     {code: 'ar', label: 'العربية (RTL)'},
   ];
 
-  protected readonly look = document.documentElement.classList.contains('ngt-contrast') ? 'contrast' : 'default';
+  protected readonly look = document.documentElement.classList.contains('ngt-look-material') ? 'material' : 'default';
 
   /** Mémorise l'apparence et recharge : les icônes (au trait ou pleines) sont choisies au démarrage. */
   protected setLook(look: string): void {
