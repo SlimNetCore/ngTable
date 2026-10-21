@@ -3093,6 +3093,20 @@ export interface NgTableLabels {
 
 De la même façon, `column.header`, `filter.label`, `copy.tooltip` et les `label` des `filter.options` sont du **texte déjà résolu** — traduisez-les avant de construire vos `NgTableColumn[]` (typiquement dans un `computed()` qui dépend du même signal de langue).
 
+## Apparence « material » : texte noir, icônes pleines, lignes noires
+
+Un préréglage donne au tableau le rendu d'un tableau Angular Material : texte noir, icônes pleines, lignes de la grille noires, police de la page (c'est déjà la police par défaut : `--ngt-font-family: inherit`). Les boutons, champs et cartes gardent leurs traits habituels.
+
+```ts
+import {provideNgTableLook} from '@sbourahla/ng-table';
+
+bootstrapApplication(App, {providers: [provideNgTableLook('material')]});   // 'default' (défaut) | 'material'
+```
+
+- **Texte et lignes** : le fournisseur pose la classe `ngt-look-material` sur `<html>`. Elle redéfinit `--ngt-text` et `--ngt-text-muted` (noirs en thème clair, blancs en thème sombre ; `NG_TABLE_LOOK_OVERRIDES` donne les valeurs) et donne aux lignes de la grille (entre les lignes, sous l'en-tête) la couleur du texte. `--ngt-border` et `--ngt-border-strong`, utilisés par les boutons, champs et cartes, ne changent pas, ni l'accent, les surfaces ou les tailles ; chaque jeton reste réglable. Sans le fournisseur, poser la classe à la main donne le texte et les lignes noirs avec les icônes au trait.
+- **Icônes pleines** : les 31 icônes de la bibliothèque (tri, filtre, colonnes, vues, export…) passent en version pleine, tirée de Material Icons (Apache 2.0, © Google). Le jeton `NG_TABLE_ICON_STYLE` (`'outline'` ou `'filled'`) les commande séparément. L'icône de tri passe en accent, pleine opacité. Les icônes de vos propres colonnes ne sont pas touchées.
+- La démo a un sélecteur « Apparence » dans l'en-tête (rechargement : les icônes sont choisies au démarrage).
+
 ## Personnaliser le style (variables CSS)
 
 `ng-table.component.css` consomme des variables CSS custom, **chacune avec une valeur de repli** — le composant a un style correct par défaut, sans configuration. Pour l'adapter à votre charte graphique, redéfinissez tout ou partie de ces variables globalement (`:root` ou équivalent) :

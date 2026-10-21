@@ -119,3 +119,31 @@ ng-table-sparkline[data-ngt-theme='light'],
 .ngt-overlay[data-ngt-theme='light'] {
   color-scheme: light;
 }
+
+/* Apparence « material » (`provideNgTableLook('material')` : classe `ngt-look-material` sur <html>) : texte noir en thème
+   clair, blanc en thème sombre. Placée après les règles sombres ; les sélecteurs sombres ont une classe de plus. */
+.ngt-look-material {
+  --ngt-text: #000000;
+  --ngt-text-muted: #000000;
+}
+
+.ngt-look-material.ngt-dark,
+.ngt-look-material ng-table[data-ngt-theme='dark'],
+.ngt-look-material ng-table-chart[data-ngt-theme='dark'],
+.ngt-look-material ng-table-pivot[data-ngt-theme='dark'],
+.ngt-look-material ng-table-sparkline[data-ngt-theme='dark'],
+.ngt-look-material .ngt-overlay[data-ngt-theme='dark'] {
+  --ngt-text: #ffffff;
+  --ngt-text-muted: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ngt-look-material ng-table[data-ngt-theme='auto'],
+  .ngt-look-material ng-table-chart[data-ngt-theme='auto'],
+  .ngt-look-material ng-table-pivot[data-ngt-theme='auto'],
+  .ngt-look-material ng-table-sparkline[data-ngt-theme='auto'],
+  .ngt-look-material .ngt-overlay[data-ngt-theme='auto'] {
+    --ngt-text: #ffffff;
+    --ngt-text-muted: #ffffff;
+  }
+}

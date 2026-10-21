@@ -1,4 +1,6 @@
-import {ChangeDetectionStrategy, Component, computed, input, ViewEncapsulation} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, ViewEncapsulation} from '@angular/core';
+import {FILLED_ICON_PATHS} from './ng-table-icons-filled';
+import {NG_TABLE_ICON_STYLE} from './ng-table-look';
 
 /** Icônes qui désignent une direction : retournées en lecture de droite à gauche (:dir(rtl) dans la feuille de la table). */
 const DIRECTIONAL_ICONS: ReadonlySet<string> = new Set(['chevron_right', 'dock_to_left']);
@@ -52,6 +54,9 @@ export type NgTableIconName =
   encapsulation: ViewEncapsulation.None,
   host: {'aria-hidden': 'true', '[attr.data-flip]': 'flips() ? "" : null'},
   template: `
+    @if (filledPath(); as filled) {
+      <svg fill="currentColor" height="100%" viewBox="0 0 24 24" width="100%"><path [attr.d]="filled"/></svg>
+    } @else {
     <svg fill="none" height="100%" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
          viewBox="0 0 24 24" width="100%">
       @switch (name()) {
@@ -153,6 +158,7 @@ export type NgTableIconName =
           <rect height="14" rx="2.5" width="16" x="4" y="5"/><path d="M9.5 5v14M14.5 5v14"/>
         }
       }    </svg>
+    }
   `,
   styles: `
     ng-table-icon {
@@ -176,5 +182,8 @@ export type NgTableIconName =
 })
 export class NgTableIconComponent {
   readonly name = input.required<NgTableIconName | string>();
+  private readonly style = inject(NG_TABLE_ICON_STYLE);
   protected readonly flips = computed(() => DIRECTIONAL_ICONS.has(this.name()));
+  /** Tracé de l'icône pleine (style `filled`, préréglage « contrasté »), ou `null` : icône au trait. */
+  protected readonly filledPath = computed(() => (this.style === 'filled' ? (FILLED_ICON_PATHS[this.name()] ?? null) : null));
 }

@@ -2111,6 +2111,25 @@ ng-table:dir(rtl) {
   --ngt-dir: -1;
 }
 
+/* Apparence « material » (`provideNgTableLook('material')`) : le texte noir vient des jetons (theme.css), les icônes sont pleines
+   (ng-table-icon), les lignes de la grille (entre les lignes, sous l'en-tête, au-dessus de la grille) prennent la couleur du texte.
+   Les boutons, champs et cartes gardent leurs traits. L'icône de tri, grisée et estompée par défaut, passe en accent, pleine opacité. */
+.ngt-look-material .ng-table :is(td.cdk-cell, th.cdk-header-cell, td.cdk-footer-cell) {
+  border-bottom-color: var(--ngt-text, #000000);
+}
+
+.ngt-look-material .table-wrap {
+  border-top-color: var(--ngt-text, #000000);
+}
+
+.ngt-look-material .sort-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  opacity: 1;
+}
+
 /* Cibles tactiles (WCAG 2.5.8, 24 × 24 px) : la poignée de colonne reste discrète (14 × 18 px) mais sa zone cliquable est élargie. */
 .drag-handle::before {
   content: '';
