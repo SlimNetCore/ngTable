@@ -59,6 +59,10 @@ function storedTheme(): DemoTheme {
             <option [selected]="option.code === language" [value]="option.code">{{ option.label }}</option>
           }
         </select>
+        <select (change)="setLook($any($event.target).value)" aria-label="Apparence du tableau" class="lang">
+          <option [selected]="look === 'default'" value="default">Apparence : défaut</option>
+          <option [selected]="look === 'material'" value="material">Apparence : Material</option>
+        </select>
         <div aria-label="Thème" class="theme" role="group">
           <button (click)="theme.set('light')" [attr.aria-pressed]="theme() === 'light'" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>
@@ -97,6 +101,18 @@ export class AppComponent {
     {code: 'de', label: 'Deutsch'},
     {code: 'ar', label: 'العربية (RTL)'},
   ];
+
+  protected readonly look = document.documentElement.classList.contains('ngt-look-material') ? 'material' : 'default';
+
+  /** Mémorise l'apparence et recharge : les icônes (au trait ou pleines) sont choisies au démarrage. */
+  protected setLook(look: string): void {
+    try {
+      localStorage.setItem('ngt-demo-look', look);
+    } catch {
+      // stockage indisponible : l'apparence ne sera pas conservée
+    }
+    location.reload();
+  }
 
   /** Mémorise la langue et recharge : le sens de lecture est lu au démarrage. */
   protected setLanguage(code: string): void {

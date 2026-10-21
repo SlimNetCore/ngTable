@@ -1283,12 +1283,27 @@
 /* --- Mode live : surbrillance des cellules modifiées ----------------- */
 /* Deux animations identiques en alternance (-0 / -1) : changer de nom de classe
    redémarre l'animation quand la même cellule change à nouveau. */
-@keyframes ngt-flash-up-0 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); } }
-@keyframes ngt-flash-up-1 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); } }
-@keyframes ngt-flash-down-0 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); } }
-@keyframes ngt-flash-down-1 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); } }
-@keyframes ngt-flash-change-0 { from { background-color: var(--ngt-flash-change-bg, rgba(47, 111, 168, 0.3)); } }
-@keyframes ngt-flash-change-1 { from { background-color: var(--ngt-flash-change-bg, rgba(47, 111, 168, 0.3)); } }
+/* Le sens de la variation n'est pas porté par la couleur seule (WCAG 1.4.1) : un repère noir cerné de blanc, lisible sur tout fond,
+   s'affiche pendant la surbrillance — triangle vers le haut (hausse), vers le bas (baisse), losange (autre changement). */
+@keyframes ngt-flash-up-0 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); background-image: var(--ngt-glyph-up); } 85% { background-image: var(--ngt-glyph-up); } to { background-image: none; } }
+@keyframes ngt-flash-up-1 { from { background-color: var(--ngt-flash-up-bg, rgba(22, 163, 74, 0.35)); background-image: var(--ngt-glyph-up); } 85% { background-image: var(--ngt-glyph-up); } to { background-image: none; } }
+@keyframes ngt-flash-down-0 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); background-image: var(--ngt-glyph-down); } 85% { background-image: var(--ngt-glyph-down); } to { background-image: none; } }
+@keyframes ngt-flash-down-1 { from { background-color: var(--ngt-flash-down-bg, rgba(220, 38, 38, 0.3)); background-image: var(--ngt-glyph-down); } 85% { background-image: var(--ngt-glyph-down); } to { background-image: none; } }
+@keyframes ngt-flash-change-0 { from { background-color: var(--ngt-flash-change-bg, rgba(47, 111, 168, 0.3)); background-image: var(--ngt-glyph-change); } 85% { background-image: var(--ngt-glyph-change); } to { background-image: none; } }
+@keyframes ngt-flash-change-1 { from { background-color: var(--ngt-flash-change-bg, rgba(47, 111, 168, 0.3)); background-image: var(--ngt-glyph-change); } 85% { background-image: var(--ngt-glyph-change); } to { background-image: none; } }
+
+.ng-table td[data-ngt-flash] {
+  --ngt-glyph-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M5 1.2 9 8.4H1z' fill='%23000' stroke='%23fff' stroke-width='1' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --ngt-glyph-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M5 8.8 9 1.6H1z' fill='%23000' stroke='%23fff' stroke-width='1' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --ngt-glyph-change: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M5 1 9 5 5 9 1 5z' fill='%23000' stroke='%23fff' stroke-width='1' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  background-size: 11px 11px;
+}
+
+.ng-table:dir(rtl) td[data-ngt-flash] {
+  background-position: left 5px center;
+}
 
 .ng-table td[data-ngt-flash='up-0'] { animation: ngt-flash-up-0 var(--ngt-flash-duration, 1s) ease-out; }
 .ng-table td[data-ngt-flash='up-1'] { animation: ngt-flash-up-1 var(--ngt-flash-duration, 1s) ease-out; }
@@ -1791,8 +1806,9 @@ button.ngt-tree-toggle:focus-visible {
   transition: background-color 0.12s ease;
 }
 
+/* `background-color` et non le raccourci `background` : celui-ci réinitialiserait taille, position et répétition du repère ▲ ▼ ◆ du mode live. */
 .ng-table tr.data-row:not([data-ngt-pin]):hover td.cdk-cell:not(.detail-row):not([data-ngt-range~='in']) {
-  background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
+  background-color: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
 }
 
 /* --- Panneau de regroupement ------------------------------------------------ */
@@ -2109,6 +2125,25 @@ ng-table {
 
 ng-table:dir(rtl) {
   --ngt-dir: -1;
+}
+
+/* Apparence « material » (`provideNgTableLook('material')`) : le texte noir vient des jetons (theme.css), les icônes sont pleines
+   (ng-table-icon), les lignes de la grille (entre les lignes, sous l'en-tête, au-dessus de la grille) prennent la couleur du texte.
+   Les boutons, champs et cartes gardent leurs traits. L'icône de tri, grisée et estompée par défaut, passe en accent, pleine opacité. */
+.ngt-look-material .ng-table :is(td.cdk-cell, th.cdk-header-cell, td.cdk-footer-cell) {
+  border-bottom-color: var(--ngt-text, #000000);
+}
+
+.ngt-look-material .table-wrap {
+  border-top-color: var(--ngt-text, #000000);
+}
+
+.ngt-look-material .sort-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  opacity: 1;
 }
 
 /* Cibles tactiles (WCAG 2.5.8, 24 × 24 px) : la poignée de colonne reste discrète (14 × 18 px) mais sa zone cliquable est élargie. */

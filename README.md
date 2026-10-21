@@ -3093,6 +3093,20 @@ export interface NgTableLabels {
 
 De la même façon, `column.header`, `filter.label`, `copy.tooltip` et les `label` des `filter.options` sont du **texte déjà résolu** — traduisez-les avant de construire vos `NgTableColumn[]` (typiquement dans un `computed()` qui dépend du même signal de langue).
 
+## Apparence « material » : texte noir, icônes pleines, lignes noires
+
+Un préréglage donne au tableau le rendu d'un tableau Angular Material : texte noir, icônes pleines, lignes de la grille noires, police de la page (c'est déjà la police par défaut : `--ngt-font-family: inherit`). Les boutons, champs et cartes gardent leurs traits habituels.
+
+```ts
+import {provideNgTableLook} from '@sbourahla/ng-table';
+
+bootstrapApplication(App, {providers: [provideNgTableLook('material')]});   // 'default' (défaut) | 'material'
+```
+
+- **Texte et lignes** : le fournisseur pose la classe `ngt-look-material` sur `<html>`. Elle redéfinit `--ngt-text` et `--ngt-text-muted` (noirs en thème clair, blancs en thème sombre ; `NG_TABLE_LOOK_OVERRIDES` donne les valeurs) et donne aux lignes de la grille (entre les lignes, sous l'en-tête) la couleur du texte. `--ngt-border` et `--ngt-border-strong`, utilisés par les boutons, champs et cartes, ne changent pas, ni l'accent, les surfaces ou les tailles ; chaque jeton reste réglable. Sans le fournisseur, poser la classe à la main donne le texte et les lignes noirs avec les icônes au trait.
+- **Icônes pleines** : les 31 icônes de la bibliothèque (tri, filtre, colonnes, vues, export…) passent en version pleine, tirée de Material Icons (Apache 2.0, © Google). Le jeton `NG_TABLE_ICON_STYLE` (`'outline'` ou `'filled'`) les commande séparément. L'icône de tri passe en accent, pleine opacité. Les icônes de vos propres colonnes ne sont pas touchées.
+- La démo a un sélecteur « Apparence » dans l'en-tête (rechargement : les icônes sont choisies au démarrage).
+
 ## Personnaliser le style (variables CSS)
 
 `ng-table.component.css` consomme des variables CSS custom, **chacune avec une valeur de repli** — le composant a un style correct par défaut, sans configuration. Pour l'adapter à votre charte graphique, redéfinissez tout ou partie de ces variables globalement (`:root` ou équivalent) :
@@ -3370,6 +3384,13 @@ Sous 760px, la table bascule en vue mobile : seule la colonne marquée `mobileRo
 **Vérifié automatiquement** : la CI lance un audit axe (WCAG 2.0 à 2.2, niveaux A et AA) dans un vrai navigateur sur chaque page de la démo, en thème clair et sombre, plus des états interactifs (barre d'actions, menu des colonnes, lecture de droite à gauche en arabe, écran étroit, tri au clavier). `npm run e2e` les lance en local. axe détecte une partie seulement des défauts : un test avec un lecteur d'écran reste nécessaire. Le rôle de la table devient `treegrid` quand des lignes se déplient (arbre, ligne détail, groupes), seul cas où `aria-expanded` est permis sur une ligne ; le bouton de tri a pour nom accessible « libellé de l'en-tête, action ».
 
 - **Défilement virtuel** : la table porte `aria-rowcount` (total de lignes, en-têtes compris) et chaque ligne rendue `aria-rowindex`, pour qu'un lecteur d'écran annonce « ligne 12 450 sur 100 002 » et non le nombre de lignes présentes dans le DOM (une vingtaine).
+- **Daltonisme** (WCAG 1.4.1, ne pas transmettre une information par la couleur seule) :
+  - **Palette des graphiques** (`--ngt-chart-1` à `8`) : choisie par optimisation pour rester distinguable en protanopie, deutéranopie, tritanopie et en niveaux de gris, en clair et en sombre, avec un contraste d'au moins 3:1 sur le fond. Un test simule ces déficiences (matrices de Machado) et exige un écart ΔE ≥ 15 entre deux séries pour les trois dichromaties, ≥ 25 en vision normale, ≥ 5 en niveaux de gris. Aucune palette de 8 couleurs ne suffit seule ; c'est pourquoi les marques ci-dessous existent. Si vous remplacez les jetons, refaites le contrôle.
+  - **Courbes et zones** : chaque série a sa forme de point (cercle, carré, triangles, losange, croix, hexagone) et son tireté, repris dans la légende.
+  - **Barres et secteurs** : `[patterns]="true"` ajoute des hachures propres à chaque série (aussi dans la légende). Désactivé par défaut pour ne pas alourdir les graphiques ; à activer si l'impression en noir et blanc ou le daltonisme comptent pour vos lecteurs. Les séries ont toujours une infobulle et un tableau de données pour les lecteurs d'écran.
+  - **Mode live** : la surbrillance d'une cellule modifiée (vert, rouge, bleu) s'accompagne d'un repère ▲ (hausse), ▼ (baisse) ou ◆ (autre changement), noir cerné de blanc.
+  - **Vos propres couleurs** : les classes de ligne (`rowClass`), les rendus de cellule et les pastilles que vous écrivez vous appartiennent. Ajoutez un mot, une icône ou une forme à côté de la couleur (« Urgent », une pastille ● / ▲ / ■), jamais la couleur seule. Les états de la bibliothèque (filtre actif, tri, favori, sélection, erreur de saisie) ont déjà une forme ou un texte.
+  - Vérifié dans un vrai navigateur avec la simulation de déficiences de Chromium (captures gardées dans `test-results/` par `npm run e2e`) ; ce n'est pas un test avec des personnes daltoniennes.
 - **Virtualisation des colonnes** (`[virtualColumns]`) : `aria-colcount` donne le nombre total de colonnes (colonnes de sélection et de déplacement comprises) et chaque cellule rendue porte son `aria-colindex`, dans l'ordre complet (épinglées à gauche, libres, épinglées à droite).
 - **Mode contraste élevé** (thèmes de contraste de Windows, `forced-colors: active`) : les états qui ne reposaient que sur un fond ou une ombre reçoivent un contour en couleur système (focus, tri actif, plage de cellules, zones de dépôt, lignes épinglées et de groupe, panneaux flottants, barre d'actions). Vérifié par media query émulée ; le rendu réel se contrôle à la main avec un thème de contraste Windows.
 - **Cibles tactiles** : la poignée de déplacement de colonne garde son aspect discret mais sa zone cliquable fait 24 × 24 px (WCAG 2.5.8).

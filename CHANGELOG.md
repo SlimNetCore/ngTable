@@ -4,6 +4,10 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- Accessibilité, daltonisme (WCAG 1.4.1) : nouvelle palette des graphiques `--ngt-chart-1` à `8` (clair et sombre), distinguable en protanopie, deutéranopie, tritanopie et niveaux de gris, contraste ≥ 3:1 ; courbes avec forme de point et tireté propres à chaque série, repris dans la légende ; `[patterns]` sur `ng-table-chart` pour hachurer barres et secteurs ; repère ▲ ▼ ◆ avec la surbrillance du mode live. Changement visible : les couleurs par défaut des graphiques changent (réglables comme avant avec les jetons). Tests : simulation de daltonisme (`color-vision.ts`), 24 tests unitaires et 6 tests e2e de plus.
+
+- Apparence « material » : `provideNgTableLook('material')` donne le rendu d'un tableau Angular Material : texte noir (blanc en thème sombre), lignes de la grille noires, icônes pleines (31 icônes, tracés Material Icons, Apache 2.0) et icône de tri en accent ; les boutons, champs et cartes gardent leurs traits ; la police est celle de la page (déjà le cas par défaut). Nouveaux : `NG_TABLE_ICON_STYLE`, `NG_TABLE_LOOK_CLASS`, `NG_TABLE_LOOK_OVERRIDES`, classe `ngt-look-material`. Sélecteur « Apparence » dans la démo. Aucun changement par défaut.
+
 - Accessibilité : `aria-colcount` et `aria-colindex` en virtualisation des colonnes (le nombre total de colonnes est annoncé, pas seulement la fenêtre rendue). Test e2e sur la page Live à 108 colonnes.
 
 - Accessibilité : `aria-rowcount` et `aria-rowindex` en défilement virtuel et en modèle par blocs (le total réel est annoncé, plus seulement les lignes rendues) ; mode contraste élevé (`@media (forced-colors: active)`) pour le focus, le tri actif, les plages de cellules, les zones de dépôt, les lignes épinglées, de groupe et de totaux, les menus, listes et panneaux, et la barre d'actions ; zone cliquable de 24 × 24 px pour la poignée de déplacement de colonne. 5 tests e2e de plus.
