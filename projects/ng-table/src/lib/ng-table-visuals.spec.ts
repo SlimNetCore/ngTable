@@ -134,10 +134,10 @@ describe('NgTableChartComponent', () => {
       const svg = (fixture.nativeElement as HTMLElement).querySelector('svg')!;
       svg.dispatchEvent(new KeyboardEvent('keydown', {key: '+', bubbles: true, cancelable: true}));
       await fixture.whenStable();
-      expect((fixture.nativeElement as HTMLElement).querySelectorAll('circle.ngt-chart__point')).toHaveLength(20);
+      expect((fixture.nativeElement as HTMLElement).querySelectorAll('svg.ngt-chart__svg .ngt-chart__point')).toHaveLength(20);
       svg.dispatchEvent(new KeyboardEvent('keydown', {key: '-', bubbles: true, cancelable: true}));
       await fixture.whenStable();
-      expect((fixture.nativeElement as HTMLElement).querySelectorAll('circle.ngt-chart__point')).toHaveLength(40);
+      expect((fixture.nativeElement as HTMLElement).querySelectorAll('svg.ngt-chart__svg .ngt-chart__point')).toHaveLength(40);
     });
 
     it('Ctrl + molette zoome ; la molette seule laisse défiler la page', async () => {
