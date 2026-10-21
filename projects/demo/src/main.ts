@@ -1,7 +1,7 @@
 import {bootstrapApplication} from '@angular/platform-browser';
 import {provideZonelessChangeDetection} from '@angular/core';
 import {provideRouter, Routes, withHashLocation} from '@angular/router';
-import {NG_TABLE_LOCALES, ngTableIsRtl, provideNgTableLabels} from '@sbourahla/ng-table';
+import {NG_TABLE_LOCALES, ngTableIsRtl, provideNgTableLabels, provideNgTableLook} from '@sbourahla/ng-table';
 import {AppComponent} from './app/app.component';
 
 /** Langue de la démo : choisie dans l'en-tête, mémorisée, appliquée avant le démarrage (le sens de lecture suit la page). */
@@ -16,6 +16,15 @@ const language = (storedLanguage && storedLanguage in NG_TABLE_LOCALES ? storedL
 document.documentElement.lang = language;
 document.documentElement.dir = ngTableIsRtl(language) ? 'rtl' : 'ltr';
 
+/** Apparence de la démo : « contrasté » (traits et texte noirs, icônes pleines) ou défaut, choisie dans l'en-tête et mémorisée. */
+const look = (() => {
+  try {
+    return localStorage.getItem('ngt-demo-look') === 'contrast' ? 'contrast' : 'default';
+  } catch {
+    return 'default';
+  }
+})();
+
 const routes: Routes = [
   {path: '', pathMatch: 'full', redirectTo: 'simple'},
   {path: 'simple', title: 'ng-table — simple', loadComponent: () => import('./app/simple-demo.component').then((m) => m.SimpleDemoComponent)},
@@ -28,7 +37,11 @@ const routes: Routes = [
 ];
 
 bootstrapApplication(AppComponent, {
-  providers: [provideZonelessChangeDetection(), // Routage par « # » : la démo est servie en fichiers statiques (GitHub Pages), où recharger /demo/simple donnerait une 404.
+  providers: [
+    provideZonelessChangeDetection(),
+    // Routage par « # » : la démo est servie en fichiers statiques (GitHub Pages), où recharger /demo/simple donnerait une 404.
     provideRouter(routes, withHashLocation()),
-    provideNgTableLabels(() => NG_TABLE_LOCALES[language])],
+    provideNgTableLabels(() => NG_TABLE_LOCALES[language]),
+    provideNgTableLook(look),
+  ],
 }).catch((error: unknown) => console.error(error));

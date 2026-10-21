@@ -119,3 +119,37 @@ ng-table-sparkline[data-ngt-theme='light'],
 .ngt-overlay[data-ngt-theme='light'] {
   color-scheme: light;
 }
+
+/* Apparence « contrasté » (`provideNgTableLook('contrast')` : classe `ngt-contrast` sur <html>) : texte et traits noirs en
+   thème clair, blancs en thème sombre. Placée après les règles sombres ; les sélecteurs sombres ont une classe de plus. */
+.ngt-contrast {
+  --ngt-text: #000000;
+  --ngt-text-muted: #000000;
+  --ngt-border: #000000;
+  --ngt-border-strong: #000000;
+}
+
+.ngt-contrast.ngt-dark,
+.ngt-contrast ng-table[data-ngt-theme='dark'],
+.ngt-contrast ng-table-chart[data-ngt-theme='dark'],
+.ngt-contrast ng-table-pivot[data-ngt-theme='dark'],
+.ngt-contrast ng-table-sparkline[data-ngt-theme='dark'],
+.ngt-contrast .ngt-overlay[data-ngt-theme='dark'] {
+  --ngt-text: #ffffff;
+  --ngt-text-muted: #ffffff;
+  --ngt-border: #ffffff;
+  --ngt-border-strong: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ngt-contrast ng-table[data-ngt-theme='auto'],
+  .ngt-contrast ng-table-chart[data-ngt-theme='auto'],
+  .ngt-contrast ng-table-pivot[data-ngt-theme='auto'],
+  .ngt-contrast ng-table-sparkline[data-ngt-theme='auto'],
+  .ngt-contrast .ngt-overlay[data-ngt-theme='auto'] {
+    --ngt-text: #ffffff;
+    --ngt-text-muted: #ffffff;
+    --ngt-border: #ffffff;
+    --ngt-border-strong: #ffffff;
+  }
+}

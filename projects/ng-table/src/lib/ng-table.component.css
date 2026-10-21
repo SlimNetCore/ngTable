@@ -2111,6 +2111,16 @@ ng-table:dir(rtl) {
   --ngt-dir: -1;
 }
 
+/* Apparence « contrasté » (`provideNgTableLook('contrast')`) : texte et traits noirs viennent des jetons (theme.css), les icônes sont
+   pleines (ng-table-icon). L'icône de tri, grisée et estompée par défaut, passe en accent et pleine opacité, bien lisible. */
+.ngt-contrast .sort-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  opacity: 1;
+}
+
 /* Cibles tactiles (WCAG 2.5.8, 24 × 24 px) : la poignée de colonne reste discrète (14 × 18 px) mais sa zone cliquable est élargie. */
 .drag-handle::before {
   content: '';

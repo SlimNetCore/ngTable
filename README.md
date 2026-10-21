@@ -3093,6 +3093,20 @@ export interface NgTableLabels {
 
 De la même façon, `column.header`, `filter.label`, `copy.tooltip` et les `label` des `filter.options` sont du **texte déjà résolu** — traduisez-les avant de construire vos `NgTableColumn[]` (typiquement dans un `computed()` qui dépend du même signal de langue).
 
+## Apparence « contrasté » : traits noirs, icônes pleines
+
+Un préréglage donne au tableau des traits et un texte noirs, des icônes pleines et la police de la page (c'est déjà la police par défaut : `--ngt-font-family: inherit`) :
+
+```ts
+import {provideNgTableLook} from '@sbourahla/ng-table';
+
+bootstrapApplication(App, {providers: [provideNgTableLook('contrast')]});   // 'default' (défaut) | 'contrast'
+```
+
+- **Traits et texte** : le fournisseur pose la classe `ngt-contrast` sur `<html>`, qui redéfinit `--ngt-text`, `--ngt-text-muted`, `--ngt-border` et `--ngt-border-strong` (noirs en thème clair, blancs en thème sombre ; `NG_TABLE_CONTRAST_OVERRIDES` donne les valeurs). Le reste du thème (accent, surfaces, tailles) ne change pas, et chaque jeton reste réglable. Sans le fournisseur, poser la classe à la main donne les traits et le texte noirs avec les icônes au trait.
+- **Icônes pleines** : les 31 icônes de la bibliothèque (tri, filtre, colonnes, vues, export…) passent en version pleine, tirée de Material Icons (Apache 2.0, © Google). Le jeton `NG_TABLE_ICON_STYLE` (`'outline'` ou `'filled'`) les commande séparément. L'icône de tri passe en accent, pleine opacité. Les icônes de vos propres colonnes ne sont pas touchées.
+- La démo a un sélecteur « Apparence » dans l'en-tête (rechargement : les icônes sont choisies au démarrage).
+
 ## Personnaliser le style (variables CSS)
 
 `ng-table.component.css` consomme des variables CSS custom, **chacune avec une valeur de repli** — le composant a un style correct par défaut, sans configuration. Pour l'adapter à votre charte graphique, redéfinissez tout ou partie de ces variables globalement (`:root` ou équivalent) :

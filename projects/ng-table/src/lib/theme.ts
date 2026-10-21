@@ -67,6 +67,15 @@ const PREFIX = '--ngt-';
 export const NG_TABLE_THEME_LIGHT: Readonly<Record<string, string>> = Object.fromEntries(NG_TABLE_TOKENS.map((token) => [PREFIX + token.name, token.light]));
 export const NG_TABLE_THEME_DARK: Readonly<Record<string, string>> = Object.fromEntries(NG_TABLE_TOKENS.map((token) => [PREFIX + token.name, token.dark]));
 
+/**
+ * Jetons redéfinis par l'apparence « contrasté » (`provideNgTableLook('contrast')`, classe `ngt-contrast` sur `<html>`) :
+ * texte et traits noirs en thème clair, blancs en thème sombre. Le reste du thème (accent, surfaces, tailles) est inchangé.
+ */
+export const NG_TABLE_CONTRAST_OVERRIDES: {readonly light: Readonly<Record<string, string>>; readonly dark: Readonly<Record<string, string>>} = {
+  light: {'--ngt-text': '#000000', '--ngt-text-muted': '#000000', '--ngt-border': '#000000', '--ngt-border-strong': '#000000'},
+  dark: {'--ngt-text': '#ffffff', '--ngt-text-muted': '#ffffff', '--ngt-border': '#ffffff', '--ngt-border-strong': '#ffffff'},
+};
+
 /** Lecture d'un jeton dans un style : `var(--ngt-NOM, var(--app-ANCIEN, valeur claire))`. */
 export function ngTableVar(name: string): string {
   const token = NG_TABLE_TOKENS.find((candidate) => candidate.name === name);
