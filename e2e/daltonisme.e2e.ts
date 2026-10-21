@@ -28,6 +28,24 @@ test('mises à jour en direct : un repère de forme accompagne la couleur de la 
   expect(value.image).toContain('svg+xml');
 });
 
+test('mises à jour en direct : le repère garde sa taille quand on survole la ligne', async ({page}) => {
+  await open(page, 'live');
+  // La règle de survol des lignes ne doit pas réinitialiser taille, position et répétition du repère (régression : grandes flèches répétées).
+  const row = page.locator('tr.data-row').nth(3);
+  await row.hover({position: {x: 20, y: 10}});
+  // On déclenche la surbrillance à la main sur une cellule de la ligne survolée (les vraies mises à jour tombent au hasard).
+  const value = await row.evaluate((tr) => {
+    const cell = tr.querySelector('td.cdk-cell:not(.selection-cell)') as HTMLElement;
+    cell.setAttribute('data-ngt-flash', 'up-0');
+    const style = getComputedStyle(cell);
+    return {hovered: tr.matches(':hover'), size: style.backgroundSize, repeat: style.backgroundRepeat, image: style.backgroundImage};
+  });
+  expect(value.hovered).toBe(true);
+  expect(value.image).toContain('svg+xml');
+  expect(value.size).toBe('11px 11px');
+  expect(value.repeat).toBe('no-repeat');
+});
+
 test('graphiques : chaque série de la page Analyse a sa marque dans la légende', async ({page}) => {
   await open(page, 'analyse');
   const charts = page.locator('ng-table-chart');

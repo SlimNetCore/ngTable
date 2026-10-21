@@ -1806,8 +1806,9 @@ button.ngt-tree-toggle:focus-visible {
   transition: background-color 0.12s ease;
 }
 
+/* `background-color` et non le raccourci `background` : celui-ci réinitialiserait taille, position et répétition du repère ▲ ▼ ◆ du mode live. */
 .ng-table tr.data-row:not([data-ngt-pin]):hover td.cdk-cell:not(.detail-row):not([data-ngt-range~='in']) {
-  background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
+  background-color: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
 }
 
 /* --- Panneau de regroupement ------------------------------------------------ */
