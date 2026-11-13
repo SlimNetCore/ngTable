@@ -4,6 +4,8 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- Filtre avancé : `[(advancedFilter)]` sur `ng-table` reçoit des conditions combinées par ET / OU, en groupes imbriqués (`NgTableFilterGroup`), avec « sauf » par condition. Chaque condition lit sa saisie comme le filtre de sa colonne (`>5000`, `10..50`, `Validée,Annulée`, un texte). Il s'ajoute aux filtres de colonnes et à la recherche ; en mode `remote` il part dans la requête (`advancedFilter`) ; « Réinitialiser les filtres » l'efface. Nouveau composant `<ng-table-filter-builder [columns] [(filter)]>` pour le construire à l'écran (trois niveaux de groupes, 13 libellés dans les cinq langues). Fonctions `compileAdvancedFilter`, `describeAdvancedFilter`, `countActiveConditions` exportées. Avec un filtre avancé actif, le calcul reste sur le fil principal (pas de Web Worker).
+
 - `[fillHandle]` : poignée de recopie, comme dans un tableur. Un carré au coin de la plage sélectionnée se tire vers le bas, le haut, la droite ou la gauche ; les valeurs sont recopiées dans l'ordre, et une suite de nombres à pas constant est prolongée (10, 20 → 30, 40). Aperçu en pointillés pendant le glissement ; l'ensemble s'annule en une fois (Ctrl+Z) et passe par `validate`. Au clavier : Ctrl+D (vers le bas) et Ctrl+R (vers la droite) sur une plage. Demande `[rangeSelection]`, le mode local et des colonnes à `valueSetter`. `(cellEdited)` porte `source: 'fill'`.
 - Garde-fou de performance : `npm run perf:check` (`scripts/perf-check.mjs`, budgets dans `scripts/perf-budget.json`) vérifie des rapports entre deux temps d'une même exécution (« inverser un tri coûte moins de la moitié du premier tri »...), ajouté à la CI.
 

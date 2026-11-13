@@ -1,5 +1,14 @@
-import {ChangeDetectionStrategy, Component, signal, viewChild} from '@angular/core';
-import {NgTableBlockRequest, NgTableBlockResult, NgTableColumn, NgTableComponent, NgTableRemoteDatasource} from '@sbourahla/ng-table';
+import {ChangeDetectionStrategy, Component, computed, signal, viewChild} from '@angular/core';
+import {
+  describeAdvancedFilter,
+  NgTableBlockRequest,
+  NgTableBlockResult,
+  NgTableColumn,
+  NgTableComponent,
+  NgTableFilterBuilderComponent,
+  NgTableFilterGroup,
+  NgTableRemoteDatasource,
+} from '@sbourahla/ng-table';
 import {CLIENTS, Commande, generateCommandes, STATUT_LABELS} from './demo-data';
 
 type CommandeMiseEnForme = Commande & {avancement: number; note: number; marge: number};
@@ -20,7 +29,7 @@ const TOTAL_SERVEUR = 1_000_000;
 @Component({
   selector: 'app-whats-new-demo',
   standalone: true,
-  imports: [NgTableComponent],
+  imports: [NgTableComponent, NgTableFilterBuilderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -32,7 +41,7 @@ const TOTAL_SERVEUR = 1_000_000;
       border-radius: 6px;
     }
 
-    .try b {
+    .try > b:first-child {
       display: block;
       margin-bottom: 2px;
     }
@@ -236,9 +245,32 @@ const TOTAL_SERVEUR = 1_000_000;
       />
     </div>
 
+    <!-- 5 ter -->
+    <div class="demo-card" style="margin-top: 16px">
+      <h2>7. Filtre avancé : des conditions avec ET / OU</h2>
+      <p class="try">
+        <b>À essayer</b>
+        Le filtre de départ dit : (Validée OU Expédiée) ET montant de plus de 5 000 €. Changez « Toutes les conditions (ET) »
+        en « Au moins une (OU) », cochez « Sauf », ajoutez une condition ou un groupe. Une valeur s'écrit comme dans le filtre
+        de la colonne : <code>&gt;5000</code>, <code>100..500</code>, un texte.
+      </p>
+      <ng-table-filter-builder [(filter)]="advanced" [columns]="advancedColumns"/>
+      <p class="demo-intro" style="margin: 10px 0">
+        En clair : <b>{{ advancedText() || 'aucun filtre' }}</b>
+      </p>
+      <ng-table
+        [(advancedFilter)]="advanced"
+        [ariaLabel]="'Commandes filtrées par conditions'"
+        [columns]="advancedColumns"
+        [density]="'compact'"
+        [paginator]="true"
+        [rows]="searchRows"
+      />
+    </div>
+
     <!-- 5 -->
     <div class="demo-card" style="margin-top: 16px">
-      <h2>7. Un million de lignes sur le serveur : annuler et charger d'avance</h2>
+      <h2>8. Un million de lignes sur le serveur : annuler et charger d'avance</h2>
       <p class="try">
         <b>À essayer</b>
         Le « serveur » est simulé et répond en 400 ms. Cliquez « Sauter à un endroit, puis aussitôt à un autre » : les demandes du
@@ -404,6 +436,22 @@ export class WhatsNewDemoComponent {
       valueSetter: (ligne, value) => ({...ligne, remise: value as number}),
     },
   ];
+
+  // ------------------------------------------------------------------ filtre avancé
+  protected readonly advancedColumns: NgTableColumn<Commande>[] = [
+    {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference, sortable: true, filter: {type: 'text'}},
+    {id: 'client', header: 'Client', valueAccessor: (c) => c.client, sortable: true, filter: {type: 'text'}},
+    {id: 'statut', header: 'Statut', valueAccessor: (c) => STATUT_LABELS[c.statut], sortable: true, filter: {type: 'text'}},
+    {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, filter: {type: 'number'}},
+  ];
+  protected readonly advanced = signal<NgTableFilterGroup | null>({
+    operator: 'and',
+    children: [
+      {operator: 'or', children: [{columnId: 'statut', value: 'Validée'}, {columnId: 'statut', value: 'Expédiée'}]},
+      {columnId: 'montant', value: '>5000'},
+    ],
+  });
+  protected readonly advancedText = computed(() => describeAdvancedFilter(this.advanced(), this.advancedColumns, {and: 'ET', or: 'OU', not: 'SAUF'}));
 
   // ------------------------------------------------------------------ 6. blocs : annulation et chargement d'avance
   private readonly blocksTable = viewChild<NgTableComponent<Commande>>('blocks');

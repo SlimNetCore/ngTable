@@ -50,6 +50,7 @@ import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveV
 import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {ColumnStore} from './column-store';
+import {compileAdvancedFilter, countActiveConditions, NgTableFilterGroup} from './advanced-filter';
 import {buildScrollMarkers, NgTableMarkerKind, NgTableScrollMarker} from './scroll-markers';
 import {computeVariableLayout, HeightIndex, mostCommonHeight, variableScrollTop} from './row-heights';
 import {NgTableCellFormat, NgTableTone, NgTableValueRange, valueRange} from './cell-format';
@@ -323,6 +324,8 @@ export interface NgTableRemoteQuery {
    * lignes : un groupe replié n'occupe aucune ligne de la pagination.
    */
   collapsedGroups?: string[];
+  /** Filtre avancé (conditions ET / OU, voir `[advancedFilter]`) ; absent s'il n'y en a pas. À appliquer en plus de `filters`. */
+  advancedFilter?: NgTableFilterGroup | null;
 }
 
 /** Colonne à exporter, telle qu'affichée : identifiant et libellé d'en-tête. */
@@ -789,6 +792,13 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * (casse et accents ignorés). Voir `NgTableColumn.searchable`.
    */
   readonly globalSearchEnabled = input(false);
+  /**
+   * Filtre avancé : conditions combinées par ET / OU, en groupes imbriqués (`NgTableFilterGroup`). Il s'ajoute aux
+   * filtres de colonnes et à la recherche. Chaque condition lit sa saisie comme le filtre de sa colonne (`>5000`,
+   * `Validée,Annulée`...). En mode `remote`, il est transmis dans la requête (`advancedFilter`). Pour le construire à
+   * l'écran : `<ng-table-filter-builder [columns]="columns" [(filter)]="filtre" />`.
+   */
+  readonly advancedFilter = model<NgTableFilterGroup | null>(null);
   /**
    * Surligne, dans les cellules, le texte trouvé par la recherche globale (casse et accents ignorés). Ne concerne que
    * les cellules affichées en texte : pas celles d'un `cellTemplate`, ni les colonnes dont `searchable` est réglé.
@@ -1661,6 +1671,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const sums = this.runningSums();
     const terms = searchTerms(search);
     const haystacks = terms.length > 0 ? this.searchHaystacks() : null;
+    const advanced = this.advancedFilter();
+    // Toutes les colonnes, masquées comprises : une condition peut porter sur une colonne qu'on n'affiche pas.
+    const advancedMatch = compileAdvancedFilter(advanced, this.columns());
 
     const levels: SortLevel<T>[] = [];
     for (const sort of sorts) {
@@ -1670,7 +1683,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
       }
     }
     // Grand jeu de données : filtres, recherche et tri se calculent dans un Web Worker.
-    if (this.workerEligible()) {
+    // Le filtre avancé est fait de fonctions composées : il se calcule sur le fil principal.
+    if (this.workerEligible() && !advancedMatch) {
       const filterColumns = activeColumns.filter((column) => (filters[column.id] ?? '').trim() !== '');
       if (!filterColumns.some((column) => column.filterPredicate)) {
         return this.workerRows(store, filterColumns, filters, levels, terms, haystacks);
@@ -1684,7 +1698,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     // Les saisies de filtre sont lues une fois ici ; chaque ligne n'a plus qu'une comparaison à faire.
     const columnFilter = compileFilters(activeColumns, filters);
     const baseMatches = (row: T) =>
-      (!columnFilter || columnFilter(row)) && (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms));
+      (!columnFilter || columnFilter(row)) &&
+      (!advancedMatch || advancedMatch(row)) &&
+      (!haystacks || matchesSearchTerms(this.searchHaystack(row, haystacks), terms));
 
     // Arbre : une ligne reste affichée si elle correspond ou si un de ses descendants correspond.
     // L'ensemble est recalculé à chaque changement de données ou de filtre, donc le pipeline
@@ -1715,18 +1731,21 @@ export class NgTableComponent<T = any> implements OnDestroy {
         ? undefined
         : (all) => {
             const at = compileIndexFilters(all, activeColumns, filters, (column) => this.columnStore.dictionary(all, column));
-            return (i) => (!at || at(i)) && (!haystacks || matchesSearchTerms(this.searchHaystack(all[i], haystacks), terms));
+            return (i) =>
+              (!at || at(i)) &&
+              (!advancedMatch || advancedMatch(all[i])) &&
+              (!haystacks || matchesSearchTerms(this.searchHaystack(all[i], haystacks), terms));
           },
       // Saisie prolongée (« dup » → « dupo ») ou filtre ajouté : seul le résultat précédent est refiltré, sans retri.
       narrowing: index
         ? undefined
         : {
-            base: [store, activeColumns, sorts, haystacks?.columns, sums],
+            base: [store, activeColumns, sorts, haystacks?.columns, sums, advanced],
             state: {filters, terms},
             narrows: (previous: {filters: Record<string, string>; terms: string[]}) =>
               filtersNarrow(activeColumns, previous.filters, filters) && searchNarrows(previous.terms, terms),
           },
-      deps: [store, activeColumns, filters, sorts, search, haystacks?.columns, sums, included],
+      deps: [store, activeColumns, filters, sorts, search, haystacks?.columns, sums, included, advanced],
     });
   });
 
@@ -1764,7 +1783,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   /** Un filtre ou une recherche est actif : l'arbre se déplie pour montrer les correspondances. */
   private readonly treeFilterActive = computed(
-    () => Object.values(this.columnFilters()).some((value) => value.trim() !== '') || searchTerms(this.globalSearchTerm()).length > 0,
+    () =>
+      Object.values(this.columnFilters()).some((value) => value.trim() !== '') ||
+      searchTerms(this.globalSearchTerm()).length > 0 ||
+      countActiveConditions(this.advancedFilter(), this.columns()) > 0,
   );
 
   /** Nœuds dont l'état diffère de l'état par défaut (déplié ou replié par l'utilisateur). */
@@ -2207,6 +2229,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     }
     return buildScrollMarkers(items.length, marks);
   });
+
+  /** Dernier filtre avancé pris en compte (`undefined` avant le premier passage de l'effet). */
+  private advancedFilterApplied: NgTableFilterGroup | null | undefined = undefined;
 
   /** Position verticale (dans le contenu défilant) de chaque ligne au dernier rendu. */
   private rowTops = new WeakMap<Element, number>();
@@ -2838,6 +2863,18 @@ export class NgTableComponent<T = any> implements OnDestroy {
       onCleanup(() => observer.disconnect());
     });
 
+    // Filtre avancé modifié (par l'application ou le constructeur de filtres) : même effet qu'un filtre de colonne,
+    // retour en page 0 et nouvelle requête en mode `remote`. Pas au premier passage.
+    effect(() => {
+      const filter = this.advancedFilter();
+      untracked(() => {
+        if (filter !== this.advancedFilterApplied && this.advancedFilterApplied !== undefined) {
+          this.onQueryStateChanged();
+        }
+        this.advancedFilterApplied = filter;
+      });
+    });
+
     // Changer de colonne de regroupement déplie tout et revient en page 0 (pas au
     // premier passage : la page peut venir d'une URL ou d'une vue restaurée).
     effect(() => {
@@ -3071,6 +3108,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const next: Record<string, string> = {};
     this.columnFilters.set(next);
     this.filtersChange.emit(next);
+    if (this.advancedFilter()) {
+      this.advancedFilterApplied = null; // l'effet ne redemandera pas une seconde requête pour ce changement
+      this.advancedFilter.set(null);
+    }
     this.onQueryStateChanged();
   }
 
@@ -5817,6 +5858,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
       filters: this.columnFilters(),
       page: {index: pageIndex, size: this.pagingActive() ? pageSize : 0},
       search: this.globalSearchTerm(),
+      // Présent seulement quand il y a un filtre avancé : la requête garde sa forme d'avant pour les autres.
+      ...(this.advancedFilter() ? {advancedFilter: this.advancedFilter()} : {}),
       groupBy: this.groupColumn()?.id ?? null,
       collapsedGroups: this.groupColumn() && this.groupsCollapsible() ? [...this.collapsedGroups()] : [],
     };

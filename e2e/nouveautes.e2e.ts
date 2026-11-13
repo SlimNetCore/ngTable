@@ -95,3 +95,21 @@ test('[fillHandle] : tirer la poignée prolonge la suite 10, 20 ; Ctrl+Z annule 
   await page.keyboard.press('Control+z');
   await expect.poll(quantities).toEqual(['10', '20', '1', '1', '1', '1', '1', '1']);
 });
+
+test('filtre avancé : le constructeur filtre la table, « OU » élargit, « Tout effacer » rend tout', async ({page}) => {
+  await open(page, 'reduce');
+  const builder = page.locator('ng-table-filter-builder');
+  const table = page.locator('ng-table').nth(6);
+  await builder.scrollIntoViewIfNeeded();
+  const total = () => table.locator('ng-table-paginator').innerText();
+  const initial = await total();
+  expect(initial).not.toContain('sur 120');
+
+  // Racine en OU : (Validée OU Expédiée) OU montant > 5000 retient plus de lignes.
+  await builder.locator('.ngt-fb__operator').first().selectOption('or');
+  await expect.poll(total).not.toBe(initial);
+
+  await builder.getByRole('button', {name: 'Tout effacer'}).click();
+  await expect.poll(total).toContain('sur 120');
+  await expect(builder.locator('.ngt-fb__condition')).toHaveCount(0);
+});

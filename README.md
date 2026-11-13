@@ -411,6 +411,33 @@ export class MontantMinFilterComponent {
 
 `componentInputs` passe des `@Input()` additionnels au composant custom (ici `step`).
 
+### Étape 6ter — Filtre avancé (conditions ET / OU)
+
+Les filtres de colonnes se combinent tous par « ET ». Pour « (Validée OU Expédiée) ET montant > 5 000 », utilisez le filtre avancé :
+
+```html
+<ng-table-filter-builder [columns]="columns" [(filter)]="filtre" />
+<ng-table [columns]="columns" [rows]="rows" [(advancedFilter)]="filtre" />
+```
+
+```ts
+filtre = signal<NgTableFilterGroup | null>({
+  operator: 'and',
+  children: [
+    {operator: 'or', children: [{columnId: 'statut', value: 'Validée'}, {columnId: 'statut', value: 'Expédiée'}]},
+    {columnId: 'montant', value: '>5000'},
+  ],
+});
+```
+
+- **Une condition** = une colonne et une saisie, lue **comme le filtre de cette colonne** : `>5000`, `10..50`, `Validée,Annulée`, un texte. `not: true` l'inverse (« sauf »).
+- **Un groupe** = `and` (toutes les conditions) ou `or` (au moins une), et peut contenir d'autres groupes. Le constructeur en propose trois niveaux.
+- **Ce qui ne contraint rien est ignoré** : saisie vide, colonne inconnue, groupe vide.
+- Le filtre avancé **s'ajoute** aux filtres de colonnes et à la recherche globale. « Réinitialiser les filtres » l'efface aussi.
+- **Mode `remote`** : il part dans la requête (`query.advancedFilter`, le même objet) ; c'est le serveur qui l'applique.
+- **Sans le constructeur** : l'objet est simple et sérialisable, vous pouvez le fabriquer vous-même, l'enregistrer ou le mettre dans une URL. `describeAdvancedFilter(filtre, columns, {and: 'ET', or: 'OU', not: 'SAUF'})` en donne la phrase lisible ; `compileAdvancedFilter(filtre, columns)` le prédicat.
+- **Limites** : avec un filtre avancé actif, le calcul reste sur le fil principal même avec `[workerCompute]` ; il n'est pas enregistré dans les vues ni dans l'état d'URL de la table (à faire porter par l'application).
+
 ### Étape 6bis — Recherche globale
 
 Un champ « Rechercher… » en haut à gauche de la table, qui cherche dans toutes les colonnes visibles :
@@ -2906,6 +2933,7 @@ interface NgTableFilterConfig {
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
 | `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
 | `highlightSearch`           | `boolean`                                                        | `false`   | Surligne dans les cellules le texte trouvé par la recherche globale (cellules en texte, hors `cellTemplate`).        |
+| `advancedFilter` (model)    | `NgTableFilterGroup \| null`                                     | `null`    | Conditions combinées par ET / OU (voir Étape 6ter).                                                                  |
 | `animateRows`               | `boolean`                                                        | `false`   | Au changement de tri, les lignes glissent vers leur nouvelle place (respecte `prefers-reduced-motion`).             |
 | `fillHandle`                | `boolean`                                                        | `false`   | Poignée de recopie au coin de la plage sélectionnée ; Ctrl+D / Ctrl+R au clavier (voir Étape 10decies).             |
 | `stickyGroupHeaders`        | `boolean`                                                        | `false`   | L'en-tête du groupe en cours reste collé sous l'en-tête des colonnes (zone défilante requise).                      |
