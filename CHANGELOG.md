@@ -4,6 +4,8 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+## [5.0.0] — 2026-11-13
+
 **Version 5.0.0.** Aucune API n'est retirée ni renommée : le code écrit pour la 4.x compile et fonctionne sans changement. La version est majeure pour quatre changements de comportement visibles, détaillés dans le README (« Migrer de 4 vers 5 ») :
 
 1. Liste vidée par les filtres : le message « Aucune ligne ne correspond aux filtres » et un bouton de réinitialisation remplacent `[emptyLabel]` dans ce cas.
