@@ -13,6 +13,7 @@ export type {NgTableEditorKind} from './lib/cell-edit';
 export type {RowDropPosition} from './lib/row-drag';
 export {NgTableSparklineComponent} from './lib/ng-table-sparkline.component';
 export {NgTableCellFormatComponent} from './lib/ng-table-cell-format.component';
+export type {NgTableMarkerKind, NgTableScrollMarker} from './lib/scroll-markers';
 export type {
   NgTableAvatarFormat,
   NgTableBadgeFormat,

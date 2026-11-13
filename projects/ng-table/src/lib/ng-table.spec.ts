@@ -1036,6 +1036,72 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('en-têtes de groupe collants ([stickyGroupHeaders])', () => {
+    const grouped: Row[] = Array.from({length: 600}, (_, i) => ({
+      id: `${i}`,
+      nom: `Client ${i}`,
+      montant: i,
+      statut: i < 400 ? 'VALIDEE' : 'BROUILLON',
+      actif: true,
+      date: '2026-01-01',
+    }));
+    const groupRows = (fixture: ComponentFixture<NgTableComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('tr.group-row')];
+
+    it('défilement virtuel : l’en-tête du groupe en cours est remis dans la tranche rendue', async () => {
+      const {fixture, component} = await createTable({rows: grouped, groupBy: 'statut', virtualScroll: true, stickyGroupHeaders: true});
+      expect(groupRows(fixture).map((row) => row.hasAttribute('data-ngt-group-extra'))).toEqual([false]);
+
+      component.scrollToIndex(100); // au milieu du premier groupe (BROUILLON, 200 lignes) : son en-tête est loin au-dessus
+      await fixture.whenStable();
+      const rows = groupRows(fixture);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].hasAttribute('data-ngt-group-extra')).toBe(true);
+      expect(rows[0].classList.contains('group-row--sticky')).toBe(true);
+      expect(rows[0].textContent).toContain('Brouillon');
+      // L'espacement du haut cède la place de la ligne ajoutée : la tranche ne se décale pas.
+      const top = parseFloat((fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('td.spacer-cell')!.style.height);
+      expect(top).toBe((100 - 8) * 48 - 48);
+
+      component.scrollToIndex(400); // dans le second groupe
+      await fixture.whenStable();
+      expect(groupRows(fixture).map((row) => row.textContent?.includes('Validée'))).toEqual([true]);
+    });
+
+    it('sans l’option, aucun en-tête n’est ajouté ni collé', async () => {
+      const {fixture, component} = await createTable({rows: grouped, groupBy: 'statut', virtualScroll: true});
+      component.scrollToIndex(100);
+      await fixture.whenStable();
+      expect(groupRows(fixture)).toHaveLength(0);
+    });
+  });
+
+  describe('repères de la barre de défilement ([scrollMarkers])', () => {
+    const marks = (fixture: ComponentFixture<NgTableComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.ngt-scroll-marker')].map((mark) => `${mark.getAttribute('data-kind')}@${Math.round(parseFloat(mark.style.top))}%`);
+
+    it('un repère par ligne signalée par [rowMarker], à sa hauteur dans la liste, masqué aux lecteurs d’écran', async () => {
+      const {fixture} = await createTable({scrollMarkers: true, rowMarker: (row: Row) => (row.montant >= 300 ? 'danger' : row.montant === 100 ? 'warning' : null)});
+      expect(marks(fixture)).toEqual(['danger@0%', 'warning@33%']);
+      expect((fixture.nativeElement as HTMLElement).querySelector('.ngt-scroll-markers')?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('suit le tri, et repère les lignes sélectionnées', async () => {
+      const {fixture, component} = await createTable({scrollMarkers: true, rowSelectionEnabled: true, selectedRowKeys: ['3']});
+      expect(marks(fixture)).toEqual(['selection@67%']);
+      component['onHeaderSort'](component.columns()[1]); // montant croissant : Bob (200) passe au milieu
+      await fixture.whenStable();
+      expect(marks(fixture)).toEqual(['selection@33%']);
+    });
+
+    it('rien sans l’option, ni sans ligne à repérer', async () => {
+      const without = await createTable({rowMarker: () => 'danger'});
+      expect(marks(without.fixture)).toEqual([]);
+      const nothing = await createTable({scrollMarkers: true});
+      expect((nothing.fixture.nativeElement as HTMLElement).querySelector('.ngt-scroll-markers')).toBeNull();
+    });
+  });
+
   describe('surlignage de la recherche et état vide', () => {
     const el = (fixture: ComponentFixture<NgTableComponent>) => fixture.nativeElement as HTMLElement;
 
@@ -1222,6 +1288,24 @@ describe('NgTableComponent', () => {
       await answer();
       await fixture.whenStable();
       expect(pending.map((p) => p.request.page.index)).toEqual([38]); // vers le haut : le bloc précédent
+    });
+
+    it('pagination par clé : la demande porte la dernière ligne du bloc précédent quand elle est en mémoire', async () => {
+      const {fixture, pending, answer, component} = await create({prefetchBlocks: 1});
+      expect(pending[0].request.afterRow).toBeUndefined();
+      await answer();
+      await fixture.whenStable();
+      // Bloc 1 demandé d'avance : la ligne 99 (fin du bloc 0) est connue.
+      expect(pending[0].request.page.index).toBe(1);
+      expect((pending[0].request.afterRow as Row).id).toBe('99');
+      expect(pending[0].request.beforeRow).toBeUndefined();
+      await answer();
+      await fixture.whenStable();
+
+      // Après un saut, pas de ligne voisine : le serveur se sert de startRow.
+      component.scrollToIndex(5000);
+      await fixture.whenStable();
+      expect(pending.map((p) => p.request.afterRow)).toEqual([undefined, undefined]);
     });
 
     it('signale par AbortSignal les demandes devenues inutiles, sans erreur ni bloc en échec', async () => {

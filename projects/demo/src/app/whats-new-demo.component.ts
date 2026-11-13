@@ -99,9 +99,10 @@ const TOTAL_SERVEUR = 1_000_000;
       <p class="try">
         <b>À essayer</b>
         Regardez les colonnes : avatar, lien, pastille, barre de données, barre de progression, note en étoiles, dégradé de
-        couleur. Triez « Marge » : les valeurs négatives sont en rouge, les positives en vert, et le nombre reste toujours lisible.
+        couleur. Triez « Marge » : les lignes <b>glissent</b> vers leur nouvelle place (<code>[animateRows]</code>) ; les valeurs négatives
+        sont en rouge, les positives en vert, et le nombre reste toujours lisible.
       </p>
-      <ng-table [ariaLabel]="'Commandes mises en forme'" [columns]="formatColumns" [density]="'compact'" [rows]="formatRows"/>
+      <ng-table [animateRows]="true" [ariaLabel]="'Commandes mises en forme'" [columns]="formatColumns" [density]="'compact'" [rows]="formatRows"/>
       <pre class="demo-code" tabindex="0">{{ formatCode }}</pre>
     </div>
 
@@ -184,9 +185,33 @@ const TOTAL_SERVEUR = 1_000_000;
       </ng-template>
     </div>
 
+    <!-- 4 bis -->
+    <div class="demo-card" style="margin-top: 16px">
+      <h2>5. En-tête de groupe collant et repères dans la barre de défilement</h2>
+      <p class="try">
+        <b>À essayer</b>
+        6 000 lignes regroupées par client. Faites défiler : l'en-tête du groupe en cours reste collé en haut. Le long du
+        bord droit, les traits rouges montrent où sont les commandes de plus de 9 950 € dans toute la liste ; cochez
+        quelques lignes, des traits bleus plus fins apparaissent à leur hauteur.
+      </p>
+      <ng-table
+        [ariaLabel]="'Commandes regroupées par client'"
+        [columns]="groupColumns"
+        [density]="'compact'"
+        [groupBy]="'client'"
+        [maxHeight]="'380px'"
+        [rowMarker]="markBigOrders"
+        [rowSelectionEnabled]="true"
+        [rows]="groupRows"
+        [scrollMarkers]="true"
+        [stickyGroupHeaders]="true"
+        [virtualScroll]="true"
+      />
+    </div>
+
     <!-- 5 -->
     <div class="demo-card" style="margin-top: 16px">
-      <h2>5. Un million de lignes sur le serveur : annuler et charger d'avance</h2>
+      <h2>6. Un million de lignes sur le serveur : annuler et charger d'avance</h2>
       <p class="try">
         <b>À essayer</b>
         Le « serveur » est simulé et répond en 400 ms. Cliquez « Sauter à un endroit, puis aussitôt à un autre » : les demandes du
@@ -308,7 +333,24 @@ export class WhatsNewDemoComponent {
     this.heightsTable()?.scrollToIndex(index);
   }
 
-  // ------------------------------------------------------------------ 5. blocs : annulation et chargement d'avance
+  // ------------------------------------------------------------------ 5. groupe collant et repères
+  protected readonly groupRows = generateCommandes(6000);
+  protected readonly groupColumns: NgTableColumn<Commande>[] = [
+    {id: 'client', header: 'Client', valueAccessor: (c) => c.client, sortable: true},
+    {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference, sortable: true},
+    {
+      id: 'statut',
+      header: 'Statut',
+      valueAccessor: (c) => STATUT_LABELS[c.statut],
+      sortable: true,
+      cell: {type: 'badge', tone: {Brouillon: 'neutral', Validée: 'info', Expédiée: 'success', Annulée: 'danger'}},
+    },
+    {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, aggregate: 'sum'},
+  ];
+  /** Repère rouge : les plus grosses commandes (plus de 9 950 €, une trentaine sur 6 000). */
+  protected readonly markBigOrders = (commande: Commande) => (commande.montant > 9950 ? ('danger' as const) : null);
+
+  // ------------------------------------------------------------------ 6. blocs : annulation et chargement d'avance
   private readonly blocksTable = viewChild<NgTableComponent<Commande>>('blocks');
   protected readonly prefetch = signal(0);
   protected readonly requested = signal(0);

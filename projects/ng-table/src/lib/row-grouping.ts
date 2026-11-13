@@ -283,3 +283,33 @@ export function remoteGroupedPage<T>(
   flushCollapsedBefore(Number.POSITIVE_INFINITY);
   return items;
 }
+
+/**
+ * En-têtes de groupe « ouverts » juste avant la position `start` : celui du groupe auquel appartient l'élément
+ * `start`, précédé de ses groupes parents. `headers` liste les en-têtes de la liste affichée (position et niveau),
+ * dans l'ordre. Renvoie leurs positions, du niveau le plus haut au plus profond.
+ *
+ * Sert à garder l'en-tête du groupe courant à l'écran en défilement virtuel, alors que sa ligne est sortie de la
+ * tranche rendue. Recherche dichotomique du dernier en-tête avant `start`, puis remontée vers les niveaux parents.
+ */
+export function openGroupHeaders(headers: readonly {index: number; depth: number}[], start: number): number[] {
+  let low = 0;
+  let high = headers.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (headers[mid].index < start) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  const chain: number[] = [];
+  let wanted = Number.POSITIVE_INFINITY;
+  for (let i = low - 1; i >= 0 && wanted > 0; i--) {
+    if (headers[i].depth < wanted) {
+      chain.push(headers[i].index);
+      wanted = headers[i].depth;
+    }
+  }
+  return chain.reverse();
+}

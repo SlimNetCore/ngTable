@@ -50,13 +50,14 @@ import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveV
 import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {ColumnStore} from './column-store';
+import {buildScrollMarkers, NgTableMarkerKind, NgTableScrollMarker} from './scroll-markers';
 import {computeVariableLayout, HeightIndex, mostCommonHeight, variableScrollTop} from './row-heights';
-import {NgTableCellFormat, NgTableValueRange, valueRange} from './cell-format';
+import {NgTableCellFormat, NgTableTone, NgTableValueRange, valueRange} from './cell-format';
 import {NgTableCellFormatComponent} from './ng-table-cell-format.component';
 import {highlightParts, NgTableTextPart} from './search-highlight';
 import {compileFilters, compileIndexFilters, filtersNarrow, searchNarrows} from './filter-compile';
 import {searchText, SortLevel} from './row-pipeline';
-import {buildConsecutiveGroups, buildGroupTree, computeAggregate, flattenGroups, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
+import {buildConsecutiveGroups, buildGroupTree, computeAggregate, flattenGroups, remoteGroupedPage, groupedUnits, NgTableGroupRow, openGroupHeaders, RowGroup, withGroupHeaders} from './row-grouping';
 import {
   ColumnWindow,
   computeColumnWindow,
@@ -191,7 +192,7 @@ export interface NgTableGroupSummary {
  * requête habituelle (tri, filtres, recherche) plus la tranche voulue. `page` vaut
  * `{index: n° du bloc, size: taille du bloc}` : un backend paginé existant convient tel quel.
  */
-export interface NgTableBlockRequest extends NgTableRemoteQuery {
+export interface NgTableBlockRequest<T = unknown> extends NgTableRemoteQuery {
   /** Première ligne demandée (incluse). */
   startRow: number;
   /** Dernière ligne demandée (exclue). */
@@ -201,6 +202,15 @@ export interface NgTableBlockRequest extends NgTableRemoteQuery {
    * À transmettre à `fetch` ou à `HttpClient` pour annuler la requête ; l'ignorer est sans danger.
    */
   signal?: AbortSignal;
+  /**
+   * Pagination par clé : la dernière ligne du bloc précédent, quand la table l'a en mémoire (défilement vers le bas).
+   * Le serveur peut alors demander « les lignes après celle-ci » (`WHERE (tri, id) > (...) LIMIT n`) au lieu de
+   * « à partir de la ligne n° startRow », lent sur beaucoup de bases quand le décalage est grand. Absente après un
+   * saut : utilisez alors `startRow`.
+   */
+  afterRow?: T;
+  /** Pendant de `afterRow` en défilant vers le haut : la première ligne du bloc suivant, quand elle est en mémoire. */
+  beforeRow?: T;
 }
 
 /** Réponse à `NgTableBlockRequest`. */
@@ -215,7 +225,7 @@ export interface NgTableBlockResult<T> {
  * à afficher, au fil du défilement. Promesse ou Observable (seule la première valeur compte).
  */
 export interface NgTableRemoteDatasource<T> {
-  getRows(request: NgTableBlockRequest): Promise<NgTableBlockResult<T>> | Observable<NgTableBlockResult<T>>;
+  getRows(request: NgTableBlockRequest<T>): Promise<NgTableBlockResult<T>> | Observable<NgTableBlockResult<T>>;
 }
 
 /** Plage de cellules sélectionnée (`[rangeSelection]`) : lignes, colonnes et texte copiable. */
@@ -810,6 +820,24 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * pour regrouper sur un ou plusieurs niveaux, comme le panneau « row group » d'AG Grid. Demande `[groupingEnabled]`.
    */
   readonly groupPanel = input(false);
+  /**
+   * Anime le changement de tri : les lignes déjà à l'écran glissent vers leur nouvelle place, les autres apparaissent
+   * en fondu. Sans effet si l'utilisateur a demandé moins d'animations (`prefers-reduced-motion`).
+   */
+  readonly animateRows = input(false);
+  /**
+   * Repères le long du bord de la zone défilante : un trait à la hauteur de chaque ligne sélectionnée, et de chaque
+   * ligne signalée par `[rowMarker]`. Ils montrent où se trouvent ces lignes dans toute la liste, sans défiler.
+   * La liste est parcourue en entier à chaque changement : à éviter au-delà de quelques centaines de milliers de lignes.
+   */
+  readonly scrollMarkers = input(false);
+  /** Teinte du repère d'une ligne (`'danger'`, `'warning'`, `'info'`, `'success'`), ou `null` : pas de repère. Voir `[scrollMarkers]`. */
+  readonly rowMarker = input<((row: T) => NgTableTone | null | undefined) | null>(null);
+  /**
+   * Regroupement : l'en-tête du groupe en cours (et de ses groupes parents) reste collé sous l'en-tête des colonnes
+   * pendant qu'on fait défiler ses lignes. Demande une zone défilante (`[maxHeight]` ou `[virtualScroll]`).
+   */
+  readonly stickyGroupHeaders = input(false);
   /**
    * Défilement virtuel : seules les lignes visibles (plus une marge) sont rendues, ce
    * qui garde une liste de 50 000 lignes fluide sans pagination. Demande une hauteur
@@ -2044,7 +2072,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const measured: number[] = [];
     let current = -1;
     for (const row of wrap.querySelectorAll<HTMLElement>('tbody > tr')) {
-      if (row.classList.contains('spacer-row') || row.hasAttribute('data-ngt-pin')) {
+      if (row.classList.contains('spacer-row') || row.hasAttribute('data-ngt-pin') || row.hasAttribute('data-ngt-group-extra')) {
         continue;
       }
       const height = row.getBoundingClientRect().height;
@@ -2084,7 +2112,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
    */
   protected spacerHeight(position: 'top' | 'bottom'): number {
     const layout = this.virtualLayout();
-    return layout ? (position === 'top' ? layout.top : layout.bottom) : 0;
+    if (!layout) {
+      return 0;
+    }
+    if (position === 'bottom') {
+      return layout.bottom;
+    }
+    // Les en-têtes de groupe remis en tête de tranche occupent leur place : l'espacement du haut la leur cède.
+    return Math.max(0, layout.top - this.stickyGroupExtras().length * this.rowHeight());
   }
 
   /**
@@ -2135,6 +2170,96 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return top.length === 0 && bottom.length === 0 ? body : [...top, ...body, ...bottom];
   });
 
+  /** Repères de la barre de défilement (`[scrollMarkers]`) : lignes sélectionnées et lignes signalées de la liste affichée. */
+  protected readonly scrollMarks = computed<NgTableScrollMarker[]>(() => {
+    if (!this.scrollMarkers() || this.blockMode()) {
+      return [];
+    }
+    const items = this.pageItems();
+    const selected = this.selectedKeysSet();
+    const marker = this.rowMarker();
+    if (selected.size === 0 && !marker) {
+      return [];
+    }
+    const marks: {index: number; kind: NgTableMarkerKind}[] = [];
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      if (item instanceof NgTableGroupRow) {
+        continue;
+      }
+      const tone = marker?.(item);
+      if (tone) {
+        marks.push({index, kind: tone});
+      } else if (selected.size > 0 && selected.has(this.rowKey(item))) {
+        marks.push({index, kind: 'selection'});
+      }
+    }
+    return buildScrollMarkers(items.length, marks);
+  });
+
+  /** Position verticale (dans le contenu défilant) de chaque ligne au dernier rendu. */
+  private rowTops = new WeakMap<Element, number>();
+  private animatedSorts: unknown = null;
+
+  private animateSortedRows(wrap: HTMLElement, sorts: unknown): void {
+    const sorted = this.animatedSorts !== null && sorts !== this.animatedSorts;
+    this.animatedSorts = sorts;
+    const rows = wrap.querySelectorAll<HTMLElement>('tbody > tr.data-row:not([data-ngt-pin])');
+    const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Au-delà d'une centaine de lignes rendues, l'animation coûterait plus qu'elle n'apporte.
+    const animate = sorted && !calm && rows.length <= 120;
+    const origin = wrap.getBoundingClientRect().top - wrap.scrollTop;
+    for (const row of rows) {
+      const top = row.getBoundingClientRect().top - origin;
+      const previous = this.rowTops.get(row);
+      this.rowTops.set(row, top);
+      if (!animate || typeof row.animate !== 'function') {
+        continue;
+      }
+      if (previous === undefined) {
+        row.animate([{opacity: 0}, {opacity: 1}], {duration: 220, easing: 'ease-out'});
+      } else if (Math.abs(previous - top) > 1) {
+        row.animate([{transform: `translateY(${previous - top}px)`}, {transform: 'none'}], {duration: 260, easing: 'cubic-bezier(0.2, 0, 0, 1)'});
+      }
+    }
+  }
+
+  /** Positions et niveaux des en-têtes de groupe dans la liste affichée (seulement avec `[stickyGroupHeaders]`). */
+  private readonly groupHeaderPositions = computed(() => {
+    const positions: {index: number; depth: number}[] = [];
+    if (!this.stickyGroupHeaders() || !this.groupUnits()) {
+      return positions;
+    }
+    const items = this.pageItems();
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      if (item instanceof NgTableGroupRow) {
+        positions.push({index, depth: item.depth});
+      }
+    }
+    return positions;
+  });
+
+  /**
+   * Défilement virtuel : en-têtes du groupe en cours sortis de la tranche rendue. Ils y sont remis en tête, pour que
+   * leur ligne existe et reste collée en haut de la zone.
+   */
+  private readonly stickyGroupExtras = computed<NgTableGroupRow<T>[]>(() => {
+    const range = this.virtualRange();
+    const headers = this.groupHeaderPositions();
+    if (!range || headers.length === 0 || this.blockMode()) {
+      return [];
+    }
+    const items = this.pageItems();
+    return openGroupHeaders(headers, range.start).map((index) => items[index] as NgTableGroupRow<T>);
+  });
+  private readonly stickyGroupExtraSet = computed(() => new Set<unknown>(this.stickyGroupExtras()));
+
+  /** Cet en-tête de groupe est rendu en plus de la tranche (voir `stickyGroupExtras`). */
+  protected isStickyGroupExtra(item: unknown): boolean {
+    return this.stickyGroupExtraSet().has(item);
+  }
+
   /** Corps de la table : éléments de la page, fenêtrés en défilement virtuel. */
   private readonly bodyRows = computed<TableItem<T>[]>(() => {
     const range = this.virtualRange();
@@ -2151,7 +2276,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (!range) {
       return items;
     }
-    return [new NgTableSpacerRow('top', 0), ...items.slice(range.start, range.end), new NgTableSpacerRow('bottom', 0)];
+    return [new NgTableSpacerRow('top', 0), ...this.stickyGroupExtras(), ...items.slice(range.start, range.end), new NgTableSpacerRow('bottom', 0)];
   });
 
   /** Lignes d'en-têtes : un niveau par regroupement de colonnes, plus la ligne des colonnes. */
@@ -2668,6 +2793,20 @@ export class NgTableComponent<T = any> implements OnDestroy {
           this.rowHeight.set(height);
         }
       });
+    });
+
+    // [animateRows] : après chaque rendu, la position de chaque ligne est retenue ; quand le tri vient de changer,
+    // les lignes repartent de leur ancienne position (technique « FLIP » : mesurer, déplacer, animer l'écart).
+    afterRenderEffect(() => {
+      if (!this.animateRows()) {
+        return;
+      }
+      this.tableRows();
+      const sorts = this.sortStates();
+      const wrap = this.tableWrapElement()?.nativeElement;
+      if (wrap) {
+        untracked(() => this.animateSortedRows(wrap, sorts));
+      }
     });
 
     // Défilement virtuel : une ligne peut changer de hauteur sans que la liste rendue change (détail déplié ou
@@ -5511,8 +5650,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
       }
       const generation = this.blockCache.generation;
       const controller = new AbortController();
-      const request: NgTableBlockRequest = {
+      const request: NgTableBlockRequest<T> = {
         ...this.buildRemoteQuery(blockIndex, size),
+        afterRow: blockIndex > 0 ? this.blockCache.rowAt(blockIndex * size - 1) : undefined,
+        beforeRow: this.blockCache.rowAt((blockIndex + 1) * size),
         page: {index: blockIndex, size},
         groupBy: null,
         collapsedGroups: [],

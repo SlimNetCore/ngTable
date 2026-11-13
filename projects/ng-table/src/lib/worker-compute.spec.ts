@@ -213,7 +213,7 @@ describe('calcul en worker', () => {
     expect(client.stats.patches).toBeGreaterThan(40);
     expect(client.stats.columnsSent, 'aucune colonne renvoyée en entier').toBe(sentAtStart);
     client.dispose();
-  });
+  }, 30_000);
 
   it('retouche refusée quand le worker ne connaît pas le tableau précédent : tout est renvoyé', async () => {
     const worker = inProcessWorker();

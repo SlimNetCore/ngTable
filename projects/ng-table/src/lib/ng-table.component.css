@@ -1249,7 +1249,8 @@
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
-  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  /* Couleur du texte, pas l'accent : à cette taille, l'accent sur son fond pâle manque de contraste (audit axe). */
+  color: var(--ngt-text, var(--app-text, #14212b));
   font-size: 0.75rem;
 }
 
@@ -2470,4 +2471,85 @@ ng-table:dir(rtl) {
 
 .cell-content--fill > ng-table-cell-format {
   flex: 1 1 auto;
+}
+
+/* [stickyGroupHeaders] : l'en-tête du groupe en cours reste sous l'en-tête des colonnes ; un sous-groupe se place sous
+   son parent. Fond opaque : les lignes passent dessous. */
+.ng-table tr.group-row--sticky td {
+  position: sticky;
+  top: calc(var(--ngt-header-h, 0px) + var(--ngt-group-depth, 0) * var(--ngt-row-h, 48px));
+  z-index: 2;
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
+  box-shadow: 0 1px 0 var(--ngt-border, rgba(20, 33, 43, 0.12));
+}
+
+.ng-table tr.group-row--sticky td.cdk-table-sticky {
+  z-index: 3;
+}
+
+.ng-table tr.group-row--sticky:hover td {
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #e8f0f8));
+}
+
+@media print {
+  .ng-table tr.group-row--sticky td {
+    position: static;
+  }
+}
+
+/* [scrollMarkers] : traits le long du bord de la zone défilante, à la hauteur des lignes sélectionnées ou signalées.
+   La forme change avec la nature du repère (trait fin pour la sélection, plus épais pour une alerte) : pas la couleur seule. */
+.ngt-scroll-markers {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: 0;
+  width: 8px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.ngt-scroll-marker {
+  position: absolute;
+  inset-inline: 1px;
+  height: 2px;
+  min-height: 2px;
+  border-radius: 1px;
+  background: var(--ngt-primary, #2f6fa8);
+}
+
+.ngt-scroll-marker[data-kind='info'],
+.ngt-scroll-marker[data-kind='success'],
+.ngt-scroll-marker[data-kind='warning'],
+.ngt-scroll-marker[data-kind='danger'] {
+  inset-inline: 0;
+  height: 4px;
+}
+
+.ngt-scroll-marker[data-kind='success'] {
+  background: var(--ngt-success, #1f8a4c);
+}
+
+.ngt-scroll-marker[data-kind='warning'] {
+  background: var(--ngt-warning, #b26a00);
+}
+
+.ngt-scroll-marker[data-kind='danger'] {
+  background: var(--ngt-danger, #c0392b);
+}
+
+.ngt-scroll-marker[data-kind='neutral'] {
+  background: var(--ngt-text-muted, #5f7080);
+}
+
+@media (forced-colors: active) {
+  .ngt-scroll-marker {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+}
+
+@media print {
+  .ngt-scroll-markers {
+    display: none;
+  }
 }

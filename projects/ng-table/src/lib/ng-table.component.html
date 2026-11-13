@@ -892,6 +892,9 @@
         [attr.aria-expanded]="groupsCollapsible() ? !item.collapsed : null"
         [attr.aria-rowindex]="ariaRowIndex(item)"
         [attr.tabindex]="groupsCollapsible() ? 0 : null"
+        [attr.data-ngt-group-extra]="isStickyGroupExtra(item) ? '' : null"
+        [class.group-row--sticky]="stickyGroupHeaders()"
+        [style.--ngt-group-depth]="stickyGroupHeaders() ? item.depth : null"
         [class.group-row--static]="!groupsCollapsible()"
         class="group-row"
         cdk-row
@@ -948,6 +951,15 @@
       </tr>
     </table>
   </div>
+
+  @if (scrollMarks().length > 0 && !(sidePanel() && sidePanelOpen() && sidePanelPinned())) {
+    <!-- Décoratif : la sélection et l'état des lignes sont déjà exposés ligne par ligne. -->
+    <div [style.top.px]="pinHeaderOffset()" aria-hidden="true" class="ngt-scroll-markers">
+      @for (mark of scrollMarks(); track $index) {
+        <span [attr.data-kind]="mark.kind" [style.top.%]="mark.top" class="ngt-scroll-marker"></span>
+      }
+    </div>
+  }
 
   @if (busy()) {
     <div aria-live="polite" class="ngt-loading-overlay" role="status">

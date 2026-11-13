@@ -4,6 +4,12 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- `[animateRows]` : au changement de tri, les lignes déjà à l'écran glissent vers leur nouvelle place et les autres apparaissent en fondu (260 ms). Rien ne bouge si l'utilisateur a demandé moins d'animations, ni au-delà de 120 lignes rendues.
+- `[stickyGroupHeaders]` : l'en-tête du groupe en cours, et de ses groupes parents, reste collé sous l'en-tête des colonnes pendant le défilement, y compris en défilement virtuel (l'en-tête sorti de la tranche rendue y est remis).
+- `[scrollMarkers]` et `[rowMarker]` : repères le long du bord de la zone défilante, à la hauteur des lignes sélectionnées et des lignes signalées (`'danger'`, `'warning'`, `'info'`, `'success'`), 200 au plus. Décoratifs (masqués aux lecteurs d'écran) ; l'épaisseur du trait distingue une alerte d'une sélection.
+- Modèle par blocs, pagination par clé : `NgTableBlockRequest.afterRow` (dernière ligne du bloc précédent) et `beforeRow` (première ligne du bloc suivant), fournies quand la table les a en mémoire. Le serveur peut alors demander « les lignes après celle-ci » au lieu d'un décalage `startRow`. `NgTableBlockRequest` devient générique (`NgTableBlockRequest<T>`, `unknown` par défaut : sans effet sur le code existant).
+- Démo : page **Nouveautés**, une section par fonctionnalité récente avec ce qu'il faut essayer.
+
 - Défilement virtuel : **lignes de hauteurs différentes**. La table retient la hauteur réelle des lignes qu'elle a rendues (détail déplié, texte sur plusieurs lignes, en-tête de groupe) ; les autres gardent la hauteur estimée, qui est maintenant la hauteur la plus fréquente des lignes rendues. La barre de défilement et `scrollToIndex()` en tiennent compte : un détail déplié garde sa place même une fois sorti de la zone rendue. Positions calculées en O(log n) par un arbre de Fenwick (`row-heights.ts`). Limites : pas en modèle par blocs ; au-delà de 15 millions de pixels (barre comprimée) le calcul uniforme est gardé ; les mesures repartent de zéro quand la liste change (tri, filtre, données). Aucun changement d'API.
 - Calcul en Web Worker et mode live : une transaction (`applyTransaction`, `applyTransactionAsync`, nouveau `[rows]` qui garde l'ordre) n'oblige plus à renvoyer toutes les colonnes au worker. Seules les valeurs des lignes modifiées, ajoutées ou retirées partent (message `patch`), et le worker retouche ses colonnes. Le fil principal ne relit donc plus toutes les lignes à chaque lot. Aucun changement d'API.
 
