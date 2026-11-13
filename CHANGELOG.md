@@ -4,6 +4,10 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- Démo : page **Thème**, un bac à sable où régler les jetons `--ngt-*` (couleurs, rayons, hauteur de ligne, taille du texte), voir la table changer aussitôt et copier le CSS obtenu ; quatre thèmes tout faits pour partir de quelque chose.
+
+- Filtre avancé : enregistré dans les vues, présent dans `getQueryState()` / `applyQueryState()` (`advancedFilter`, `null` pour le retirer) et dans l'URL (`ngTableUrlState`, paramètre `af`). `sanitizeFilterGroup` valide un filtre venu de l'extérieur. À noter : `fromUrlParams()` renvoie maintenant aussi `advancedFilter` (`null` s'il n'y en a pas).
+
 - Pivot en Web Worker : `<ng-table-pivot [workerCompute]="true">` calcule le tableau croisé hors du fil principal quand `rows` dépasse `[workerThreshold]` lignes (100 000 par défaut). Les valeurs de chaque champ partent une seule fois par jeu de lignes : changer d'agrégat, permuter lignes et colonnes ou retirer un champ ne renvoie rien. L'ancien résultat reste affiché pendant le calcul ; en cas d'échec du worker, le pivot revient sur le fil principal. `[computeWorkerFactory]` comme sur `ng-table`. Sans effet avec `[datasource]`.
 
 - Filtre avancé : `[(advancedFilter)]` sur `ng-table` reçoit des conditions combinées par ET / OU, en groupes imbriqués (`NgTableFilterGroup`), avec « sauf » par condition. Chaque condition lit sa saisie comme le filtre de sa colonne (`>5000`, `10..50`, `Validée,Annulée`, un texte). Il s'ajoute aux filtres de colonnes et à la recherche ; en mode `remote` il part dans la requête (`advancedFilter`) ; « Réinitialiser les filtres » l'efface. Nouveau composant `<ng-table-filter-builder [columns] [(filter)]>` pour le construire à l'écran (trois niveaux de groupes, 13 libellés dans les cinq langues). Fonctions `compileAdvancedFilter`, `describeAdvancedFilter`, `countActiveConditions` exportées. Avec un filtre avancé actif, le calcul reste sur le fil principal (pas de Web Worker).

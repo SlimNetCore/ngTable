@@ -116,3 +116,36 @@ export function describeAdvancedFilter<T>(
   const text = parts.join(` ${node.operator === 'or' ? words.or : words.and} `);
   return nested && parts.length > 1 ? `(${text})` : text;
 }
+
+/** Profondeur maximale acceptée pour un filtre venu de l'extérieur (URL, stockage). */
+const MAX_TRUSTED_DEPTH = 6;
+
+/**
+ * Filtre avancé relu depuis une source non sûre (paramètre d'URL, vue enregistrée, réponse d'un service) : ne garde
+ * que ce qui a la bonne forme. `null` si la valeur n'est pas un groupe, ou qu'il ne lui reste aucune condition.
+ * Les conditions mal formées et les groupes trop imbriqués sont écartés ; rien d'autre que les champs connus n'est repris.
+ */
+export function sanitizeFilterGroup(value: unknown, depth = 0): NgTableFilterGroup | null {
+  if (!value || typeof value !== 'object' || depth >= MAX_TRUSTED_DEPTH) {
+    return null;
+  }
+  const candidate = value as {operator?: unknown; children?: unknown};
+  if ((candidate.operator !== 'and' && candidate.operator !== 'or') || !Array.isArray(candidate.children)) {
+    return null;
+  }
+  const children: NgTableFilterNode[] = [];
+  for (const child of candidate.children as unknown[]) {
+    if (child && typeof child === 'object' && Array.isArray((child as {children?: unknown}).children)) {
+      const group = sanitizeFilterGroup(child, depth + 1);
+      if (group) {
+        children.push(group);
+      }
+      continue;
+    }
+    const condition = child as {columnId?: unknown; value?: unknown; not?: unknown} | null;
+    if (condition && typeof condition.columnId === 'string' && typeof condition.value === 'string') {
+      children.push({columnId: condition.columnId, value: condition.value, ...(condition.not === true ? {not: true} : {})});
+    }
+  }
+  return children.length > 0 ? {operator: candidate.operator, children} : null;
+}

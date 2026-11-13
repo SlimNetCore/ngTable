@@ -7,7 +7,7 @@ import {NgTableColumn, NgTableComponent, NgTableQueryState} from '../src/public-
 import {NgTableUrlStateDirective} from './ng-table-url-state.directive';
 import {fromUrlParams, toUrlParams} from './url-state';
 
-const EMPTY: NgTableQueryState = {sorts: [], filters: {}, search: '', pageIndex: 0, pageSize: 10, groupBy: null, collapsedGroups: []};
+const EMPTY: NgTableQueryState = {sorts: [], filters: {}, search: '', pageIndex: 0, pageSize: 10, groupBy: null, collapsedGroups: [], advancedFilter: null};
 
 describe('url-state', () => {
   it('écrit des paramètres lisibles, sans les valeurs par défaut', () => {
@@ -43,11 +43,17 @@ describe('url-state', () => {
       pageSize: 50,
       groupBy: 'client',
       collapsedGroups: [],
+      advancedFilter: {operator: 'or', children: [{columnId: 'statut', value: 'Validée'}, {operator: 'and', children: [{columnId: 'montant', value: '>5000', not: true}]}]},
     };
     const params = toUrlParams(state, 'cmd', 10) as Record<string, string>;
+    expect(typeof params['cmd.af']).toBe('string');
     expect(fromUrlParams(params, 'cmd', 10)).toEqual(state);
 
     expect(fromUrlParams({s: 'montant:sideways,:asc', p: '-2', ps: 'abc'}, '', 25)).toEqual({...EMPTY, pageSize: 25});
+    // Filtre avancé illisible ou mal formé (une URL se modifie à la main) : ignoré, pas d'erreur.
+    for (const af of ['{pas du json', '42', '{"operator":"xor","children":[]}', '{"operator":"and","children":[{"columnId":7,"value":"x"}]}']) {
+      expect(fromUrlParams({af}, '', 10).advancedFilter, af).toBeNull();
+    }
   });
 });
 

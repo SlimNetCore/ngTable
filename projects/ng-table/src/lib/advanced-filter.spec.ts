@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {compileAdvancedFilter, countActiveConditions, describeAdvancedFilter, NgTableFilterGroup, NgTableFilterNode} from './advanced-filter';
+import {compileAdvancedFilter, countActiveConditions, describeAdvancedFilter, NgTableFilterGroup, NgTableFilterNode, sanitizeFilterGroup} from './advanced-filter';
 import {compileColumnFilter} from './filter-compile';
 import type {NgTableColumn} from './ng-table.component';
 
@@ -103,5 +103,34 @@ describe('advanced-filter', () => {
       const expected = ROWS.filter((row) => naive(filter, row) ?? true).map((row) => row.id);
       expect(ids(filter), JSON.stringify(filter)).toEqual(expected);
     }
+  });
+});
+
+describe('sanitizeFilterGroup', () => {
+  it('garde un filtre bien formé tel quel, sans les champs inconnus', () => {
+    const filter = {operator: 'and', extra: 1, children: [{columnId: 'statut', value: 'x', not: true, script: 'alert(1)'}, {operator: 'or', children: [{columnId: 'montant', value: '>5'}]}]};
+    expect(sanitizeFilterGroup(filter)).toEqual({
+      operator: 'and',
+      children: [{columnId: 'statut', value: 'x', not: true}, {operator: 'or', children: [{columnId: 'montant', value: '>5'}]}],
+    });
+  });
+
+  it('rejette ce qui n’est pas un groupe, écarte les conditions mal formées', () => {
+    for (const value of [null, undefined, 'texte', 42, [], {operator: 'xor', children: []}, {operator: 'and'}, {operator: 'and', children: 'x'}]) {
+      expect(sanitizeFilterGroup(value), JSON.stringify(value)).toBeNull();
+    }
+    expect(sanitizeFilterGroup({operator: 'and', children: [{columnId: 1, value: 'x'}, {columnId: 'a'}, null, 'x', {columnId: 'ok', value: 'v', not: 'oui'}]})).toEqual({
+      operator: 'and',
+      children: [{columnId: 'ok', value: 'v'}],
+    });
+    expect(sanitizeFilterGroup({operator: 'and', children: [{operator: 'or', children: []}]}), 'plus aucune condition').toBeNull();
+  });
+
+  it('coupe un arbre anormalement profond au lieu de le parcourir sans fin', () => {
+    let deep: unknown = {operator: 'and', children: [{columnId: 'a', value: 'x'}]};
+    for (let i = 0; i < 50; i++) {
+      deep = {operator: 'and', children: [deep]};
+    }
+    expect(sanitizeFilterGroup(deep)).toBeNull();
   });
 });

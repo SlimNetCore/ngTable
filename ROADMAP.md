@@ -158,7 +158,7 @@ But : aller plus loin en performance, en rendu et en confort d'usage. Aucune de 
 | ID | Amélioration | Statut | Notes |
 |----|--------------|--------|-------|
 | H13 | Regroupement multi-niveaux et arbre chargés à la demande côté serveur | À faire | Un seul niveau en `remote` aujourd'hui (G23) ; pas de regroupement avec `[remoteDatasource]` |
-| H14 | Constructeur de filtres avancés (ET / OU, groupes de conditions) | Vérifié | `advanced-filter.ts`, `[(advancedFilter)]`, `<ng-table-filter-builder>` ; 6 tests purs (dont 500 arbres aléatoires comparés à une évaluation naïve), 6 tests composant, 1 test e2e, audit axe. **Reste** : l'enregistrer dans les vues et l'état d'URL ; le faire appliquer par le serveur Spring d'exemple ; bouton dans la barre d'actions de la table |
+| H14 | Constructeur de filtres avancés (ET / OU, groupes de conditions) | Vérifié | `advanced-filter.ts`, `[(advancedFilter)]`, `<ng-table-filter-builder>` ; 6 tests purs (dont 500 arbres aléatoires comparés à une évaluation naïve), 6 tests composant, 1 test e2e, audit axe. Enregistré dans les vues, l'état de requête et l'URL (`af`), validé par `sanitizeFilterGroup` (3 tests purs, 1 test d'URL, 2 tests composant). **Reste** : le faire appliquer par le serveur Spring d'exemple ; bouton dans la barre d'actions de la table |
 | H15 | Poignée de recopie façon Excel | Vérifié | `[fillHandle]`, `fillTarget`, `buildFillAssignments` ; 8 tests purs, 4 tests composant, 1 test e2e (glissement réel dans Chromium, puis Ctrl+Z). Ctrl+D / Ctrl+R au clavier. S'appuie sur `[rangeSelection]` et l'historique d'édition (G10, G11) |
 
 ### 8.3 Visuel
@@ -180,7 +180,7 @@ But : aller plus loin en performance, en rendu et en confort d'usage. Aucune de 
 | ID | Amélioration | Statut | Notes |
 |----|--------------|--------|-------|
 | Z1 | Paquet plus léger | À faire | Pivot, graphiques et export Excel dans des points d'entrée secondaires (comme `router` et `testing`). Cassant : version majeure |
-| Z2 | Bac à sable de thème dans la documentation | À faire | Réglage des jetons `--ngt-*` en direct, copie du CSS |
+| Z2 | Bac à sable de thème dans la documentation | Vérifié | Page **Thème** de la démo (`theme-demo.component.ts`), donc aussi dans la démo publiée avec le site ; 14 jetons réglables, 4 thèmes tout faits, CSS à copier ; 1 test e2e, audit axe. Cible d'origine : réglage des jetons `--ngt-*` en direct, copie du CSS |
 | Z3 | Rendu côté serveur vérifié et documenté | À faire | Suite de A4 |
 | Z4 | Campagne NVDA / VoiceOver, relecture es / de / ar | À faire | Restes de G29 et G32 |
 | Z5 | Schémas `ng update` pour les changements d'API | À faire | |

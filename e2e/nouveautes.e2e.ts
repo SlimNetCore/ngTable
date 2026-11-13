@@ -125,3 +125,19 @@ test('filtre avancé : le constructeur filtre la table, « OU » élargit, « To
   await expect.poll(total).toContain('sur 120');
   await expect(builder.locator('.ngt-fb__condition')).toHaveCount(0);
 });
+
+test('bac à sable de thème : un jeton réglé change la table et apparaît dans le CSS à copier', async ({page}) => {
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await page.goto('/#/theme');
+  await page.locator('tr.data-row').first().waitFor();
+  const accent = () => page.locator('ng-table').evaluate((host) => getComputedStyle(host).getPropertyValue('--ngt-primary').trim());
+  expect(await accent()).toBe('');
+
+  await page.getByRole('button', {name: 'Forêt'}).click();
+  await expect.poll(accent).toBe('#1f6f4a');
+  await expect(page.locator('pre.demo-code')).toContainText('--ngt-primary: #1f6f4a;');
+
+  await page.getByRole('button', {name: 'Par défaut'}).click();
+  await expect.poll(accent).toBe('');
+  await expect(page.locator('pre.demo-code')).toContainText('Aucun jeton modifié');
+});

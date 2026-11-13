@@ -90,6 +90,7 @@ export class AppComponent {
     {path: '/expert', label: 'Expert', hint: 'serveur, contrôle, API'},
     {path: '/live', label: 'Live', hint: 'flux temps réel'},
     {path: '/analyse', label: 'Analyse', hint: 'pivot, graphiques'},
+    {path: '/theme', label: 'Thème', hint: 'bac à sable'},
     {path: '/benchmark', label: 'Benchmark', hint: 'face à AG Grid'},
   ];
 

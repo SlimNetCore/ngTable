@@ -1102,6 +1102,29 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('filtre avancé et vues', () => {
+    it('une vue enregistre le filtre avancé et le restaure ; une vue sans filtre le retire', async () => {
+      const {component, fixture} = await createTable({viewsEnabled: true, viewsStorageKey: 'filtre-avance'});
+      const ids = () => (component.displayedRows() as Row[]).map((row) => row.id);
+      component.saveCurrentAsView('Tout');
+      component.advancedFilter.set({operator: 'or', children: [{columnId: 'montant', value: '>250'}, {columnId: 'nom', value: 'ali'}]});
+      await fixture.whenStable();
+      expect(ids()).toEqual(['1', '2']);
+      component.saveCurrentAsView('Gros montants ou Alice');
+
+      const [all, filtered] = component.viewsList();
+      component.activateView(all);
+      await fixture.whenStable();
+      expect(component.advancedFilter()).toBeNull();
+      expect(ids()).toEqual(['1', '2', '3']);
+
+      component.activateView(filtered);
+      await fixture.whenStable();
+      expect(component.advancedFilter()?.children).toHaveLength(2);
+      expect(ids()).toEqual(['1', '2']);
+    });
+  });
+
   describe('surlignage de la recherche et état vide', () => {
     const el = (fixture: ComponentFixture<NgTableComponent>) => fixture.nativeElement as HTMLElement;
 

@@ -50,7 +50,7 @@ import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveV
 import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {ColumnStore} from './column-store';
-import {compileAdvancedFilter, countActiveConditions, NgTableFilterGroup} from './advanced-filter';
+import {compileAdvancedFilter, countActiveConditions, NgTableFilterGroup, sanitizeFilterGroup} from './advanced-filter';
 import {buildScrollMarkers, NgTableMarkerKind, NgTableScrollMarker} from './scroll-markers';
 import {computeVariableLayout, HeightIndex, mostCommonHeight, variableScrollTop} from './row-heights';
 import {NgTableCellFormat, NgTableTone, NgTableValueRange, valueRange} from './cell-format';
@@ -560,6 +560,8 @@ export interface NgTableViewState {
   groupLevels?: string[];
   /** Recherche globale. Absente des vues enregistrées avant son ajout (= pas de recherche). */
   search?: string;
+  /** Filtre avancé (conditions ET / OU). Absent : pas de filtre avancé. */
+  advancedFilter?: NgTableFilterGroup;
   /** Only populated when `pageTrackingEnabled=true` (reuses `[pageIndex]`/`[pageSize]`). */
   pageIndex?: number;
   pageSize?: number;
@@ -584,6 +586,11 @@ export interface NgTableQueryState {
   groupLevels?: string[];
   /** Clés des groupes repliés. */
   collapsedGroups: string[];
+  /**
+   * Filtre avancé (conditions ET / OU). Dans `getQueryState()` : présent seulement s'il y en a un. Dans
+   * `applyQueryState()` : absent = inchangé, `null` = retiré.
+   */
+  advancedFilter?: NgTableFilterGroup | null;
 }
 
 export interface NgTableView {
@@ -2230,6 +2237,18 @@ export class NgTableComponent<T = any> implements OnDestroy {
     return buildScrollMarkers(items.length, marks);
   });
 
+  /**
+   * Change le filtre avancé sans que l'effet qui le surveille relance une requête : l'appelant (état appliqué, vue
+   * activée) émet lui-même la requête complète, une seule fois.
+   */
+  private setAdvancedFilterSilently(filter: NgTableFilterGroup | null): void {
+    if (filter === null && this.advancedFilter() === null) {
+      return;
+    }
+    this.advancedFilterApplied = filter;
+    this.advancedFilter.set(filter);
+  }
+
   /** Dernier filtre avancé pris en compte (`undefined` avant le premier passage de l'effet). */
   private advancedFilterApplied: NgTableFilterGroup | null | undefined = undefined;
 
@@ -3227,6 +3246,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       filters: {...this.columnFilters()},
       columnWidths: {...this.columnWidths()},
       ...(this.globalSearchTerm() ? {search: this.globalSearchTerm()} : {}),
+      ...(this.advancedFilter() ? {advancedFilter: this.advancedFilter()!} : {}),
       ...(this.referenceColumn() !== undefined ? {referenceColumnId: this.referenceColumn()} : {}),
       ...(this.groupBy() ? {groupBy: this.groupBy()} : {}),
       ...(this.groupBy() && this.groupColumns().length > 1 ? {groupLevels: this.groupColumns().slice(1).map((column) => column.id)} : {}),
@@ -4671,6 +4691,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       groupBy: this.groupColumn()?.id ?? null,
       ...(this.groupColumns().length > 1 ? {groupLevels: this.groupColumns().slice(1).map((column) => column.id)} : {}),
       collapsedGroups: [...this.collapsedGroups()],
+      ...(this.advancedFilter() ? {advancedFilter: this.advancedFilter()} : {}),
     };
   }
 
@@ -4724,7 +4745,11 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (state.pageSize !== undefined) {
       this.pageSize.set(state.pageSize);
     }
-    const queryChanged = !!state.sorts || !!state.filters || state.search !== undefined || state.groupBy !== undefined;
+    if (state.advancedFilter !== undefined) {
+      this.setAdvancedFilterSilently(sanitizeFilterGroup(state.advancedFilter));
+    }
+    const queryChanged =
+      !!state.sorts || !!state.filters || state.search !== undefined || state.groupBy !== undefined || state.advancedFilter !== undefined;
     if (state.pageIndex !== undefined) {
       this.pageIndex.set(state.pageIndex);
     } else if (queryChanged && this.pagingActive()) {
@@ -5950,6 +5975,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
       this.columnWidths.set({...state.columnWidths});
     }
     this.filtersChange.emit(this.columnFilters());
+
+    // Une vue enregistrée avant l'ajout du filtre avancé n'en a pas : elle le retire, comme elle retire la recherche.
+    this.setAdvancedFilterSilently(sanitizeFilterGroup(state.advancedFilter));
 
     const search = state.search ?? '';
     this.bumpFilterEpoch(GLOBAL_SEARCH_KEY);

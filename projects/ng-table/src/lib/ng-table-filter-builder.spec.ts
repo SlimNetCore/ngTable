@@ -132,6 +132,30 @@ describe('filtre avancé : constructeur et table', () => {
     expect(fixture.componentInstance.queries.map((query) => query.advancedFilter)).toEqual([filter]);
   });
 
+  it('état de requête et vues : le filtre avancé est lu, appliqué, enregistré et restauré', async () => {
+    const table = fixture.componentInstance.table();
+    const filter: NgTableFilterGroup = {operator: 'and', children: [{columnId: 'montant', value: '>5000'}]};
+    expect(table.getQueryState().advancedFilter).toBeUndefined();
+
+    table.applyQueryState({advancedFilter: filter});
+    await fixture.whenStable();
+    expect(shown()).toEqual(['1', '3', '4']);
+    expect(table.getQueryState().advancedFilter).toEqual(filter);
+    expect(values()[0].value, 'le constructeur suit').toBe('>5000');
+
+    // Une valeur mal formée (lien bricolé) retire le filtre au lieu de planter.
+    table.applyQueryState({advancedFilter: {operator: 'xor', children: []} as never});
+    await fixture.whenStable();
+    expect(fixture.componentInstance.filter()).toBeNull();
+    expect(shown()).toEqual(['1', '2', '3', '4']);
+
+    // Absent de l'état : inchangé.
+    table.applyQueryState({advancedFilter: filter});
+    table.applyQueryState({search: ''});
+    await fixture.whenStable();
+    expect(shown()).toEqual(['1', '3', '4']);
+  });
+
   it('accessibilité : chaque champ a un nom, le groupe est un fieldset avec légende', async () => {
     button('Ajouter une condition').click();
     await fixture.whenStable();
