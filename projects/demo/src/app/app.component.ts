@@ -85,6 +85,7 @@ function storedTheme(): DemoTheme {
 export class AppComponent {
   protected readonly modes = [
     {path: '/simple', label: 'Simple', hint: 'le minimum'},
+    {path: '/nouveautes', label: 'Nouveautés', hint: 'ajouts récents'},
     {path: '/avance', label: 'Avancé', hint: 'toutes les options'},
     {path: '/expert', label: 'Expert', hint: 'serveur, contrôle, API'},
     {path: '/live', label: 'Live', hint: 'flux temps réel'},
