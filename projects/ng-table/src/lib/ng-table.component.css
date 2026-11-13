@@ -2498,23 +2498,41 @@ ng-table:dir(rtl) {
 }
 
 /* [scrollMarkers] : traits le long du bord de la zone défilante, à la hauteur des lignes sélectionnées ou signalées.
-   La forme change avec la nature du repère (trait fin pour la sélection, plus épais pour une alerte) : pas la couleur seule. */
+   La bande couvre la hauteur de la barre de défilement. La forme change avec la nature du repère (trait fin pour la
+   sélection, plus épais pour une alerte) : pas la couleur seule. Un clic sur un trait amène à la ligne. */
 .ngt-scroll-markers {
   position: absolute;
   inset-inline-end: 0;
+  top: 0;
   bottom: 0;
-  width: 8px;
+  width: 10px;
   pointer-events: none;
   z-index: 4;
 }
 
 .ngt-scroll-marker {
   position: absolute;
-  inset-inline: 1px;
+  inset-inline: 2px;
   height: 2px;
   min-height: 2px;
+  /* Le trait est centré sur sa position : sa ligne commence au milieu du trait. */
+  transform: translateY(-50%);
   border-radius: 1px;
   background: var(--ngt-primary, #2f6fa8);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Zone de clic plus haute que le trait visible, sans recouvrir le trait voisin (4 px d'écart au moins). */
+.ngt-scroll-marker::before {
+  content: '';
+  position: absolute;
+  inset: -1px -2px;
+}
+
+.ngt-scroll-marker:hover {
+  inset-inline: 0;
+  filter: brightness(0.85);
 }
 
 .ngt-scroll-marker[data-kind='info'],
@@ -2541,10 +2559,21 @@ ng-table:dir(rtl) {
   background: var(--ngt-text-muted, #5f7080);
 }
 
+/* Ligne atteinte par un clic sur un repère : contour et fond pendant un instant. */
+.ng-table tr.data-row[data-ngt-located] td.cdk-cell {
+  background: var(--ngt-primary-soft, rgba(47, 111, 168, 0.14));
+  box-shadow: inset 0 2px 0 var(--ngt-primary, #2f6fa8), inset 0 -2px 0 var(--ngt-primary, #2f6fa8);
+}
+
 @media (forced-colors: active) {
   .ngt-scroll-marker {
     background: Highlight;
     forced-color-adjust: none;
+  }
+
+  .ng-table tr.data-row[data-ngt-located] td.cdk-cell {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }
 

@@ -1080,18 +1080,33 @@ describe('NgTableComponent', () => {
     const marks = (fixture: ComponentFixture<NgTableComponent>) =>
       [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.ngt-scroll-marker')].map((mark) => `${mark.getAttribute('data-kind')}@${Math.round(parseFloat(mark.style.top))}%`);
 
-    it('un repère par ligne signalée par [rowMarker], à sa hauteur dans la liste, masqué aux lecteurs d’écran', async () => {
+    // Sous jsdom rien n'est mesuré : en-tête de 56 px et lignes de 48 px (valeurs de départ), soit 200 px de contenu
+    // pour trois lignes. La ligne n° i commence donc à (56 + 48 × i) / 200.
+    it('un repère par ligne signalée par [rowMarker], là où commence la ligne dans le contenu, masqué aux lecteurs d’écran', async () => {
       const {fixture} = await createTable({scrollMarkers: true, rowMarker: (row: Row) => (row.montant >= 300 ? 'danger' : row.montant === 100 ? 'warning' : null)});
-      expect(marks(fixture)).toEqual(['danger@0%', 'warning@33%']);
+      expect(marks(fixture)).toEqual(['danger@28%', 'warning@52%']);
       expect((fixture.nativeElement as HTMLElement).querySelector('.ngt-scroll-markers')?.getAttribute('aria-hidden')).toBe('true');
     });
 
     it('suit le tri, et repère les lignes sélectionnées', async () => {
       const {fixture, component} = await createTable({scrollMarkers: true, rowSelectionEnabled: true, selectedRowKeys: ['3']});
-      expect(marks(fixture)).toEqual(['selection@67%']);
+      expect(marks(fixture)).toEqual(['selection@76%']);
       component['onHeaderSort'](component.columns()[1]); // montant croissant : Bob (200) passe au milieu
       await fixture.whenStable();
-      expect(marks(fixture)).toEqual(['selection@33%']);
+      expect(marks(fixture)).toEqual(['selection@52%']);
+    });
+
+    it('un clic sur un repère met sa ligne en évidence un instant', async () => {
+      const {fixture} = await createTable({scrollMarkers: true, rowMarker: (row: Row) => (row.id === '3' ? 'danger' : null)});
+      const root = fixture.nativeElement as HTMLElement;
+      const located = () => [...root.querySelectorAll<HTMLElement>('tr.data-row[data-ngt-located]')].map((row) => row.textContent?.includes('Bob'));
+      expect(located()).toEqual([]);
+      root.querySelector<HTMLElement>('.ngt-scroll-marker')!.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+      await fixture.whenStable();
+      expect(located()).toEqual([true]);
+      await new Promise((resolve) => setTimeout(resolve, 1900));
+      await fixture.whenStable();
+      expect(located()).toEqual([]);
     });
 
     it('rien sans l’option, ni sans ligne à repérer', async () => {

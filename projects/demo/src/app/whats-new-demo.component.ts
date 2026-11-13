@@ -207,8 +207,10 @@ const TOTAL_SERVEUR = 1_000_000;
       <p class="try">
         <b>À essayer</b>
         6 000 lignes regroupées par client. Faites défiler : l'en-tête du groupe en cours reste collé en haut. Le long du
-        bord droit, les traits rouges montrent où sont les commandes de plus de 9 950 € dans toute la liste ; cochez
-        quelques lignes, des traits bleus plus fins apparaissent à leur hauteur.
+        bord droit, les traits rouges montrent où sont les commandes de plus de 9 950 € dans toute la liste.
+        <b>Cliquez un trait</b> : la table va à la ligne et la met en évidence un instant. Cochez une ligne : un trait bleu
+        plus fin apparaît à sa hauteur, et un clic dessus y ramène. (Sur 6 000 lignes, un pixel de barre représente une
+        quinzaine de lignes : c'est le clic qui donne la ligne exacte.)
       </p>
       <ng-table
         [ariaLabel]="'Commandes regroupées par client'"

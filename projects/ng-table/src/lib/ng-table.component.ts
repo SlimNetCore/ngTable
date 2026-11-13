@@ -51,7 +51,7 @@ import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {ColumnStore} from './column-store';
 import {compileAdvancedFilter, countActiveConditions, NgTableFilterGroup, sanitizeFilterGroup} from './advanced-filter';
-import {buildScrollMarkers, NgTableMarkerKind, NgTableScrollMarker} from './scroll-markers';
+import {buildScrollMarkers, NgTableMarkedRow, NgTableScrollMarker, scrollTopForMarker} from './scroll-markers';
 import {computeVariableLayout, HeightIndex, mostCommonHeight, variableScrollTop} from './row-heights';
 import {NgTableCellFormat, NgTableTone, NgTableValueRange, valueRange} from './cell-format';
 import {NgTableCellFormatComponent} from './ng-table-cell-format.component';
@@ -847,7 +847,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly animateRows = input(false);
   /**
    * Repères le long du bord de la zone défilante : un trait à la hauteur de chaque ligne sélectionnée, et de chaque
-   * ligne signalée par `[rowMarker]`. Ils montrent où se trouvent ces lignes dans toute la liste, sans défiler.
+   * ligne signalée par `[rowMarker]`. Ils montrent où se trouvent ces lignes dans toute la liste, sans défiler ; un
+   * clic sur un trait amène la ligne au milieu de la zone et la met en évidence un instant. Sur une longue liste, un
+   * pixel de barre représente plusieurs lignes : des lignes marquées très proches partagent un trait.
    * La liste est parcourue en entier à chaque changement : à éviter au-delà de quelques centaines de milliers de lignes.
    */
   readonly scrollMarkers = input(false);
@@ -2221,21 +2223,65 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (selected.size === 0 && !marker) {
       return [];
     }
-    const marks: {index: number; kind: NgTableMarkerKind}[] = [];
+    // Où commence chaque élément dans le contenu défilant : sous les en-têtes et les lignes épinglées du haut, avec
+    // les hauteurs réellement mesurées quand il y en a (détail déplié, texte sur plusieurs lignes).
+    const heights = this.rowHeights();
+    this.rowHeightsVersion();
+    const rowHeight = this.rowHeight();
+    const before = this.headerHeight() + this.pinnedTopRows().length * rowHeight;
+    const body = heights ? heights.total : items.length * rowHeight;
+    const total = before + body + this.pinnedBottomRows().length * rowHeight + (this.totals() ? this.footerHeight() : 0);
+    if (!(total > 0)) {
+      return [];
+    }
+    const marks: NgTableMarkedRow[] = [];
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
       if (item instanceof NgTableGroupRow) {
         continue;
       }
       const tone = marker?.(item);
-      if (tone) {
-        marks.push({index, kind: tone});
-      } else if (selected.size > 0 && selected.has(this.rowKey(item))) {
-        marks.push({index, kind: 'selection'});
+      const kind = tone || (selected.size > 0 && selected.has(this.rowKey(item)) ? 'selection' : null);
+      if (kind) {
+        marks.push({index, kind, position: (before + (heights ? heights.offsetOf(index) : index * rowHeight)) / total});
       }
     }
-    return buildScrollMarkers(items.length, marks);
+    return buildScrollMarkers(marks, this.viewportHeight());
   });
+
+  /** Hauteur visible de la zone défilante, ou `null` tant qu'elle n'est pas mesurée (la bande prend alors toute la hauteur). */
+  protected viewportHeightPx(): number | null {
+    return this.viewportHeight() > 0 ? this.viewportHeight() : null;
+  }
+
+  /** Ligne mise en évidence après un clic sur un repère (retirée après un instant). */
+  private readonly locatedItem = signal<unknown>(null);
+  private locatedTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected isLocated(row: T): boolean {
+    return this.locatedItem() === row;
+  }
+
+  /** Clic sur un repère : amène la ligne au milieu de la zone défilante et la met en évidence un instant. */
+  protected onScrollMarkerClick(event: Event, mark: NgTableScrollMarker): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const wrap = this.tableWrapElement()?.nativeElement;
+    if (!wrap) {
+      return;
+    }
+    const top = scrollTopForMarker(mark.position, wrap.scrollHeight, wrap.clientHeight, this.rowHeight());
+    wrap.scrollTop = top;
+    this.scrollTop.set(top);
+    this.locatedItem.set(this.pageItems()[mark.index] ?? null);
+    if (this.locatedTimer !== null) {
+      clearTimeout(this.locatedTimer);
+    }
+    this.locatedTimer = setTimeout(() => {
+      this.locatedTimer = null;
+      this.locatedItem.set(null);
+    }, 1800);
+  }
 
   /**
    * Change le filtre avancé sans que l'effet qui le surveille relance une requête : l'appelant (état appliqué, vue
@@ -3032,6 +3078,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     this.detachRangeDragListeners();
     if (this.asyncTimer !== null) {
       clearTimeout(this.asyncTimer);
+    }
+    if (this.locatedTimer !== null) {
+      clearTimeout(this.locatedTimer);
     }
     this.stopResize();
     this.stopScrollTracking();

@@ -70,14 +70,63 @@ test('[stickyGroupHeaders] : l’en-tête du groupe en cours reste collé sous l
   expect((await measure()).text).toContain('Bernard');
 });
 
-test('[scrollMarkers] : des repères rouges, puis un repère de sélection quand on coche une ligne', async ({page}) => {
+test('[scrollMarkers] : chaque trait rouge mène à une commande de plus de 9 950 €, et se trouve sous le curseur de la barre', async ({page}) => {
   await open(page, 'reduce');
   const table = page.locator('ng-table').nth(4);
   await table.scrollIntoViewIfNeeded();
-  const kinds = () => table.locator('.ngt-scroll-marker').evaluateAll((marks) => [...new Set(marks.map((mark) => mark.getAttribute('data-kind')))].sort());
-  expect(await kinds()).toEqual(['danger']);
-  await table.locator('.selection-cell ng-table-checkbox').first().click();
-  await expect.poll(kinds).toEqual(['danger', 'selection']);
+  const marks = table.locator('.ngt-scroll-marker[data-kind="danger"]');
+  const count = await marks.count();
+  expect(count).toBeGreaterThan(5);
+
+  for (const index of [0, Math.floor(count / 2), count - 1]) {
+    await marks.nth(index).dispatchEvent('mousedown');
+    const located = table.locator('tr.data-row[data-ngt-located]');
+    await expect(located).toHaveCount(1);
+    // La ligne mise en évidence est bien une grosse commande, et elle est visible dans la zone.
+    const amount = Number((await located.locator('td.cdk-column-montant').innerText()).trim());
+    expect(amount, `trait n° ${index}`).toBeGreaterThan(9950);
+    await expect(located).toBeInViewport();
+    // Géométrie : le trait est dans la partie de la barre que couvre le curseur (la zone visible).
+    const geometry = await table.evaluate((host, markIndex) => {
+      const wrap = host.querySelector<HTMLElement>('.table-wrap')!;
+      const strip = host.querySelector<HTMLElement>('.ngt-scroll-markers')!.getBoundingClientRect();
+      const mark = host.querySelectorAll<HTMLElement>('.ngt-scroll-marker[data-kind="danger"]')[markIndex].getBoundingClientRect();
+      const at = (mark.top + mark.height / 2 - strip.top) / strip.height;
+      return {at, from: wrap.scrollTop / wrap.scrollHeight, to: (wrap.scrollTop + wrap.clientHeight) / wrap.scrollHeight, strip: strip.height, client: wrap.clientHeight};
+    }, index);
+    expect(Math.abs(geometry.strip - geometry.client), 'la bande a la hauteur de la barre').toBeLessThanOrEqual(1);
+    expect(geometry.at).toBeGreaterThanOrEqual(geometry.from - 0.002);
+    expect(geometry.at).toBeLessThanOrEqual(geometry.to + 0.002);
+  }
+});
+
+test('[scrollMarkers] : cocher une ligne ajoute un trait bleu qui y ramène', async ({page}) => {
+  await open(page, 'reduce');
+  const table = page.locator('ng-table').nth(4);
+  await table.scrollIntoViewIfNeeded();
+  // On descend au milieu de la liste, on coche la ligne en haut de la zone, puis on remonte.
+  await table.evaluate((host) => {
+    const wrap = host.querySelector<HTMLElement>('.table-wrap')!;
+    wrap.scrollTop = wrap.scrollHeight / 2;
+  });
+  const row = table.locator('tr.data-row:not([data-ngt-pin])').nth(10);
+  await row.scrollIntoViewIfNeeded();
+  const reference = (await row.locator('td.cdk-column-reference').innerText()).trim();
+  await row.locator('.selection-cell ng-table-checkbox').click();
+  const selection = table.locator('.ngt-scroll-marker[data-kind="selection"]');
+  await expect(selection).toHaveCount(1);
+  const top = await selection.evaluate((mark) => parseFloat((mark as HTMLElement).style.top));
+  expect(top, 'le trait est vers le milieu de la barre').toBeGreaterThan(40);
+  expect(top).toBeLessThan(60);
+
+  await table.evaluate((host) => {
+    host.querySelector<HTMLElement>('.table-wrap')!.scrollTop = 0;
+  });
+  await expect(table.locator('tr.data-row', {hasText: reference})).toHaveCount(0);
+  await selection.dispatchEvent('mousedown');
+  const located = table.locator('tr.data-row[data-ngt-located]');
+  await expect(located).toContainText(reference);
+  await expect(located).toBeInViewport();
 });
 
 test('[fillHandle] : tirer la poignée prolonge la suite 10, 20 ; Ctrl+Z annule tout', async ({page}) => {

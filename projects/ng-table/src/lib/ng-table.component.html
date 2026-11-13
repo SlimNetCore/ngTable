@@ -922,6 +922,7 @@
         [attr.data-ngt-pin]="pinInfo(row)?.side ?? null"
         [attr.data-ngt-row]="rowRangeIndex(row)"
         [attr.data-ngt-pin-edge]="pinInfo(row)?.edge ? '' : null"
+        [attr.data-ngt-located]="isLocated(row) ? '' : null"
         [attr.tabindex]="isRowInteractive() && !cellNavigation() ? 0 : null"
         [style.--ngt-pin-index]="pinInfo(row)?.index ?? null"
         [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
@@ -959,9 +960,10 @@
 
   @if (scrollMarks().length > 0 && !(sidePanel() && sidePanelOpen() && sidePanelPinned())) {
     <!-- Décoratif : la sélection et l'état des lignes sont déjà exposés ligne par ligne. -->
-    <div [style.top.px]="pinHeaderOffset()" aria-hidden="true" class="ngt-scroll-markers">
-      @for (mark of scrollMarks(); track $index) {
-        <span [attr.data-kind]="mark.kind" [style.top.%]="mark.top" class="ngt-scroll-marker"></span>
+    <!-- La bande a la hauteur de la barre de défilement : un trait y est à la position du curseur quand sa ligne est à l'écran. -->
+    <div [style.height.px]="virtualActive() ? viewportHeightPx() : null" aria-hidden="true" class="ngt-scroll-markers">
+      @for (mark of scrollMarks(); track mark.index) {
+        <span (mousedown)="onScrollMarkerClick($event, mark)" [attr.data-kind]="mark.kind" [style.top.%]="mark.top" class="ngt-scroll-marker"></span>
       }
     </div>
   }
