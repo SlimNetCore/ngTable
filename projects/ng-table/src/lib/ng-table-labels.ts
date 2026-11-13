@@ -173,6 +173,11 @@ export interface NgTableLabels {
   /** Arbre : `{row}` n'est pas utilisé, les libellés sont génériques. */
   treeExpand: string;
   treeCollapse: string;
+  /** Bouton natif du master/detail. */
+  detailExpand: string;
+  detailCollapse: string;
+  /** En-tête (lu par les lecteurs d'écran) de la colonne du bouton de détail. */
+  detailColumn: string;
   /** Paginateur intégré. `{from}`, `{to}` et `{total}` sont remplacés. */
   paginatorLabel: string;
   paginatorItemsPerPage: string;
@@ -296,6 +301,9 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   sidePanelPin: 'Fixer le panneau à droite',
   treeExpand: 'Déplier',
   treeCollapse: 'Replier',
+  detailExpand: 'Afficher le détail',
+  detailCollapse: 'Masquer le détail',
+  detailColumn: 'Détail',
   paginatorLabel: 'Pagination',
   paginatorItemsPerPage: 'Éléments par page',
   paginatorFirst: 'Première page',
@@ -425,6 +433,9 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   sidePanelPin: 'Dock the panel on the right',
   treeExpand: 'Expand',
   treeCollapse: 'Collapse',
+  detailExpand: 'Show details',
+  detailCollapse: 'Hide details',
+  detailColumn: 'Details',
   paginatorLabel: 'Pagination',
   paginatorItemsPerPage: 'Items per page',
   paginatorFirst: 'First page',

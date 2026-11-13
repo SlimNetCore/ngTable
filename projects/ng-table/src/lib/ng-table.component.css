@@ -1730,6 +1730,60 @@ button.ngt-tree-toggle:focus-visible {
   color: var(--ngt-primary, var(--app-primary, #2f6fa8));
 }
 
+/* --- Master / detail : bouton natif déplier / replier ------------------------ */
+.detail-toggle-cell {
+  width: 44px;
+  padding-inline: 8px 0 !important;
+  text-align: center;
+}
+
+.ngt-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ngt-text-muted, var(--app-text-muted, #475569));
+  cursor: pointer;
+}
+
+.ngt-detail-toggle:hover,
+.ngt-detail-toggle:focus-visible {
+  background: color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 14%, transparent);
+  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+.ngt-detail-toggle:focus-visible {
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
+  outline-offset: 1px;
+}
+
+.ngt-detail-toggle ng-table-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+  transition: transform 0.15s ease;
+}
+
+/* Le chevron pointe vers le côté, puis vers le bas une fois le détail déplié (sens inversé en lecture de droite à gauche). */
+.ngt-detail-toggle--open ng-table-icon {
+  transform: rotate(90deg);
+}
+
+:dir(rtl) .ngt-detail-toggle--open ng-table-icon[data-flip] {
+  transform: scaleX(-1) rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ngt-detail-toggle ng-table-icon {
+    transition: none;
+  }
+}
+
 /* --- Finition visuelle -------------------------------------------------------
    Une couche de raffinement par-dessus la structure : carte arrondie, en-têtes calmes, filets fins,
    survol de ligne, icônes de tri discrètes. Tout passe par les jetons --ngt-*. */

@@ -1135,7 +1135,7 @@ actions: NgTableSelectionAction<Commande>[] = [
 - Accessibilité : `role="toolbar"` nommé, compteur annoncé (`aria-live`), action grisée en `aria-disabled` avec sa raison en info-bulle. Textes : `labels.selectionBarLabel`, `selectionCountOne`, `selectionCountMany`, `selectionClear`, `selectionSelectAll`, `selectionMore`.
 ### Étape 13 — Ligne détail (master/detail)
 
-Affichez le détail d'une commande (ses lignes) en dépliant la ligne au clic — mode non contrôlé, le plus simple :
+Affichez le détail d'une commande (ses lignes) sous sa ligne. Dès qu'un `[detailRowTemplate]` est fourni, la table ajoute **d'elle-même** une colonne étroite en tête, avec un bouton chevron par ligne pour déplier et replier : rien à écrire. Le clic sur la ligne bascule aussi le détail. Mode non contrôlé, le plus simple :
 
 ```html
 <ng-table
@@ -1157,15 +1157,20 @@ Affichez le détail d'une commande (ses lignes) en dépliant la ligne au clic �
 </ng-template>
 ```
 
+- **Bouton natif** : un chevron par ligne, qui tourne vers le bas quand le détail est ouvert. Il se manie au clavier (Tab, puis Entrée ou Espace), porte `aria-expanded` et un libellé qui suit l'état (« Afficher le détail » / « Masquer le détail », traduits dans les cinq langues ; labels `detailExpand`, `detailCollapse`, `detailColumn`). La colonne se place avant la case de sélection et reste figée avec les colonnes épinglées à gauche.
+- `[detailRowToggleButton]="false"` : retire le bouton natif, si vous préférez le vôtre (appelez `toggleDetail(row)` via un `viewChild` du composant) ou le seul clic sur la ligne.
 - `[detailRowAccordion]="true"` : une seule ligne dépliée à la fois.
-- `[detailRowToggleOnRowClick]="false"` : désactive le clic sur la ligne (utile si vous préférez un bouton dédié — appelez alors `toggleDetail(row)` par programmation via un `viewChild` du composant, ou pilotez en mode contrôlé, voir ci-dessous).
-- `[detailRowCanExpand]="(row) => row.lignes.length > 0"` : empêche de déplier une commande sans lignes.
+- `[detailRowToggleOnRowClick]="false"` : désactive le clic sur la ligne ; le bouton natif reste le moyen de déplier.
+- `[detailRowCanExpand]="(row) => row.lignes.length > 0"` : empêche de déplier une commande sans lignes ; ces lignes n'ont pas de bouton.
+- **Mode contrôlé** (`detailRowWhen` ou `expandedRowKeys`, ci-dessous) : le bouton n'écrit aucun état. Il émet `(detailToggle)` avec l'état demandé et, pour `expandedRowKeys`, la liste de clés à appliquer (`event.expandedKeys`).
 
 Pour piloter l'expansion depuis le parent (persistance, navigation) :
 
 ```html
-[rowKeyAccessor]="(row) => row.id" [expandedRowKeys]="expandedIds()" (detailToggle)="onDetailToggle($event)"
+[rowKeyAccessor]="(row) => row.id" [expandedRowKeys]="expandedIds()" (detailToggle)="expandedIds.set($event.expandedKeys)"
 ```
+
+Le bouton natif émet `(detailToggle)` avec les clés à appliquer : la ligne ci-dessus suffit.
 
 ```ts
 readonly expandedIds = signal<string[]>([]);
@@ -2820,6 +2825,7 @@ interface NgTableFilterConfig {
 | `detailRowTemplate`         | `TemplateRef<{$implicit, row}>`                                  | `null`    | Template de la ligne détail. `null` = pas de ligne détail.                                                           |
 | `detailRowWhen`             | `(index, row) => boolean`                                        | `null`    | Mode contrôlé par index+row de l'expansion.                                                                          |
 | `expandedRowKeys`           | `ReadonlyArray<unknown> \| null`                                 | `null`    | Mode contrôlé par clé de l'expansion.                                                                                |
+| `detailRowToggleButton`     | `boolean`                                                        | `true`    | Bouton natif déplier / replier (colonne en tête) dès qu'un `detailRowTemplate` est fourni. `false` le retire.        |
 | `detailRowToggleOnRowClick` | `boolean`                                                        | `true`    | Mode non contrôlé : clic sur la ligne = toggle détail.                                                               |
 | `detailRowAccordion`        | `boolean`                                                        | `false`   | Mode non contrôlé : une seule ligne dépliée à la fois.                                                               |
 | `detailRowCanExpand`        | `(row) => boolean`                                               | `null`    | Garde optionnelle.                                                                                                   |
@@ -3321,6 +3327,8 @@ Chaque en-tête a une poignée (`drag_indicator`) déclenchant un drag-and-drop 
 ## Ligne détail (master/detail)
 
 ![Ligne détail dépliée : détail des lignes d'une facture sous sa ligne parente](./docs/images/ng-table-overview.png)
+
+Le bouton déplier / replier est **natif** : il apparaît dès que `[detailRowTemplate]` est fourni (`[detailRowToggleButton]="false"` pour le retirer).
 
 Trois modes :
 

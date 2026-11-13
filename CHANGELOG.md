@@ -4,6 +4,8 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- Master / detail : bouton **natif** déplier / replier. Dès qu'un `detailRowTemplate` est fourni, une colonne en tête porte un chevron par ligne (clavier, `aria-expanded`, libellés `detailExpand` / `detailCollapse` / `detailColumn` dans les cinq langues). `[detailRowToggleButton]="false"` le retire. En mode contrôlé, le bouton émet `(detailToggle)` avec les clés à appliquer. Changement visible : les tables qui ont un détail gagnent une colonne de 44 px.
+
 - Accessibilité, daltonisme (WCAG 1.4.1) : nouvelle palette des graphiques `--ngt-chart-1` à `8` (clair et sombre), distinguable en protanopie, deutéranopie, tritanopie et niveaux de gris, contraste ≥ 3:1 ; courbes avec forme de point et tireté propres à chaque série, repris dans la légende ; `[patterns]` sur `ng-table-chart` pour hachurer barres et secteurs ; repère ▲ ▼ ◆ avec la surbrillance du mode live. Changement visible : les couleurs par défaut des graphiques changent (réglables comme avant avec les jetons). Tests : simulation de daltonisme (`color-vision.ts`), 24 tests unitaires et 6 tests e2e de plus.
 
 - Apparence « material » : `provideNgTableLook('material')` donne le rendu d'un tableau Angular Material : texte noir (blanc en thème sombre), lignes de la grille noires, icônes pleines (31 icônes, tracés Material Icons, Apache 2.0) et icône de tri en accent ; les boutons, champs et cartes gardent leurs traits ; la police est celle de la page (déjà le cas par défaut). Nouveaux : `NG_TABLE_ICON_STYLE`, `NG_TABLE_LOOK_CLASS`, `NG_TABLE_LOOK_OVERRIDES`, classe `ngt-look-material`. Sélecteur « Apparence » dans la démo. Aucun changement par défaut.
