@@ -1,4 +1,5 @@
-import {ChangeDetectionStrategy, Component, computed, effect, input, model, output, signal, untracked, ViewEncapsulation} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, model, output, signal, untracked, ViewEncapsulation} from '@angular/core';
+import {ComputeWorkerClient, ComputeWorkerLike, createDefaultComputeWorker} from './compute-worker-client';
 import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {NgTableColumn, NgTableComponent} from './ng-table.component';
@@ -372,6 +373,15 @@ export class NgTablePivotComponent<T> {
   readonly theme = input<NgTableTheme | null>(null);
   /** Le serveur a échoué ou refusé la requête. */
   readonly pivotError = output<unknown>();
+  /**
+   * Calcule le pivot dans un Web Worker quand `rows` dépasse `[workerThreshold]` lignes : la page reste fluide
+   * pendant le calcul, et l'ancien résultat reste affiché en attendant. Sans effet avec `[datasource]` (le serveur
+   * calcule déjà). Les champs doivent avoir un `accessor` ; en cas d'échec du worker, le calcul revient sur le fil principal.
+   */
+  readonly workerCompute = input(false);
+  readonly workerThreshold = input(100_000);
+  /** Fabrique du worker, pour une politique de sécurité (CSP) qui interdit les `Blob` : voir `[computeWorkerFactory]` de `ng-table`. */
+  readonly computeWorkerFactory = input<(() => ComputeWorkerLike) | null>(null);
 
   protected readonly aggregates = AGGREGATES;
   protected readonly zones: { id: PivotZone }[] = [{id: 'rows'}, {id: 'columns'}, {id: 'values'}];
@@ -394,10 +404,53 @@ export class NgTablePivotComponent<T> {
       this.reloadTick();
       if (datasource) {
         untracked(() => void this.runServer(datasource, config, filters ?? undefined));
+      } else if (this.workerActive()) {
+        const rows = this.rows();
+        untracked(() => void this.runWorker(rows, config));
       } else {
         untracked(() => this.cancelServer());
       }
     });
+    inject(DestroyRef).onDestroy(() => this.workerClient?.dispose());
+  }
+
+  // ---------------------------------------------------------------- calcul en Web Worker
+
+  private workerClient: ComputeWorkerClient | null = null;
+  private readonly workerFailed = signal(false);
+  /** Le pivot se calcule dans le worker : demandé, assez de lignes, worker disponible et pas en échec. */
+  private readonly workerActive = computed(
+    () =>
+      this.workerCompute() &&
+      !this.datasource() &&
+      !this.workerFailed() &&
+      (!!this.computeWorkerFactory() || typeof Worker !== 'undefined') &&
+      this.rows().length >= this.workerThreshold(),
+  );
+
+  private async runWorker(rows: readonly T[], config: PivotConfig<T>): Promise<void> {
+    const client = (this.workerClient ??= new ComputeWorkerClient(this.computeWorkerFactory() ?? createDefaultComputeWorker));
+    const id = ++this.requestId;
+    this.loading.set(true);
+    this.error.set(false);
+    try {
+      const {result} = await client.pivot(rows, config);
+      if (id === this.requestId) {
+        this.serverResult.set(result);
+      }
+    } catch (error) {
+      if (id === this.requestId) {
+        // Worker indisponible (CSP, plantage) : le pivot se recalcule sur le fil principal, sans message d'erreur.
+        this.workerClient?.dispose();
+        this.workerClient = null;
+        this.workerFailed.set(true);
+        console.warn('ng-table-pivot : le calcul en worker a échoué, retour au fil principal.', error);
+      }
+    } finally {
+      if (id === this.requestId) {
+        this.loading.set(false);
+      }
+    }
   }
 
   private cancelServer(): void {
@@ -440,7 +493,7 @@ export class NgTablePivotComponent<T> {
   /** Colonnes, lignes et résultat du pivot (lecture seule). */
   readonly model = computed<NgTablePivotModel>(() => {
     const config = this.config();
-    if (this.datasource()) {
+    if (this.datasource() || this.workerActive()) {
       const result = this.serverResult();
       return result ? buildPivotModelFromResult(result, config) : {columns: [], rows: [], pinnedBottom: [], result: {columnKeys: [], columnPaths: [], rows: [], grandTotal: null}};
     }

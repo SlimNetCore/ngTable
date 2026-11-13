@@ -45,7 +45,7 @@ function fakeWorker(options: {failing?: boolean} = {}): ComputeWorkerLike & {run
       } else if (message.type === 'patch') {
         worker.patches++;
         core.patch(message.dataset, message.patch);
-      } else {
+      } else if (message.type === 'run') {
         worker.runs++;
         if (options.failing) {
           reply({type: 'error', job: message.job, message: 'échec simulé'});

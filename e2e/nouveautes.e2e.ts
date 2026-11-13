@@ -23,8 +23,20 @@ test('[animateRows] : au tri, les lignes glissent vers leur nouvelle place', asy
   await open(page);
   const table = page.locator('ng-table').first();
   expect(await runningAnimations(page)).toBe(0);
+  // On compte les animations lancées sur des lignes, plutôt que de guetter une animation de 260 ms en cours :
+  // sur une machine chargée, elle peut être finie avant le premier coup d'œil.
+  await page.evaluate(() => {
+    const original = Element.prototype.animate;
+    (window as unknown as {started: number}).started = 0;
+    Element.prototype.animate = function (...args: Parameters<Element['animate']>) {
+      if (this.matches('tr.data-row')) {
+        (window as unknown as {started: number}).started++;
+      }
+      return original.apply(this, args);
+    };
+  });
   await table.getByRole('button', {name: /Marge/}).click();
-  await expect.poll(() => runningAnimations(page)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => (window as unknown as {started: number}).started)).toBeGreaterThan(0);
   // L'animation se termine et ne laisse aucune transformation sur les lignes.
   await expect.poll(() => runningAnimations(page), {timeout: 3000}).toBe(0);
   const transforms = await table.locator('tr.data-row').evaluateAll((rows) => rows.map((row) => getComputedStyle(row).transform));

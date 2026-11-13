@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {ComputeWorkerClient, ComputeWorkerLike} from './compute-worker-client';
 import {rowsPatch, RowStore} from './live-rows';
+import {computePivot, PivotConfig} from './pivot';
 import {compileFilters} from './filter-compile';
 import {matchesSearchTerms, searchTerms} from './filter-matching';
 import {sortRows} from './row-pipeline';
@@ -54,6 +55,12 @@ function inProcessWorker(): ComputeWorkerLike & {messages: ToWorker[]} {
         core.drop(message.dataset);
       } else if (message.type === 'patch') {
         core.patch(message.dataset, message.patch);
+      } else if (message.type === 'pivot') {
+        try {
+          reply({type: 'pivot-done', job: message.job, result: core.pivot(message.dataset, message.spec)});
+        } catch (error) {
+          reply({type: 'error', job: message.job, message: String(error)});
+        }
       } else {
         try {
           reply({type: 'done', job: message.job, order: core.run(message.dataset, message.request)});
@@ -225,6 +232,32 @@ describe('calcul en worker', () => {
     expect([...order].map((index) => changed[index].id)).toEqual(reference(changed, {}, [{column: amount, factor: 1}]));
     expect(client.stats.patches).toBe(0);
     expect(client.stats.columnsSent).toBe(2);
+    client.dispose();
+  });
+
+  it('pivot : même résultat que sur le fil principal, et les colonnes ne partent qu’une fois', async () => {
+    const worker = inProcessWorker();
+    const client = new ComputeWorkerClient(() => worker);
+    const fields = {
+      zone: {id: 'zone', header: 'Zone', accessor: (r: Row) => r.zone},
+      name: {id: 'name', header: 'Nom', accessor: (r: Row) => r.name},
+      month: {id: 'month', header: 'Mois', accessor: (r: Row) => (r.when ? r.when.getUTCMonth() + 1 : null)},
+      amount: {id: 'amount', header: 'Montant', accessor: (r: Row) => r.amount},
+    };
+    const configs: PivotConfig<Row>[] = [
+      {rows: [fields.zone], columns: fields.month, values: [{...fields.amount, aggregate: 'sum'}]},
+      {rows: [fields.zone, fields.name], columns: null, values: [{...fields.amount, aggregate: 'avg'}, {...fields.amount, id: 'n', aggregate: 'count'}]},
+      {rows: [fields.month], columns: [fields.zone], values: [{...fields.amount, aggregate: 'max'}], rowTotals: false, grandTotal: false, columnSort: 'desc'},
+      {rows: [fields.name], columns: [fields.zone, fields.month], values: [{...fields.amount, aggregate: 'min'}], totalLabel: 'Tout'},
+    ];
+    for (const config of configs) {
+      const {result} = await client.pivot(rows, config);
+      expect(result).toEqual(computePivot(rows, config));
+    }
+    // Quatre champs distincts par leur fonction de lecture (zone, nom, mois, montant) + le second « montant » (id `n`).
+    expect(client.stats.columnsSent).toBe(5);
+    await client.pivot(rows, configs[0]);
+    expect(client.stats.columnsSent, 'même jeu de lignes : rien n’est renvoyé').toBe(5);
     client.dispose();
   });
 

@@ -13,6 +13,7 @@
 import {compileFilters} from './filter-compile';
 import {matchesSearchTerms} from './filter-matching';
 import {buildSortOrder} from './fast-sort';
+import {computePivot, PivotAggregate, PivotResult} from './pivot';
 import {getSortValue, SortLevel, sortRows} from './row-pipeline';
 import type {NgTableColumn} from './ng-table.component';
 
@@ -34,6 +35,8 @@ const STRING_SEPARATOR = '\u0000';
 export const RAW_PREFIX = 'v:';
 export const SORT_PREFIX = 's:';
 export const SEARCH_KEY = 'h';
+/** Préfixe des colonnes d'un champ de pivot : `p:id`. */
+export const PIVOT_PREFIX = 'p:';
 
 export interface WorkerRequest {
   /** Filtres non vides, par id de colonne. */
@@ -63,15 +66,30 @@ export interface WorkerPatch {
   entries: Record<string, {updates: unknown[]; appended: unknown[]}>;
 }
 
+/** Réglages sérialisables d'un pivot : les champs sont désignés par leur id, leurs valeurs sont dans les colonnes `p:id`. */
+export interface WorkerPivotSpec {
+  rows: {id: string; header: string}[];
+  columns: {id: string; header: string}[];
+  values: {id: string; header: string; aggregate?: PivotAggregate}[];
+  rowTotals?: boolean;
+  grandTotal?: boolean;
+  totalLabel?: string;
+  columnSort?: 'asc' | 'desc';
+}
+
 /** Messages du fil principal vers le worker. */
 export type ToWorker =
   | {type: 'data'; dataset: number; count: number; entries: Record<string, WorkerValues>}
   | {type: 'patch'; dataset: number; patch: WorkerPatch}
   | {type: 'run'; dataset: number; job: number; request: WorkerRequest}
+  | {type: 'pivot'; dataset: number; job: number; spec: WorkerPivotSpec}
   | {type: 'drop'; dataset: number};
 
 /** Messages du worker vers le fil principal. */
-export type FromWorker = {type: 'done'; job: number; order: Uint32Array} | {type: 'error'; job: number; message: string};
+export type FromWorker =
+  | {type: 'done'; job: number; order: Uint32Array}
+  | {type: 'pivot-done'; job: number; result: PivotResult}
+  | {type: 'error'; job: number; message: string};
 
 /** Colonnes d'un jeu de données et calcul de l'ordre des lignes retenues. */
 export class WorkerComputeCore {
@@ -91,6 +109,37 @@ export class WorkerComputeCore {
 
   drop(dataset: number): void {
     this.datasets.delete(dataset);
+  }
+
+  /**
+   * Tableau croisé calculé sur les colonnes `p:id` du jeu de données : le même `computePivot` que sur le fil
+   * principal, avec des « lignes » qui sont des indices. Le résultat est fait d'objets simples, renvoyé tel quel.
+   */
+  pivot(dataset: number, spec: WorkerPivotSpec): PivotResult {
+    const data = this.datasets.get(dataset);
+    if (!data) {
+      throw new Error(`Jeu de données inconnu : ${dataset}`);
+    }
+    const field = <F extends {id: string; header: string}>(entry: F) => {
+      const values = data.columns.get(PIVOT_PREFIX + entry.id);
+      if (!values) {
+        throw new Error(`Colonne non envoyée : ${PIVOT_PREFIX}${entry.id}`);
+      }
+      return {...entry, accessor: (index: number) => values[index]};
+    };
+    const indices = new Uint32Array(data.count);
+    for (let i = 0; i < indices.length; i++) {
+      indices[i] = i;
+    }
+    return computePivot(indices as unknown as readonly number[], {
+      rows: spec.rows.map(field),
+      columns: spec.columns.map(field),
+      values: spec.values.map(field),
+      rowTotals: spec.rowTotals,
+      grandTotal: spec.grandTotal,
+      totalLabel: spec.totalLabel,
+      columnSort: spec.columnSort,
+    });
   }
 
   /** Applique une retouche (voir `WorkerPatch`) à toutes les colonnes du jeu de données. */

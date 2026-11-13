@@ -833,6 +833,7 @@ Au-delà de quelques centaines de milliers de lignes, un tri de texte ou un filt
           (computing)="busy.set($event)"/>
 ```
 
+- **Pivot** : `<ng-table-pivot [workerCompute]="true">` calcule aussi le tableau croisé dans le worker au-delà de `[workerThreshold]` lignes. Les valeurs des champs partent une fois ; changer d'agrégat ou permuter lignes et colonnes ne renvoie que la configuration.
 - **Comment** : un worker ne reçoit pas de fonctions. La table lui envoie les **colonnes de valeurs** (les résultats des accesseurs ; les colonnes numériques partent en `Float64Array`, transférées sans copie), **une seule fois par jeu de données**. Le worker y exécute les mêmes modules que le fil principal (filtres compilés, tri par base, recherche) et renvoie l'ordre des lignes retenues. Les tris et filtres suivants n'envoient plus que quelques réglages.
 - **Pendant le calcul**, l'ancien résultat reste affiché sous l'indicateur d'attente (`aria-busy`), la table reste utilisable ; `(computing)` signale le début et la fin. Une demande plus récente remplace celle en cours.
 - **S'applique** en mode local, sans données arborescentes, quand le nombre de lignes atteint `[workerThreshold]` (100 000 par défaut). Un filtre à `filterPredicate` (fonction) se calcule sur le fil principal.

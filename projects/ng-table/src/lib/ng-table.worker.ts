@@ -30,6 +30,13 @@ scope.onmessage = ({data}) => {
         core.drop(data.dataset);
       }
       break;
+    case 'pivot':
+      try {
+        scope.postMessage({type: 'pivot-done', job: data.job, result: core.pivot(data.dataset, data.spec)});
+      } catch (error) {
+        scope.postMessage({type: 'error', job: data.job, message: error instanceof Error ? error.message : String(error)});
+      }
+      break;
     case 'run':
       try {
         const order = core.run(data.dataset, data.request);
