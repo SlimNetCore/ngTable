@@ -42,6 +42,37 @@ describe('BlockCache', () => {
     expect(cache.rowAt(150)).toBeUndefined(); // bloc 1, le plus ancien, oublié
   });
 
+  it('chargement d’avance : les blocs suivants dans le sens du défilement, dans les limites de la liste', () => {
+    const cache = new BlockCache<number>(10, 50);
+    expect(cache.prefetchBlocks(0, 10, 1, 2), 'total inconnu : rien').toEqual([]);
+    cache.markLoading(0);
+    cache.resolve(cache.generation, 0, [], 95);
+    expect(cache.prefetchBlocks(20, 40, 1, 2)).toEqual([4, 5]);
+    expect(cache.prefetchBlocks(20, 40, -1, 2)).toEqual([1]); // le bloc 0 est déjà là
+    expect(cache.prefetchBlocks(80, 95, 1, 2)).toEqual([]); // fin de liste (dernier bloc : 9)
+    expect(cache.prefetchBlocks(0, 10, -1, 2)).toEqual([]);
+    expect(cache.prefetchBlocks(20, 40, 1, 0)).toEqual([]);
+  });
+
+  it('demandes devenues inutiles : blocs en chargement loin de la zone, oubliés une fois annulés', () => {
+    const cache = new BlockCache<number>(10, 50);
+    cache.markLoading(0);
+    cache.resolve(cache.generation, 0, [], 1000);
+    cache.markLoading(3);
+    cache.markLoading(40);
+    expect(cache.staleLoadingBlocks(400, 420, 1)).toEqual([3]);
+    expect(cache.staleLoadingBlocks(20, 40, 1)).toEqual([40]);
+    expect(cache.staleLoadingBlocks(30, 40, 0)).toEqual([40]);
+
+    cache.forget(cache.generation, 3);
+    expect(cache.blockState(3)).toBeUndefined();
+    expect(cache.missingBlocks(30, 40)).toEqual([3]);
+    cache.forget(cache.generation, 0); // un bloc chargé n'est pas oublié
+    expect(cache.blockState(0)).toBe('loaded');
+    cache.forget(cache.generation - 1, 40); // ni une demande d'une génération passée
+    expect(cache.blockState(40)).toBe('loading');
+  });
+
   it('ne redemande pas un bloc en échec avant une purge ; ne dépasse pas la fin de la liste', () => {
     const cache = new BlockCache<number>(100, 10);
     cache.resolve(cache.generation, 0, block(0), 250);

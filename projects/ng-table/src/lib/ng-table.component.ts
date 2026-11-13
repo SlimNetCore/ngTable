@@ -32,7 +32,7 @@ import {Dir, Directionality} from '@angular/cdk/bidi';
 import {CdkTableModule} from '@angular/cdk/table';
 import {NgTableTooltipDirective} from './tooltip.directive';
 import {firstValueFrom, Observable, Subject, timer} from 'rxjs';
-import {debounce, groupBy, mergeMap} from 'rxjs/operators';
+import {debounce, groupBy, mergeMap, take} from 'rxjs/operators';
 import {ColumnFilterRendererComponent, ColumnFilterType} from './column-filter-renderer.component';
 import {DynamicFilterHostComponent} from './dynamic-filter-host.component';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
@@ -50,7 +50,7 @@ import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveV
 import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {ColumnStore} from './column-store';
-import {compileFilters} from './filter-compile';
+import {compileFilters, compileIndexFilters, filtersNarrow, searchNarrows} from './filter-compile';
 import {searchText, SortLevel} from './row-pipeline';
 import {buildConsecutiveGroups, buildGroupTree, computeAggregate, flattenGroups, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
 import {
@@ -192,6 +192,11 @@ export interface NgTableBlockRequest extends NgTableRemoteQuery {
   startRow: number;
   /** Dernière ligne demandée (exclue). */
   endRow: number;
+  /**
+   * Signale que la table n'a plus besoin de ce bloc (tri ou filtre changé, zone quittée par un défilement rapide).
+   * À transmettre à `fetch` ou à `HttpClient` pour annuler la requête ; l'ignorer est sans danger.
+   */
+  signal?: AbortSignal;
 }
 
 /** Réponse à `NgTableBlockRequest`. */
@@ -895,6 +900,11 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly maxBlocksInCache = input(50);
   /** Requêtes de blocs simultanées au plus. */
   readonly maxConcurrentBlockRequests = input(2);
+  /**
+   * Modèle par blocs : nombre de blocs chargés d'avance dans le sens du défilement, une fois la zone affichée
+   * servie. `0` (défaut) : seuls les blocs affichés sont demandés.
+   */
+  readonly prefetchBlocks = input(0);
   /**
    * Mode live : surligne les cellules dont la valeur change, après une transaction ou un
    * nouveau tableau `[rows]`. Colonne par colonne : `NgTableColumn.flashOnChange`.
@@ -1636,6 +1646,22 @@ export class NgTableComponent<T = any> implements OnDestroy {
       collator: this.collator,
       sums,
       columnStore: this.columnStore,
+      // Recalcul complet : filtres par les colonnes en dictionnaire quand elles existent (valeurs répétées).
+      matchesAt: included
+        ? undefined
+        : (all) => {
+            const at = compileIndexFilters(all, activeColumns, filters, (column) => this.columnStore.dictionary(all, column));
+            return (i) => (!at || at(i)) && (!haystacks || matchesSearchTerms(this.searchHaystack(all[i], haystacks), terms));
+          },
+      // Saisie prolongée (« dup » → « dupo ») ou filtre ajouté : seul le résultat précédent est refiltré, sans retri.
+      narrowing: index
+        ? undefined
+        : {
+            base: [store, activeColumns, sorts, haystacks?.columns, sums],
+            state: {filters, terms},
+            narrows: (previous: {filters: Record<string, string>; terms: string[]}) =>
+              filtersNarrow(activeColumns, previous.filters, filters) && searchNarrows(previous.terms, terms),
+          },
       deps: [store, activeColumns, filters, sorts, search, haystacks?.columns, sums, included],
     });
   });
@@ -1935,6 +1961,11 @@ export class NgTableComponent<T = any> implements OnDestroy {
   /** Incrémenté quand un bloc arrive ou que le cache est purgé. */
   private readonly blockVersion = signal(0);
   private blocksInFlight = 0;
+  /** Demandes de blocs en cours, pour les annuler (`AbortSignal`) quand elles ne servent plus. */
+  private blockRequests = new Map<number, {controller: AbortController; generation: number}>();
+  /** Sens du dernier défilement vertical (1 vers le bas), pour le chargement d'avance. */
+  private blockScrollDirection: 1 | -1 = 1;
+  private lastBlockRangeStart = 0;
 
   protected readonly effectiveMaxHeight = computed(() => this.maxHeight() ?? (this.virtualActive() ? '70vh' : null));
 
@@ -2584,6 +2615,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       const size = Math.max(1, this.cacheBlockSize());
       const maxBlocks = Math.max(1, this.maxBlocksInCache());
       untracked(() => {
+        this.abortBlockRequests();
         this.blockCache = new BlockCache<T>(size, maxBlocks);
         this.blocksInFlight = 0;
         this.blockVersion.update((version) => version + 1);
@@ -5295,6 +5327,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   private resetBlocks(keepPosition: boolean): void {
+    this.abortBlockRequests();
     this.blockCache.purge(keepPosition);
     this.blocksInFlight = 0;
     if (!keepPosition) {
@@ -5314,11 +5347,25 @@ export class NgTableComponent<T = any> implements OnDestroy {
       return;
     }
     const size = this.blockCache.blockSize;
-    for (const blockIndex of this.blockCache.missingBlocks(range.start, range.end)) {
+    const prefetch = Math.max(0, Math.floor(this.prefetchBlocks()));
+    if (range.start !== this.lastBlockRangeStart) {
+      this.blockScrollDirection = range.start > this.lastBlockRangeStart ? 1 : -1;
+      this.lastBlockRangeStart = range.start;
+    }
+    // Demandes parties pour une zone quittée depuis : signalées comme inutiles. La place n'est rendue qu'à la
+    // réponse (ou au rejet d'une requête réellement annulée), pour ne jamais dépasser le nombre de requêtes simultanées.
+    for (const blockIndex of this.blockCache.staleLoadingBlocks(range.start, range.end, prefetch + 1)) {
+      this.blockRequests.get(blockIndex)?.controller.abort();
+    }
+    const visible = this.blockCache.missingBlocks(range.start, range.end);
+    // D'avance, seulement quand toute la zone affichée est servie ou demandée.
+    const ahead = prefetch > 0 ? this.blockCache.prefetchBlocks(range.start, range.end, this.blockScrollDirection, prefetch) : [];
+    for (const blockIndex of [...visible, ...ahead]) {
       if (this.blocksInFlight >= Math.max(1, this.maxConcurrentBlockRequests())) {
         return; // la suite partira quand une réponse libérera une place
       }
       const generation = this.blockCache.generation;
+      const controller = new AbortController();
       const request: NgTableBlockRequest = {
         ...this.buildRemoteQuery(blockIndex, size),
         page: {index: blockIndex, size},
@@ -5326,21 +5373,58 @@ export class NgTableComponent<T = any> implements OnDestroy {
         collapsedGroups: [],
         startRow: blockIndex * size,
         endRow: (blockIndex + 1) * size,
+        signal: controller.signal,
       };
       this.blockCache.markLoading(blockIndex);
+      this.blockRequests.set(blockIndex, {controller, generation});
       this.blocksInFlight++;
-      const result = datasource.getRows(request);
-      const promise = result instanceof Promise ? result : firstValueFrom(result);
-      promise.then(
-        (response) => this.onBlockSettled(generation, () => this.blockCache.resolve(generation, blockIndex, response.rows, response.totalCount)),
+      const settled = (apply: () => boolean) => {
+        if (this.blockRequests.get(blockIndex)?.controller === controller) {
+          this.blockRequests.delete(blockIndex);
+        }
+        this.onBlockSettled(generation, apply);
+      };
+      this.blockResponse(datasource.getRows(request), controller.signal).then(
+        (response) => settled(() => this.blockCache.resolve(generation, blockIndex, response.rows, response.totalCount)),
         (error: unknown) =>
-          this.onBlockSettled(generation, () => {
+          settled(() => {
+            if (controller.signal.aborted) {
+              // Annulée par la table : ni erreur ni bloc en échec, il sera redemandé s'il redevient utile.
+              this.blockCache.forget(generation, blockIndex);
+              return true;
+            }
             this.blockCache.reject(generation, blockIndex);
             this.remoteBlockError.emit({request, error});
             return true;
           }),
       );
     }
+  }
+
+  /** Réponse d'un bloc en promesse ; un Observable est désabonné (requête HTTP annulée) quand `signal` est levé. */
+  private blockResponse(result: Promise<NgTableBlockResult<T>> | Observable<NgTableBlockResult<T>>, signal: AbortSignal): Promise<NgTableBlockResult<T>> {
+    if (result instanceof Promise) {
+      return result;
+    }
+    return new Promise((resolve, reject) => {
+      const subscription = result.pipe(take(1)).subscribe({
+        next: resolve,
+        error: reject,
+        complete: () => reject(new Error('ng-table : getRows s’est terminé sans réponse.')),
+      });
+      signal.addEventListener('abort', () => {
+        subscription.unsubscribe();
+        reject(new Error('ng-table : demande de bloc annulée.'));
+      });
+    });
+  }
+
+  /** Signale aux demandes en cours qu'elles ne servent plus (purge du cache). */
+  private abortBlockRequests(): void {
+    for (const {controller} of this.blockRequests.values()) {
+      controller.abort();
+    }
+    this.blockRequests.clear();
   }
 
   private onBlockSettled(generation: number, apply: () => boolean): void {

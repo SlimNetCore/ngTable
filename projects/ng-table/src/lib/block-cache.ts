@@ -74,6 +74,50 @@ export class BlockCache<T> {
     return missing;
   }
 
+  /**
+   * Blocs à charger d'avance : les `count` blocs qui suivent la zone `[start, end)` dans le sens du défilement
+   * (`direction` 1 vers le bas, -1 vers le haut), jamais demandés et dans les limites de la liste.
+   */
+  prefetchBlocks(start: number, end: number, direction: 1 | -1, count: number): number[] {
+    const blocks: number[] = [];
+    if (end <= start || count <= 0 || this.totalCount === null) {
+      return blocks;
+    }
+    const first = Math.floor(start / this.blockSize);
+    const last = Math.floor((Math.min(end, this.rowCount) - 1) / this.blockSize);
+    const lastBlock = Math.floor((this.rowCount - 1) / this.blockSize);
+    for (let step = 1; step <= count; step++) {
+      const index = direction > 0 ? last + step : first - step;
+      if (index >= 0 && index <= lastBlock && !this.blocks.has(index)) {
+        blocks.push(index);
+      }
+    }
+    return blocks;
+  }
+
+  /**
+   * Blocs en cours de chargement à plus de `margin` blocs de la zone `[start, end)` : l'utilisateur est parti
+   * ailleurs, leur demande peut être annulée.
+   */
+  staleLoadingBlocks(start: number, end: number, margin: number): number[] {
+    const first = Math.floor(start / this.blockSize) - margin;
+    const last = Math.floor((Math.max(start + 1, Math.min(end, this.rowCount)) - 1) / this.blockSize) + margin;
+    const stale: number[] = [];
+    for (const [index, block] of this.blocks) {
+      if (block.state === 'loading' && (index < first || index > last)) {
+        stale.push(index);
+      }
+    }
+    return stale;
+  }
+
+  /** Oublie un bloc en cours de chargement dont la demande a été annulée : il pourra être redemandé. */
+  forget(generation: number, blockIndex: number): void {
+    if (generation === this.generation && this.blocks.get(blockIndex)?.state === 'loading') {
+      this.blocks.delete(blockIndex);
+    }
+  }
+
   markLoading(blockIndex: number): void {
     this.blocks.set(blockIndex, {state: 'loading', rows: [], lastUsed: this.clock});
   }

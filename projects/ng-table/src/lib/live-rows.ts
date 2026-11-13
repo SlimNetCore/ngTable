@@ -267,6 +267,17 @@ export interface PipelineConfig<T> {
    * valeurs de tri sont relues à chaque recalcul complet.
    */
   columnStore?: ColumnStore<T>;
+  /**
+   * Variante de `matches` pour un recalcul complet : reçoit toutes les lignes et renvoie un test par INDICE, ce qui
+   * permet de filtrer par les colonnes en dictionnaire. Doit retenir exactement les mêmes lignes que `matches`.
+   */
+  matchesAt?: (rows: readonly T[]) => (index: number) => boolean;
+  /**
+   * Filtre plus strict que le précédent : quand `base` est inchangé (comparaison par référence, comme `deps`) et que
+   * `narrows(état précédent)` répond vrai, le résultat précédent, déjà trié, est seulement refiltré.
+   * `base` doit contenir tout `deps` sauf ce que décrit `state` (les saisies de filtre et de recherche).
+   */
+  narrowing?: {base: readonly unknown[]; state: unknown; narrows: (previousState: never) => boolean};
 }
 
 /** Somme et nombre de valeurs numériques d'une colonne sur le résultat. */
@@ -290,7 +301,9 @@ export class IncrementalPipeline<T> {
   private seqs: number[] = [];
   private deps: readonly unknown[] | null = null;
   /** Nombre de recalculs complets / de fusions : pour les tests et le diagnostic. */
-  readonly stats = {rebuilds: 0, merges: 0};
+  readonly stats = {rebuilds: 0, merges: 0, narrows: 0};
+  private narrowBase: readonly unknown[] | null = null;
+  private narrowState: unknown = undefined;
   private totals = new Map<string, RunningTotal>();
   private mergesSinceSums = 0;
 
@@ -305,7 +318,9 @@ export class IncrementalPipeline<T> {
   compute(store: RowStore<T>, config: PipelineConfig<T>): T[] {
     const changes = store.drain();
     const sameConfig = !!this.deps && this.deps.length === config.deps.length && this.deps.every((dep, i) => dep === config.deps[i]);
-    if (!sameConfig || changes.reset) {
+    if (!sameConfig && !changes.reset && changes.keys.size === 0 && this.canNarrow(store, config)) {
+      this.narrow(config);
+    } else if (!sameConfig || changes.reset) {
       this.rebuild(store, config);
     } else if (changes.keys.size > 0) {
       this.merge(store, config, changes.keys);
@@ -314,7 +329,52 @@ export class IncrementalPipeline<T> {
       }
     }
     this.deps = config.deps;
+    this.narrowBase = config.narrowing?.base ?? null;
+    this.narrowState = config.narrowing?.state;
     return this.result;
+  }
+
+  private canNarrow(store: RowStore<T>, config: PipelineConfig<T>): boolean {
+    const narrowing = config.narrowing;
+    const base = this.narrowBase;
+    if (!narrowing || !base || base.length !== narrowing.base.length || !base.every((dep, i) => dep === narrowing.base[i])) {
+      return false;
+    }
+    // Le résultat précédent est dans l'ordre du tri : ses lignes sont éparpillées en mémoire, et les relire coûte
+    // environ trois fois plus cher par ligne que de parcourir toutes les lignes dans l'ordre. Le raccourci vaut donc
+    // quand il reste peu de lignes à tester, ou quand retrier coûterait cher (colonnes de tri pas encore en cache).
+    const columns = config.columnStore;
+    const cheapSort =
+      config.levels.length === 0 ||
+      (!!columns && config.levels.every((level) => columns.has(store.rows(), level.column, config.collator)));
+    if (cheapSort && this.result.length * 3 > store.size) {
+      return false;
+    }
+    return narrowing.narrows(this.narrowState as never);
+  }
+
+  /** Filtre plus strict : seules les lignes du résultat précédent sont testées ; leur ordre (le tri) ne change pas. */
+  private narrow(config: PipelineConfig<T>): void {
+    this.stats.narrows++;
+    const previousRows = this.result;
+    const previousSeqs = this.seqs;
+    const matches = config.matches;
+    const count = previousRows.length;
+    const kept = new Uint32Array(count);
+    let size = 0;
+    for (let i = 0; i < count; i++) {
+      if (matches(previousRows[i])) {
+        kept[size++] = i;
+      }
+    }
+    const rows = new Array<T>(size);
+    const seqs = new Array<number>(size);
+    for (let i = 0; i < size; i++) {
+      rows[i] = previousRows[kept[i]];
+      seqs[i] = previousSeqs[kept[i]];
+    }
+    this.setResult(rows, seqs);
+    this.resyncTotals(config);
   }
 
   /** Somme et nombre de valeurs de la colonne `id` (déclarée dans `config.sums`) sur le résultat. */
@@ -356,9 +416,18 @@ export class IncrementalPipeline<T> {
     const allSeqs = store.seqs();
     // Indices des lignes retenues : les lignes elles-mêmes ne sont copiées qu'une fois, dans l'ordre final.
     const matchedIndex: number[] = [];
-    for (let i = 0; i < all.length; i++) {
-      if (config.matches(all[i])) {
-        matchedIndex.push(i);
+    const matchesAt = config.matchesAt?.(all);
+    if (matchesAt) {
+      for (let i = 0; i < all.length; i++) {
+        if (matchesAt(i)) {
+          matchedIndex.push(i);
+        }
+      }
+    } else {
+      for (let i = 0; i < all.length; i++) {
+        if (config.matches(all[i])) {
+          matchedIndex.push(i);
+        }
       }
     }
     const pick = (order: ArrayLike<number>): void => {

@@ -77,7 +77,7 @@ describe('column-store', () => {
       expect(reads).toBe(100);
       expect(store.sortDigits(rows, counted, collator)).toBe(first);
       expect(reads).toBe(100);
-      expect(store.stats).toEqual({builds: 1, hits: 1});
+      expect(store.stats).toEqual({builds: 1, hits: 1, dictionaries: 0});
 
       // Nouveau tableau de lignes : le cache est vidé.
       store.sortDigits([...rows], counted, collator);
@@ -104,6 +104,28 @@ describe('column-store', () => {
       store.sortDigits(rows, columns[8], collator);
       expect(store.has(rows, columns[0], collator)).toBe(true);
       expect(store.has(rows, columns[1], collator)).toBe(false);
+    });
+  });
+
+  describe('dictionnaires', () => {
+    it('valeurs distinctes et numéro par ligne, lus une seule fois', () => {
+      let reads = 0;
+      const counted: NgTableColumn<Row> = {id: 's', header: 's', valueAccessor: (r) => (reads++, r.s)};
+      const rows = makeRows(2500, 8);
+      const store = new ColumnStore<Row>();
+      const dictionary = store.dictionary(rows, counted)!;
+      expect(dictionary.values.length).toBe(9); // huit textes et les vides
+      expect(rows.every((row, i) => dictionary.values[dictionary.codes[i]] === row.s)).toBe(true);
+      expect(store.dictionary(rows, counted)).toBe(dictionary);
+      expect(reads).toBe(2500);
+    });
+
+    it('pas de dictionnaire pour peu de lignes ni pour trop de valeurs distinctes', () => {
+      const store = new ColumnStore<Row>();
+      expect(store.dictionary(makeRows(100, 8), COLUMNS.s)).toBeNull();
+      const many = makeRows(6000, 8);
+      expect(store.dictionary(many, column('id'))).toBeNull();
+      expect(store.dictionary(many, COLUMNS.d), 'chaque objet Date est une valeur distincte').toBeNull();
     });
   });
 

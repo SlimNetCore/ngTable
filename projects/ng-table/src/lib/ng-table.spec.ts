@@ -9,6 +9,7 @@
 } from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {By} from '@angular/platform-browser';
+import {Observable, Subscriber} from 'rxjs';
 import {NgTableCheckboxChange} from './ng-table-checkbox.component';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {NgTableColumn, NgTableComponent, NgTableRemoteExportRequest, NgTableRangePasteEvent, NgTableRemoteQuery, NgTableRowMoveEvent, NgTableSelectionChangeEvent, NgTableSortChange, NgTableBlockRequest, NgTableBlockResult, NgTableRemoteDatasource} from './ng-table.component';
@@ -1149,6 +1150,93 @@ describe('NgTableComponent', () => {
       component.refreshRemoteDatasource();
       await fixture.whenStable();
       expect(pending).toHaveLength(1);
+    });
+
+    it('[prefetchBlocks] : charge d’avance le bloc suivant dans le sens du défilement', async () => {
+      const {fixture, pending, answer, component} = await create({prefetchBlocks: 1});
+      expect(pending.map((p) => p.request.page.index)).toEqual([0]); // total inconnu : rien d'avance
+      await answer();
+      await fixture.whenStable();
+      expect(pending.map((p) => p.request.page.index)).toEqual([1]);
+      await answer();
+      await fixture.whenStable();
+      expect(pending).toHaveLength(0); // un seul bloc d'avance
+
+      component.scrollToIndex(5000);
+      await fixture.whenStable();
+      expect(pending.map((p) => p.request.page.index)).toEqual([49, 50]);
+      await answer();
+      await answer();
+      await fixture.whenStable();
+      expect(pending.map((p) => p.request.page.index)).toEqual([51]);
+      await answer();
+      await fixture.whenStable();
+
+      component.scrollToIndex(4000);
+      await fixture.whenStable();
+      await answer();
+      await answer();
+      await fixture.whenStable();
+      expect(pending.map((p) => p.request.page.index)).toEqual([38]); // vers le haut : le bloc précédent
+    });
+
+    it('signale par AbortSignal les demandes devenues inutiles, sans erreur ni bloc en échec', async () => {
+      const {fixture, pending, answer, component} = await create();
+      const errors: unknown[] = [];
+      component.remoteBlockError.subscribe((e) => errors.push(e));
+      await answer();
+      await fixture.whenStable();
+
+      component.scrollToIndex(5000);
+      await fixture.whenStable();
+      const left = [...pending];
+      expect(left.map((p) => p.request.signal?.aborted)).toEqual([false, false]);
+
+      // Défilement loin de là : les deux demandes sont signalées, mais occupent encore les deux places.
+      component.scrollToIndex(900_000);
+      await fixture.whenStable();
+      expect(left.map((p) => p.request.signal?.aborted)).toEqual([true, true]);
+      expect(pending).toHaveLength(2);
+
+      // La source annule réellement (comme `fetch` avec le signal) : les places se libèrent, la nouvelle zone part.
+      for (const call of pending.splice(0)) {
+        call.reject(new DOMException('annulée', 'AbortError'));
+      }
+      await Promise.resolve();
+      await fixture.whenStable();
+      expect(pending.map((p) => p.request.page.index)).toEqual([8999, 9000]);
+      expect(errors).toEqual([]);
+      expect((fixture.nativeElement as HTMLElement).querySelector('.loading-failed')).toBeNull();
+
+      // Changement de tri : les demandes en cours sont signalées aussi.
+      const beforeSort = [...pending];
+      component['onHeaderSort'](component.columns()[1]);
+      await fixture.whenStable();
+      expect(beforeSort.map((p) => p.request.signal?.aborted)).toEqual([true, true]);
+    });
+
+    it('source Observable : désabonnée quand la demande ne sert plus', async () => {
+      let unsubscribed = 0;
+      const subscribers: Subscriber<NgTableBlockResult<Row>>[] = [];
+      const datasource: NgTableRemoteDatasource<Row> = {
+        getRows: () =>
+          new Observable<NgTableBlockResult<Row>>((subscriber) => {
+            subscribers.push(subscriber);
+            return () => unsubscribed++;
+          }),
+      };
+      const {fixture, component} = await createTable({rows: [], dataMode: 'remote', remoteDatasource: datasource});
+      subscribers[0].next({rows: Array.from({length: 100}, (_, i) => rowAt(i)), totalCount: TOTAL});
+      await Promise.resolve();
+      await fixture.whenStable();
+      expect(dataRows(fixture)[0].textContent).toContain('Client 0');
+      const done = unsubscribed;
+
+      component.scrollToIndex(5000);
+      await fixture.whenStable();
+      component.scrollToIndex(900_000);
+      await fixture.whenStable();
+      expect(unsubscribed - done).toBe(2);
     });
 
     it('pas de paginateur intégré en modèle par blocs', async () => {
