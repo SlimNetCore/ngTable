@@ -393,6 +393,35 @@ pour chaque ligne :
   </aside>
 </section>
 
+<!-- 10 bis -->
+<section class="slide">
+  <div class="kicker">Performance · mémoire de travail</div>
+  <h2>Se souvenir : ne pas relire ce qu'on a déjà lu</h2>
+  <p class="lead">Trois ajouts récents (branche <code>feat/stockage-colonnes</code>) : ils accélèrent la <b>deuxième</b> action, pas la première.</p>
+  <div class="body">
+    <div class="cols c3" style="margin-bottom:16px">
+      <div class="card"><h3>Colonnes de tri gardées</h3><p>Les valeurs de tri d'une colonne sont lues une fois, puis gardées (8 octets par ligne). Inverser le sens, filtrer en restant trié : plus de relecture.</p></div>
+      <div class="card"><h3>Dictionnaire</h3><p>Colonne à valeurs répétées (statut, client) : le filtre est testé une fois par valeur distincte, pas une fois par ligne.</p></div>
+      <div class="card"><h3>Filtre plus strict</h3><p>« dup » → « dupo » : seules les lignes déjà retenues sont retestées, sans retrier.</p></div>
+    </div>
+    <table>
+      <tr><th>200 000 lignes, hors navigateur (Node)</th><th>Avant</th><th>Maintenant</th></tr>
+      <tr><td>Premier tri de texte</td><td>≈ 280 ms</td><td>≈ 260 ms</td></tr>
+      <tr><td>Inverser ce tri</td><td>≈ 300 ms</td><td><b>≈ 25 ms</b></td></tr>
+      <tr><td>Filtre posé sous un tri de texte</td><td>≈ 100 ms</td><td><b>≈ 26 ms</b></td></tr>
+      <tr><td>Nouvelle saisie sur une colonne à 500 valeurs</td><td>≈ 14 ms</td><td><b>≈ 3 ms</b></td></tr>
+    </table>
+  </div>
+  <aside class="notes">
+    <p><b>Idée commune :</b> la partie chère d'un tri ou d'un filtre est de lire la valeur dans chaque ligne et, pour du texte, de la classer. Tant que les données ne changent pas, ce travail peut servir plusieurs fois.</p>
+    <p><b>Colonnes de tri (<code>column-store.ts</code>) :</b> deux tableaux de nombres par colonne. Le sens décroissant relit les mêmes chiffres « en complément » ; les cellules vides sont mises de côté pour rester en fin de liste. 8 colonnes au plus, vidées dès que les lignes changent (nouveau tableau, transaction).</p>
+    <p><b>Dictionnaire :</b> liste des valeurs distinctes + un numéro par ligne (2 octets). Limité à 4 096 valeurs distinctes ; une colonne de références uniques reste filtrée ligne par ligne.</p>
+    <p><b>Filtre plus strict :</b> la grille ne prend le raccourci que si elle est sûre (saisie de texte prolongée, filtre ajouté, mot ajouté à la recherche). « 1 » puis « 12 » sur des nombres n'est pas plus strict : calcul complet. Vérifié sur 3 000 couples de filtres aléatoires.</p>
+    <p><b>Honnêteté :</b> le premier tri ne gagne rien, donc le benchmark face à AG Grid (qui ne mesure que des premiers tris) ne change pas. Les chiffres du tableau viennent d'un test Node, médiane de 5 passages : ordre de grandeur, pas valeur exacte. Mode live : le cache est vidé à chaque transaction, ni gain ni perte.</p>
+    <p><b>Aussi ajouté :</b> surlignage du texte trouvé (<code>[highlightSearch]</code>), état vide avec bouton « réinitialiser les filtres », feuille de style d'impression ; modèle par blocs : demandes annulables (<code>AbortSignal</code>) et chargement d'avance (<code>[prefetchBlocks]</code>).</p>
+  </aside>
+</section>
+
 <!-- 11 -->
 <section class="slide">
   <div class="kicker">Performance · temps réel</div>

@@ -167,13 +167,13 @@ But : aller plus loin en performance, en rendu et en confort d'usage. Aucune de 
 |----|--------------|--------|-------|
 | V1 | Mise en forme conditionnelle | À faire | Barres de données, dégradé de couleur, pastilles ; jamais la couleur seule (G34) |
 | V2 | Cellules prêtes à l'emploi | À faire | Badge, barre de progression, avatar, lien, note |
-| V3 | Surlignage du texte trouvé par la recherche globale | À faire | |
-| V4 | Ajustement automatique d'une colonne (double-clic sur la bordure) | À faire | |
+| V3 | Surlignage du texte trouvé par la recherche globale | Vérifié | `[highlightSearch]`, `search-highlight.ts` (6 tests purs dont 2 000 tirages aléatoires, 2 tests composant) ; vérifié dans la démo |
+| V4 | Ajustement automatique d'une colonne (double-clic sur la bordure) | Existait déjà | `onResizeAutoFit` sur la poignée de redimensionnement : rien à faire |
 | V5 | Animation des lignes au tri | À faire | À couper sous `prefers-reduced-motion` et en défilement virtuel sur gros volumes |
 | V6 | En-tête de groupe collant pendant le défilement | À faire | |
 | V7 | Repères dans la barre de défilement (lignes sélectionnées, en erreur) | À faire | |
-| V8 | État vide illustré avec action (« effacer les filtres ») | À faire | |
-| V9 | Feuille de style d'impression | À faire | |
+| V8 | État vide avec action (« réinitialiser les filtres ») | Vérifié | Message `noDataFiltered` (5 langues) et bouton quand la liste est vidée par les filtres ; 2 tests composant ; vérifié dans la démo. Pas d'illustration |
+| V9 | Feuille de style d'impression | Fait (à vérifier sur papier) | `@media print` dans la feuille du composant ; règles contrôlées dans le navigateur par émulation, aperçu avant impression réel non essayé |
 
 ### 8.4 Autres
 

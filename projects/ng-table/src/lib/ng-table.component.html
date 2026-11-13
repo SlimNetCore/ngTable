@@ -751,9 +751,21 @@
                   <ng-container *ngTemplateOutlet="column.cellTemplate; context: cell.context" />
                 </span>
               } @else if (column.textOverflow === 'wrap') {
-                <span class="cell-text cell-text--wrap">{{ cell.value }}</span>
+                <span class="cell-text cell-text--wrap">
+                  @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
+                    <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
+                  } @else {
+                    {{ cell.value }}
+                  }
+                </span>
               } @else {
-                <span [ngTableTruncateTooltip]="cell.text" class="cell-text cell-text--truncate">{{ cell.value }}</span>
+                <span [ngTableTruncateTooltip]="cell.text" class="cell-text cell-text--truncate">
+                  @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
+                    <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
+                  } @else {
+                    {{ cell.value }}
+                  }
+                </span>
               }
 
               @if (cell.copyText) {
@@ -919,7 +931,15 @@
       ></tr>
       <tr *cdkNoDataRow class="cdk-row">
         <td [attr.colspan]="displayedColumnIds().length || 1" class="cdk-cell no-data-cell">
-          {{ resolvedEmptyLabel() }}
+          @if (emptyBecauseFiltered()) {
+            <span class="no-data-cell__text">{{ effectiveLabels().noDataFiltered }}</span>
+            <button (click)="clearAllFilters()" class="no-data-cell__action" ngt-stroked-button type="button">
+              <ng-table-icon aria-hidden="true" name="filter_alt_off"/>
+              {{ effectiveLabels().resetFiltersButton }}
+            </button>
+          } @else {
+            {{ resolvedEmptyLabel() }}
+          }
         </td>
       </tr>
     </table>
@@ -1047,3 +1067,6 @@
   }
 
 </section>
+
+<!-- Texte d'une cellule découpé par la recherche globale : les morceaux trouvés sont marqués. -->
+<ng-template #highlighted let-parts>@for (part of parts; track $index) {@if (part.hit) {<mark class="ngt-search-hit">{{ part.text }}</mark>} @else {{{ part.text }}}}</ng-template>

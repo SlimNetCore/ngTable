@@ -25,6 +25,7 @@ const STATUTS = Object.values(STATUT_LABELS).map((label) => ({value: label, labe
       [columns]="columns"
       [rows]="rows"
       [globalSearchEnabled]="true"
+      [highlightSearch]="true"
       [paginator]="true"
       [showActiveFiltersBar]="true"
     />
@@ -56,6 +57,7 @@ export class SimpleDemoComponent {
   [columns]="columns"
   [rows]="rows"
   [globalSearchEnabled]="true"
+  [highlightSearch]="true"
   [paginator]="true"
   [showActiveFiltersBar]="true"
 />

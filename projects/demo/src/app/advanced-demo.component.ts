@@ -102,6 +102,7 @@ function addDays(isoDay: string, days: number): string {
       [labels]="english() ? labelsEn : {}"
       [emptyLabel]="english() ? 'No order matches.' : 'Aucune commande ne correspond.'"
       [globalSearchEnabled]="true"
+      [highlightSearch]="true"
       [showActiveFiltersBar]="true"
       [inlineFilters]="inlineFilters()"
       [multiSort]="multiSort()"

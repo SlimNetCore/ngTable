@@ -278,6 +278,26 @@ prix.set(12);   <span class="c">// total devient 36 tout seul</span></pre>
 </table></div>
 <p style="margin-top:8px">À l'étape 2, les Dupont sont regroupés, et entre eux ils gardent l'ordre des montants obtenu à l'étape 1.</p></div>
 
+<h3>Nouveau : la grille se souvient des valeurs de tri</h3>
+<p>Pour trier une colonne, il faut d'abord <b>lire</b> sa valeur dans chaque ligne, et pour du texte la transformer en nombre (chapitre 7). C'est la partie la plus chère. Avant, la grille refaisait ce travail à chaque tri. Maintenant, elle garde le résultat tant que les données ne changent pas.</p>
+<div class="box ex"><b>Image</b><p>Un professeur trie les copies par note. La première fois, il doit ouvrir chaque copie pour lire la note. S'il a recopié les notes sur une feuille, il peut ensuite retrier dans l'autre sens, ou seulement les copies d'une classe, <b>sans rouvrir une seule copie</b>.</p></div>
+<div class="box ex"><b>Ce que ça change, mesuré sur 200 000 lignes</b>
+<div class="tablewrap"><table>
+  <tr><th>Action</th><th>Avant</th><th>Maintenant</th></tr>
+  <tr><td>Premier tri d'une colonne de texte</td><td>≈ 280 ms</td><td>≈ 260 ms (inchangé)</td></tr>
+  <tr><td>Inverser le sens du tri</td><td>≈ 300 ms</td><td>≈ 25 ms</td></tr>
+  <tr><td>Changer un filtre en restant trié</td><td>≈ 200 ms</td><td>≈ 30 ms</td></tr>
+  <tr><td>Revenir à une colonne déjà triée</td><td>≈ 280 ms</td><td>≈ 25 ms</td></tr>
+</table></div>
+<p style="margin-top:8px">Ces chiffres viennent d'un test lancé hors navigateur (Node) : ils donnent l'ordre de grandeur, pas une valeur exacte.</p></div>
+<p><b>Et le sens décroissant ?</b> La grille ne garde qu'une feuille de notes, celle du sens croissant. Pour trier à l'envers, elle lit les mêmes chiffres « à l'envers » (9 devient 0, 8 devient 1...). Les cellules vides sont mises de côté et replacées à la fin, pour rester en bas dans les deux sens.</p>
+<div class="box warn"><b>Les limites</b>
+<ul>
+  <li>La feuille coûte de la mémoire : 8 octets par ligne et par colonne triée, 8 colonnes au plus (64 Mo au maximum pour un million de lignes).</li>
+  <li>Dès que les données changent (nouveau tableau, transaction du mode live), la feuille est jetée : le prochain tri relit tout.</li>
+  <li>Le premier tri d'une colonne ne gagne rien, et la page de benchmark ne mesure que des premiers tris : ses chiffres ne changent pas.</li>
+</ul></div>
+
 <div class="box warn"><b>Le filet de sécurité</b><p>Si une colonne mélange des types (du texte et des nombres), ou contient une date invalide, la grille revient automatiquement au tri classique. Et des tests vérifient, sur des données tirées au hasard, que les deux méthodes donnent exactement le même résultat.</p></div>
 <div class="box say"><b>À dire</b><p>« Le tri par base, c'est le tri du facteur : on range dans des casiers au lieu de comparer. Quatre passages sur la liste suffisent, que la liste fasse mille lignes ou un million. C'est ce qui donne un tri de nombres une vingtaine de fois plus rapide. »</p></div>
 
@@ -351,6 +371,28 @@ pour chaque ligne (1 000 000 fois) :
 </table>
 <h3>La recherche globale : un antisèche par ligne</h3>
 <p>La recherche globale cherche dans toutes les colonnes. La première fois, la grille fabrique pour chaque ligne un texte unique (« dupont 300 validée… ») et le <b>garde en mémoire</b>. Aux frappes suivantes, elle ne refabrique rien : elle cherche juste dans ces textes déjà prêts.</p>
+<h3>Nouveau : le dictionnaire, pour les colonnes qui se répètent</h3>
+<p>Beaucoup de colonnes n'ont que quelques valeurs différentes : un statut (4 valeurs), un pays, un client (quelques centaines). Tester le filtre sur un million de lignes revient alors à poser un million de fois la même question.</p>
+<div class="box ex"><b>Exemple</b>
+<p>Colonne « Statut » sur un million de lignes. La grille en fait un <b>dictionnaire</b> :</p>
+<div class="tablewrap"><table>
+  <tr><th>Numéro</th><th>Valeur</th><th>Passe le filtre « val » ?</th></tr>
+  <tr><td>0</td><td>Brouillon</td><td>non</td></tr>
+  <tr><td>1</td><td>Validée</td><td><b>oui</b></td></tr>
+  <tr><td>2</td><td>Expédiée</td><td>non</td></tr>
+  <tr><td>3</td><td>Annulée</td><td>non</td></tr>
+</table></div>
+<p style="margin-top:8px">Chaque ligne ne retient que son numéro : <code>0, 1, 2, 3, 0, 1, 2, 3...</code> Le filtre est testé <b>4 fois</b> (une par valeur), puis pour chaque ligne la grille regarde seulement si son numéro est sur la liste des « oui ».</p></div>
+<p>La grille ne fait un dictionnaire que si la colonne a au plus 4 096 valeurs différentes. Une colonne « Référence », où chaque ligne est unique, reste filtrée ligne par ligne.</p>
+
+<h3>Nouveau : repartir du résultat précédent</h3>
+<p>Quand l'utilisateur tape « dup » puis « dupo », les lignes qui contiennent « dupo » contenaient forcément « dup ». Inutile de retester le million de lignes : il suffit de retester les lignes <b>déjà retenues</b>. Et comme elles sont déjà triées, il n'y a pas à retrier.</p>
+<div class="box ex"><b>Image</b><p>Vous cherchez un livre. Vous avez déjà sorti de la bibliothèque tous les romans policiers. On vous précise : « un policier suédois ». Vous cherchez dans la pile déjà sortie, pas dans toute la bibliothèque.</p></div>
+<div class="box warn"><b>La grille reste prudente</b><p>Elle ne prend ce raccourci que si elle est <b>sûre</b> que le nouveau filtre est plus strict : une saisie de texte prolongée, un filtre ajouté sur une autre colonne, un mot ajouté à la recherche. Pour « 1 » puis « 12 » sur des nombres, ce serait faux (12 n'est pas « un 1 de plus ») : là, elle refait le calcul complet. Un test vérifie cette règle sur 3 000 couples de filtres tirés au hasard.</p></div>
+
+<h3>Nouveau : le texte trouvé est surligné</h3>
+<p>Avec <code>[highlightSearch]="true"</code>, le texte trouvé par la recherche globale est surligné dans les cellules, sans tenir compte des majuscules ni des accents : taper « elodie » surligne « Élodie ». Et quand les filtres ne laissent aucune ligne, la grille l'écrit et propose un bouton « Réinitialiser les filtres ».</p>
+
 <div class="box say"><b>À dire</b><p>« Le filtre est lu une fois au lieu d'un million de fois. C'est une idée simple, et c'est elle qui donne un filtrage dix à vingt fois plus rapide. »</p></div>
 
 <!-- 9 -->
@@ -521,6 +563,11 @@ pour chaque ligne (1 000 000 fois) :
 <h3>Et si l'utilisateur trie ou filtre ?</h3>
 <p>Tous les blocs gardés deviennent faux (la ligne 0 n'est plus la même). La grille <b>vide le cache</b>, revient en haut, et redemande le bloc 0 avec le nouveau tri. Si une réponse à une ancienne demande arrive après coup, elle est jetée : chaque vidage augmente un compteur (la « génération »), et une réponse qui porte un ancien numéro est ignorée.</p>
 
+<h3>Nouveau : annuler ce qui ne sert plus, charger d'avance</h3>
+<p><b>Annuler.</b> L'utilisateur tire la barre très vite : la grille a demandé les blocs du milieu, mais il est déjà à la fin. Ces demandes ne servent plus. La grille lève alors un drapeau sur chacune (un <code>AbortSignal</code>) : si l'application le transmet au navigateur, la requête est abandonnée et le serveur est libéré pour la bonne demande.</p>
+<p><b>Charger d'avance.</b> Avec <code>[prefetchBlocks]="1"</code>, une fois les blocs visibles reçus, la grille demande aussi le bloc <b>suivant dans le sens du défilement</b>. Quand l'utilisateur y arrive, les lignes sont déjà là : moins de lignes grises.</p>
+<div class="box ex"><b>Image</b><p>Un serveur de restaurant attentif : il annule en cuisine le plat d'un client qui vient de partir, et il apporte le pain avant qu'on le demande.</p></div>
+
 <h3>Côté application : ce qu'il faut écrire</h3>
 <pre>datasource = {
   <span class="c">// appelée par la grille pour chaque bloc manquant</span>
@@ -637,7 +684,7 @@ pour chaque ligne (1 000 000 fois) :
   <li>Elle fonctionne comme un tableur : chaque étape ne se recalcule que si ses données changent.</li>
   <li>Pour trier des nombres, elle range dans des cases au lieu de comparer : quatre passages suffisent.</li>
   <li>Pour trier du texte, elle le transforme en nombres, et vérifie que le résultat est identique à celui du navigateur.</li>
-  <li>Un filtre est déchiffré une seule fois, pas une fois par ligne.</li>
+  <li>Un filtre est déchiffré une seule fois, pas une fois par ligne ; et la grille se souvient de ce qu'elle a déjà lu, pour ne pas le relire au tri ou au filtre suivant.</li>
   <li>Quand quelques lignes changent, elle les replace une à une au lieu de tout retrier.</li>
   <li>Les gros calculs peuvent partir dans un Web Worker : ça ne va pas plus vite, mais la page ne gèle plus.</li>
   <li>Au-delà de ce que le navigateur peut contenir, elle demande les données au serveur par blocs.</li>

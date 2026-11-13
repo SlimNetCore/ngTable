@@ -2383,3 +2383,81 @@ ng-table:dir(rtl) {
     border: 1px solid ButtonText;
   }
 }
+
+/* État vide dû aux filtres : message et bouton de réinitialisation. */
+.no-data-cell__text {
+  display: block;
+  margin-bottom: 10px;
+}
+
+/* Texte trouvé par la recherche globale ([highlightSearch]) : fond coloré ET gras, pour ne pas dépendre de la couleur seule. */
+.ngt-search-hit {
+  background: var(--ngt-search-hit-bg, #ffe58a);
+  color: var(--ngt-search-hit-text, #14212b);
+  font-weight: 600;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+@media (forced-colors: active) {
+  .ngt-search-hit {
+    background: Mark;
+    color: MarkText;
+  }
+}
+
+/*
+ * Impression : seul le tableau est imprimé, en entier (plus de zone défilante), avec ses en-têtes répétés à chaque
+ * page. Les commandes (barre d'actions, filtres, pagination, poignées, boutons) sont retirées. En défilement virtuel,
+ * seules les lignes rendues à l'écran existent : pour tout imprimer, exportez ou désactivez-le le temps d'imprimer.
+ */
+@media print {
+  .list-actions,
+  .active-filters-bar,
+  .ngt-group-panel,
+  .ngt-side-panel,
+  .ngt-action-dock,
+  .ngt-status-bar,
+  .ngt-loading-overlay,
+  ng-table-paginator,
+  .resize-handle,
+  .copy-action-btn,
+  .no-data-cell__action,
+  .filter-button,
+  .inline-filter,
+  .ngt-detail-toggle,
+  .drag-handle {
+    display: none !important;
+  }
+
+  .table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .ng-table thead {
+    display: table-header-group;
+  }
+
+  .ng-table th.cdk-header-cell,
+  .ng-table td.cdk-cell,
+  .ng-table td.cdk-footer-cell {
+    position: static !important;
+    box-shadow: none !important;
+  }
+
+  .ng-table tr {
+    break-inside: avoid;
+  }
+
+  .cell-text--truncate {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .ngt-search-hit {
+    background: none;
+    text-decoration: underline;
+  }
+}

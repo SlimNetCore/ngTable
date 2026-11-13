@@ -50,6 +50,7 @@ import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveV
 import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {ColumnStore} from './column-store';
+import {highlightParts, NgTableTextPart} from './search-highlight';
 import {compileFilters, compileIndexFilters, filtersNarrow, searchNarrows} from './filter-compile';
 import {searchText, SortLevel} from './row-pipeline';
 import {buildConsecutiveGroups, buildGroupTree, computeAggregate, flattenGroups, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
@@ -765,6 +766,11 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * (casse et accents ignorés). Voir `NgTableColumn.searchable`.
    */
   readonly globalSearchEnabled = input(false);
+  /**
+   * Surligne, dans les cellules, le texte trouvé par la recherche globale (casse et accents ignorés). Ne concerne que
+   * les cellules affichées en texte : pas celles d'un `cellTemplate`, ni les colonnes dont `searchable` est réglé.
+   */
+  readonly highlightSearch = input(false);
   /**
    * Navigation clavier cellule par cellule (motif « grid » de WAI-ARIA) : la table
    * devient un seul arrêt de tabulation, les flèches passent d'une cellule à l'autre
@@ -5195,6 +5201,26 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
     return this.internalExpandedKeys().has(key);
   }
+
+  /** Mots de la recherche globale à surligner dans les cellules (vide : rien à surligner). */
+  protected readonly highlightTerms = computed(() => (this.highlightSearch() ? searchTerms(this.globalSearchTerm()) : []));
+  /** Découpages déjà faits pour les mots courants : une même valeur (statut, client...) n'est découpée qu'une fois. */
+  private readonly highlightCache = computed(() => ({terms: this.highlightTerms(), parts: new Map<string, NgTableTextPart[]>()}));
+
+  protected highlightParts(text: string): NgTableTextPart[] {
+    const cache = this.highlightCache();
+    let parts = cache.parts.get(text);
+    if (!parts) {
+      parts = highlightParts(text, cache.terms);
+      if (cache.parts.size < 5000) {
+        cache.parts.set(text, parts);
+      }
+    }
+    return parts;
+  }
+
+  /** Liste vide alors qu'un filtre ou une recherche est actif : l'état vide propose de les réinitialiser. */
+  protected readonly emptyBecauseFiltered = computed(() => this.treeFilterActive());
 
   /** Message affiché quand la liste est vide — `[emptyLabel]` si fourni, sinon le défaut de `[labels]`. */
   protected resolvedEmptyLabel(): string {

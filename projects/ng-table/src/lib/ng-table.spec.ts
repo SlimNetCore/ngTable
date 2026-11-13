@@ -1036,6 +1036,50 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('surlignage de la recherche et état vide', () => {
+    const el = (fixture: ComponentFixture<NgTableComponent>) => fixture.nativeElement as HTMLElement;
+
+    it('[highlightSearch] marque le texte trouvé, sans changer le texte des cellules', async () => {
+      const {fixture, component} = await createTable({globalSearchEnabled: true, highlightSearch: true});
+      expect(el(fixture).querySelectorAll('mark.ngt-search-hit')).toHaveLength(0);
+
+      component['globalSearchTerm'].set('li');
+      await fixture.whenStable();
+      const marks = [...el(fixture).querySelectorAll('mark.ngt-search-hit')].map((mark) => mark.textContent);
+      // Ligne par ligne : Charlie + VALIDEE, alice, puis Bob retenu par son statut VALIDEE (casse ignorée).
+      expect(marks).toEqual(['li', 'LI', 'li', 'LI']);
+      const names = [...el(fixture).querySelectorAll('tr.data-row td:first-child .cell-text')].map((cell) => cell.textContent?.trim());
+      expect(names).toEqual(['Charlie', 'alice', 'Bob']);
+    });
+
+    it('sans [highlightSearch], rien n’est marqué', async () => {
+      const {fixture, component} = await createTable({globalSearchEnabled: true});
+      component['globalSearchTerm'].set('li');
+      await fixture.whenStable();
+      expect(el(fixture).querySelectorAll('mark')).toHaveLength(0);
+    });
+
+    it('liste vidée par les filtres : message dédié et bouton qui les réinitialise', async () => {
+      const {fixture, component} = await createTable({globalSearchEnabled: true});
+      component['globalSearchTerm'].set('introuvable');
+      await fixture.whenStable();
+      const cell = el(fixture).querySelector('.no-data-cell')!;
+      expect(cell.textContent).toContain(NG_TABLE_DEFAULT_LABELS.noDataFiltered);
+
+      cell.querySelector<HTMLButtonElement>('.no-data-cell__action')!.click();
+      await fixture.whenStable();
+      expect(el(fixture).querySelectorAll('tr.data-row')).toHaveLength(3);
+      expect(component['globalSearchTerm']()).toBe('');
+    });
+
+    it('liste vide sans filtre : message habituel, pas de bouton', async () => {
+      const {fixture} = await createTable({rows: [], emptyLabel: 'Aucune commande'});
+      const cell = el(fixture).querySelector('.no-data-cell')!;
+      expect(cell.textContent?.trim()).toBe('Aucune commande');
+      expect(cell.querySelector('button')).toBeNull();
+    });
+  });
+
   describe('modèle serveur par blocs ([remoteDatasource])', () => {
     const TOTAL = 1_000_000;
     const rowAt = (i: number): Row => ({id: `${i}`, nom: `Client ${i}`, montant: i, statut: 'VALIDEE', actif: true, date: '2026-01-01'});
