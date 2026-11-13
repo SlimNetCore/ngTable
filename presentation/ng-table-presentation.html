@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ng-table — présentation technique et fonctionnelle</title>
+<style>
+  :root {
+    --ink: #14212b; --muted: #5f7080; --line: #d9e0e7; --paper: #ffffff; --soft: #f3f6f9;
+    --brand: #2f6fa8; --brand-dark: #12283b; --accent: #e07a3f; --ok: #2e7d32; --code-bg: #0f1c28;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b1620; font-family: "Segoe UI", system-ui, Arial, sans-serif; color: var(--ink); overflow: hidden; }
+  #viewport { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #stage { width: 1280px; height: 720px; position: relative; flex: none; transform-origin: center center; }
+  .slide { position: absolute; inset: 0; background: var(--paper); padding: 48px 64px 56px; display: none; flex-direction: column; overflow: hidden; }
+  .slide.current { display: flex; }
+  .slide.dark { background: var(--brand-dark); color: #e9f1f8; }
+  .slide.dark h1, .slide.dark h2 { color: #fff; }
+  .slide.dark .muted { color: #9db4c8; }
+  h1 { font-size: 58px; line-height: 1.08; margin: 0 0 18px; letter-spacing: -0.5px; }
+  h2 { font-size: 38px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.3px; }
+  h3 { font-size: 19px; margin: 0 0 6px; }
+  p, li { font-size: 19px; line-height: 1.45; }
+  p { margin: 0 0 10px; }
+  ul { margin: 0; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  .lead { font-size: 21px; color: var(--muted); margin-bottom: 22px; }
+  .muted { color: var(--muted); }
+  .small, .small li, .small p { font-size: 16px; }
+  .kicker { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  .body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+  .cols { display: grid; gap: 28px; }
+  .c2 { grid-template-columns: 1fr 1fr; } .c3 { grid-template-columns: repeat(3, 1fr); } .c4 { grid-template-columns: repeat(4, 1fr); }
+  .c64 { grid-template-columns: 1.35fr 1fr; } .c46 { grid-template-columns: 1fr 1.35fr; }
+  .card { background: var(--soft); border-radius: 14px; padding: 18px 20px; }
+  .card h3 { color: var(--brand); }
+  .card p, .card li { font-size: 16px; margin-bottom: 4px; }
+  .dark .card { background: rgba(255,255,255,.07); } .dark .card h3 { color: #8fc4ea; }
+  .stat { text-align: left; }
+  .stat b { display: block; font-size: 50px; line-height: 1; color: var(--brand); letter-spacing: -1px; }
+  .dark .stat b { color: #ffb487; }
+  .stat span { font-size: 15px; color: var(--muted); display: block; margin-top: 8px; line-height: 1.35; }
+  .dark .stat span { color: #a9bfd1; }
+  code { font-family: Consolas, "Courier New", monospace; font-size: .9em; background: #e8eef4; padding: 1px 6px; border-radius: 5px; }
+  .dark code { background: rgba(255,255,255,.12); }
+  pre { background: var(--code-bg); color: #d6e6f5; border-radius: 12px; padding: 16px 18px; margin: 0; font: 15px/1.5 Consolas, "Courier New", monospace; overflow: hidden; white-space: pre-wrap; }
+  pre .c { color: #7f97ab; } pre .k { color: #ffb487; } pre .g { color: #9be3a8; }
+  .flow { display: flex; align-items: stretch; gap: 8px; }
+  .flow .step { flex: 1; background: var(--soft); border-radius: 12px; padding: 14px 12px; text-align: center; font-size: 15px; line-height: 1.3; }
+  .flow .step b { display: block; font-size: 16px; color: var(--brand); margin-bottom: 4px; }
+  .flow .step small { color: var(--muted); font-size: 13px; }
+  .flow .arrow { align-self: center; color: var(--accent); font-size: 24px; font-weight: 700; }
+  .flow .step.hot { background: var(--brand); color: #fff; } .flow .step.hot b, .flow .step.hot small { color: #fff; }
+  table { border-collapse: collapse; width: 100%; font-size: 16.5px; }
+  th { text-align: left; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 6px 10px; border-bottom: 2px solid var(--line); }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bars { width: 250px; }
+  .bar { height: 9px; border-radius: 5px; margin: 2px 0; min-width: 3px; }
+  .bar.ng { background: var(--brand); } .bar.ag { background: #c3ccd6; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-weight: 700; font-size: 15px; background: #e3f1e4; color: var(--ok); }
+  .pill.eq { background: #eceff3; color: var(--muted); }
+  .legend { font-size: 14px; color: var(--muted); display: flex; gap: 18px; margin-top: 10px; }
+  .legend i { display: inline-block; width: 14px; height: 9px; border-radius: 4px; margin-right: 6px; }
+  .num { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; font-size: 15px; align-items: center; justify-content: center; margin-right: 10px; flex: none; }
+  .row { display: flex; align-items: flex-start; margin-bottom: 12px; }
+  .row p { margin: 0; font-size: 18px; }
+  .threads { display: grid; grid-template-columns: 1fr 90px 1fr; gap: 0; align-items: center; }
+  .thread { border-radius: 14px; padding: 16px 18px; }
+  .thread.main { background: #e6f0f9; } .thread.work { background: #fdeee4; }
+  .thread h3 { margin-bottom: 8px; } .thread li { font-size: 15.5px; margin-bottom: 3px; }
+  .msgs { text-align: center; font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+  .msgs b { display: block; font-size: 22px; color: var(--accent); }
+  .qa { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 26px; }
+  .qa div { font-size: 15px; line-height: 1.4; } .qa b { color: var(--brand); display: block; margin-bottom: 2px; font-size: 15.5px; }
+  .foot { position: absolute; left: 64px; right: 64px; bottom: 20px; display: flex; justify-content: space-between; font-size: 12.5px; color: #9aa8b5; }
+  .dark .foot { color: #6d879c; }
+  /* Notes */
+  #notes { position: fixed; left: 0; right: 0; bottom: 0; max-height: 42vh; overflow: auto; background: #101d29; color: #dbe7f1; padding: 16px 28px 20px; font-size: 16px; line-height: 1.5; display: none; border-top: 3px solid var(--accent); z-index: 5; }
+  #notes.open { display: block; }
+  #notes h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #ffb487; }
+  #notes p { font-size: 16px; margin: 0 0 8px; } #notes li { font-size: 16px; }
+  #notes code { background: rgba(255,255,255,.12); }
+  aside.notes { display: none; }
+  #help { position: fixed; top: 10px; right: 14px; font-size: 12px; color: #7e95a8; z-index: 6; }
+  #help kbd { border: 1px solid #47607a; border-radius: 4px; padding: 0 5px; }
+  @media print {
+    @page { size: 1280px 1000px; margin: 0; }
+    html, body { overflow: visible; height: auto; background: #fff; }
+    #viewport { position: static; display: block; } #stage { transform: none !important; width: auto; height: auto; }
+    .slide { display: flex !important; position: relative; width: 1280px; height: 720px; page-break-after: avoid; }
+    aside.notes { display: block; width: 1280px; height: 280px; padding: 14px 64px; font-size: 14px; line-height: 1.4; page-break-after: always; overflow: hidden; background: #f3f6f9; }
+    aside.notes p, aside.notes li { font-size: 14px; margin-bottom: 4px; }
+    #notes, #help { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="help"><kbd>←</kbd> <kbd>→</kbd> naviguer · <kbd>N</kbd> notes de l'orateur · <kbd>F</kbd> plein écran · <kbd>Ctrl</kbd>+<kbd>P</kbd> imprimer avec les notes</div>
+<div id="viewport"><div id="stage">
+
+<!-- 1 -->
+<section class="slide dark">
+  <div class="body">
+    <div class="kicker">@sbourahla/ng-table · version 4</div>
+    <h1>ng-table<br>une grille de données Angular,<br>rapide et accessible</h1>
+    <p class="muted" style="font-size:23px;max-width:820px">Ce qu'elle fait, comment elle est construite, pourquoi elle est rapide, et comment on l'a mesuré.</p>
+  </div>
+  <aside class="notes">
+    <p><b>Accroche (30 s).</b> « ng-table est une bibliothèque Angular qui affiche et manipule des tableaux de données, de dix lignes à un million. Je vais vous montrer ce qu'elle sait faire, puis ouvrir le capot : l'architecture, les algorithmes qui la rendent rapide, les Web Workers, et la façon dont on l'a comparée à AG Grid. »</p>
+    <p><b>Plan en 4 temps :</b> 1. le fonctionnel, 2. l'architecture du code, 3. la performance (rendu, tri, filtres, live, worker), 4. la mesure (benchmark) et la qualité.</p>
+    <p>Durée visée : 30 à 40 minutes, démo comprise. Les notes de chaque diapositive (touche N) contiennent ce qu'il faut dire et les réponses aux questions probables.</p>
+  </aside>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="kicker">En bref</div>
+  <h2>Une seule balise, tout un tableur</h2>
+  <p class="lead">Un composant <code>&lt;ng-table&gt;</code> configuré par une liste de colonnes et une liste de lignes.</p>
+  <div class="body">
+    <div class="cols c4" style="margin-bottom:26px">
+      <div class="stat"><b>1 M</b><span>de lignes triées, filtrées et défilées en mémoire dans le navigateur</span></div>
+      <div class="stat"><b>0</b><span>composant Angular Material : seul le CDK Angular est requis</span></div>
+      <div class="stat"><b>593</b><span>tests unitaires, plus 39 tests de bout en bout dans un vrai navigateur</span></div>
+      <div class="stat"><b>5</b><span>langues livrées (fr, en, es, de, ar) dont l'arabe de droite à gauche</span></div>
+    </div>
+    <pre><span class="c">&lt;!-- Le minimum : des colonnes, des lignes --&gt;</span>
+&lt;ng-table [columns]="columns" [rows]="commandes" [virtualScroll]="true" /&gt;
+
+columns: NgTableColumn&lt;Commande&gt;[] = [
+  { id: 'client',  header: 'Client',  valueAccessor: (c) =&gt; c.client,  sortable: true, filter: { type: 'text' } },
+  { id: 'montant', header: 'Montant', valueAccessor: (c) =&gt; c.montant, sortable: true, filter: { type: 'number' } },
+];</pre>
+  </div>
+  <aside class="notes">
+    <p><b>Message :</b> la bibliothèque est déclarative. On décrit les colonnes (un identifiant, un en-tête, une fonction <code>valueAccessor</code> qui lit la valeur dans la ligne), on donne les lignes, et le composant fait le reste.</p>
+    <p><b>Technique :</b> Angular 22, composants <i>standalone</i>, <i>signals</i>, sans zone.js (zoneless). Typée de bout en bout : <code>NgTableColumn&lt;T&gt;</code> connaît le type de la ligne.</p>
+    <p><b>Dépendances :</b> <code>@angular/cdk</code> (moteur de tableau <code>CdkTable</code>) et rien d'autre. Material a été retiré : paginateur, cases à cocher, menus, listes déroulantes, info-bulles et icônes sont maison. Avantage : pas de thème Material imposé, paquet plus léger.</p>
+    <p><b>Installation :</b> <code>ng add @sbourahla/ng-table</code> (schéma qui ajoute le CDK et, avec <code>--locale</code>, la langue).</p>
+    <p><b>Taille du code :</b> environ 19 800 lignes de source dans la bibliothèque, dont 5 700 pour le composant principal ; le reste est découpé en modules purs.</p>
+  </aside>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="kicker">Fonctionnel</div>
+  <h2>Ce que la grille sait faire</h2>
+  <p class="lead">Six familles de fonctionnalités, toutes activables par des entrées du composant.</p>
+  <div class="body">
+    <div class="cols c3">
+      <div class="card"><h3>Données</h3><ul><li>Tri sur plusieurs niveaux</li><li>Filtres : texte, nombre, date, période, liste, booléen, sur mesure</li><li>Recherche globale, pagination</li><li>Mode local ou distant (serveur)</li></ul></div>
+      <div class="card"><h3>Affichage</h3><ul><li>Défilement virtuel, lignes et colonnes</li><li>Colonnes épinglées, redimensionnées, réordonnées</li><li>Regroupement, totaux, arbre</li><li>Maître / détail avec chevron natif</li></ul></div>
+      <div class="card"><h3>Analyse</h3><ul><li>Tableau croisé (pivot)</li><li>Graphiques et mini-graphiques</li><li>Export CSV et Excel mis en forme</li><li>Barre d'état : somme, moyenne…</li></ul></div>
+      <div class="card"><h3>Interaction</h3><ul><li>Édition de cellules, validation</li><li>Sélection de plage, copier-coller</li><li>Glisser-déposer de lignes</li><li>Menu contextuel, vues sauvegardées</li></ul></div>
+      <div class="card"><h3>Temps réel</h3><ul><li>Transactions ajout / mise à jour / retrait</li><li>Regroupement des lots (50 ms)</li><li>Surbrillance des cellules modifiées</li><li>Flux SSE avec Spring Boot</li></ul></div>
+      <div class="card"><h3>Accessibilité</h3><ul><li>Audit axe WCAG 2.2 A / AA</li><li>Clavier complet, lecteurs d'écran</li><li>Contraste élevé, daltonisme</li><li>Thème clair / sombre par jetons CSS</li></ul></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Ne lisez pas la liste.</b> Choisissez deux ou trois points par famille et renvoyez à la démo.</p>
+    <p><b>Deux modes de données à bien distinguer :</b></p>
+    <ul>
+      <li><b>Local</b> (<code>dataMode='local'</code>) : toutes les lignes sont dans le navigateur ; la table trie, filtre, pagine elle-même.</li>
+      <li><b>Distant</b> (<code>dataMode='remote'</code>) : le serveur trie et filtre. La table émet <code>(remoteQueryChange)</code> avec la requête (tri, filtres, page) et affiche ce qu'on lui renvoie. Variante « par blocs » : défilement continu sur des millions de lignes serveur.</li>
+    </ul>
+    <p><b>Motif contrôlé / non contrôlé :</b> chaque état (tri, filtres, sélection, lignes dépliées…) peut être laissé à la table, ou piloté par l'application avec une entrée et une sortie. C'est le même motif que les formulaires.</p>
+    <p><b>Dernière nouveauté (4.0.1) :</b> en maître / détail, dès qu'un <code>detailRowTemplate</code> est fourni, une colonne de 44 px porte un chevron par ligne (clavier, <code>aria-expanded</code>). <code>[detailRowToggleButton]="false"</code> le retire.</p>
+  </aside>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="kicker">Architecture</div>
+  <h2>Un composant fin posé sur des modules purs</h2>
+  <p class="lead">Toute la logique lourde vit dans des fichiers TypeScript sans Angular : testables seuls, réutilisables dans un Web Worker.</p>
+  <div class="body">
+    <div class="flow" style="margin-bottom:22px">
+      <div class="step"><b>Entrées</b>[rows], transactions<br><small>live-rows.ts · RowStore</small></div><div class="arrow">→</div>
+      <div class="step hot"><b>Filtrer</b>filtres compilés, recherche<br><small>filter-compile.ts</small></div><div class="arrow">→</div>
+      <div class="step hot"><b>Trier</b>tri par base<br><small>fast-sort.ts</small></div><div class="arrow">→</div>
+      <div class="step"><b>Grouper, paginer</b><small>row-grouping.ts<br>tree-data.ts</small></div><div class="arrow">→</div>
+      <div class="step"><b>Fenêtrer</b>lignes visibles<br><small>virtual-window.ts</small></div><div class="arrow">→</div>
+      <div class="step"><b>Rendre</b>CdkTable<br><small>row-view.ts · HTML</small></div>
+    </div>
+    <div class="cols c3">
+      <div class="card"><h3>Calcul (sans Angular)</h3><p><code>row-pipeline</code>, <code>fast-sort</code>, <code>ascii-collation</code>, <code>filter-compile</code>, <code>live-rows</code>, <code>pivot</code>, <code>block-cache</code>, <code>worker-compute</code></p></div>
+      <div class="card"><h3>Composant</h3><p><code>ng-table.component</code> : entrées, sorties, une centaine de <code>computed</code> et d'effets qui enchaînent les modules purs.</p></div>
+      <div class="card"><h3>Briques d'interface</h3><p>paginateur, menu, liste déroulante, case à cocher, info-bulle, icônes, graphiques, pivot ; thème par jetons <code>--ngt-*</code>.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Message clé :</b> la séparation entre « calcul » et « affichage ». Les fonctions de tri, de filtre, de fusion live ne connaissent pas Angular. Trois bénéfices : (1) tests unitaires simples et rapides, (2) le même code tourne dans le Web Worker, (3) le composant reste un chef d'orchestre.</p>
+    <p><b>Le chemin d'une ligne :</b> elle entre par <code>[rows]</code> ou par une transaction, est rangée par clé dans le <code>RowStore</code>, passe les filtres et la recherche, est triée, éventuellement groupée et paginée ; le défilement virtuel ne garde que la tranche visible ; <code>row-view.ts</code> construit le « modèle de vue » (valeur, texte, classes de chaque cellule) et le gabarit HTML le rend dans une <code>&lt;table cdk-table&gt;</code>.</p>
+    <p><b>Pourquoi CdkTable ?</b> Il fournit la sémantique <code>&lt;table&gt;</code>, les colonnes et en-têtes collants. C'est le moteur de <code>mat-table</code>, sans l'habillage Material.</p>
+    <p><b>Si on vous demande « pourquoi un composant de 5 700 lignes ? »</b> : il porte toute l'API publique (entrées, sorties, méthodes) et la coordination ; les algorithmes en sont déjà sortis. La suite logique est de continuer à extraire.</p>
+  </aside>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="kicker">Architecture</div>
+  <h2>Signals et zoneless : ne recalculer que le nécessaire</h2>
+  <div class="body">
+    <div class="cols c64">
+      <div>
+        <div class="row"><span class="num">1</span><p><b>Chaque étape est un <code>computed</code>.</b> Le résultat est mémorisé ; il n'est recalculé que si un signal qu'il lit a changé.</p></div>
+        <div class="row"><span class="num">2</span><p><b>Changer la sélection ne retrie rien.</b> Le tri dépend des lignes, des filtres et du tri, pas de la sélection.</p></div>
+        <div class="row"><span class="num">3</span><p><b>Pas de zone.js.</b> Angular ne revérifie pas tout l'écran à chaque clic ou minuteur : seul ce qui lit un signal modifié est rafraîchi (<code>OnPush</code>).</p></div>
+        <div class="row"><span class="num">4</span><p><b>Modèle de vue mis en cache.</b> <code>valueAccessor</code> est appelé une fois par cellule rendue, pas à chaque détection de changements.</p></div>
+      </div>
+      <pre><span class="c">// Schéma simplifié du composant</span>
+filtered  = <span class="k">computed</span>(() =&gt; filtrer(rows(), filters()));
+sorted    = <span class="k">computed</span>(() =&gt; trier(filtered(), sort()));
+window    = <span class="k">computed</span>(() =&gt; tranche(sorted(), scrollTop()));
+rowViews  = <span class="k">computed</span>(() =&gt; vues(window(), colonnes()));
+
+<span class="c">// Défiler : seuls window et rowViews se recalculent.
+// Cocher une ligne : aucun des quatre.</span></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Un signal</b>, c'est une valeur qui prévient quand elle change. Un <code>computed</code> est une valeur dérivée : Angular note quels signaux il a lus et ne le recalcule que si l'un d'eux a changé, et seulement quand quelqu'un le relit (paresseux).</p>
+    <p><b>Conséquence pour la grille :</b> le graphe de dépendances fait le tri entre ce qui doit être refait et ce qui ne doit pas. Défiler ne refiltre pas. Ouvrir un menu ne reconstruit pas les cellules.</p>
+    <p><b>Zoneless :</b> historiquement Angular utilisait zone.js pour intercepter tous les événements et relancer une vérification globale. Sans zone, la vérification est déclenchée par les signaux. Pour une grille qui reçoit des milliers de mises à jour par seconde, c'est décisif.</p>
+    <p><b>Le modèle de vue</b> (<code>buildRowViews</code>) : pour chaque ligne rendue et chaque colonne visible, on calcule une fois la valeur, son texte, le texte à copier et le contexte du gabarit. Le gabarit HTML ne fait que lire ce résultat. Avec la virtualisation des colonnes, il n'est calculé que pour les colonnes rendues.</p>
+    <p>Le code de la diapositive est un schéma : dans le composant réel, filtre et tri passent par l'<code>IncrementalPipeline</code> (diapositive « mode live »).</p>
+  </aside>
+</section>
+
+<!-- 6 -->
+<section class="slide dark">
+  <div class="body">
+    <div class="kicker">Performance</div>
+    <h1>Pourquoi une grille devient lente,<br>et les deux réponses</h1>
+    <div class="cols c2" style="margin-top:26px">
+      <div class="card"><h3>1. Le DOM</h3><p style="font-size:18px">50 000 lignes dans la page, c'est 50 000 <code>&lt;tr&gt;</code> à créer, mesurer et peindre. Réponse : <b>ne rendre que ce qui se voit</b>.</p></div>
+      <div class="card"><h3>2. Le calcul</h3><p style="font-size:18px">Trier un million de lignes avec un comparateur, c'est environ 20 millions de comparaisons. Réponse : <b>changer d'algorithme</b>, et au besoin <b>changer de fil d'exécution</b>.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Transition vers la partie performance.</b> Posez le cadre : deux coûts indépendants.</p>
+    <p><b>Le DOM</b> : le navigateur doit créer chaque élément, calculer son style, sa position, puis le peindre. Ce coût est proportionnel au nombre d'éléments à l'écran, pas au nombre de lignes de données, à condition de virtualiser.</p>
+    <p><b>Le calcul</b> : un tri par comparaisons coûte n·log₂(n) comparaisons. Pour n = 1 000 000, log₂(n) ≈ 20, donc environ 20 millions d'appels au comparateur, chacun appelant deux fois <code>valueAccessor</code>. C'est ce qui prend plusieurs secondes.</p>
+    <p><b>Et le JavaScript n'a qu'un fil</b> pour la page : pendant ces secondes, rien d'autre ne répond. D'où le Web Worker, qu'on verra plus loin.</p>
+  </aside>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="kicker">Performance · rendu</div>
+  <h2>Défilement virtuel : une vingtaine de lignes dans le DOM</h2>
+  <p class="lead">Le temps de rendu ne dépend plus du nombre total de lignes.</p>
+  <div class="body">
+    <div class="cols c46">
+      <svg viewBox="0 0 420 380" style="width:100%;height:auto" role="img" aria-label="Schéma du défilement virtuel">
+        <rect x="60" y="6" width="220" height="368" rx="8" fill="#f3f6f9" stroke="#d9e0e7"/>
+        <rect x="60" y="6" width="220" height="120" rx="8" fill="#e3e9ef"/>
+        <text x="170" y="70" text-anchor="middle" font-size="14" fill="#5f7080">espacement haut</text>
+        <g fill="#cfe0ef"><rect x="66" y="130" width="208" height="16" rx="3"/><rect x="66" y="150" width="208" height="16" rx="3"/><rect x="66" y="230" width="208" height="16" rx="3"/><rect x="66" y="250" width="208" height="16" rx="3"/></g>
+        <g fill="#2f6fa8"><rect x="66" y="170" width="208" height="16" rx="3"/><rect x="66" y="190" width="208" height="16" rx="3"/><rect x="66" y="210" width="208" height="16" rx="3"/></g>
+        <rect x="52" y="166" width="236" height="64" rx="6" fill="none" stroke="#e07a3f" stroke-width="3"/>
+        <rect x="60" y="270" width="220" height="104" rx="8" fill="#e3e9ef"/>
+        <text x="170" y="326" text-anchor="middle" font-size="14" fill="#5f7080">espacement bas</text>
+        <text x="298" y="202" font-size="14" fill="#e07a3f" font-weight="700">zone visible</text>
+        <text x="298" y="144" font-size="13" fill="#5f7080">marge : 8 lignes</text>
+        <text x="298" y="254" font-size="13" fill="#5f7080">marge : 8 lignes</text>
+        <rect x="20" y="6" width="10" height="368" rx="5" fill="#e3e9ef"/><rect x="20" y="150" width="10" height="60" rx="5" fill="#5f7080"/>
+      </svg>
+      <div>
+        <pre style="margin-bottom:16px">premier = floor(scrollTop / hauteurLigne)
+visibles = ceil(hauteurZone / hauteurLigne)
+début = premier − 8
+fin   = premier + visibles + 8</pre>
+        <ul>
+          <li>Deux lignes d'espacement donnent à la barre de défilement la hauteur de la liste complète.</li>
+          <li>La hauteur de ligne est <b>mesurée</b> sur la première ligne rendue (densité, thème).</li>
+          <li>Au-delà de 15 millions de pixels, la barre est <b>comprimée</b> : les navigateurs plafonnent la hauteur d'un élément.</li>
+          <li>Même principe en largeur : <code>[virtualColumns]</code>, marge de 300 px.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Principe :</b> on ne crée que les lignes de la zone visible, plus 8 lignes de marge de chaque côté pour que le défilement reste fluide et que le focus clavier ait toujours une ligne voisine. Au-dessus et au-dessous, une ligne vide dont la hauteur vaut « nombre de lignes non rendues × hauteur de ligne ».</p>
+    <p><b>La formule</b> est dans <code>virtual-window.ts</code> (<code>computeVirtualRange</code>) : une division et quelques bornes. Fonction pure, testée seule.</p>
+    <p><b>Contrainte à connaître :</b> les lignes doivent avoir une hauteur uniforme. Une ligne détail dépliée ou du texte sur plusieurs lignes décalent légèrement la position.</p>
+    <p><b>La compression</b> (question fréquente des experts) : Chrome plafonne un élément à environ 33 millions de px, Firefox à 17,9 millions. Un million de lignes de 48 px fait 48 millions de px : la fin serait inatteignable. Au-delà de 15 millions, la position de la barre est convertie proportionnellement en position réelle (<code>scrollRatio</code>). AG Grid fait la même chose.</p>
+    <p><b>Colonnes :</b> avec 100 colonnes, seules celles de la zone visible (plus 300 px de marge) sont rendues ; les colonnes épinglées le sont toujours.</p>
+    <p><b>Modèle serveur par blocs</b> (si on vous le demande) : même fenêtre, mais les lignes viennent du serveur par blocs de 100. Cache de 50 blocs, les moins récemment affichés sont oubliés (LRU), 2 requêtes simultanées au plus ; un numéro de « génération » fait ignorer les réponses arrivées après un changement de tri ou de filtre.</p>
+  </aside>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="kicker">Performance · algorithme</div>
+  <h2>Tri par base (radix) : trier sans comparer</h2>
+  <p class="lead">On ne compare plus les lignes deux à deux : on les range dans des cases d'après les chiffres de leur clé.</p>
+  <div class="body">
+    <div class="cols c2">
+      <div>
+        <div class="row"><span class="num">1</span><p><b>Une colonne de nombres par niveau de tri.</b> <code>valueAccessor</code> est appelé une fois par ligne ; nombre, date, booléen et rang du texte deviennent un <code>Float64Array</code>.</p></div>
+        <div class="row"><span class="num">2</span><p><b>On lit la clé morceau par morceau</b>, en commençant par la fin, comme on lirait d'abord les unités, puis les dizaines, puis les centaines.</p></div>
+        <div class="row"><span class="num">3</span><p><b>À chaque passe</b>, on pose les lignes dans des cases selon ce morceau, puis on les ramasse dans l'ordre des cases. Quatre passes suffisent.</p></div>
+        <div class="row"><span class="num">4</span><p><b>On ne bouscule jamais l'ordre d'arrivée</b> dans une case (tri « stable ») : c'est ce qui permet de trier sur plusieurs colonnes.</p></div>
+      </div>
+      <div>
+        <table style="margin-bottom:14px">
+          <tr><th></th><th>Tri par comparaisons</th><th>Tri par base</th></tr>
+          <tr><td>Coût</td><td>n · log n</td><td><b>4 · n</b> par niveau</td></tr>
+          <tr><td>1 M de lignes</td><td>≈ 20 M de comparaisons</td><td>4 parcours du tableau</td></tr>
+          <tr><td>Accesseur</td><td>2 appels par comparaison</td><td>1 appel par ligne</td></tr>
+          <tr><td>Mémoire</td><td>objets par ligne</td><td>tableaux typés</td></tr>
+        </table>
+<pre style="font-size:14px"><span class="c">Exemple : 170, 45, 75, 90, 802, 24</span>
+unités    → 170  90 802  24  45  75
+dizaines  → 802  24  45 170  75  90
+centaines → <span class="g"> 24  45  75  90 170 802</span>   <span class="c">trié, sans comparer</span></pre>
+        <p class="small" style="margin-top:10px">Colonne aux types mélangés ou date invalide : retour automatique au tri classique. Un test compare les deux tris sur des données aléatoires.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Analogie :</b> pour ranger un paquet de cartes numérotées, on peut les comparer deux à deux (tri classique), ou les distribuer en tas selon le dernier chiffre, ramasser les tas dans l'ordre, puis recommencer avec le chiffre précédent. Après le dernier chiffre, le paquet est trié. C'est le tri par base, version « chiffre de poids faible d'abord » (LSD).</p>
+    <p><b>Ici le « chiffre » fait 16 bits</b> (65 536 valeurs possibles) et un nombre JavaScript fait 64 bits, donc 4 passes. Chaque passe : (a) un histogramme, combien de lignes par case ; (b) une somme cumulée, où commence chaque case ; (c) recopie des indices à leur place. Tout se fait sur des <code>Uint32Array</code> d'indices : on ne déplace jamais les objets lignes.</p>
+    <p><b>Pourquoi l'astuce des bits ?</b> Les nombres à virgule (IEEE 754) ne se trient pas directement comme des entiers à cause du signe. En inversant le bit de signe des positifs et tous les bits des négatifs, l'ordre des entiers obtenus est exactement l'ordre des nombres.</p>
+    <p><b>Stabilité :</b> deux lignes de même clé gardent leur ordre relatif. C'est ce qui permet le tri multi-niveaux : trier d'abord par montant, puis par client ; le second tri ne dérange pas l'ordre des montants à client égal.</p>
+    <p><b>Les vides</b> valent +∞ : toujours en dernier, dans les deux sens (le sens décroissant multiplie les valeurs par −1 avant, pas les vides).</p>
+    <p><b>Fichier :</b> <code>fast-sort.ts</code>, fonctions <code>sortKeyColumn</code>, <code>radixSortByKeys</code>, <code>buildSortOrder</code>. Gain mesuré : tri numérique d'un million de lignes passé de 2,7 s à 0,35 – 0,65 s (chargement compris).</p>
+  </aside>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="kicker">Performance · algorithme</div>
+  <h2>Trier du texte : le ramener à des nombres</h2>
+  <p class="lead">Le tri de texte respecte la langue (<code>Intl.Collator</code>) : casse ignorée, « item 2 » avant « item 10 ». C'est correct, mais lent.</p>
+  <div class="body">
+    <div class="cols c2">
+      <div class="card">
+        <h3>Peu de valeurs distinctes (statut, pays…)</h3>
+        <p>On trie seulement les valeurs <b>distinctes</b> avec le collateur, on leur donne un <b>rang</b>, et chaque ligne reçoit le rang de sa valeur.</p>
+        <p>Un million de lignes, 5 statuts : 5 textes à trier, puis un tri par base sur les rangs.</p>
+      </div>
+      <div class="card">
+        <h3>Beaucoup de valeurs distinctes (références…)</h3>
+        <p>Pour du texte ASCII, la table construit une <b>clé de tri en octets</b> : comparer les octets donne le même ordre que le collateur. Ces clés sont triées par base.</p>
+        <p>La clé est <b>vérifiée contre le collateur</b> sur un corpus avant usage ; au moindre écart, retour au collateur.</p>
+      </div>
+    </div>
+    <p style="margin-top:18px">Le choix se fait sur un échantillon des 2 000 premières valeurs (seuil : 25 % de valeurs distinctes). Texte accentué ou non ASCII : le collateur, comme avant. <b>Le résultat est toujours celui du collateur</b> ; seul le chemin change.</p>
+  </div>
+  <aside class="notes">
+    <p><b>Pourquoi le texte est difficile :</b> on ne peut pas trier par code de caractère (« Z » passerait avant « a », « é » très loin). <code>Intl.Collator</code> applique les règles de la langue, mais un appel à <code>compare</code> est coûteux, et il en faut 20 millions.</p>
+    <p><b>Idée 1, les rangs :</b> si la colonne a peu de valeurs différentes, on ne trie que ces valeurs. Chaque ligne se voit attribuer un nombre (le rang) et on retombe sur le tri par base de la diapositive précédente.</p>
+    <p><b>Idée 2, les clés en octets</b> (<code>ascii-collation.ts</code>) : pour chaque caractère ASCII imprimable, on mesure son rang avec le collateur lui-même, et on écrit une clé où les suites de chiffres sont comparées par valeur et la casse ignorée. Comparer deux clés octet par octet équivaut alors à <code>collator.compare</code>.</p>
+    <p><b>Le point à souligner, la sûreté :</b> cette équivalence n'est pas supposée, elle est vérifiée à l'exécution sur un corpus d'essai avant la première utilisation. Si le navigateur a un collateur aux règles différentes, la vérification échoue et on garde le collateur. On ne sacrifie jamais l'exactitude à la vitesse.</p>
+    <p><b>Chiffres :</b> tri de texte sur un million de valeurs distinctes : 6,4 s avant, 1,0 – 2,4 s maintenant. C'est le scénario où l'écart avec AG Grid est le plus faible (×1,7) : le texte reste le cas difficile.</p>
+  </aside>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <div class="kicker">Performance · algorithme</div>
+  <h2>Filtres compilés : lire la saisie une fois, pas un million</h2>
+  <div class="body">
+    <div class="cols c2" style="margin-bottom:18px">
+      <div><h3 class="muted">Avant : interpréter pour chaque ligne</h3>
+<pre>pour chaque ligne :
+  lire "&gt;5000"            <span class="c">// expression régulière</span>
+  convertir "5000" en nombre
+  comparer la cellule</pre></div>
+      <div><h3 style="color:var(--ok)">Maintenant : compiler, puis appliquer</h3>
+<pre><span class="g">const test = compiler("&gt;5000");</span>
+<span class="c">// test = (valeur) =&gt; valeur &gt; 5000</span>
+pour chaque ligne :
+  test(cellule)</pre></div>
+    </div>
+    <div class="cols c3">
+      <div class="card"><h3>Ce qui est compilé</h3><p><code>&gt;5000</code>, <code>10..50</code>, <code>Validée,Annulée</code>, périodes de dates, opérateurs de texte.</p></div>
+      <div class="card"><h3>Recherche globale</h3><p>Le texte normalisé de chaque ligne est calculé une fois et mis en cache : ensuite quelques dizaines de ms par frappe sur un million de lignes.</p></div>
+      <div class="card"><h3>Garantie</h3><p>Un test compare le filtre compilé à l'ancien sur plus de 12 000 couples valeur / saisie.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>« Compiler » ici</b> veut dire : transformer une fois le texte saisi par l'utilisateur en une fonction prête à l'emploi. Le terme vient des compilateurs, mais il n'y a pas de génération de code : on fabrique une fermeture (<i>closure</i>) qui a déjà en mémoire le seuil, les bornes ou l'ensemble de valeurs.</p>
+    <p><b>Exemple :</b> pour <code>10..50</code>, on découpe et on convertit les bornes une fois ; la fonction retournée ne fait plus que <code>cellule &gt;= 10 &amp;&amp; cellule &lt;= 50</code>. Pour une liste <code>Validée,Annulée</code>, on construit un ensemble (<code>Set</code>) et chaque ligne fait une recherche en temps constant.</p>
+    <p><b>Pourquoi c'était lent :</b> l'ancien code relisait la saisie (expression régulière, découpage, passage en minuscules) pour chaque ligne. Sur un million de lignes, c'était l'essentiel du temps du filtre.</p>
+    <p><b>Plusieurs filtres :</b> <code>compileFilters</code> assemble les fonctions des colonnes filtrées en un seul prédicat ; une ligne est rejetée dès le premier filtre qui échoue.</p>
+    <p><b>Résultat :</b> filtres passés de 0,5 – 1,1 s à 0,2 – 0,45 s sur un million de lignes. Face à AG Grid : ×23 sur le filtre texte.</p>
+    <p><b>Fichier :</b> <code>filter-compile.ts</code>.</p>
+  </aside>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <div class="kicker">Performance · temps réel</div>
+  <h2>Mode live : ne retraiter que ce qui a changé</h2>
+  <p class="lead">Cotations, supervision, suivi de commandes : des milliers de mises à jour par seconde sur un tableau déjà trié et filtré.</p>
+  <div class="body">
+    <div class="cols c64">
+      <div>
+        <div class="row"><span class="num">1</span><p><b>Transactions.</b> <code>applyTransaction({add, update, remove})</code> : on envoie seulement les lignes touchées, retrouvées par leur clé.</p></div>
+        <div class="row"><span class="num">2</span><p><b>Regroupement.</b> <code>applyTransactionAsync</code> accumule pendant 50 ms : un seul recalcul et un seul rendu par lot.</p></div>
+        <div class="row"><span class="num">3</span><p><b>Fusion.</b> Chaque ligne modifiée est refiltrée, retirée de son ancienne place et insérée à la nouvelle par <b>recherche dichotomique</b> dans le résultat déjà trié.</p></div>
+        <div class="row"><span class="num">4</span><p><b>Surbrillance.</b> Vert si le nombre monte, rouge s'il baisse, avec un repère ▲ ▼ pour les daltoniens.</p></div>
+      </div>
+      <div>
+        <table>
+          <tr><th>Pour k lignes modifiées sur n</th><th class="n">Coût</th></tr>
+          <tr><td>Tout retrier</td><td class="n">n · log n</td></tr>
+          <tr><td><b>Fusion incrémentale</b></td><td class="n"><b>k · log n</b></td></tr>
+        </table>
+        <p class="small" style="margin-top:14px">k = 1 000, n = 1 000 000 : environ 20 000 comparaisons au lieu de 20 millions. Le reste est de la copie native de tranches de tableau.</p>
+        <p class="small">Changer un filtre, le tri ou les colonnes recalcule tout : la fusion ne sert que lorsque seules les données changent.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Deux classes pures</b> dans <code>live-rows.ts</code> :</p>
+    <ul>
+      <li><code>RowStore</code> : les lignes rangées par clé (<code>rowKeyAccessor</code>, sinon <code>id</code>). Il retient quelles clés ont changé depuis la dernière lecture et l'ancienne version de chaque ligne modifiée.</li>
+      <li><code>IncrementalPipeline</code> : le résultat filtré et trié. Si la configuration (filtres, tri, colonnes) n'a pas changé, il appelle <code>merge</code> ; sinon <code>rebuild</code>.</li>
+    </ul>
+    <p><b>La recherche dichotomique :</b> dans une liste triée, on trouve une position en coupant l'intervalle en deux à chaque essai : 20 essais pour un million de lignes. On la fait deux fois par ligne modifiée : pour trouver l'ancienne place, puis la nouvelle.</p>
+    <p><b>Les totaux</b> (barre d'état) sont tenus à jour de la même façon : on retire l'ancienne valeur de la somme, on ajoute la nouvelle ; une resynchronisation complète périodique évite la dérive d'arrondi.</p>
+    <p><b>Données immuables :</b> le mode live marche aussi sans transactions. À chaque nouveau tableau <code>[rows]</code>, la table compare clé par clé ; seules les lignes dont l'objet a changé sont retraitées. Il faut donc créer un nouvel objet quand une ligne change (<code>{...ligne, prix}</code>).</p>
+    <p><b>Démo :</b> la page Live envoie jusqu'à 50 000 mises à jour par seconde sur 100 000 instruments, avec le compteur d'images par seconde. Mesure : un lot de 1 000 mises à jour sur un million de lignes coûte une dizaine de ms, rendu compris.</p>
+  </aside>
+</section>
+
+<!-- 12 -->
+<section class="slide">
+  <div class="kicker">Web Workers</div>
+  <h2>Un Web Worker, c'est quoi</h2>
+  <p class="lead">La page n'a qu'un fil d'exécution : pendant qu'il trie, il ne peut ni peindre, ni réagir au clavier. Un worker est un second fil, fourni par le navigateur.</p>
+  <div class="body">
+    <div class="threads">
+      <div class="thread main"><h3>Fil principal</h3><ul><li>Le DOM, l'affichage, les animations</li><li>Les clics, la saisie, le défilement</li><li>Angular et tout le code de l'application</li></ul></div>
+      <div class="msgs"><b>⇄</b>messages<br><code>postMessage</code></div>
+      <div class="thread work"><h3>Web Worker</h3><ul><li>Du JavaScript, en parallèle</li><li>Pas de DOM, pas de <code>window</code></li><li>Sa propre mémoire : rien n'est partagé</li></ul></div>
+    </div>
+    <div class="cols c3" style="margin-top:22px">
+      <div class="card"><h3>On ne lui passe pas de fonctions</h3><p>Seulement des données, copiées à l'envoi (« clonage structuré »).</p></div>
+      <div class="card"><h3>Copier coûte cher</h3><p>Copier un million d'objets bloque le fil principal, exactement ce qu'on voulait éviter.</p></div>
+      <div class="card"><h3>Sauf les tampons « transférables »</h3><p>Un <code>ArrayBuffer</code> change de propriétaire sans copie : c'est instantané.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Le modèle d'exécution du navigateur :</b> une boucle d'événements, sur un seul fil. Elle traite une tâche à la fois : un clic, un minuteur, le calcul d'une image. Une tâche de 2 secondes (un tri) gèle tout : pas de défilement, pas de curseur qui clignote, pas d'animation.</p>
+    <p><b>Le worker</b> est un autre fil avec sa propre boucle d'événements. On communique par messages : <code>worker.postMessage(données)</code> d'un côté, <code>onmessage</code> de l'autre. Aucune variable n'est partagée, donc pas de verrous ni de conflits d'accès.</p>
+    <p><b>Les trois contraintes</b> qui dictent la conception de la diapositive suivante :</p>
+    <ul>
+      <li>Pas de fonctions : or nos colonnes sont définies par des fonctions (<code>valueAccessor</code>). On ne peut pas envoyer « les lignes et la façon de les lire ».</li>
+      <li>La copie : par défaut un message est cloné. Un million d'objets, c'est des centaines de ms sur le fil principal.</li>
+      <li>Le transfert : un <code>ArrayBuffer</code> (la mémoire derrière un <code>Float64Array</code>) peut être « transféré » : le worker en devient propriétaire, l'émetteur ne peut plus y toucher, et rien n'est copié.</li>
+    </ul>
+    <p><b>Si on vous demande SharedArrayBuffer :</b> il permet de partager la mémoire, mais exige des en-têtes HTTP d'isolation (COOP / COEP) qu'une bibliothèque ne peut pas imposer à l'application. Le transfert suffit ici.</p>
+  </aside>
+</section>
+
+<!-- 13 -->
+<section class="slide">
+  <div class="kicker">Web Workers</div>
+  <h2>Comment ng-table s'en sert</h2>
+  <p class="lead"><code>[workerCompute]="true"</code> : tri, filtres et recherche globale partent dans le worker à partir de 100 000 lignes.</p>
+  <div class="body">
+    <div class="flow" style="margin-bottom:20px">
+      <div class="step"><b>1. Extraire</b>les <i>colonnes de valeurs</i> utiles : résultats de <code>valueAccessor</code></div><div class="arrow">→</div>
+      <div class="step"><b>2. Empaqueter</b>nombres en <code>Float64Array</code>, textes en un seul tampon UTF-8</div><div class="arrow">→</div>
+      <div class="step hot"><b>3. Transférer</b>sans copie, une seule fois par jeu de données</div><div class="arrow">→</div>
+      <div class="step hot"><b>4. Calculer</b>mêmes modules : filtres compilés, tri par base</div><div class="arrow">→</div>
+      <div class="step"><b>5. Recevoir</b>l'ordre des lignes retenues : un <code>Uint32Array</code> d'indices</div>
+    </div>
+    <div class="cols c3">
+      <div class="card"><h3>Pendant le calcul</h3><p>L'ancien résultat reste affiché, la table reste utilisable (<code>aria-busy</code>). Une demande plus récente remplace celle en cours : chaque calcul porte un numéro.</p></div>
+      <div class="card"><h3>Aucune configuration</h3><p>Le worker est livré dans la bibliothèque : une source de 12 Ko, empaquetée par esbuild et chargée dans un <code>Blob</code>.</p></div>
+      <div class="card"><h3>Repli automatique</h3><p>Si le worker échoue (politique de sécurité, plantage), la table revient au fil principal. <code>[computeWorkerFactory]</code> permet de fournir le sien.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>La réponse aux trois contraintes :</b> on n'envoie ni les lignes ni les fonctions. Le fil principal applique lui-même <code>valueAccessor</code> et envoie le <b>résultat</b>, colonne par colonne. Seules les colonnes nécessaires partent : celles qui sont filtrées, triées, ou cherchées.</p>
+    <p><b>Empaquetage</b> (<code>packValues</code>) : une colonne entièrement numérique devient un <code>Float64Array</code>. Une colonne de textes devient <b>une seule</b> grande chaîne (séparateur : caractère nul) encodée en UTF-8 dans un <code>Uint8Array</code>. Les deux sont transférables. Copier un million de chaînes une par une coûtait ~560 ms ; le tampon unique ~155 ms.</p>
+    <p><b>Une seule fois :</b> le client (<code>ComputeWorkerClient</code>) retient quelles colonnes ont déjà été envoyées pour ce jeu de données. Un second tri sur la même colonne n'envoie plus qu'un petit message de réglages.</p>
+    <p><b>Dans le worker</b> (<code>WorkerComputeCore</code>) : les « lignes » sont de simples indices 0…n−1. Il applique exactement les mêmes modules que le fil principal (c'est le bénéfice des modules purs), et renvoie un <code>Uint32Array</code> : « affiche la ligne 812, puis la 14, puis… ». Le fil principal reconstitue le tableau trié (20 à 80 ms).</p>
+    <p><b>Course entre demandes :</b> l'utilisateur tape vite dans un filtre. Chaque demande a un numéro (<code>job</code>) ; quand une réponse arrive, <code>isLatest(job)</code> dit si elle est encore d'actualité, sinon elle est ignorée.</p>
+    <p><b>Livraison :</b> une bibliothèque Angular ne peut pas livrer un fichier worker que l'application empaquetterait. <code>scripts/bundle-worker.mjs</code> empaquette donc le worker en une chaîne de caractères (<code>worker-source.generated.ts</code>) ; à l'exécution on en fait un <code>Blob</code> et une URL. <code>npm run worker:check</code> vérifie en intégration continue que ce fichier généré est à jour.</p>
+  </aside>
+</section>
+
+<!-- 14 -->
+<section class="slide">
+  <div class="kicker">Web Workers</div>
+  <h2>Le worker ne rend pas le calcul plus rapide</h2>
+  <p class="lead">Il le déplace : le calcul dure autant, parfois un peu plus, mais la page ne gèle plus.</p>
+  <div class="body">
+    <div class="cols c2">
+      <div class="card">
+        <h3>Ce qui reste sur le fil principal (1 M de lignes)</h3>
+        <table>
+          <tr><td>Extraire une colonne de nombres</td><td class="n">≈ 40 ms</td></tr>
+          <tr><td>Extraire une colonne de textes</td><td class="n">≈ 155 ms</td></tr>
+          <tr><td>Reconstituer les lignes triées</td><td class="n">20 – 80 ms</td></tr>
+          <tr><td>Le tri lui-même (dans le worker)</td><td class="n">0,2 – 2,5 s</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>Quand l'activer</h3>
+        <ul style="margin-bottom:16px">
+          <li>Mode local, plusieurs centaines de milliers de lignes</li>
+          <li>Tris de texte et filtres qui figeaient la saisie</li>
+        </ul>
+        <h3>Quand s'en passer</h3>
+        <ul>
+          <li><b>Flux live</b> : chaque transaction recalcule tout dans le worker ; la fusion incrémentale du fil principal est bien meilleure</li>
+          <li>Données arborescentes, filtre à fonction sur mesure (<code>filterPredicate</code>) : calcul sur le fil principal</li>
+          <li>Petits volumes : le coût du message dépasse le gain</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>C'est la nuance qui montre qu'on maîtrise le sujet.</b> Un worker n'accélère pas un algorithme. Ce qu'on mesure, c'est le <b>gel</b> : la plus longue période pendant laquelle le fil principal ne répond pas.</p>
+    <p><b>Lecture du tableau :</b> sans worker, un tri de texte d'un million de lignes gèle la page 1 à 2,5 s. Avec worker, le gel tombe à l'extraction de la colonne (≈ 155 ms la première fois) puis à la reconstitution (≈ 80 ms) ; les fois suivantes, seulement ≈ 80 ms.</p>
+    <p><b>Honnêteté :</b> ces coûts ont été mesurés sous Node sur le poste de développement. Le banc « Calcul en Web Worker » de la page <code>/benchmark</code> mesure le gel avec et sans worker dans le navigateur ; je n'ai pas encore de relevé publié fait dans un Chrome visible. Si la question vient, dites-le tel quel et proposez de le lancer en direct.</p>
+    <p><b>Pourquoi pas pour le live :</b> le worker ne connaît que des colonnes figées. À chaque transaction il faudrait renvoyer les colonnes et tout recalculer. Sur le fil principal, la fusion incrémentale traite 1 000 mises à jour sur un million de lignes en quelques millisecondes.</p>
+    <p><b>Seuil :</b> <code>[workerThreshold]</code>, 100 000 lignes par défaut. <code>(computing)</code> émet le début et la fin du calcul pour afficher un indicateur.</p>
+  </aside>
+</section>
+
+<!-- 15 -->
+<section class="slide">
+  <div class="kicker">Benchmark</div>
+  <h2>Comment la comparaison avec AG Grid a été faite</h2>
+  <p class="lead">Page <code>/benchmark</code> de la démo : tout le monde peut la relancer et copier le rapport.</p>
+  <div class="body">
+    <div class="cols c2">
+      <div>
+        <div class="row"><span class="num">1</span><p><b>Mêmes conditions.</b> Même navigateur, mêmes données générées, une grille à la fois, réglages par défaut des deux côtés.</p></div>
+        <div class="row"><span class="num">2</span><p><b>Huit scénarios.</b> Chargement, tri numérique, tri texte, tri sur deux niveaux, filtre texte, filtre numérique, saut à 90 %, lot de 1 000 mises à jour.</p></div>
+        <div class="row"><span class="num">3</span><p><b>Le rendu est compté.</b> Le chronomètre va de l'appel à la fin de la <b>deuxième image peinte</b>.</p></div>
+        <div class="row"><span class="num">4</span><p><b>Médiane de 5 passages</b>, tri et filtres remis à zéro entre deux scénarios.</p></div>
+      </div>
+      <div>
+<pre><span class="c">// Le cœur de la mesure</span>
+const début = performance.now();
+scénario.run(grille);            <span class="c">// ex. trier</span>
+await imageSuivante();           <span class="c">// requestAnimationFrame</span>
+await imageSuivante();           <span class="c">// la 2e : c'est peint</span>
+temps.push(performance.now() - début);
+<span class="c">// ... 5 fois, puis :</span>
+résultat = médiane(temps);</pre>
+        <p class="small" style="margin-top:12px">AG Grid Community 34 est installé à part, dans <code>benchmarks/</code> : il n'est pas livré avec la bibliothèque. Un onglet masqué ne peint pas : la page le détecte et le signale dans le rapport.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Pourquoi « deux images peintes » ?</b> Mesurer seulement le calcul avantagerait une grille qui reporte son rendu à plus tard. <code>requestAnimationFrame</code> appelle une fonction juste avant que le navigateur peigne une image. Après le premier appel, la grille a pu programmer son rendu ; après le second, ce rendu a été peint. On mesure donc ce que l'utilisateur perçoit.</p>
+    <p><b>Pourquoi la médiane et pas la moyenne ?</b> Un passage perturbé (ramasse-miettes, autre processus) fausse une moyenne ; la médiane est la valeur du milieu des 5 passages, elle ignore les extrêmes.</p>
+    <p><b>Pourquoi une grille à la fois ?</b> Pour qu'elles ne se disputent ni la mémoire ni le processeur. Chaque grille est créée, mesurée, puis détruite.</p>
+    <p><b>Remise à zéro :</b> une première version laissait le filtre numérique actif pendant « saut » et « mises à jour ». Les deux dernières lignes étaient faussées (jusqu'à ×105 affiché à tort). C'est corrigé : chaque scénario remet tri et filtres à zéro. Racontez-le : c'est un bon exemple de rigueur de mesure.</p>
+    <p><b>Le banc worker</b> utilise une sonde de gel (<code>withFreezeProbe</code>) : pendant l'opération, une boucle relève le plus long intervalle entre deux tours de la boucle d'événements. C'est le gel ressenti.</p>
+    <p><b>Deuxième série de mesures, hors navigateur :</b> des tests de performance (<code>PERF_ROWS=1000000 npm run test:ci</code>) rejouent tri, filtre, pivot sur un million de lignes pour suivre les régressions.</p>
+    <p><b>Lancer :</b> <code>cd benchmarks &amp;&amp; npm install</code> une fois, puis <code>npm start</code> et ouvrir <code>/benchmark</code>. Gardez la fenêtre au premier plan.</p>
+  </aside>
+</section>
+
+<!-- 16 -->
+<section class="slide">
+  <div class="kicker">Benchmark · résultats</div>
+  <h2>1 000 000 de lignes : les chiffres</h2>
+  <div class="body">
+    <table>
+      <tr><th>Opération</th><th class="n">ng-table</th><th class="n">AG Grid</th><th></th><th class="n">Rapport</th></tr>
+      <tr><td>Chargement (premier affichage)</td><td class="n">506 ms</td><td class="n">900 ms</td><td class="bars"><div class="bar ng" style="width:56%"></div><div class="bar ag" style="width:100%"></div></td><td class="n"><span class="pill">× 1,8</span></td></tr>
+      <tr><td>Tri numérique</td><td class="n">129 ms</td><td class="n">2 464 ms</td><td class="bars"><div class="bar ng" style="width:5%"></div><div class="bar ag" style="width:100%"></div></td><td class="n"><span class="pill">× 19</span></td></tr>
+      <tr><td>Tri texte, valeurs distinctes</td><td class="n">994 ms</td><td class="n">1 705 ms</td><td class="bars"><div class="bar ng" style="width:58%"></div><div class="bar ag" style="width:100%"></div></td><td class="n"><span class="pill">× 1,7</span></td></tr>
+      <tr><td>Tri sur deux niveaux</td><td class="n">273 ms</td><td class="n">3 006 ms</td><td class="bars"><div class="bar ng" style="width:9%"></div><div class="bar ag" style="width:100%"></div></td><td class="n"><span class="pill">× 11</span></td></tr>
+      <tr><td>Filtre texte « contient »</td><td class="n">57 ms</td><td class="n">1 325 ms</td><td class="bars"><div class="bar ng" style="width:4%"></div><div class="bar ag" style="width:100%"></div></td><td class="n"><span class="pill">× 23</span></td></tr>
+      <tr><td>Filtre numérique « &gt; 5 000 »</td><td class="n">146 ms</td><td class="n">1 663 ms</td><td class="bars"><div class="bar ng" style="width:9%"></div><div class="bar ag" style="width:100%"></div></td><td class="n"><span class="pill">× 11</span></td></tr>
+      <tr><td>Saut à 90 % de la liste</td><td class="n">19 ms</td><td class="n">21 ms</td><td class="bars"><div class="bar ng" style="width:90%"></div><div class="bar ag" style="width:100%"></div></td><td class="n"><span class="pill eq">× 1,1</span></td></tr>
+      <tr><td>Lot de 1 000 mises à jour</td><td class="n">11 ms</td><td class="n">90 ms</td><td class="bars"><div class="bar ng" style="width:12%"></div><div class="bar ag" style="width:100%"></div></td><td class="n"><span class="pill">× 8</span></td></tr>
+    </table>
+    <div class="legend"><span><i style="background:var(--brand)"></i>ng-table</span><span><i style="background:#c3ccd6"></i>AG Grid Community 34</span><span>Chrome 153, Windows, 8 cœurs logiques · médiane de 5 passages · 16/10/2026 · barres : temps relatif par ligne</span></div>
+  </div>
+  <aside class="notes">
+    <p><b>Lecture :</b> les écarts les plus grands sont là où l'algorithme a changé : tri numérique (tri par base, ×19), filtres (compilés, ×11 à ×23), tri sur deux niveaux (×11), mises à jour (fusion incrémentale, ×8).</p>
+    <p><b>Les écarts faibles sont instructifs :</b></p>
+    <ul>
+      <li><b>Tri de texte distinct (×1,7)</b> : le cas difficile, le respect du collateur limite le gain.</li>
+      <li><b>Saut à 90 % (×1,1)</b> : c'est du rendu pur, les deux grilles virtualisent ; l'écart est d'une fraction d'image. Égalité.</li>
+      <li><b>Chargement (×1,8)</b>.</li>
+    </ul>
+    <p><b>À 100 000 lignes</b> (même jour) : tri numérique ×9,7, tri texte ×5,2, deux niveaux ×8,4, filtre texte ×8,3, filtre numérique ×4,9, chargement ×2,7, saut ×1,5, mises à jour ×1,0 (14 ms contre 14 ms). Les rapports grandissent avec le volume, ce qui est cohérent avec « 4·n contre n·log n ».</p>
+    <p><b>Variabilité :</b> d'un passage à l'autre les valeurs bougent (par exemple le tri texte ng-table entre 0,8 et 2,1 s, le rapport du tri numérique entre ×19 et ×28 selon les séries). Citez des ordres de grandeur, pas des décimales.</p>
+  </aside>
+</section>
+
+<!-- 17 -->
+<section class="slide">
+  <div class="kicker">Benchmark · lecture</div>
+  <h2>Ce que ces chiffres disent, et ne disent pas</h2>
+  <div class="body">
+    <div class="cols c2">
+      <div class="card" style="background:#e9f4ea">
+        <h3 style="color:var(--ok)">Ce qu'on peut affirmer</h3>
+        <ul>
+          <li>Sur ce poste, pour ces huit opérations, ng-table est au moins à égalité et souvent 10 à 20 fois plus rapide.</li>
+          <li>Le gain vient d'algorithmes identifiés : tri par base, filtres compilés, fusion incrémentale.</li>
+          <li>L'écart grandit avec le volume.</li>
+          <li>La mesure est reproductible par n'importe qui.</li>
+        </ul>
+      </div>
+      <div class="card" style="background:#fdf1e7">
+        <h3 style="color:#b85a1e">Ce qu'on ne peut pas affirmer</h3>
+        <ul>
+          <li>« ng-table est 20 fois plus rapide qu'AG Grid » en général : un écart sur le tri numérique ne vaut pas pour toute la grille.</li>
+          <li>Une seule machine, un seul navigateur (Chrome avec une extension Avast).</li>
+          <li>AG Grid aux réglages par défaut : ses options d'optimisation ne sont pas explorées.</li>
+          <li>AG Grid couvre plus de fonctionnalités, notamment en version Enterprise.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Cette diapositive protège votre crédibilité.</b> Un public technique se méfie des benchmarks ; annoncer vous-même les limites désamorce les objections.</p>
+    <p><b>Formulation conseillée :</b> « Sur un million de lignes, dans les mêmes conditions, ng-table trie des nombres une vingtaine de fois plus vite et filtre une dizaine à une vingtaine de fois plus vite qu'AG Grid Community avec ses réglages par défaut. Sur le défilement, elles sont à égalité. »</p>
+    <p><b>Si on demande « pourquoi AG Grid est plus lent ? »</b> : ne spéculez pas sur son code. Dites ce que vous savez : ng-table utilise un tri spécialisé sans comparateur et des filtres compilés ; AG Grid est une grille plus générale, avec beaucoup plus d'options, dont certaines (transactions asynchrones, tampon de lignes) n'ont pas été activées ici.</p>
+    <p><b>Si on demande « pourquoi ne pas utiliser AG Grid alors ? »</b> : ng-table est sous votre contrôle, sans licence Enterprise pour le pivot, le regroupement ou l'export Excel, en français, accessible, et taillée pour Angular moderne (signals, zoneless). AG Grid reste plus riche et plus éprouvé.</p>
+  </aside>
+</section>
+
+<!-- 18 -->
+<section class="slide">
+  <div class="kicker">Qualité</div>
+  <h2>Comment on sait que ça marche</h2>
+  <div class="body">
+    <div class="cols c4" style="margin-bottom:24px">
+      <div class="stat"><b>593</b><span>tests unitaires sur les modules purs et le composant</span></div>
+      <div class="stat"><b>39</b><span>tests de bout en bout Playwright, dans un vrai navigateur</span></div>
+      <div class="stat"><b>axe</b><span>audit d'accessibilité WCAG 2.2 A / AA de chaque page, en clair et en sombre</span></div>
+      <div class="stat"><b>CI</b><span>lint, tests, e2e, build et vérifications des fichiers générés à chaque PR</span></div>
+    </div>
+    <div class="cols c3">
+      <div class="card"><h3>Tests d'équivalence</h3><p>Chaque optimisation est comparée à l'ancienne version sur des données aléatoires : tri par base contre tri classique, filtre compilé contre filtre interprété, clés ASCII contre collateur.</p></div>
+      <div class="card"><h3>Harnais de test livré</h3><p><code>NgTableHarness</code> : les applications testent leur table sans dépendre de son HTML interne.</p></div>
+      <div class="card"><h3>Fichiers générés vérifiés</h3><p><code>theme:check</code> et <code>worker:check</code> échouent si le thème CSS ou la source du worker ne sont pas à jour.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>L'idée forte : le test d'équivalence.</b> Quand on remplace un algorithme simple et lent par un algorithme rapide et subtil, le risque est de changer le résultat dans un cas limite. On garde donc l'ancien comme référence et on vérifie sur des milliers de cas aléatoires que les deux donnent exactement la même chose (vides, égalités, négatifs, dates, casse…).</p>
+    <p><b>Tests de bout en bout :</b> Playwright pilote un vrai Chromium sur la démo : tri au clavier, menu des colonnes, maître / détail, arabe de droite à gauche. <code>axe-core</code> analyse chaque page et le test échoue à la moindre violation WCAG.</p>
+    <p><b>Un exemple de régression attrapée :</b> au survol d'une ligne en mode live, de grandes flèches apparaissaient. Cause : une règle CSS <code>background:</code> (raccourci) remettait à zéro la taille du repère. Corrigé en <code>background-color</code>, avec un test qui échoue sans le correctif.</p>
+    <p><b>Intégration continue :</b> GitHub Actions lance lint, tests unitaires, e2e, build, et les vérifications <code>theme:check</code> / <code>worker:check</code> sur chaque pull request.</p>
+  </aside>
+</section>
+
+<!-- 19 -->
+<section class="slide">
+  <div class="kicker">Accessibilité et thème</div>
+  <h2>Utilisable par tous, habillable par chacun</h2>
+  <div class="body">
+    <div class="cols c2">
+      <div>
+        <h3>Accessibilité</h3>
+        <ul>
+          <li><b>Sémantique.</b> Vraie <code>&lt;table&gt;</code>, <code>aria-sort</code>, rôle <code>treegrid</code> quand des lignes se déplient, <code>aria-expanded</code>.</li>
+          <li><b>Virtualisation annoncée.</b> <code>aria-rowcount</code> / <code>aria-colcount</code> : le lecteur d'écran connaît le total, pas seulement ce qui est rendu.</li>
+          <li><b>Clavier.</b> Navigation cellule par cellule, tri, réordonnancement et redimensionnement des colonnes.</li>
+          <li><b>Vision.</b> Contraste élevé de Windows, palette vérifiée par simulation de daltonisme, formes en plus des couleurs.</li>
+          <li><b>Cibles de 24 px</b>, respect de « moins d'animations ».</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Thème</h3>
+        <ul>
+          <li><b>38 jetons CSS</b> <code>--ngt-*</code> : couleurs, rayons, hauteurs, police. Un jeton redéfini sur un conteneur s'applique à tout, menus compris.</li>
+          <li><b>Sombre</b> : <code>[theme]="'dark'"</code>, <code>'auto'</code> ou la classe <code>ngt-dark</code>.</li>
+          <li><b>Apparence « material »</b> : <code>provideNgTableLook('material')</code>, texte noir, traits noirs, icônes pleines.</li>
+          <li><b>Textes</b> : tous traduisibles, cinq langues livrées, droite à gauche.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Accessibilité :</b> l'argument, c'est que la virtualisation casse normalement les lecteurs d'écran (ils annonceraient « tableau de 20 lignes »). Avec <code>aria-rowcount</code> et <code>aria-rowindex</code>, ils annoncent « ligne 812 sur 1 000 000 ».</p>
+    <p><b>Daltonisme (WCAG 1.4.1) :</b> l'information ne doit pas passer par la couleur seule. La palette des graphiques a été vérifiée par simulation (modèle de Machado, protanopie, deutéranopie, tritanopie) dans <code>color-vision.ts</code> ; les courbes ont des formes de points et des tiretés distincts ; le mode live ajoute ▲ ▼ ◆ à la couleur.</p>
+    <p><b>Contraste élevé :</b> règles <code>@media (forced-colors: active)</code> pour que focus, tri actif, sélection restent visibles quand Windows impose ses couleurs.</p>
+    <p><b>Limites à dire :</b> pas encore de campagne de test manuelle avec NVDA ou VoiceOver, ni de vérification sur un vrai Windows en contraste élevé ; les traductions es / de / ar mériteraient une relecture par des locuteurs.</p>
+    <p><b>Thème :</b> les jetons sont déclarés dans <code>theme.ts</code> ; le CSS du thème sombre est généré à partir de cette table (<code>npm run theme:css</code>). Une seule source de vérité.</p>
+  </aside>
+</section>
+
+<!-- 20 -->
+<section class="slide">
+  <div class="kicker">Livraison</div>
+  <h2>De la branche au paquet npm, sans geste manuel</h2>
+  <div class="body">
+    <div class="flow" style="margin-bottom:24px">
+      <div class="step"><b>Pull request</b>CI : lint, tests, e2e, build</div><div class="arrow">→</div>
+      <div class="step"><b>Fusion sur main</b>version lue dans <code>package.json</code></div><div class="arrow">→</div>
+      <div class="step hot"><b>release.yml</b>date le CHANGELOG, pose le tag</div><div class="arrow">→</div>
+      <div class="step hot"><b>Publication</b>npm avec provenance, GitHub Packages</div><div class="arrow">→</div>
+      <div class="step"><b>Notes de version</b>Release GitHub depuis le CHANGELOG</div>
+    </div>
+    <div class="cols c3">
+      <div class="card"><h3>CHANGELOG</h3><p>Chaque évolution s'écrit sous « Non publié ». À la release, <code>release-notes.mjs</code> renomme la section avec la version et la date.</p></div>
+      <div class="card"><h3>Documentation</h3><p>Site généré depuis le README, référence d'API TypeDoc, démo en ligne et exemples StackBlitz, déployés sur GitHub Pages.</p></div>
+      <div class="card"><h3>Démo et backend</h3><p>Six pages de démonstration et un backend Spring Boot d'exemple (JPA, pivot serveur, flux SSE).</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Chaîne :</b> on travaille en branches et pull requests. La CI valide. Quand la version de <code>projects/ng-table/package.json</code> change sur <code>main</code>, le workflow <code>release.yml</code> : (1) remplace « Non publié » par la version et la date dans le CHANGELOG, (2) pose le tag git, (3) publie sur npm avec attestation de provenance (preuve que le paquet a été construit par ce dépôt), (4) publie une copie sur GitHub Packages, (5) crée la Release GitHub avec les notes extraites du CHANGELOG.</p>
+    <p><b>État actuel :</b> la version 4.0.1 (chevron maître / détail natif) est en pull request, à fusionner après les deux PR précédentes (apparence material, daltonisme).</p>
+    <p><b>Scripts</b> (dossier <code>scripts/</code>, fichiers <code>.mjs</code> = modules JavaScript pour Node) : génération du site de documentation, du thème CSS, du worker, des notes de version.</p>
+    <p><b>Semver :</b> correctif = troisième chiffre, nouveauté compatible = deuxième, rupture = premier.</p>
+  </aside>
+</section>
+
+<!-- 21 -->
+<section class="slide">
+  <div class="kicker">Limites</div>
+  <h2>Ce que la bibliothèque ne fait pas encore</h2>
+  <p class="lead">À dire avant qu'on vous le demande.</p>
+  <div class="body">
+    <div class="cols c2">
+      <div>
+        <ul>
+          <li><b>Défilement virtuel</b> : lignes de hauteur uniforme. Un détail déplié ou du texte sur plusieurs lignes décale un peu la position.</li>
+          <li><b>Modèle serveur par blocs</b> : pas de regroupement ni de paginateur ; sélection et clavier portent sur les lignes chargées.</li>
+          <li><b>Colonnes virtuelles</b> : la navigation clavier ne parcourt que les colonnes rendues.</li>
+          <li><b>Worker</b> : pas pour les arbres, les filtres à fonction, ni les flux live.</li>
+        </ul>
+      </div>
+      <div>
+        <ul>
+          <li><b>Tri de texte non ASCII</b> (accents, arabe…) : chemin du collateur, plus lent que l'ASCII.</li>
+          <li><b>Mesures</b> : une seule machine ; le gain du worker dans un Chrome visible reste à publier.</li>
+          <li><b>Accessibilité</b> : audit automatique complet, tests manuels avec lecteurs d'écran à faire.</li>
+          <li><b>Composant principal volumineux</b> : l'extraction en modules se poursuit.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Posture :</b> une bibliothèque sérieuse connaît ses limites. Chacune de celles-ci est documentée dans le README.</p>
+    <p><b>Sur la hauteur uniforme :</b> c'est le compromis classique de la virtualisation simple ; gérer des hauteurs variables demande de mesurer et de mémoriser la hauteur de chaque ligne.</p>
+    <p><b>Sur le texte accentué :</b> le résultat est correct, c'est seulement la voie rapide qui ne s'applique pas. Les valeurs peu nombreuses (statuts, pays) restent rapides grâce aux rangs.</p>
+    <p><b>Feuille de route</b> (<code>ROADMAP.md</code>) : gardez deux ou trois priorités en tête pour répondre à « et ensuite ? » : tests manuels d'accessibilité, mesures worker en conditions réelles, poursuite du découpage du composant.</p>
+  </aside>
+</section>
+
+<!-- 22 -->
+<section class="slide">
+  <div class="kicker">Démonstration</div>
+  <h2>Parcours de démo conseillé (8 à 10 minutes)</h2>
+  <div class="body">
+    <div class="cols c2">
+      <div>
+        <div class="row"><span class="num">1</span><p><b>Simple.</b> Tri, un filtre texte, un filtre <code>&gt;5000</code>, la recherche globale.</p></div>
+        <div class="row"><span class="num">2</span><p><b>Avancé.</b> Chevron maître / détail, regroupement, colonnes épinglées, vues sauvegardées, thème sombre.</p></div>
+        <div class="row"><span class="num">3</span><p><b>Expert.</b> Défilement continu sur 1 000 000 de commandes serveur ; édition de cellule ; sélection de plage.</p></div>
+      </div>
+      <div>
+        <div class="row"><span class="num">4</span><p><b>Live.</b> Monter le débit, montrer le compteur d'images par seconde et la surbrillance.</p></div>
+        <div class="row"><span class="num">5</span><p><b>Analyse.</b> Pivot, graphique, mini-graphiques, export Excel.</p></div>
+        <div class="row"><span class="num">6</span><p><b>Benchmark.</b> Lancer 100 000 lignes en direct (une minute), puis le banc worker.</p></div>
+      </div>
+    </div>
+    <pre style="margin-top:14px"><span class="c"># Avant la réunion</span>
+cd benchmarks &amp;&amp; npm install     <span class="c"># une fois, pour AG Grid</span>
+npm start                        <span class="c"># puis http://localhost:4200</span></pre>
+  </div>
+  <aside class="notes">
+    <p><b>Préparation :</b> lancez la démo avant la réunion, fenêtre au premier plan, zoom du navigateur à 125 % pour la lisibilité. Fermez les onglets lourds. Faites une répétition du benchmark à 100 000 lignes : c'est rapide et sans risque ; gardez le rapport d'un million de lignes sur la diapositive plutôt que de le relancer en direct (plusieurs minutes, mémoire).</p>
+    <p><b>Moments qui marquent :</b> (1) glisser la barre de défilement d'un bout à l'autre d'un million de lignes ; (2) taper dans un filtre pendant que le flux live tourne ; (3) ouvrir les outils du navigateur et montrer qu'il n'y a qu'une vingtaine de <code>&lt;tr&gt;</code> dans le DOM.</p>
+    <p><b>Pour le worker :</b> lancez un tri de texte sur un grand volume sans worker et essayez de défiler (ça gèle), puis avec <code>[workerCompute]</code> (ça reste fluide). C'est la démonstration la plus parlante.</p>
+    <p><b>Plan B :</b> si la démo locale ne démarre pas, la démo en ligne est sur le site de documentation (GitHub Pages).</p>
+  </aside>
+</section>
+
+<!-- 23 -->
+<section class="slide">
+  <div class="kicker">Questions probables</div>
+  <h2>Huit questions, huit réponses courtes</h2>
+  <div class="body">
+    <div class="qa">
+      <div><b>Pourquoi ne pas avoir pris AG Grid ?</b>Maîtrise du code, pas de licence pour pivot, regroupement et export Excel, accessibilité et français d'origine, Angular moderne.</div>
+      <div><b>Le tri par base donne-t-il le même résultat ?</b>Oui : stable, vides en dernier, et comparé à l'ancien tri sur des données aléatoires. Sinon, repli automatique.</div>
+      <div><b>Combien de lignes au maximum ?</b>Un million en mémoire sans difficulté ; au-delà, le modèle serveur par blocs : le navigateur ne garde que 50 blocs.</div>
+      <div><b>Le worker accélère-t-il le tri ?</b>Non, il le sort du fil principal : la page reste fluide pendant le calcul.</div>
+      <div><b>Et sans <code>Blob</code> (politique de sécurité stricte) ?</b>Repli automatique sur le fil principal, ou worker fourni par <code>[computeWorkerFactory]</code>.</div>
+      <div><b>Pourquoi sans Material ?</b>Moins de dépendances, pas de thème imposé, paquet plus léger ; une apparence « material » reste disponible.</div>
+      <div><b>Le benchmark est-il honnête ?</b>Mêmes données, même navigateur, rendu compté, médiane de 5, réglages par défaut ; une seule machine, et il est relançable par tous.</div>
+      <div><b>Compatible avec quel Angular ?</b>Angular 22 et CDK 22 ; composants autonomes, signals, sans zone.js.</div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Questions plus pointues, pour être prêt :</b></p>
+    <ul>
+      <li><b>« Pourquoi 16 bits par passe ? »</b> Compromis : 8 bits demanderait 8 passes ; 16 bits en demande 4 avec un histogramme de 65 536 cases qui tient dans le cache du processeur.</li>
+      <li><b>« Et la mémoire ? »</b> Par niveau de tri : un <code>Float64Array</code> (8 octets par ligne) et quelques <code>Uint32Array</code> (4 octets par ligne). Pour un million de lignes : quelques dizaines de Mo, temporaires.</li>
+      <li><b>« Les signaux dans <code>valueAccessor</code> ? »</b> Ils sont suivis : si la langue change, le modèle de vue se recalcule.</li>
+      <li><b>« Tri stable, ça sert à quoi ? »</b> Les lignes égales gardent leur ordre d'arrivée : pas de lignes qui « sautent » entre deux rafraîchissements, et tri multi-niveaux correct.</li>
+      <li><b>« Sécurité du pivot serveur ? »</b> Les champs sont validés contre une liste blanche côté Spring Boot, jamais injectés tels quels dans la requête.</li>
+      <li><b>« Rendu côté serveur (SSR) ? »</b> Si vous ne l'avez pas vérifié, dites-le : « je ne l'ai pas testé, je reviens vers vous ».</li>
+    </ul>
+    <p><b>Règle d'or :</b> si vous ne savez pas, dites « je vérifie et je vous réponds » plutôt que d'improviser.</p>
+  </aside>
+</section>
+
+<!-- 24 -->
+<section class="slide dark">
+  <div class="body">
+    <div class="kicker">À retenir</div>
+    <h1>Quatre idées</h1>
+    <div class="cols c2" style="margin-top:18px">
+      <div class="card"><h3>Ne rendre que ce qui se voit</h3><p style="font-size:17px">Défilement virtuel des lignes et des colonnes, blocs serveur.</p></div>
+      <div class="card"><h3>Ne recalculer que ce qui change</h3><p style="font-size:17px">Signals, modèle de vue en cache, fusion incrémentale du mode live.</p></div>
+      <div class="card"><h3>Choisir le bon algorithme</h3><p style="font-size:17px">Tri par base, rangs et clés pour le texte, filtres compilés ; toujours vérifiés contre la version de référence.</p></div>
+      <div class="card"><h3>Ne pas bloquer la page</h3><p style="font-size:17px">Web Worker pour les gros calculs, avec transfert sans copie.</p></div>
+    </div>
+    <p class="muted" style="margin-top:22px;font-size:19px">Et le mesurer honnêtement : mêmes conditions, rendu compris, limites annoncées.</p>
+  </div>
+  <aside class="notes">
+    <p><b>Conclusion (1 minute).</b> Reprenez les quatre idées dans l'ordre : elles correspondent aux quatre parties techniques de la présentation.</p>
+    <p>« ng-table n'est pas rapide grâce à une astuce unique, mais parce que chaque coût a sa réponse : le DOM par la virtualisation, le recalcul par les signaux et la fusion, le tri et le filtre par de meilleurs algorithmes, et le gel de la page par le worker. Et tout cela est testé contre une version de référence et mesuré de façon reproductible. »</p>
+    <p>Terminez par l'ouverture : la version 4.0.1 en cours de publication, la feuille de route, et l'invitation à relancer le benchmark sur leur poste.</p>
+  </aside>
+</section>
+
+</div></div>
+<div id="notes"></div>
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  const stage = document.getElementById('stage');
+  const notes = document.getElementById('notes');
+  let index = 0;
+  slides.forEach((slide, i) => {
+    const foot = document.createElement('div');
+    foot.className = 'foot';
+    foot.innerHTML = '<span>ng-table</span><span>' + (i + 1) + ' / ' + slides.length + '</span>';
+    slide.appendChild(foot);
+    // Pour l'impression : les notes suivent leur diapositive.
+    const aside = slide.querySelector('aside.notes');
+    if (aside) { slide.after(aside); slide.dataset.notes = aside.innerHTML; }
+  });
+  function fit() {
+    const room = notes.classList.contains('open') ? window.innerHeight * 0.58 : window.innerHeight;
+    const scale = Math.min(window.innerWidth / 1280, room / 720);
+    stage.style.transform = 'scale(' + scale + ')';
+    document.getElementById('viewport').style.bottom = notes.classList.contains('open') ? '42vh' : '0';
+  }
+  function show(i) {
+    index = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((slide, n) => slide.classList.toggle('current', n === index));
+    notes.innerHTML = '<h4>Notes de l’orateur · diapositive ' + (index + 1) + '</h4>' + (slides[index].dataset.notes || '');
+    notes.scrollTop = 0;
+    history.replaceState(null, '', '#' + (index + 1));
+  }
+  document.addEventListener('keydown', (event) => {
+    if (['ArrowRight', 'PageDown', ' '].includes(event.key)) { show(index + 1); event.preventDefault(); }
+    else if (['ArrowLeft', 'PageUp'].includes(event.key)) { show(index - 1); event.preventDefault(); }
+    else if (event.key === 'Home') show(0);
+    else if (event.key === 'End') show(slides.length - 1);
+    else if (event.key.toLowerCase() === 'n') { notes.classList.toggle('open'); fit(); }
+    else if (event.key.toLowerCase() === 'f') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+  });
+  stage.addEventListener('click', (event) => show(index + (event.clientX > window.innerWidth / 2 ? 1 : -1)));
+  window.addEventListener('resize', fit);
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+  fit();
+</script>
+</body>
+</html>

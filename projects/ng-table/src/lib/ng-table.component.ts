@@ -49,6 +49,7 @@ import {
 import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveViewsStore, serializeViewsStore} from './views-storage';
 import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
+import {ColumnStore} from './column-store';
 import {compileFilters} from './filter-compile';
 import {searchText, SortLevel} from './row-pipeline';
 import {buildConsecutiveGroups, buildGroupTree, computeAggregate, flattenGroups, remoteGroupedPage, groupedUnits, NgTableGroupRow, RowGroup, withGroupHeaders} from './row-grouping';
@@ -1634,6 +1635,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       levels,
       collator: this.collator,
       sums,
+      columnStore: this.columnStore,
       deps: [store, activeColumns, filters, sorts, search, haystacks?.columns, sums, included],
     });
   });
@@ -1758,6 +1760,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
    */
   private rowStore = new RowStore<T>((row) => this.rowKey(row));
   private pipeline = new IncrementalPipeline<T>();
+  /** Valeurs de tri gardées en colonnes tant que les lignes ne changent pas : un nouveau tri ne rappelle pas les accesseurs. */
+  private readonly columnStore = new ColumnStore<T>();
   /** Incrémenté à chaque transaction appliquée. */
   private readonly dataVersion = signal(0);
 

@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprendre ng-table pas à pas — guide du présentateur</title>
+<style>
+  :root { --ink:#14212b; --muted:#5f7080; --line:#d9e0e7; --soft:#f3f6f9; --brand:#2f6fa8; --accent:#e07a3f; --ok:#2e7d32; --bad:#b3261e; --warm:#fdf1e7; --cool:#e6f0f9; --green:#e9f4ea; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:17px/1.6 "Segoe UI", system-ui, Arial, sans-serif; color:var(--ink); background:#fff; }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 22px 80px; }
+  h1 { font-size: 38px; line-height:1.15; margin: 0 0 10px; letter-spacing:-.4px; }
+  h2 { font-size: 28px; line-height:1.2; margin: 56px 0 6px; padding-top: 18px; border-top: 3px solid var(--soft); }
+  h2 .n { color: var(--accent); margin-right: 10px; }
+  h3 { font-size: 19px; margin: 26px 0 6px; color: var(--brand); }
+  p { margin: 0 0 12px; } ul, ol { margin: 0 0 12px; padding-left: 24px; } li { margin-bottom: 5px; }
+  .lead { font-size: 19px; color: var(--muted); }
+  code { font-family: Consolas, "Courier New", monospace; font-size:.9em; background:#e8eef4; padding:1px 6px; border-radius:5px; }
+  pre { background:#0f1c28; color:#d6e6f5; border-radius:10px; padding:14px 16px; font:14.5px/1.5 Consolas,"Courier New",monospace; overflow-x:auto; margin:0 0 14px; }
+  pre .c { color:#7f97ab; } pre .g { color:#9be3a8; } pre .k { color:#ffb487; }
+  .box { border-radius: 12px; padding: 14px 18px; margin: 0 0 14px; }
+  .idea { background: var(--cool); } .ex { background: var(--soft); } .say { background: var(--green); } .warn { background: var(--warm); }
+  .box > b:first-child, .tag { display:block; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:4px; }
+  .idea > b:first-child { color: var(--brand); } .ex > b:first-child { color: var(--muted); } .say > b:first-child { color: var(--ok); } .warn > b:first-child { color:#b85a1e; }
+  .box p:last-child, .box ul:last-child, .box pre:last-child { margin-bottom: 0; }
+  table { border-collapse: collapse; width:100%; margin: 0 0 14px; font-size: 16px; }
+  th { text-align:left; font-size:12.5px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); padding:6px 10px; border-bottom:2px solid var(--line); }
+  td { padding:7px 10px; border-bottom:1px solid var(--line); vertical-align: top; }
+  td.n, th.n { text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .scroll { overflow-x:auto; }
+  .toc { columns: 2; column-gap: 30px; padding-left: 22px; font-size: 16px; } .toc a { color: var(--brand); text-decoration:none; }
+  @media (max-width: 640px) { .toc { columns: 1; } .two { grid-template-columns: 1fr !important; } }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom: 14px; } .two .box { margin:0; }
+  /* petits schémas en boîtes */
+  .cells { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin: 6px 0; }
+  .cell { min-width:46px; text-align:center; padding:6px 8px; border-radius:7px; background:#fff; border:1.5px solid var(--line); font:15px Consolas,monospace; }
+  .cell.hi { background: var(--brand); color:#fff; border-color: var(--brand); } .cell.or { background: var(--accent); color:#fff; border-color:var(--accent); }
+  .cell.gh { opacity:.4; } .cell u { text-decoration: none; color: var(--accent); font-weight:700; } .cell.hi u { color:#ffd9c2; }
+  .lab { font-size:14px; color:var(--muted); min-width: 150px; }
+  .bucket { display:inline-block; vertical-align:top; border:1.5px dashed #b9c6d2; border-radius:8px; padding:4px 6px; margin:3px; min-width:54px; text-align:center; font:14px Consolas,monospace; background:#fff; }
+  .bucket b { display:block; font:700 11px "Segoe UI",sans-serif; color:var(--muted); border-bottom:1px solid var(--line); margin-bottom:3px; }
+  .lane { display:grid; grid-template-columns: 130px 1fr; gap:8px; align-items:center; margin-bottom:6px; font-size:14px; }
+  .lane .track { display:flex; gap:3px; }
+  .seg { padding:6px 8px; border-radius:6px; color:#fff; font-size:13px; text-align:center; white-space:nowrap; }
+  .seg.b { background: var(--bad); } .seg.o { background: var(--ok); } .seg.g { background:#b9c6d2; color:var(--ink); } .seg.p { background: var(--brand); } .seg.a { background: var(--accent); }
+  svg text { font-family: "Segoe UI", system-ui, Arial, sans-serif; }
+  @media print { h2 { page-break-before: auto; } .box, table, pre { page-break-inside: avoid; } main { max-width:none; } }
+</style>
+</head>
+<body>
+<main>
+
+<p class="tag" style="color:var(--accent)">Guide du présentateur · ng-table</p>
+<h1>Comprendre ng-table pas à pas</h1>
+<p class="lead">Chaque notion de la présentation, expliquée sans prérequis : une image de la vie courante, un exemple avec de vrais chiffres, un schéma, puis la phrase à dire en réunion.</p>
+
+<div class="box idea"><b>Comment lire ce guide</b>
+<p>Lisez-le dans l'ordre une première fois (environ 45 minutes). Chaque chapitre correspond à une ou deux diapositives. Les encadrés verts « À dire » sont des phrases prêtes à l'emploi. Si vous ne retenez qu'une chose par chapitre, retenez celle-là.</p></div>
+
+<ol class="toc">
+  <li><a href="#bases">Les bases : page, DOM, fil d'exécution, image</a></li>
+  <li><a href="#colonnes">Colonnes, lignes et <code>valueAccessor</code></a></li>
+  <li><a href="#signals">Signals et « zoneless »</a></li>
+  <li><a href="#virtuel">Le défilement virtuel</a></li>
+  <li><a href="#cout">« n log n » : mesurer le coût d'un tri</a></li>
+  <li><a href="#radix">Le tri par base (radix)</a></li>
+  <li><a href="#texte">Trier du texte</a></li>
+  <li><a href="#filtres">Les filtres compilés</a></li>
+  <li><a href="#live">Le mode live</a></li>
+  <li><a href="#worker">Les Web Workers</a></li>
+  <li><a href="#blocs">Le modèle serveur par blocs</a></li>
+  <li><a href="#bench">Le benchmark</a></li>
+  <li><a href="#glossaire">Glossaire</a></li>
+  <li><a href="#resume">Tout en dix phrases</a></li>
+</ol>
+
+<!-- 1 -->
+<h2 id="bases"><span class="n">1</span>Les bases : page, DOM, fil d'exécution, image</h2>
+<p>Quatre mots reviennent partout dans la présentation. Une fois qu'ils sont clairs, le reste suit.</p>
+
+<h3>Le DOM : ce que le navigateur doit fabriquer</h3>
+<p>Une page web est un assemblage de pièces : un titre, un bouton, une ligne de tableau… Le navigateur garde la liste de toutes ces pièces en mémoire : c'est le <b>DOM</b>. Chaque pièce doit être fabriquée, mesurée, placée, puis dessinée.</p>
+<div class="box ex"><b>Image</b><p>Le DOM, c'est le mobilier d'une salle. Installer 20 chaises est rapide. Installer 50 000 chaises prend la journée, même si personne ne s'assoit sur la plupart.</p></div>
+<p>Une ligne de tableau de 10 colonnes, c'est environ 11 pièces (la ligne et ses 10 cellules). 50 000 lignes, c'est plus d'un demi-million de pièces. Voilà pourquoi un tableau « naïf » rame.</p>
+
+<h3>Le fil d'exécution : un seul employé</h3>
+<p>Dans une page, le JavaScript est exécuté par <b>un seul fil</b> (en anglais <i>thread</i>). Il fait une chose à la fois : répondre à un clic, exécuter du code, redessiner l'écran.</p>
+<div class="box ex"><b>Image</b><p>Un restaurant avec un seul employé qui cuisine <b>et</b> sert en salle. S'il prépare un plat qui prend 3 secondes, pendant 3 secondes personne n'est servi : les clients appellent, rien ne se passe. Dans la page, c'est le « gel » : le défilement se bloque, les clics ne répondent plus.</p></div>
+
+<h3>Une image : 60 fois par seconde</h3>
+<p>L'écran est redessiné environ 60 fois par seconde. Chaque dessin s'appelle une <b>image</b> (en anglais <i>frame</i>). Le navigateur a donc environ <b>16 millisecondes</b> pour préparer chaque image (1 000 ms ÷ 60). Si le code prend plus longtemps, des images sautent et l'utilisateur voit une saccade.</p>
+<table>
+  <tr><th>Durée d'une opération</th><th>Ce que ressent l'utilisateur</th></tr>
+  <tr><td>moins de 16 ms</td><td>parfaitement fluide</td></tr>
+  <tr><td>100 ms</td><td>instantané, mais plus tout à fait</td></tr>
+  <tr><td>1 seconde</td><td>attente visible</td></tr>
+  <tr><td>3 secondes et plus</td><td>« c'est planté ? »</td></tr>
+</table>
+<div class="box say"><b>À dire</b><p>« Une grille a deux ennemis : le nombre d'éléments à dessiner, et le temps de calcul qui bloque la page. Tout ce que je vais vous montrer répond à l'un ou à l'autre. »</p></div>
+
+<!-- 2 -->
+<h2 id="colonnes"><span class="n">2</span>Colonnes, lignes et <code>valueAccessor</code></h2>
+<p>Pour utiliser ng-table, on lui donne deux choses : les <b>lignes</b> (les données) et les <b>colonnes</b> (comment les montrer).</p>
+<pre><span class="c">// Une ligne : un objet ordinaire</span>
+{ id: 1, client: 'Dupont', montant: 300, date: '2026-03-12' }
+
+<span class="c">// Une colonne : un titre + une façon de lire la valeur dans la ligne</span>
+{ id: 'montant', header: 'Montant', <span class="k">valueAccessor</span>: (ligne) =&gt; ligne.montant }</pre>
+<p><code>valueAccessor</code> veut dire « la fonction qui va chercher la valeur ». On donne une ligne, elle rend ce qu'il faut afficher dans cette colonne. C'est une <b>fonction</b> et non un simple nom de champ, ce qui permet de calculer : <code>(ligne) =&gt; ligne.prix * ligne.quantite</code>.</p>
+<div class="box idea"><b>Pourquoi c'est important pour la suite</b><p>Trier une colonne, c'est appeler cette fonction sur les lignes pour obtenir les valeurs à comparer. Moins on l'appelle, plus on va vite. Et comme c'est une fonction, on ne pourra pas l'envoyer à un Web Worker (chapitre 10).</p></div>
+
+<!-- 3 -->
+<h2 id="signals"><span class="n">3</span>Signals et « zoneless »</h2>
+<h3>Un signal, c'est une cellule de tableur</h3>
+<p>Vous connaissez Excel. Si <code>C1</code> contient la formule <code>=A1+B1</code> et que vous changez <code>A1</code>, alors <code>C1</code> se recalcule toute seule. Les autres cellules, qui ne dépendent pas de <code>A1</code>, ne bougent pas.</p>
+<p>Dans Angular :</p>
+<ul>
+  <li>un <b>signal</b> est une cellule qui contient une valeur (<code>A1</code>) ;</li>
+  <li>un <b><code>computed</code></b> est une cellule qui contient une formule (<code>C1</code>).</li>
+</ul>
+<pre>prix     = signal(10);                         <span class="c">// A1 = 10</span>
+quantite = signal(3);                          <span class="c">// B1 = 3</span>
+total    = <span class="k">computed</span>(() =&gt; prix() * quantite()); <span class="c">// C1 = A1 × B1  → 30</span>
+
+prix.set(12);   <span class="c">// total devient 36 tout seul</span></pre>
+
+<h3>Ce que ça donne dans la grille</h3>
+<p>La grille est une chaîne de formules. Chaque maillon ne se recalcule que si ce qu'il lit a changé :</p>
+<div class="box ex"><b>Schéma : qui dépend de quoi</b>
+<svg viewBox="0 0 820 190" style="width:100%;height:auto" role="img" aria-label="Chaîne de dépendances de la grille">
+  <g font-size="14">
+    <rect x="10" y="20" width="110" height="40" rx="8" fill="#e6f0f9"/><text x="65" y="45" text-anchor="middle">lignes</text>
+    <rect x="10" y="75" width="110" height="40" rx="8" fill="#e6f0f9"/><text x="65" y="100" text-anchor="middle">filtres</text>
+    <rect x="200" y="47" width="130" height="44" rx="8" fill="#2f6fa8"/><text x="265" y="74" text-anchor="middle" fill="#fff">lignes filtrées</text>
+    <rect x="200" y="130" width="130" height="40" rx="8" fill="#e6f0f9"/><text x="265" y="155" text-anchor="middle">tri choisi</text>
+    <rect x="400" y="47" width="120" height="44" rx="8" fill="#2f6fa8"/><text x="460" y="74" text-anchor="middle" fill="#fff">lignes triées</text>
+    <rect x="400" y="130" width="120" height="40" rx="8" fill="#e6f0f9"/><text x="460" y="155" text-anchor="middle">position</text>
+    <rect x="590" y="47" width="210" height="44" rx="8" fill="#2f6fa8"/><text x="695" y="74" text-anchor="middle" fill="#fff">lignes visibles à l'écran</text>
+  </g>
+  <g stroke="#e07a3f" stroke-width="2.5" fill="none" marker-end="url(#a)">
+    <path d="M120 40 L196 62"/><path d="M120 95 L196 76"/><path d="M330 69 L396 69"/><path d="M330 148 Q380 140 410 95"/><path d="M520 69 L586 69"/><path d="M520 148 Q570 140 610 95"/>
+  </g>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#e07a3f"/></marker></defs>
+</svg>
+</div>
+<table>
+  <tr><th>L'utilisateur…</th><th>Ce qui est recalculé</th><th>Ce qui ne l'est pas</th></tr>
+  <tr><td>fait défiler la liste</td><td>les lignes visibles</td><td>le filtre, le tri</td></tr>
+  <tr><td>change le tri</td><td>le tri, les lignes visibles</td><td>le filtre</td></tr>
+  <tr><td>coche une ligne</td><td>rien de cette chaîne</td><td>tout le reste</td></tr>
+</table>
+
+<h3>« Zoneless » : ne plus faire le tour de l'immeuble</h3>
+<div class="box ex"><b>Image</b><p><b>Avant</b> (avec <code>zone.js</code>) : un gardien d'immeuble qui, à chaque coup de sonnette, fait le tour de <b>tous</b> les appartements pour voir si quelque chose a changé. <b>Maintenant</b> (zoneless, avec les signals) : chaque appartement prévient lui-même quand quelque chose change. Le gardien va directement au bon endroit.</p></div>
+<p>Pour une grille qui reçoit des milliers de mises à jour par seconde, éviter ces tours complets change tout.</p>
+<div class="box say"><b>À dire</b><p>« La grille fonctionne comme un tableur : chaque étape est une formule qui ne se recalcule que si ses données changent. Faire défiler ne retrie pas, cocher une ligne ne refiltre pas. »</p></div>
+
+<!-- 4 -->
+<h2 id="virtuel"><span class="n">4</span>Le défilement virtuel</h2>
+<div class="box idea"><b>L'idée en une phrase</b><p>Ne fabriquer que les lignes que l'on voit, et faire croire à la barre de défilement que toutes les autres sont là.</p></div>
+<div class="box ex"><b>Image</b><p>Vous regardez un paysage par la fenêtre d'un train. Le paysage fait 500 km, mais vous n'en voyez que 50 mètres à la fois. Inutile de « construire » les 500 km : il suffit de montrer ce qui passe devant la fenêtre.</p></div>
+
+<h3>Exemple chiffré</h3>
+<p>Une liste de 100 000 lignes. Chaque ligne fait 48 px de haut. La zone visible fait 480 px. L'utilisateur a défilé de 4 800 px.</p>
+<table>
+  <tr><th>Question</th><th>Calcul</th><th class="n">Résultat</th></tr>
+  <tr><td>Quelle ligne est en haut de l'écran ?</td><td>4 800 ÷ 48</td><td class="n">la ligne 100</td></tr>
+  <tr><td>Combien de lignes tiennent à l'écran ?</td><td>480 ÷ 48</td><td class="n">10 lignes</td></tr>
+  <tr><td>Marge de sécurité (8 avant, 8 après)</td><td>100 − 8 … 110 + 8</td><td class="n">lignes 92 à 117</td></tr>
+  <tr><td><b>Lignes réellement fabriquées</b></td><td></td><td class="n"><b>26 sur 100 000</b></td></tr>
+</table>
+<p>La marge de 8 lignes sert à ce qu'il y ait déjà des lignes prêtes quand on défile un peu : pas de « trou blanc ».</p>
+
+<h3>Et la barre de défilement ?</h3>
+<p>Pour qu'elle ait la bonne longueur, on place <b>deux cales invisibles</b> : une au-dessus (de la hauteur des 92 lignes absentes), une au-dessous (de la hauteur des lignes restantes).</p>
+<div class="box ex"><b>Schéma</b>
+<svg viewBox="0 0 640 300" style="width:100%;max-width:640px;height:auto" role="img" aria-label="Deux cales et une tranche de lignes">
+  <rect x="150" y="8" width="230" height="284" rx="8" fill="#fff" stroke="#d9e0e7"/>
+  <rect x="150" y="8" width="230" height="100" rx="8" fill="#e3e9ef"/><text x="265" y="55" text-anchor="middle" font-size="14" fill="#5f7080">cale du haut</text><text x="265" y="74" text-anchor="middle" font-size="13" fill="#5f7080">92 × 48 = 4 416 px, vide</text>
+  <g fill="#cfe0ef"><rect x="156" y="112" width="218" height="12" rx="3"/><rect x="156" y="128" width="218" height="12" rx="3"/><rect x="156" y="192" width="218" height="12" rx="3"/><rect x="156" y="208" width="218" height="12" rx="3"/></g>
+  <g fill="#2f6fa8"><rect x="156" y="144" width="218" height="12" rx="3"/><rect x="156" y="160" width="218" height="12" rx="3"/><rect x="156" y="176" width="218" height="12" rx="3"/></g>
+  <rect x="144" y="141" width="242" height="50" rx="6" fill="none" stroke="#e07a3f" stroke-width="3"/>
+  <rect x="150" y="224" width="230" height="68" rx="8" fill="#e3e9ef"/><text x="265" y="255" text-anchor="middle" font-size="14" fill="#5f7080">cale du bas</text><text x="265" y="274" text-anchor="middle" font-size="13" fill="#5f7080">tout le reste, vide</text>
+  <text x="400" y="170" font-size="14" fill="#e07a3f" font-weight="700">ce que l'utilisateur voit</text>
+  <text x="400" y="124" font-size="13" fill="#5f7080">marge (fabriquée, hors écran)</text>
+  <text x="400" y="212" font-size="13" fill="#5f7080">marge (fabriquée, hors écran)</text>
+  <text x="10" y="150" font-size="13" fill="#5f7080">26 vraies lignes</text><text x="10" y="168" font-size="13" fill="#5f7080">dans le DOM</text>
+  <path d="M118 160 L142 160" stroke="#5f7080" stroke-width="1.5"/>
+</svg></div>
+
+<h3>La « compression » pour les très longues listes</h3>
+<p>Un navigateur refuse qu'un élément dépasse une certaine hauteur (environ 33 millions de px dans Chrome). Or 1 000 000 lignes × 48 px = 48 millions de px. Sans précaution, on ne pourrait jamais atteindre la fin.</p>
+<p>Solution : au-delà de 15 millions de px, on applique une <b>règle de trois</b>. Dans cet exemple, 1 px de barre de défilement vaut environ 3,2 px de liste. C'est comme une carte : 1 cm sur la carte représente 3,2 cm sur le terrain. L'utilisateur ne voit pas la différence.</p>
+
+<h3>La même chose pour les colonnes</h3>
+<p>Avec 100 colonnes, seules celles qui sont à l'écran (plus 300 px de marge) sont fabriquées. Option <code>[virtualColumns]</code>.</p>
+<div class="box warn"><b>La limite à connaître</b><p>Le calcul « 4 800 ÷ 48 » suppose que toutes les lignes ont la même hauteur. Si une ligne est plus haute (détail déplié, texte sur plusieurs lignes), la position est légèrement décalée.</p></div>
+<div class="box say"><b>À dire</b><p>« Sur un million de lignes, il n'y a qu'une vingtaine de lignes réellement présentes dans la page. Le temps d'affichage ne dépend donc plus du volume de données. »</p></div>
+
+<!-- 5 -->
+<h2 id="cout"><span class="n">5</span>« n log n » : mesurer le coût d'un tri</h2>
+<p>On lit « n log n » dans la présentation. Ce n'est pas une formule à savoir calculer ; c'est une façon de dire <b>combien de travail un tri classique demande</b>.</p>
+<ul>
+  <li><b>n</b> = le nombre de lignes.</li>
+  <li><b>log n</b> = combien de fois on peut couper n en deux avant d'arriver à 1.</li>
+</ul>
+<div class="box ex"><b>Exemple : « couper en deux »</b><p>8 → 4 → 2 → 1 : trois coupes, donc log 8 = 3.<br>1 000 : environ 10 coupes. 1 000 000 : environ <b>20 coupes</b>.</p></div>
+<p>Un tri classique (celui de JavaScript, <code>Array.sort</code>) compare les lignes deux à deux. Il lui faut environ n × log n comparaisons :</p>
+<table>
+  <tr><th class="n">Lignes (n)</th><th class="n">log n</th><th class="n">Comparaisons (n × log n)</th></tr>
+  <tr><td class="n">8</td><td class="n">3</td><td class="n">24</td></tr>
+  <tr><td class="n">1 000</td><td class="n">10</td><td class="n">10 000</td></tr>
+  <tr><td class="n">100 000</td><td class="n">17</td><td class="n">1 700 000</td></tr>
+  <tr><td class="n">1 000 000</td><td class="n">20</td><td class="n"><b>20 000 000</b></td></tr>
+</table>
+<p>Et chaque comparaison appelle deux fois <code>valueAccessor</code> (une fois par ligne comparée). Vingt millions de comparaisons, c'est quarante millions d'appels : plusieurs secondes de gel.</p>
+<div class="box say"><b>À dire</b><p>« Trier un million de lignes de façon classique, c'est vingt millions de comparaisons. On a cherché une méthode qui n'en fait aucune. »</p></div>
+
+<!-- 6 -->
+<h2 id="radix"><span class="n">6</span>Le tri par base (radix)</h2>
+<div class="box idea"><b>L'idée en une phrase</b><p>Au lieu de comparer les nombres entre eux, on les <b>range dans des cases</b> d'après leurs chiffres, un chiffre à la fois.</p></div>
+<div class="box ex"><b>Image</b><p>Un facteur trie le courrier. Il ne compare pas les lettres deux à deux. Il a des casiers, il lit le code postal et pose chaque lettre dans le bon casier. Un seul regard par lettre.</p></div>
+
+<h3>Exemple complet, à la main</h3>
+<p>Trions ces six nombres : <b>170, 45, 75, 90, 802, 24</b>. On a dix cases, numérotées de 0 à 9.</p>
+
+<p><b>Passe 1 : on regarde le chiffre des unités.</b></p>
+<div class="box ex">
+  <div class="cells"><span class="lab">Départ</span><span class="cell">17<u>0</u></span><span class="cell">4<u>5</u></span><span class="cell">7<u>5</u></span><span class="cell">9<u>0</u></span><span class="cell">80<u>2</u></span><span class="cell">2<u>4</u></span></div>
+  <div><span class="bucket"><b>case 0</b>170<br>90</span><span class="bucket"><b>case 2</b>802</span><span class="bucket"><b>case 4</b>24</span><span class="bucket"><b>case 5</b>45<br>75</span></div>
+  <div class="cells"><span class="lab">On ramasse dans l'ordre</span><span class="cell">170</span><span class="cell">90</span><span class="cell">802</span><span class="cell">24</span><span class="cell">45</span><span class="cell">75</span></div>
+</div>
+
+<p><b>Passe 2 : le chiffre des dizaines.</b></p>
+<div class="box ex">
+  <div class="cells"><span class="lab">Départ</span><span class="cell">1<u>7</u>0</span><span class="cell"><u>9</u>0</span><span class="cell">8<u>0</u>2</span><span class="cell"><u>2</u>4</span><span class="cell"><u>4</u>5</span><span class="cell"><u>7</u>5</span></div>
+  <div><span class="bucket"><b>case 0</b>802</span><span class="bucket"><b>case 2</b>24</span><span class="bucket"><b>case 4</b>45</span><span class="bucket"><b>case 7</b>170<br>75</span><span class="bucket"><b>case 9</b>90</span></div>
+  <div class="cells"><span class="lab">On ramasse dans l'ordre</span><span class="cell">802</span><span class="cell">24</span><span class="cell">45</span><span class="cell">170</span><span class="cell">75</span><span class="cell">90</span></div>
+</div>
+
+<p><b>Passe 3 : le chiffre des centaines</b> (24 se lit 024).</p>
+<div class="box ex">
+  <div class="cells"><span class="lab">Départ</span><span class="cell"><u>8</u>02</span><span class="cell"><u>0</u>24</span><span class="cell"><u>0</u>45</span><span class="cell"><u>1</u>70</span><span class="cell"><u>0</u>75</span><span class="cell"><u>0</u>90</span></div>
+  <div><span class="bucket"><b>case 0</b>24<br>45<br>75<br>90</span><span class="bucket"><b>case 1</b>170</span><span class="bucket"><b>case 8</b>802</span></div>
+  <div class="cells"><span class="lab">Résultat</span><span class="cell hi">24</span><span class="cell hi">45</span><span class="cell hi">75</span><span class="cell hi">90</span><span class="cell hi">170</span><span class="cell hi">802</span></div>
+</div>
+<p>C'est trié, et <b>on n'a jamais comparé deux nombres entre eux</b>. On a seulement lu chaque nombre trois fois (une fois par chiffre).</p>
+
+<h3>Pourquoi ça marche : la règle « on ne bouscule pas »</h3>
+<p>Regardez la passe 3 : dans la case 0, les nombres 24, 45, 75, 90 sont déjà dans le bon ordre. Pourquoi ? Parce que les passes précédentes les avaient mis dans cet ordre, et que <b>quand on pose dans une case, on garde l'ordre d'arrivée</b>. Cette propriété s'appelle la <b>stabilité</b>.</p>
+
+<h3>Dans ng-table, c'est pareil, en plus gros</h3>
+<table>
+  <tr><th></th><th>Notre exemple</th><th>ng-table</th></tr>
+  <tr><td>Un « chiffre »</td><td>de 0 à 9</td><td>de 0 à 65 535 (un morceau de 16 bits)</td></tr>
+  <tr><td>Nombre de cases</td><td>10</td><td>65 536</td></tr>
+  <tr><td>Nombre de passes</td><td>3 (unités, dizaines, centaines)</td><td>4, quelle que soit la quantité de lignes</td></tr>
+</table>
+<p><b>Pourquoi 4 passes ?</b> L'ordinateur stocke chaque nombre sur 64 « bits » (64 petites cases contenant 0 ou 1). On découpe ces 64 bits en 4 morceaux de 16. Chaque morceau joue le rôle d'un « chiffre ». Il existe une petite retouche pour que les nombres négatifs et les nombres à virgule se rangent correctement ; vous n'avez pas besoin de l'expliquer, seulement de savoir qu'elle existe.</p>
+
+<h3>Le gain</h3>
+<table>
+  <tr><th>Pour 1 000 000 de lignes</th><th>Tri classique</th><th>Tri par base</th></tr>
+  <tr><td>Travail</td><td>≈ 20 000 000 comparaisons</td><td>4 parcours de la liste</td></tr>
+  <tr><td>Appels à <code>valueAccessor</code></td><td>≈ 40 000 000</td><td>1 000 000 (une fois par ligne)</td></tr>
+  <tr><td>Si on double le volume</td><td>un peu plus que le double</td><td>exactement le double</td></tr>
+</table>
+
+<h3>Trier sur deux colonnes</h3>
+<p>« Trier par client, puis par montant » : grâce à la stabilité, on trie d'abord sur le critère le <b>moins</b> important, puis sur le <b>plus</b> important.</p>
+<div class="box ex"><b>Exemple</b>
+<div class="scroll"><table style="margin:0">
+  <tr><th>Départ</th><th>1. Tri par montant</th><th>2. Tri par client (sans bousculer)</th></tr>
+  <tr><td>Dupont, 300</td><td>Martin, 50</td><td><b>Dupont, 100</b></td></tr>
+  <tr><td>Martin, 100</td><td>Martin, 100</td><td><b>Dupont, 300</b></td></tr>
+  <tr><td>Dupont, 100</td><td>Dupont, 100</td><td>Martin, 50</td></tr>
+  <tr><td>Martin, 50</td><td>Dupont, 300</td><td>Martin, 100</td></tr>
+</table></div>
+<p style="margin-top:8px">À l'étape 2, les Dupont sont regroupés, et entre eux ils gardent l'ordre des montants obtenu à l'étape 1.</p></div>
+
+<div class="box warn"><b>Le filet de sécurité</b><p>Si une colonne mélange des types (du texte et des nombres), ou contient une date invalide, la grille revient automatiquement au tri classique. Et des tests vérifient, sur des données tirées au hasard, que les deux méthodes donnent exactement le même résultat.</p></div>
+<div class="box say"><b>À dire</b><p>« Le tri par base, c'est le tri du facteur : on range dans des casiers au lieu de comparer. Quatre passages sur la liste suffisent, que la liste fasse mille lignes ou un million. C'est ce qui donne un tri de nombres une vingtaine de fois plus rapide. »</p></div>
+
+<!-- 7 -->
+<h2 id="texte"><span class="n">7</span>Trier du texte</h2>
+<h3>Pourquoi le texte est plus difficile que les nombres</h3>
+<p>Un ordinateur compare naturellement les lettres par leur numéro interne, ce qui donne des résultats faux pour un humain :</p>
+<table>
+  <tr><th>Tri « bête » de l'ordinateur</th><th>Ce que l'humain attend</th><th>Pourquoi</th></tr>
+  <tr><td>Zoé, alice</td><td>alice, Zoé</td><td>les majuscules ont des numéros plus petits que les minuscules</td></tr>
+  <tr><td>item 10, item 2</td><td>item 2, item 10</td><td>il compare « 1 » et « 2 » caractère par caractère</td></tr>
+  <tr><td>zèbre, école</td><td>école, zèbre</td><td>« é » a un numéro très élevé</td></tr>
+</table>
+<p>Le navigateur fournit un outil qui connaît les règles de chaque langue : <code>Intl.Collator</code>. Appelons-le <b>le dictionnaire officiel</b>. Il a toujours raison, mais il est lent : lui poser vingt millions de questions prend des secondes.</p>
+<p>ng-table utilise deux astuces pour lui poser beaucoup moins de questions.</p>
+
+<h3>Astuce 1 : les rangs (quand il y a peu de valeurs différentes)</h3>
+<p>Une colonne « Statut » sur un million de lignes ne contient que quelques valeurs différentes. On trie <b>seulement ces valeurs</b> avec le dictionnaire, on leur donne un numéro (un <b>rang</b>), et on remplace chaque texte par son numéro.</p>
+<div class="box ex"><b>Exemple</b>
+<div class="two" style="margin:0">
+<div><p><b>1. Les valeurs différentes, triées</b></p>
+<table style="margin:0"><tr><th>Valeur</th><th class="n">Rang</th></tr><tr><td>Annulée</td><td class="n">0</td></tr><tr><td>En cours</td><td class="n">1</td></tr><tr><td>Validée</td><td class="n">2</td></tr></table></div>
+<div><p><b>2. Chaque ligne reçoit un nombre</b></p>
+<table style="margin:0"><tr><th>Statut</th><th class="n">devient</th></tr><tr><td>Validée</td><td class="n">2</td></tr><tr><td>Annulée</td><td class="n">0</td></tr><tr><td>Validée</td><td class="n">2</td></tr><tr><td>En cours</td><td class="n">1</td></tr></table></div>
+</div>
+<p style="margin-top:8px">On a transformé du texte en nombres : on peut maintenant utiliser le tri par base du chapitre 6. Le dictionnaire n'a trié que 3 mots au lieu d'un million.</p></div>
+
+<h3>Astuce 2 : les clés de tri (quand presque tout est différent)</h3>
+<p>Une colonne « Référence » (<code>CMD-000123</code>…) a une valeur différente par ligne : l'astuce des rangs ne sert à rien. Pour du texte simple (sans accents), ng-table fabrique alors pour chaque texte une <b>clé</b> : une version « normalisée » qui, elle, se trie correctement de façon bête.</p>
+<div class="box ex"><b>Exemple (simplifié pour comprendre le principe)</b>
+<table style="margin:0"><tr><th>Texte</th><th>Clé</th><th>Ce que fait la clé</th></tr>
+<tr><td>Item 10</td><td><code>item 010</code></td><td rowspan="2">minuscules partout ; les nombres sont mis sur la même longueur, donc 002 passe avant 010</td></tr>
+<tr><td>item 2</td><td><code>item 002</code></td></tr></table>
+<p style="margin-top:8px">La vraie clé est une suite d'octets et non du texte lisible, mais l'idée est celle-là.</p></div>
+
+<h3>Le point le plus important : l'examen de passage</h3>
+<p>Comment être sûr que la méthode rapide donne <b>exactement</b> le même ordre que le dictionnaire officiel ? ng-table ne le suppose pas : <b>elle le vérifie</b>. Avant la première utilisation, la méthode rapide passe un examen : on trie une liste d'essai avec les deux méthodes et on compare. À la moindre différence, la méthode rapide est abandonnée et on garde le dictionnaire.</p>
+
+<h3>Comment la grille choisit</h3>
+<table>
+  <tr><th>Situation</th><th>Méthode</th></tr>
+  <tr><td>Peu de valeurs différentes (statut, pays)</td><td>rangs</td></tr>
+  <tr><td>Beaucoup de valeurs différentes, texte simple</td><td>clés de tri</td></tr>
+  <tr><td>Texte avec accents, arabe, etc.</td><td>dictionnaire officiel (plus lent, toujours juste)</td></tr>
+</table>
+<p>Pour décider entre « peu » et « beaucoup », elle regarde les 2 000 premières lignes : si plus d'un quart sont différentes, c'est « beaucoup ».</p>
+<div class="box say"><b>À dire</b><p>« Pour le texte, on ramène le problème à des nombres. Et on ne sacrifie jamais l'exactitude : la méthode rapide est contrôlée contre la méthode officielle du navigateur, et abandonnée au moindre écart. »</p></div>
+
+<!-- 8 -->
+<h2 id="filtres"><span class="n">8</span>Les filtres compilés</h2>
+<div class="box idea"><b>L'idée en une phrase</b><p>Comprendre <b>une seule fois</b> ce que l'utilisateur a tapé, au lieu de le re-déchiffrer pour chaque ligne.</p></div>
+<div class="box ex"><b>Image</b><p>Un vigile à l'entrée d'une salle. Consigne écrite sur un papier : « Laisser entrer les plus de 18 ans ». <b>Mauvais vigile</b> : il relit le papier à chaque personne. <b>Bon vigile</b> : il lit le papier une fois, retient « 18 », et ne fait plus que regarder l'âge.</p></div>
+<p>L'utilisateur tape <code>&gt;5000</code> dans le filtre « Montant ». Pour l'ordinateur, ce n'est qu'un texte de 5 caractères : il doit repérer le signe <code>&gt;</code>, puis transformer « 5000 » en nombre.</p>
+<div class="two">
+<div class="box warn"><b>Avant</b>
+<pre>pour chaque ligne (1 000 000 fois) :
+  déchiffrer le texte "&gt;5000"
+  le montant est-il &gt; 5000 ?</pre><p>Un million de déchiffrages inutiles.</p></div>
+<div class="box say"><b>Maintenant</b>
+<pre>déchiffrer "&gt;5000" → retenir 5000
+pour chaque ligne (1 000 000 fois) :
+  le montant est-il &gt; 5000 ?</pre><p>Un seul déchiffrage.</p></div>
+</div>
+<p><b>Pourquoi « compilé » ?</b> En informatique, compiler veut dire traduire une fois pour toutes un texte en quelque chose de directement exécutable. Ici, le texte du filtre est traduit en une petite fonction prête à l'emploi.</p>
+<table>
+  <tr><th>Ce que tape l'utilisateur</th><th>Ce que la grille retient</th></tr>
+  <tr><td><code>&gt;5000</code></td><td>le seuil 5000</td></tr>
+  <tr><td><code>10..50</code></td><td>les bornes 10 et 50</td></tr>
+  <tr><td><code>Validée,Annulée</code></td><td>la liste des deux valeurs acceptées</td></tr>
+  <tr><td><code>dup</code> (texte « contient »)</td><td>le mot en minuscules</td></tr>
+</table>
+<h3>La recherche globale : un antisèche par ligne</h3>
+<p>La recherche globale cherche dans toutes les colonnes. La première fois, la grille fabrique pour chaque ligne un texte unique (« dupont 300 validée… ») et le <b>garde en mémoire</b>. Aux frappes suivantes, elle ne refabrique rien : elle cherche juste dans ces textes déjà prêts.</p>
+<div class="box say"><b>À dire</b><p>« Le filtre est lu une fois au lieu d'un million de fois. C'est une idée simple, et c'est elle qui donne un filtrage dix à vingt fois plus rapide. »</p></div>
+
+<!-- 9 -->
+<h2 id="live"><span class="n">9</span>Le mode live</h2>
+<p>Certaines données changent tout le temps : cours de bourse, supervision, suivi de commandes. La liste est déjà triée et filtrée ; quelques lignes changent ; il faut rester à jour sans tout recommencer.</p>
+
+<h3>Les transactions : n'envoyer que ce qui change</h3>
+<div class="box ex"><b>Image</b><p>Votre annuaire a 1 000 000 de contacts et 3 personnes changent de numéro. Vous ne réimprimez pas l'annuaire : vous notez les 3 corrections.</p></div>
+<pre>table.applyTransaction({
+  update: [{ id: 42, prix: 101.5 }],   <span class="c">// lignes modifiées</span>
+  add:    [{ id: 99, prix: 12 }],      <span class="c">// lignes nouvelles</span>
+  remove: [{ id: 7 }],                 <span class="c">// lignes supprimées</span>
+});</pre>
+<p>La grille retrouve chaque ligne grâce à sa <b>clé</b> (son <code>id</code>), comme on retrouve une personne par son numéro de sécurité sociale.</p>
+
+<h3>La recherche dichotomique : retrouver une place sans tout parcourir</h3>
+<p>Une ligne modifiée doit être replacée au bon endroit dans la liste triée. Comment trouver cet endroit parmi un million de lignes ?</p>
+<div class="box ex"><b>Image : le jeu « plus ou moins »</b><p>Je pense à un nombre entre 1 et 100. Vous dites 50, je réponds « plus ». Vous dites 75, « moins ». Vous dites 62… À chaque essai, vous éliminez la moitié des possibilités. Il vous faut au maximum <b>7 essais</b>. Entre 1 et 1 000 000 : au maximum <b>20 essais</b>.</p></div>
+<div class="box ex"><b>Exemple : où placer 35 dans une liste triée ?</b>
+  <div class="cells"><span class="lab">Liste</span><span class="cell">10</span><span class="cell">20</span><span class="cell or">30</span><span class="cell">40</span><span class="cell">50</span></div>
+  <p>On regarde le milieu : 30. Comme 35 est plus grand, on oublie la moitié gauche.</p>
+  <div class="cells"><span class="lab">Reste</span><span class="cell gh">10</span><span class="cell gh">20</span><span class="cell gh">30</span><span class="cell or">40</span><span class="cell">50</span></div>
+  <p>On regarde 40. Comme 35 est plus petit, sa place est juste avant 40.</p>
+  <div class="cells"><span class="lab">Résultat</span><span class="cell">10</span><span class="cell">20</span><span class="cell">30</span><span class="cell hi">35</span><span class="cell">40</span><span class="cell">50</span></div>
+</div>
+<table>
+  <tr><th>1 000 lignes modifiées sur 1 000 000</th><th class="n">Comparaisons</th></tr>
+  <tr><td>Tout retrier</td><td class="n">≈ 20 000 000</td></tr>
+  <tr><td>Replacer chaque ligne par dichotomie (1 000 × 20)</td><td class="n"><b>≈ 20 000</b></td></tr>
+</table>
+
+<h3>Le regroupement : l'ascenseur qui attend un peu</h3>
+<p>Si 5 000 messages arrivent par seconde, redessiner l'écran 5 000 fois n'a aucun sens : l'écran n'affiche que 60 images par seconde. <code>applyTransactionAsync</code> met les changements en attente pendant 50 millisecondes, puis les applique tous d'un coup.</p>
+<div class="box ex"><b>Image</b><p>Un ascenseur ne part pas à chaque personne qui entre. Il attend quelques secondes, puis fait un seul voyage avec tout le monde.</p></div>
+
+<h3>La surbrillance</h3>
+<p>Une cellule qui change s'allume brièvement : vert si la valeur monte, rouge si elle baisse. Pour les personnes qui distinguent mal les couleurs, un petit symbole ▲ ou ▼ est ajouté.</p>
+<div class="box warn"><b>Quand tout est recalculé quand même</b><p>Si l'utilisateur change le filtre ou le tri, toutes les lignes sont concernées : la grille recalcule tout. La fusion ne sert que lorsque seules les <b>données</b> changent.</p></div>
+<div class="box say"><b>À dire</b><p>« Quand mille lignes changent sur un million, on ne retrie pas le million : on replace les mille, chacune en une vingtaine d'essais. Et on regroupe les changements pour ne redessiner qu'une fois. »</p></div>
+
+<!-- 10 -->
+<h2 id="worker"><span class="n">10</span>Les Web Workers</h2>
+<h3>Le problème</h3>
+<p>Rappel du chapitre 1 : la page n'a qu'<b>un seul employé</b>. Même avec le meilleur algorithme, trier un million de textes prend 1 à 2 secondes. Pendant ce temps, l'employé ne répond à rien : la page est gelée.</p>
+
+<h3>La solution : embaucher un second employé</h3>
+<p>Un <b>Web Worker</b> est un second fil d'exécution que le navigateur met à disposition. On lui confie le gros calcul ; pendant ce temps, le premier continue à s'occuper de l'écran.</p>
+<div class="box ex"><b>Schéma : sans et avec worker (le temps va de gauche à droite)</b>
+  <p style="font-size:14px;margin-bottom:4px"><b>Sans worker</b></p>
+  <div class="lane"><span>Fil principal</span><div class="track"><span class="seg o" style="flex:1">répond</span><span class="seg b" style="flex:5">tri : la page est gelée</span><span class="seg o" style="flex:1">répond</span></div></div>
+  <p style="font-size:14px;margin:12px 0 4px"><b>Avec worker</b></p>
+  <div class="lane"><span>Fil principal</span><div class="track"><span class="seg o" style="flex:1">répond</span><span class="seg a" style="flex:.6">envoi</span><span class="seg o" style="flex:4">répond toujours (défilement, clics)</span><span class="seg a" style="flex:.4">reçoit</span><span class="seg o" style="flex:1">répond</span></div></div>
+  <div class="lane"><span>Worker</span><div class="track"><span class="seg g" style="flex:1.6">attend</span><span class="seg p" style="flex:4">fait le tri</span><span class="seg g" style="flex:1.4">attend</span></div></div>
+</div>
+<div class="box warn"><b>À bien comprendre</b><p>Le worker <b>ne rend pas le tri plus rapide</b>. Le tri dure autant. Ce qui change, c'est que la page ne gèle plus pendant ce temps. On ne gagne pas en vitesse, on gagne en confort.</p></div>
+
+<h3>Les trois règles du worker</h3>
+<div class="box ex"><b>Image</b><p>Le second employé travaille dans <b>une autre pièce</b>, porte fermée. On communique avec lui uniquement en glissant des documents sous la porte.</p></div>
+<table>
+  <tr><th>Règle</th><th>Ce que ça veut dire</th><th>Dans l'image</th></tr>
+  <tr><td>Il ne voit pas la page</td><td>pas d'accès au DOM, à l'écran</td><td>il n'a pas de fenêtre sur la salle</td></tr>
+  <tr><td>On communique par messages</td><td><code>postMessage</code> pour envoyer, <code>onmessage</code> pour recevoir</td><td>les documents sous la porte</td></tr>
+  <tr><td>On ne peut pas lui envoyer de fonctions</td><td>seulement des données</td><td>on peut lui passer des feuilles de chiffres, pas un collègue</td></tr>
+</table>
+
+<h3>Premier obstacle : nos colonnes sont des fonctions</h3>
+<p>Pour trier par montant, il faut <code>valueAccessor</code>, et c'est une fonction : interdite d'envoi. La solution : le fil principal applique lui-même la fonction et envoie <b>les résultats</b>, c'est-à-dire la colonne de valeurs.</p>
+<div class="box ex"><b>Exemple : trier par montant</b>
+  <div class="cells"><span class="lab">Lignes (restent ici)</span><span class="cell">n°0 Dupont</span><span class="cell">n°1 Martin</span><span class="cell">n°2 Durand</span><span class="cell">n°3 Petit</span></div>
+  <div class="cells"><span class="lab">→ envoyé au worker</span><span class="cell">120</span><span class="cell">85</span><span class="cell">300</span><span class="cell">42</span></div>
+  <div class="cells"><span class="lab">← réponse du worker</span><span class="cell hi">3</span><span class="cell hi">1</span><span class="cell hi">0</span><span class="cell hi">2</span></div>
+  <p>La réponse se lit : « affiche d'abord la ligne n°3 (42), puis la n°1 (85), puis la n°0 (120), puis la n°2 (300) ». Le worker ne renvoie pas les lignes, seulement <b>l'ordre</b>, sous forme de numéros.</p>
+</div>
+
+<h3>Second obstacle : envoyer coûte cher</h3>
+<p>Par défaut, un message est <b>photocopié</b> avant d'être envoyé. Photocopier un million de valeurs occupe le fil principal… ce qui recrée le gel qu'on voulait éviter.</p>
+<p>Il existe une autre façon d'envoyer, réservée aux blocs de mémoire bruts (les « tampons », <code>ArrayBuffer</code>) : le <b>transfert</b>.</p>
+<div class="two">
+  <div class="box warn"><b>Copie</b><p>On photocopie le dossier et on glisse la photocopie sous la porte. Long si le dossier est épais. Les deux ont un exemplaire.</p></div>
+  <div class="box say"><b>Transfert</b><p>On glisse le dossier original sous la porte. Instantané, quelle que soit son épaisseur. Mais on ne l'a plus : il appartient maintenant à l'autre.</p></div>
+</div>
+<p>ng-table prépare donc les colonnes sous une forme transférable :</p>
+<ul>
+  <li><b>une colonne de nombres</b> devient un tableau de nombres compact (<code>Float64Array</code>) ;</li>
+  <li><b>une colonne de textes</b> est collée bout à bout en un seul grand bloc. Envoyer un million de petits textes un par un coûtait environ 560 ms ; en un seul bloc, environ 155 ms.</li>
+</ul>
+
+<h3>Le déroulé complet</h3>
+<ol>
+  <li>L'utilisateur clique sur l'en-tête « Montant ».</li>
+  <li>Le fil principal lit la colonne des montants et la transfère au worker. <b>Une seule fois</b> : si l'utilisateur retrie plus tard sur cette colonne, elle est déjà là-bas.</li>
+  <li>Le worker trie, avec exactement le même code que le fil principal (tri par base, filtres compilés).</li>
+  <li>Pendant ce temps, l'ancien affichage reste visible et utilisable, avec un indicateur d'attente.</li>
+  <li>Le worker renvoie l'ordre. Le fil principal réarrange les lignes et affiche.</li>
+</ol>
+
+<h3>Trois détails qu'on peut vous demander</h3>
+<table>
+  <tr><th>Question</th><th>Réponse simple</th></tr>
+  <tr><td>Et si l'utilisateur change d'avis pendant le calcul ?</td><td>Chaque demande porte un numéro. Quand une réponse arrive, on vérifie que c'est bien celle de la dernière demande ; sinon on la jette.</td></tr>
+  <tr><td>Faut-il configurer quelque chose dans l'application ?</td><td>Non. Le code du worker est rangé dans la bibliothèque sous forme de texte (12 Ko). Au démarrage, la grille en fait un « fichier virtuel » en mémoire (un <code>Blob</code>) et lance le worker dessus.</td></tr>
+  <tr><td>Et si le worker ne peut pas démarrer ?</td><td>Certaines entreprises interdisent les fichiers virtuels par sécurité. Dans ce cas la grille revient toute seule au calcul sur le fil principal.</td></tr>
+</table>
+
+<h3>Quand l'utiliser, quand s'en passer</h3>
+<table>
+  <tr><th>Situation</th><th>Worker ?</th><th>Pourquoi</th></tr>
+  <tr><td>Plus de 100 000 lignes, tris et filtres ponctuels</td><td><b>Oui</b></td><td>la page reste fluide pendant le calcul</td></tr>
+  <tr><td>Petite liste</td><td>Non</td><td>préparer et envoyer le message prend plus de temps que le calcul</td></tr>
+  <tr><td>Données qui changent en continu (mode live)</td><td>Non</td><td>il faudrait renvoyer les colonnes à chaque changement ; la fusion du chapitre 9 est bien meilleure</td></tr>
+</table>
+<div class="box say"><b>À dire</b><p>« Le worker, c'est un second employé dans une autre pièce. Il ne va pas plus vite, mais pendant qu'il trie, la page continue de répondre. Et pour lui passer les données sans perdre de temps, on lui donne l'original au lieu d'en faire une photocopie. »</p></div>
+
+<!-- 11 -->
+<h2 id="blocs"><span class="n">11</span>Le modèle serveur par blocs</h2>
+<p>Parfois les données sont trop nombreuses pour être chargées dans le navigateur (dix millions de commandes dans une base). On les laisse alors sur le serveur et on ne charge que ce qu'on regarde.</p>
+<div class="box ex"><b>Image</b><p>Une encyclopédie en 10 000 volumes à la bibliothèque. Vous n'emportez pas tout chez vous : vous demandez le volume dont vous avez besoin. Et comme votre bureau ne peut contenir que 50 volumes, quand il est plein vous rendez celui que vous n'avez pas ouvert depuis le plus longtemps.</p></div>
+<table>
+  <tr><th>Réglage</th><th class="n">Valeur par défaut</th><th>Rôle</th></tr>
+  <tr><td>Taille d'un bloc</td><td class="n">100 lignes</td><td>un « volume »</td></tr>
+  <tr><td>Blocs gardés en mémoire</td><td class="n">50</td><td>la taille du bureau ; au-delà, on oublie le bloc consulté il y a le plus longtemps</td></tr>
+  <tr><td>Demandes simultanées</td><td class="n">2</td><td>pour ne pas noyer le serveur</td></tr>
+</table>
+<p>En attendant un bloc, la grille affiche des lignes grises animées. Si l'utilisateur change le tri pendant qu'une réponse est en route, cette réponse est jetée à l'arrivée : elle correspond à une ancienne question.</p>
+<p>Dans ce mode, c'est le <b>serveur</b> qui trie et filtre (la base de données est faite pour ça). La grille lui envoie la demande : « lignes 300 à 399, triées par date, filtre montant &gt; 5000 ».</p>
+
+<h3>Qu'est-ce qu'un bloc, exactement ?</h3>
+<p>Un <b>bloc</b> est un paquet de lignes qui se suivent, de taille fixe (100 par défaut). La liste complète est découpée en blocs numérotés, comme un livre est découpé en pages :</p>
+<div class="box ex"><b>Schéma : 10 000 000 de lignes découpées en blocs de 100</b>
+  <div class="cells"><span class="cell">bloc 0<br><small>lignes 0 – 99</small></span><span class="cell">bloc 1<br><small>100 – 199</small></span><span class="cell">bloc 2<br><small>200 – 299</small></span><span class="cell gh">…</span><span class="cell hi">bloc 49 999<br><small>4 999 900 – 4 999 999</small></span><span class="cell hi">bloc 50 000<br><small>5 000 000 – 5 000 099</small></span><span class="cell gh">…</span><span class="cell">bloc 99 999<br><small>dernières lignes</small></span></div>
+  <p>Pour savoir dans quel bloc se trouve une ligne, une simple division : ligne 4 999 992 ÷ 100 = bloc <b>49 999</b>.</p>
+</div>
+<p>Chaque bloc est dans l'un de ces états :</p>
+<table>
+  <tr><th>État</th><th>Ce que l'utilisateur voit</th></tr>
+  <tr><td>jamais demandé</td><td>rien (il n'est pas à l'écran)</td></tr>
+  <tr><td>en cours de chargement</td><td>des lignes grises animées</td></tr>
+  <tr><td>chargé</td><td>les vraies lignes</td></tr>
+  <tr><td>en échec</td><td>« Chargement impossible » ; il n'est pas redemandé en boucle</td></tr>
+</table>
+
+<h3>Exemple complet : 10 millions de lignes sur le serveur</h3>
+<div class="box warn"><b>D'abord, ce qu'il ne faut pas faire</b><p>Envoyer les 10 millions de lignes d'un coup au navigateur. Cela représente plusieurs gigaoctets à télécharger et à garder en mémoire : l'onglet plante. Le mode « tout en mémoire » de ng-table est prévu et mesuré jusqu'à environ un million de lignes. Au-delà, les données restent sur le serveur.</p></div>
+<p>Voici ce qui se passe, étape par étape, avec <code>[remoteDatasource]</code> :</p>
+<ol>
+  <li><b>Ouverture.</b> La grille demande le bloc 0 (lignes 0 à 99). Le serveur répond avec 100 lignes <b>et le total</b> : 10 000 000. La grille sait maintenant quelle longueur donner à la barre de défilement, sans avoir les données.</li>
+  <li><b>La barre de défilement.</b> 10 000 000 × 48 px = 480 millions de px, bien au-delà de ce qu'un navigateur accepte. La compression du chapitre 4 s'applique : la barre fait 15 millions de px, et 1 px de barre vaut environ 32 px de liste.</li>
+  <li><b>L'utilisateur tire la barre au milieu.</b> La grille calcule : milieu = ligne 5 000 000. Avec la marge, il faut les lignes 4 999 992 à 5 000 017.</li>
+  <li><b>Quels blocs ?</b> 4 999 992 ÷ 100 → bloc 49 999. 5 000 017 ÷ 100 → bloc 50 000. Deux blocs à demander. Les 49 999 blocs survolés pendant le déplacement ne sont <b>jamais</b> demandés.</li>
+  <li><b>La demande au serveur</b> pour le bloc 49 999 : « donne-moi 100 lignes à partir de la ligne 4 999 900, avec ce tri et ces filtres ». En attendant, des lignes grises s'affichent.</li>
+  <li><b>La réponse arrive.</b> Les lignes grises sont remplacées par les vraies. Le bloc est rangé dans le cache.</li>
+  <li><b>Le cache se remplit.</b> Au 51ᵉ bloc chargé, le bloc regardé il y a le plus longtemps est oublié. Si l'utilisateur y revient, il sera redemandé.</li>
+</ol>
+<div class="box ex"><b>Schéma : qui garde quoi</b>
+<svg viewBox="0 0 820 200" style="width:100%;height:auto" role="img" aria-label="Le serveur garde tout, le navigateur garde 50 blocs, l'écran montre 26 lignes">
+  <rect x="10" y="20" width="230" height="160" rx="12" fill="#e6f0f9"/><text x="125" y="50" text-anchor="middle" font-size="15" font-weight="700" fill="#2f6fa8">Serveur (base de données)</text>
+  <text x="125" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#14212b">10 000 000</text><text x="125" y="124" text-anchor="middle" font-size="14" fill="#5f7080">lignes, triées et filtrées ici</text>
+  <rect x="300" y="20" width="230" height="160" rx="12" fill="#f3f6f9"/><text x="415" y="50" text-anchor="middle" font-size="15" font-weight="700" fill="#2f6fa8">Navigateur (cache)</text>
+  <text x="415" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#14212b">5 000 au plus</text><text x="415" y="124" text-anchor="middle" font-size="14" fill="#5f7080">50 blocs × 100 lignes</text>
+  <rect x="590" y="20" width="220" height="160" rx="12" fill="#fdf1e7"/><text x="700" y="50" text-anchor="middle" font-size="15" font-weight="700" fill="#b85a1e">Écran (DOM)</text>
+  <text x="700" y="100" text-anchor="middle" font-size="26" font-weight="700" fill="#14212b">≈ 26</text><text x="700" y="124" text-anchor="middle" font-size="14" fill="#5f7080">lignes réellement dessinées</text>
+  <g stroke="#e07a3f" stroke-width="2.5" fill="none"><path d="M240 85 L296 85" marker-end="url(#b)"/><path d="M296 115 L244 115" marker-end="url(#b)"/><path d="M530 100 L586 100" marker-end="url(#b)"/></g>
+  <text x="268" y="76" text-anchor="middle" font-size="12" fill="#5f7080">blocs</text><text x="268" y="134" text-anchor="middle" font-size="12" fill="#5f7080">demandes</text>
+  <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#e07a3f"/></marker></defs>
+</svg>
+<p>La mémoire utilisée par le navigateur est la même pour 10 000 lignes, 10 millions ou 10 milliards : au plus 5 000 lignes.</p></div>
+
+<h3>Et si l'utilisateur trie ou filtre ?</h3>
+<p>Tous les blocs gardés deviennent faux (la ligne 0 n'est plus la même). La grille <b>vide le cache</b>, revient en haut, et redemande le bloc 0 avec le nouveau tri. Si une réponse à une ancienne demande arrive après coup, elle est jetée : chaque vidage augmente un compteur (la « génération »), et une réponse qui porte un ancien numéro est ignorée.</p>
+
+<h3>Côté application : ce qu'il faut écrire</h3>
+<pre>datasource = {
+  <span class="c">// appelée par la grille pour chaque bloc manquant</span>
+  getRows: (demande) =&gt;
+    http.post('/api/commandes', demande)   <span class="c">// demande.startRow, endRow, sorts, filters, search</span>
+        .pipe(map((page) =&gt; ({ rows: page.rows, totalCount: page.total }))),
+};
+
+&lt;ng-table [dataMode]="'remote'" [remoteDatasource]="datasource" [cacheBlockSize]="100" /&gt;</pre>
+<div class="box warn"><b>Les limites de ce mode</b>
+<ul>
+  <li>Pas de regroupement ni de paginateur ; la sélection et le clavier portent sur les lignes chargées.</li>
+  <li>La rapidité dépend du serveur. Demander « 100 lignes à partir de la 4 999 900ᵉ » oblige beaucoup de bases de données à parcourir les lignes précédentes : il faut de bons index.</li>
+</ul></div>
+<div class="box say"><b>À dire</b><p>« Avec dix millions de lignes, rien n'est chargé d'avance. La liste est découpée en blocs de cent lignes ; la grille ne demande au serveur que les blocs que l'utilisateur regarde, et en garde cinquante en mémoire. Le navigateur ne contient jamais plus de cinq mille lignes, et l'écran une vingtaine. »</p></div>
+
+<!-- 12 -->
+<h2 id="bench"><span class="n">12</span>Le benchmark</h2>
+<p>Un <b>benchmark</b> est une mesure comparative : on fait faire la même chose à deux outils et on chronomètre. Ici, ng-table et AG Grid (la grille de référence du marché).</p>
+
+<h3>Les règles d'une comparaison honnête</h3>
+<div class="box ex"><b>Image</b><p>Pour comparer deux coureurs : même piste, même distance, même météo, l'un après l'autre, plusieurs essais. Sinon le résultat ne veut rien dire.</p></div>
+<table>
+  <tr><th>Règle de la course</th><th>Dans le benchmark</th></tr>
+  <tr><td>Même piste</td><td>même navigateur, même ordinateur</td></tr>
+  <tr><td>Même distance</td><td>exactement les mêmes données (10 000, 100 000 ou 1 000 000 de lignes)</td></tr>
+  <tr><td>L'un après l'autre</td><td>une seule grille à l'écran à la fois, pour qu'elles ne se gênent pas</td></tr>
+  <tr><td>Pas de dopage</td><td>réglages par défaut des deux côtés</td></tr>
+  <tr><td>Plusieurs essais</td><td>5 passages par opération</td></tr>
+</table>
+
+<h3>Quand arrêter le chronomètre ?</h3>
+<p>C'est la question la plus fine. Si on arrête dès que le calcul est fini, on ne mesure pas l'affichage. Or l'utilisateur, lui, attend de <b>voir</b> le résultat.</p>
+<p>Le navigateur propose un outil, <code>requestAnimationFrame</code>, qui prévient « je vais dessiner une image ». Le benchmark attend <b>deux images</b> : à la première, la grille prépare son affichage ; à la seconde, on est certain qu'il a été dessiné.</p>
+<div class="box ex"><b>Schéma : ce que mesure le chronomètre</b>
+  <div class="lane"><span>Déroulé</span><div class="track"><span class="seg p" style="flex:3">calcul (tri)</span><span class="seg a" style="flex:1.2">image 1</span><span class="seg a" style="flex:1.2">image 2</span></div></div>
+  <div class="lane"><span>Chronomètre</span><div class="track"><span class="seg o" style="flex:5.4">▶ départ au clic ─────────────── arrêt après l'image 2 ■</span></div></div>
+</div>
+
+<h3>Pourquoi la médiane et pas la moyenne</h3>
+<p>Sur 5 essais, il arrive qu'un essai soit perturbé (l'antivirus se réveille, par exemple). La <b>médiane</b> est la valeur du milieu quand on range les essais par ordre : elle ignore les accidents.</p>
+<div class="box ex"><b>Exemple</b>
+  <div class="cells"><span class="lab">5 essais, rangés</span><span class="cell">120</span><span class="cell">125</span><span class="cell hi">128</span><span class="cell">130</span><span class="cell or">900</span></div>
+  <p>Médiane : <b>128 ms</b> (celle du milieu). Moyenne : 281 ms, complètement faussée par l'essai à 900.</p>
+</div>
+
+<h3>Lire le tableau de résultats</h3>
+<p>« Rapport × 19 » veut dire : AG Grid a mis 19 fois plus de temps (2 464 ms contre 129 ms). Chaque gros écart s'explique par un chapitre de ce guide :</p>
+<table>
+  <tr><th>Opération (1 000 000 de lignes)</th><th class="n">Rapport</th><th>Explication</th></tr>
+  <tr><td>Tri numérique</td><td class="n">× 19</td><td>tri par base (chapitre 6)</td></tr>
+  <tr><td>Tri sur deux niveaux</td><td class="n">× 11</td><td>tri par base, deux passes (chapitre 6)</td></tr>
+  <tr><td>Filtre texte / numérique</td><td class="n">× 23 / × 11</td><td>filtres compilés (chapitre 8)</td></tr>
+  <tr><td>1 000 mises à jour</td><td class="n">× 8</td><td>fusion par dichotomie (chapitre 9)</td></tr>
+  <tr><td>Tri de texte tout différent</td><td class="n">× 1,7</td><td>le texte reste le cas difficile (chapitre 7)</td></tr>
+  <tr><td>Saut à 90 % de la liste</td><td class="n">× 1,1</td><td>égalité : les deux grilles font du défilement virtuel (chapitre 4)</td></tr>
+</table>
+
+<h3>Mesurer le gel (pour le worker)</h3>
+<p>Pour le worker, on ne mesure pas la durée du calcul mais le <b>gel</b>. Le benchmark fait battre un « métronome » : un petit signal qui doit revenir très régulièrement. Si la page est bloquée, le métronome saute des battements. Le plus long silence, c'est le gel ressenti par l'utilisateur.</p>
+
+<div class="box warn"><b>Les limites à annoncer vous-même</b>
+<ul>
+  <li>Une seule machine, un seul navigateur. Sur un autre poste, les chiffres changent ; ce sont les <b>rapports</b> qui comptent.</li>
+  <li>D'une série à l'autre, les résultats bougent (le tri numérique va de × 19 à × 28). Donnez des ordres de grandeur.</li>
+  <li>AG Grid a des options d'optimisation qui n'ont pas été activées.</li>
+  <li>Un écart sur le tri ne veut pas dire que « toute la grille » est 20 fois plus rapide.</li>
+</ul></div>
+<div class="box say"><b>À dire</b><p>« On a comparé dans les mêmes conditions, en comptant l'affichage et pas seulement le calcul, et en gardant la valeur médiane de cinq essais. N'importe qui peut relancer la mesure depuis la page de démonstration. »</p></div>
+
+<!-- 13 -->
+<h2 id="glossaire"><span class="n">13</span>Glossaire</h2>
+<div class="scroll"><table>
+  <tr><th>Mot</th><th>En clair</th></tr>
+  <tr><td><b>DOM</b></td><td>La liste de tous les éléments de la page, que le navigateur doit fabriquer et dessiner.</td></tr>
+  <tr><td><b>Fil d'exécution</b> (thread)</td><td>Un « employé » qui exécute le code, une chose à la fois.</td></tr>
+  <tr><td><b>Fil principal</b></td><td>L'employé unique de la page : il gère l'écran, les clics et le code.</td></tr>
+  <tr><td><b>Image</b> (frame)</td><td>Un dessin de l'écran. Il y en a 60 par seconde, soit 16 ms chacune.</td></tr>
+  <tr><td><b>Gel</b></td><td>Période où la page ne répond plus parce que le fil principal est occupé.</td></tr>
+  <tr><td><b>Signal</b></td><td>Une valeur qui prévient quand elle change (une cellule de tableur).</td></tr>
+  <tr><td><b>computed</b></td><td>Une valeur calculée à partir de signaux (une formule de tableur).</td></tr>
+  <tr><td><b>Zoneless</b></td><td>Angular sans <code>zone.js</code> : il ne revérifie plus toute la page à chaque événement.</td></tr>
+  <tr><td><b>CDK</b></td><td>Boîte à outils d'Angular. ng-table utilise son moteur de tableau.</td></tr>
+  <tr><td><b>valueAccessor</b></td><td>La fonction qui lit, dans une ligne, la valeur d'une colonne.</td></tr>
+  <tr><td><b>Défilement virtuel</b></td><td>Ne fabriquer que les lignes visibles.</td></tr>
+  <tr><td><b>Marge</b> (overscan)</td><td>Les quelques lignes fabriquées en plus, juste hors de l'écran.</td></tr>
+  <tr><td><b>n log n</b></td><td>Le nombre de comparaisons d'un tri classique (20 millions pour 1 million de lignes).</td></tr>
+  <tr><td><b>Tri par base</b> (radix)</td><td>Trier en rangeant dans des cases selon les chiffres, sans comparer.</td></tr>
+  <tr><td><b>Tri stable</b></td><td>Deux lignes égales gardent leur ordre de départ.</td></tr>
+  <tr><td><b>Bit</b></td><td>Une case mémoire qui vaut 0 ou 1. Un nombre en occupe 64.</td></tr>
+  <tr><td><b>Collateur</b> (<code>Intl.Collator</code>)</td><td>L'outil du navigateur qui connaît l'ordre alphabétique de chaque langue.</td></tr>
+  <tr><td><b>Rang</b></td><td>Le numéro d'ordre d'une valeur parmi les valeurs différentes.</td></tr>
+  <tr><td><b>Filtre compilé</b></td><td>Un filtre dont la saisie a été déchiffrée une fois pour toutes.</td></tr>
+  <tr><td><b>Transaction</b></td><td>Un paquet de changements : lignes ajoutées, modifiées, supprimées.</td></tr>
+  <tr><td><b>Clé de ligne</b></td><td>L'identifiant unique d'une ligne (son <code>id</code>).</td></tr>
+  <tr><td><b>Recherche dichotomique</b></td><td>Trouver une place dans une liste triée en coupant en deux à chaque essai.</td></tr>
+  <tr><td><b>Web Worker</b></td><td>Un second fil d'exécution, isolé, pour les gros calculs.</td></tr>
+  <tr><td><b>postMessage</b></td><td>L'envoi d'un message entre la page et le worker.</td></tr>
+  <tr><td><b>Transfert</b></td><td>Donner un bloc de mémoire au worker sans le copier.</td></tr>
+  <tr><td><b>Float64Array</b></td><td>Un tableau compact qui ne contient que des nombres.</td></tr>
+  <tr><td><b>Blob</b></td><td>Un fichier virtuel créé en mémoire.</td></tr>
+  <tr><td><b>Cache</b></td><td>Une réserve de résultats déjà obtenus, pour ne pas les redemander.</td></tr>
+  <tr><td><b>Benchmark</b></td><td>Une mesure comparative chronométrée.</td></tr>
+  <tr><td><b>Médiane</b></td><td>La valeur du milieu quand on range les mesures par ordre.</td></tr>
+  <tr><td><b>requestAnimationFrame</b></td><td>L'outil du navigateur qui signale « je vais dessiner une image ».</td></tr>
+</table></div>
+
+<!-- 14 -->
+<h2 id="resume"><span class="n">14</span>Tout en dix phrases</h2>
+<p>Si vous devez tout résumer, ou vous rattraper après une question difficile :</p>
+<ol>
+  <li>Une grille est lente pour deux raisons : trop d'éléments à dessiner, et des calculs qui bloquent la page.</li>
+  <li>ng-table ne dessine que les lignes visibles : une vingtaine, même sur un million.</li>
+  <li>Elle fonctionne comme un tableur : chaque étape ne se recalcule que si ses données changent.</li>
+  <li>Pour trier des nombres, elle range dans des cases au lieu de comparer : quatre passages suffisent.</li>
+  <li>Pour trier du texte, elle le transforme en nombres, et vérifie que le résultat est identique à celui du navigateur.</li>
+  <li>Un filtre est déchiffré une seule fois, pas une fois par ligne.</li>
+  <li>Quand quelques lignes changent, elle les replace une à une au lieu de tout retrier.</li>
+  <li>Les gros calculs peuvent partir dans un Web Worker : ça ne va pas plus vite, mais la page ne gèle plus.</li>
+  <li>Au-delà de ce que le navigateur peut contenir, elle demande les données au serveur par blocs.</li>
+  <li>Tout cela est mesuré face à AG Grid dans les mêmes conditions, affichage compris, et la mesure est reproductible.</li>
+</ol>
+<div class="box idea"><b>Si une question vous dépasse</b><p>« Bonne question, je préfère vérifier dans le code plutôt que de vous répondre de mémoire : je reviens vers vous. » C'est toujours mieux qu'une réponse approximative.</p></div>
+
+</main>
+</body>
+</html>

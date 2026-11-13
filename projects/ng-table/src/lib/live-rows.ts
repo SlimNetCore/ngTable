@@ -10,7 +10,8 @@
  *   trié, en O(n + k·log k) au lieu de O(n·log n) avec un appel aux accessors par
  *   comparaison. Il recalcule tout quand les filtres, le tri ou les colonnes changent.
  */
-import {buildSortOrder} from './fast-sort';
+import type {ColumnStore} from './column-store';
+import {buildSortOrder, radixSortByDigits, SortDigits} from './fast-sort';
 import {compareSortKeys, numericValue, SortLevel, sortKeysOf, SortValue} from './row-pipeline';
 
 /** Transaction sur les lignes (même forme que la `RowDataTransaction` d'AG Grid). */
@@ -261,6 +262,11 @@ export interface PipelineConfig<T> {
    * À inclure dans `deps` (une nouvelle liste recalcule tout).
    */
   sums?: readonly {id: string; value: (row: T) => unknown}[];
+  /**
+   * Colonnes de tri mises en cache d'un recalcul à l'autre (voir `ColumnStore`). Sans lui, les
+   * valeurs de tri sont relues à chaque recalcul complet.
+   */
+  columnStore?: ColumnStore<T>;
 }
 
 /** Somme et nombre de valeurs numériques d'une colonne sur le résultat. */
@@ -348,34 +354,77 @@ export class IncrementalPipeline<T> {
     this.stats.rebuilds++;
     const all = store.rows();
     const allSeqs = store.seqs();
-    const matched: T[] = [];
-    const matchedSeqs: number[] = [];
+    // Indices des lignes retenues : les lignes elles-mêmes ne sont copiées qu'une fois, dans l'ordre final.
+    const matchedIndex: number[] = [];
     for (let i = 0; i < all.length; i++) {
       if (config.matches(all[i])) {
-        matched.push(all[i]);
-        matchedSeqs.push(allSeqs[i]);
+        matchedIndex.push(i);
       }
     }
+    const pick = (order: ArrayLike<number>): void => {
+      const rows = new Array<T>(order.length);
+      const seqs = new Array<number>(order.length);
+      for (let i = 0; i < order.length; i++) {
+        rows[i] = all[order[i]];
+        seqs[i] = allSeqs[order[i]];
+      }
+      this.setResult(rows, seqs);
+    };
     if (config.levels.length === 0) {
-      this.setResult(matched, matchedSeqs);
-    } else {
+      pick(matchedIndex);
+    } else if (!this.sortByColumns(all, matchedIndex, config, pick)) {
+      const matched = new Array<T>(matchedIndex.length);
+      for (let i = 0; i < matchedIndex.length; i++) {
+        matched[i] = all[matchedIndex[i]];
+      }
       const order = buildSortOrder(matched, config.levels, config.collator);
       if (order) {
-        const rows = new Array<T>(order.length);
-        const seqs = new Array<number>(order.length);
         for (let i = 0; i < order.length; i++) {
-          rows[i] = matched[order[i]];
-          seqs[i] = matchedSeqs[order[i]];
+          order[i] = matchedIndex[order[i]];
         }
-        this.setResult(rows, seqs);
+        pick(order);
       } else {
         // Niveau qu'on ne sait pas ranger en nombres (types mêlés...) : tri par comparaisons.
-        const entries = matched.map((row, i) => ({row, seq: matchedSeqs[i], sortKeys: sortKeysOf(row, config.levels)}));
+        const entries = matched.map((row, i) => ({row, seq: allSeqs[matchedIndex[i]], sortKeys: sortKeysOf(row, config.levels)}));
         entries.sort((a, b) => this.compare(a, b, config));
         this.setResult(entries.map((entry) => entry.row), entries.map((entry) => entry.seq));
       }
     }
     this.resyncTotals(config);
+  }
+
+  /**
+   * Tri par les colonnes en cache (`config.columnStore`) : les valeurs de tri ne sont lues qu'une fois par jeu de
+   * lignes, puis chaque tri ne coûte que les passes du tri par base sur les indices retenus. Renvoie `false` quand ce
+   * chemin ne s'applique pas ; l'appelant trie alors comme avant.
+   *
+   * Une colonne absente du cache se construit pour TOUTES les lignes : quand les filtres n'en retiennent qu'une petite
+   * part, lire les seules lignes retenues coûte moins, et le cache n'est pas rempli.
+   */
+  private sortByColumns(all: readonly T[], matchedIndex: readonly number[], config: PipelineConfig<T>, pick: (order: ArrayLike<number>) => void): boolean {
+    const store = config.columnStore;
+    if (!store || matchedIndex.length < 2) {
+      return false;
+    }
+    const worthBuilding = matchedIndex.length * 2 >= all.length;
+    if (!worthBuilding && !config.levels.every((level) => store.has(all, level.column, config.collator))) {
+      return false;
+    }
+    const digits: SortDigits[] = [];
+    for (const level of config.levels) {
+      const column = store.sortDigits(all, level.column, config.collator);
+      if (!column) {
+        return false;
+      }
+      digits.push(column);
+    }
+    // Du niveau le moins important au plus important : chaque passe est stable.
+    let order: Uint32Array = Uint32Array.from(matchedIndex);
+    for (let level = digits.length - 1; level >= 0; level--) {
+      order = radixSortByDigits(order, digits[level], config.levels[level].factor < 0);
+    }
+    pick(order);
+    return true;
   }
 
   private setResult(rows: T[], seqs: number[]): void {

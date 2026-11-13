@@ -132,6 +132,59 @@ Demande du 2026-10-14 : des performances et des options comparables à [AG Grid]
 | X1 | Navigation clavier cellule par cellule (APG Grid) | Vérifié | `[cellNavigation]` ; logique dans `grid-navigation.ts` (calcul pur testé + tabindex itinérant) ; 4 tests purs + 5 tests DOM ; testée au vrai clavier dans la démo, y compris après changement de page |
 | X2 | Annonces `aria-live` sur tri/filtres | Vérifié | Région `role="status"` ; tri + nombre de lignes (local), tri seul (remote) ; message identique réannoncé ; 3 tests |
 
+## 8. Pistes d'amélioration (retenues le 2026-11-13)
+
+But : aller plus loin en performance, en rendu et en confort d'usage. Aucune de ces pistes n'est commencée. Chaque gain annoncé est une attente : il devra être mesuré dans `/benchmark` avant d'être affirmé. AG Grid Enterprise n'a jamais été mesuré, seule la version Community l'a été (G19).
+
+### 8.1 Performance
+
+| ID | Amélioration | Statut | Notes |
+|----|--------------|--------|-------|
+| H1 | Stockage en colonnes | En cours | **Fait (2026-11-13)** : colonnes de tri en cache (`column-store.ts`, branché sur le recalcul complet du pipeline), 10 tests dont l'équivalence avec `sortRows` sur 150 configurations aléatoires. **Reste** : colonnes de valeurs pour les filtres (dictionnaire pour les textes répétés), regroupement, envoi direct au worker, mise à jour par transaction au lieu de vider le cache. Cible : une colonne = un tableau compact (`Float64Array` pour nombres et dates ; pour les textes répétés, un dictionnaire et un numéro par ligne). Tri, filtre et regroupement ne rappellent plus `valueAccessor` ; l'envoi au worker devient immédiat. Base de H2 à H6 |
+| H2 | Ordre de tri mis en cache par colonne | En cours | **Fait (2026-11-13)** : le sens décroissant réutilise les chiffres du sens croissant (plus de relecture ni de reclassement). **Reste** : garder l'ordre trié lui-même, filtre de plage par dichotomie. Cible : inverser le tri sans retrier (en gardant les vides en fin de liste et la stabilité) ; filtre de plage numérique par dichotomie dans l'ordre trié. À invalider sur transaction |
+| H3 | Filtre progressif | À faire | Quand le nouveau filtre est plus strict que le précédent (« dup » → « dupo »), ne refiltrer que le résultat précédent |
+| H4 | Worker tenu à jour par transactions | À faire | Aujourd'hui les colonnes sont renvoyées quand les données changent : envoyer les transactions rendrait `[workerCompute]` utile en mode live |
+| H5 | Tri et filtre sur plusieurs workers | À faire | Découpage de la liste, tri en parallèle, fusion. `SharedArrayBuffer` seulement si la page est isolée (COOP / COEP), sinon tampons transférés |
+| H6 | Regroupement, agrégats et pivot dans le worker | À faire | Aujourd'hui seuls tri, filtres et recherche y passent |
+| H7 | Blocs : préchargement et annulation | À faire | Précharger le bloc suivant dans le sens du défilement ; passer un `AbortSignal` à `getRows` pour annuler les demandes devenues inutiles (le pivot serveur le fait déjà) |
+| H8 | Blocs : pagination par clé | À faire | Option de requête « après la dernière clé vue », à côté de `startRow` : un décalage profond est lent sur beaucoup de bases. Ne couvre pas le saut direct au milieu, qui garde `startRow` |
+| H9 | Hauteurs de ligne variables en défilement virtuel | À faire | Positions par sommes cumulées (arbre de Fenwick) : position d'une ligne et ligne à une position en O(log n) |
+| H10 | Calcul découpé en tranches sur le fil principal | À faire | Rendre la main entre deux tranches (`scheduler.postTask` / `scheduler.yield`, avec repli) : page réactive sans worker |
+| H11 | Benchmark en intégration continue | À faire | Scénarios de `/benchmark` rejoués avec Playwright, seuils de régression |
+| H12 | Mesurer face à AG Grid Enterprise | À faire | Demande une licence d'essai ; ajouter regroupement, pivot et modèle serveur aux scénarios |
+
+### 8.2 Fonctions
+
+| ID | Amélioration | Statut | Notes |
+|----|--------------|--------|-------|
+| H13 | Regroupement multi-niveaux et arbre chargés à la demande côté serveur | À faire | Un seul niveau en `remote` aujourd'hui (G23) ; pas de regroupement avec `[remoteDatasource]` |
+| H14 | Constructeur de filtres avancés (ET / OU, groupes de conditions) | À faire | |
+| H15 | Poignée de recopie façon Excel | À faire | S'appuie sur `[rangeSelection]` et l'historique d'édition (G10, G11) |
+
+### 8.3 Visuel
+
+| ID | Amélioration | Statut | Notes |
+|----|--------------|--------|-------|
+| V1 | Mise en forme conditionnelle | À faire | Barres de données, dégradé de couleur, pastilles ; jamais la couleur seule (G34) |
+| V2 | Cellules prêtes à l'emploi | À faire | Badge, barre de progression, avatar, lien, note |
+| V3 | Surlignage du texte trouvé par la recherche globale | À faire | |
+| V4 | Ajustement automatique d'une colonne (double-clic sur la bordure) | À faire | |
+| V5 | Animation des lignes au tri | À faire | À couper sous `prefers-reduced-motion` et en défilement virtuel sur gros volumes |
+| V6 | En-tête de groupe collant pendant le défilement | À faire | |
+| V7 | Repères dans la barre de défilement (lignes sélectionnées, en erreur) | À faire | |
+| V8 | État vide illustré avec action (« effacer les filtres ») | À faire | |
+| V9 | Feuille de style d'impression | À faire | |
+
+### 8.4 Autres
+
+| ID | Amélioration | Statut | Notes |
+|----|--------------|--------|-------|
+| Z1 | Paquet plus léger | À faire | Pivot, graphiques et export Excel dans des points d'entrée secondaires (comme `router` et `testing`). Cassant : version majeure |
+| Z2 | Bac à sable de thème dans la documentation | À faire | Réglage des jetons `--ngt-*` en direct, copie du CSS |
+| Z3 | Rendu côté serveur vérifié et documenté | À faire | Suite de A4 |
+| Z4 | Campagne NVDA / VoiceOver, relecture es / de / ar | À faire | Restes de G29 et G32 |
+| Z5 | Schémas `ng update` pour les changements d'API | À faire | |
+
 ## Journal
 
 - **2026-09-25** — Création de la feuille de route. Phase 1 (outillage) écrite, plus les points à faible risque D2, D4, P3, A3, A4. En attente du point de contrôle C1 avant les refontes (A1, P1, P2, D1...).
@@ -178,3 +231,5 @@ Demande du 2026-10-14 : des performances et des options comparables à [AG Grid]
 - **2026-10-14** — G15 fait, puis G17 complété : pivot serveur (le serveur agrège, la table annule les requêtes périmées), pivot composé par glisser-déposer, zoom et réduction des points des graphiques.
 - **2026-10-14** — Passe de performances : la mesure a précédé chaque optimisation. Les plus gros gains viennent de ne plus lire la saisie d'un filtre à chaque ligne, et de remplacer le tri par comparateur par un tri par base sur des clés numériques. Les clés de tri de texte sont vérifiées contre `Intl.Collator` avant usage plutôt que supposées : si l'ICU de l'environnement diffère, on garde le collateur.
 - **2026-10-15** — Pivot à plusieurs champs en colonnes, glisser depuis les en-têtes de `ng-table`, et branchement de tout (pivot, édition, flux live SSE, arbre, mini-graphiques) sur le backend Spring Boot, vérifié de bout en bout dans le navigateur contre un vrai serveur. Un bogue a été trouvé en route : les paquets `quotes` et `dossiers` n'étaient pas analysés par Spring tant que `CommandesApplication` restait dans `com.example.commandes`.
+- **2026-11-13** — Section 8 ajoutée : pistes d'amélioration retenues (performance H1 à H12, fonctions H13 à H15, visuel V1 à V9, autres Z1 à Z5), toutes « À faire ». Ordre proposé : H1 puis H2, dont dépendent H3 à H6. Vérifié dans le code avant d'inscrire : annuler / rétablir (G10) et l'ombre des colonnes figées existent déjà, ils ne sont donc pas repris.
+- **2026-11-13** — Branche `feat/stockage-colonnes`. H1, première étape : colonnes de tri en cache. Mesure avant / après sur 200 000 lignes (Node) : premier tri inchangé (279 / 233 ms en texte, 32 / 37 ms en nombres), tris suivants de 2 à 17 fois plus rapides (inversion d'un tri de texte 196 → 32 ms, retour à une colonne déjà triée 316 → 18 ms). Le banc `/benchmark` ne mesure que des premiers tris : ses chiffres ne devraient pas bouger.

@@ -251,17 +251,28 @@ function rankByKeys(values: (string | null)[], factor: number, keyOf: (text: str
   return keys;
 }
 
+/** Clés de tri d'une colonne sous la forme que lit le tri par base : deux moitiés de 32 bits par ligne. */
+export interface SortDigits {
+  /** 32 bits de poids fort de chaque clé, transformés pour se trier comme des entiers non signés. */
+  hi: Uint32Array;
+  /** 32 bits de poids faible. */
+  lo: Uint32Array;
+  /** Nombre de cellules vides (clé `+Infinity`). */
+  empties: number;
+}
+
+/** Moitié haute de la clé d'une cellule vide (`+Infinity`) ; sa moitié basse vaut 0. */
+const EMPTY_HI = 0xfff00000;
+
 /**
- * Trie `order` (indices) par `keys` croissant, de façon stable, par un tri par base sur les 64 bits
- * des nombres (4 passes de 16 bits ; une passe où tous les chiffres sont égaux est sautée).
- * Modifie et renvoie `order`.
+ * Nombres → entiers de 64 bits qui se trient comme eux (bit de signe, puis complément si négatif).
+ * Calculé une fois par colonne, puis réutilisable pour tous les tris, dans les deux sens.
  */
-export function radixSortByKeys(order: Uint32Array, keys: Float64Array): Uint32Array {
-  const count = order.length;
-  // Nombres → entiers de 64 bits qui se trient comme eux (bit de signe, puis complément si négatif).
+export function sortDigits(keys: Float64Array): SortDigits {
   const words = new Uint32Array(keys.buffer, keys.byteOffset, keys.length * 2);
   const hi = new Uint32Array(keys.length);
   const lo = new Uint32Array(keys.length);
+  let empties = 0;
   for (let i = 0; i < keys.length; i++) {
     const high = words[2 * i + 1];
     const low = words[2 * i];
@@ -271,34 +282,87 @@ export function radixSortByKeys(order: Uint32Array, keys: Float64Array): Uint32A
     } else {
       hi[i] = (high | 0x80000000) >>> 0;
       lo[i] = low;
+      if (hi[i] === EMPTY_HI && low === 0) {
+        empties++;
+      }
+    }
+  }
+  return {hi, lo, empties};
+}
+
+/**
+ * Trie `order` (indices) par `keys` croissant, de façon stable, par un tri par base sur les 64 bits
+ * des nombres (4 passes de 16 bits ; une passe où tous les chiffres sont égaux est sautée).
+ * Modifie et renvoie `order`.
+ */
+export function radixSortByKeys(order: Uint32Array, keys: Float64Array): Uint32Array {
+  return radixSortByDigits(order, sortDigits(keys), false);
+}
+
+/**
+ * Trie `order` (indices dans les colonnes de `digits`) de façon stable. `order` peut ne désigner
+ * qu'une partie des lignes (celles qui passent les filtres).
+ *
+ * En sens décroissant, les mêmes chiffres servent : chaque chiffre est lu en complément (l'ordre des
+ * entiers s'inverse), et les cellules vides sont mises de côté pour rester en fin de liste.
+ * Le tableau `order` reçu peut être modifié ; le résultat est le tableau renvoyé.
+ */
+export function radixSortByDigits(order: Uint32Array, digits: SortDigits, descending: boolean): Uint32Array {
+  const {hi, lo} = digits;
+  let source: Uint32Array = order;
+  let tail: Uint32Array | null = null;
+  if (descending && digits.empties > 0) {
+    // Partage stable : lignes renseignées d'abord, vides ensuite, chacune dans l'ordre reçu.
+    const present = new Uint32Array(order.length);
+    const empty = new Uint32Array(Math.min(order.length, digits.empties));
+    let presentCount = 0;
+    let emptyCount = 0;
+    for (const index of order) {
+      if (hi[index] === EMPTY_HI && lo[index] === 0) {
+        empty[emptyCount++] = index;
+      } else {
+        present[presentCount++] = index;
+      }
+    }
+    source = present.subarray(0, presentCount);
+    tail = empty.subarray(0, emptyCount);
+  }
+
+  const count = source.length;
+  if (count > 1) {
+    const flip = descending ? 0xffff : 0;
+    let target: Uint32Array = new Uint32Array(count);
+    const histogram = new Uint32Array(65536);
+    for (const [column, shift] of [[lo, 0], [lo, 16], [hi, 0], [hi, 16]] as const) {
+      histogram.fill(0);
+      for (let i = 0; i < count; i++) {
+        histogram[((column[source[i]] >>> shift) & 0xffff) ^ flip]++;
+      }
+      // Tous les éléments dans le même seau : la passe ne changerait rien.
+      if (histogram[((column[source[0]] >>> shift) & 0xffff) ^ flip] === count) {
+        continue;
+      }
+      let sum = 0;
+      for (let bucket = 0; bucket < 65536; bucket++) {
+        const size = histogram[bucket];
+        histogram[bucket] = sum;
+        sum += size;
+      }
+      for (let i = 0; i < count; i++) {
+        const index = source[i];
+        target[histogram[((column[index] >>> shift) & 0xffff) ^ flip]++] = index;
+      }
+      [source, target] = [target, source];
     }
   }
 
-  let source: Uint32Array = order;
-  let target: Uint32Array = new Uint32Array(count);
-  const histogram = new Uint32Array(65536);
-  for (const [digits, shift] of [[lo, 0], [lo, 16], [hi, 0], [hi, 16]] as const) {
-    histogram.fill(0);
-    for (let i = 0; i < count; i++) {
-      histogram[(digits[source[i]] >>> shift) & 0xffff]++;
-    }
-    // Tous les éléments dans le même seau : la passe ne changerait rien.
-    if (histogram[(digits[source[0]] >>> shift) & 0xffff] === count) {
-      continue;
-    }
-    let sum = 0;
-    for (let bucket = 0; bucket < 65536; bucket++) {
-      const size = histogram[bucket];
-      histogram[bucket] = sum;
-      sum += size;
-    }
-    for (let i = 0; i < count; i++) {
-      const index = source[i];
-      target[histogram[(digits[index] >>> shift) & 0xffff]++] = index;
-    }
-    [source, target] = [target, source];
+  if (!tail || tail.length === 0) {
+    return source;
   }
-  return source;
+  const result = new Uint32Array(count + tail.length);
+  result.set(source);
+  result.set(tail, count);
+  return result;
 }
 
 /**
