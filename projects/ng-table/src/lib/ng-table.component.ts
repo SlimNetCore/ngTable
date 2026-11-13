@@ -50,6 +50,9 @@ import {generateViewId, loadViewsStore, mergeViewsStores, parseViewsStore, saveV
 import {NgTableTheme} from './theme';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {ColumnStore} from './column-store';
+import {computeVariableLayout, HeightIndex, mostCommonHeight, variableScrollTop} from './row-heights';
+import {NgTableCellFormat, NgTableValueRange, valueRange} from './cell-format';
+import {NgTableCellFormatComponent} from './ng-table-cell-format.component';
 import {highlightParts, NgTableTextPart} from './search-highlight';
 import {compileFilters, compileIndexFilters, filtersNarrow, searchNarrows} from './filter-compile';
 import {searchText, SortLevel} from './row-pipeline';
@@ -65,7 +68,7 @@ import {
 } from './virtual-window';
 import {buildCellView, buildRowViews, copyText, NgTableCellView, NgTableRowClasses} from './row-view';
 import {distinctSetValues, parseSetFilter, SetFilterValue} from './set-filter';
-import {IncrementalPipeline, NgTableRowTransaction, NgTableTransactionResult, RowStore, RowUpdate} from './live-rows';
+import {IncrementalPipeline, NgTableRowTransaction, NgTableTransactionResult, RowsDelta, rowsPatch, RowStore, RowUpdate} from './live-rows';
 
 /** Élément de la source de données de la table : une ligne, un en-tête de groupe ou un espacement. */
 import {BlockCache, NgTableLoadingRow} from './block-cache';
@@ -432,6 +435,12 @@ export interface NgTableColumn<T> {
    */
   sparkline?: NgTableSparklineOptions;
   /**
+   * Cellule prête à l'emploi ou mise en forme conditionnelle, sans `cellTemplate` : pastille (`badge`), barre de
+   * progression (`progress`), note (`rating`), lien (`link`), avatar (`avatar`), barre de données (`dataBar`),
+   * dégradé de couleur (`colorScale`). Un `cellTemplate` garde la priorité.
+   */
+  cell?: NgTableCellFormat<T>;
+  /**
    * Cellule modifiable : `true`, ou une fonction par ligne. Double-clic, Entrée ou F2 (avec
    * `[cellNavigation]`), ou simplement taper un caractère ouvre l'éditeur. Sans
    * `valueSetter`, la table n'émet que `(cellEdited)` : c'est à vous de modifier vos données.
@@ -608,6 +617,7 @@ export interface NgTableViewsImportEvent {
     DynamicFilterHostComponent,
     TruncateTooltipDirective,
     NgTableSparklineComponent,
+    NgTableCellFormatComponent,
   ],
   templateUrl: './ng-table.component.html',
   styleUrls: ['./theme.css', './buttons.css', './ng-table.component.css'],
@@ -1500,6 +1510,8 @@ export class NgTableComponent<T = any> implements OnDestroy {
     levels: readonly SortLevel<T>[];
     haystacks: unknown;
   } | null = null;
+  /** Lignes (et leur ordre d'arrivée) vues au dernier passage : une transaction se décrit par rapport à elles. */
+  private workerBase: {rows: readonly T[]; seqs: readonly number[]} | null = null;
   private readonly workerResult = signal<{rows: T[]} | null>(null);
   protected readonly workerBusy = signal(false);
   /** Le worker a échoué (CSP, plantage) : le tri et les filtres reviennent sur le fil principal. */
@@ -1534,7 +1546,13 @@ export class NgTableComponent<T = any> implements OnDestroy {
   ): T[] {
     const source = this.sourceRows();
     const result = this.workerResult();
-    store.drain(); // le pipeline incrémental n'est pas lu : ses changements en attente ne s'accumulent pas
+    // Le pipeline incrémental n'est pas lu. Ses changements en attente servent à décrire au worker ce qui a changé
+    // depuis le tableau précédent (transaction du mode live), pour qu'il retouche ses colonnes au lieu de tout recevoir.
+    const changes = store.drain();
+    const base = this.workerBase;
+    const delta = base && base.rows !== source && !changes.reset && changes.keys.size > 0 ? rowsPatch(store, changes.keys, base.seqs) : null;
+    const patch = base && delta ? {from: base.rows, ...delta} : undefined;
+    this.workerBase = {rows: source, seqs: store.seqs()};
     this.pipelineStale = true;
     if (filterColumns.length === 0 && levels.length === 0 && !haystacks) {
       return source; // rien à calculer : l'ordre d'arrivée
@@ -1551,7 +1569,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       last.levels.every((level, index) => level.column === levels[index].column && level.factor === levels[index].factor);
     if (!same) {
       this.workerRequested = {source, filters, filterColumns, levels, haystacks};
-      queueMicrotask(() => this.startWorkerJob(source, filterColumns, filters, levels, terms, haystacks));
+      queueMicrotask(() => this.startWorkerJob(source, filterColumns, filters, levels, terms, haystacks, patch));
     }
     return result?.rows ?? [];
   }
@@ -1563,6 +1581,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     levels: SortLevel<T>[],
     terms: string[],
     haystacks: {columns: NgTableColumn<T>[]; cache: WeakMap<object, string>} | null,
+    patch?: RowsDelta<T> & {from: readonly T[]},
   ): void {
     const client = (this.computeClient ??= new ComputeWorkerClient(this.computeWorkerFactory() ?? createDefaultComputeWorker));
     this.workerBusy.set(true);
@@ -1573,7 +1592,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
         levels,
         search: haystacks ? {terms, source: haystacks, read: (row: T) => this.searchHaystack(row, haystacks)} : null,
         collator: {options: {numeric: true, sensitivity: 'base'}},
-      })
+      }, patch)
       .then(({order, job}) => {
         if (!client.isLatest(job)) {
           return; // une demande plus récente est en cours
@@ -1993,11 +2012,63 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * défiler de quelques pixels ne recrée pas la source de données de la table.
    */
   /** Tranche rendue et hauteurs des espacements (barre comprimée au-delà de `MAX_SCROLL_HEIGHT`). */
-  private readonly virtualLayout: Signal<VirtualLayout | null> = computed<VirtualLayout | null>(() =>
-    this.virtualActive()
-      ? computeVirtualLayout(this.virtualCount(), this.scrollTop(), this.viewportHeight(), this.rowHeight())
-      : null,
+  private readonly virtualLayout: Signal<VirtualLayout | null> = computed<VirtualLayout | null>(() => {
+    if (!this.virtualActive()) {
+      return null;
+    }
+    const heights = this.rowHeights();
+    if (heights) {
+      this.rowHeightsVersion();
+      return computeVariableLayout(heights, this.scrollTop(), this.viewportHeight());
+    }
+    return computeVirtualLayout(this.virtualCount(), this.scrollTop(), this.viewportHeight(), this.rowHeight());
+  });
+
+  /**
+   * Hauteurs mesurées des lignes rendues (détail déplié, texte sur plusieurs lignes, en-tête de groupe) : les lignes
+   * pas encore vues gardent la hauteur estimée. Repart de zéro quand la liste affichée change (tri, filtre, données) :
+   * les mesures sont rattachées à des positions, qui ne désignent alors plus les mêmes lignes. Pas en modèle par blocs.
+   */
+  private readonly rowHeights = computed(() =>
+    this.virtualActive() && !this.blockMode() ? new HeightIndex(this.pageItems().length, this.rowHeight()) : null,
   );
+  /** Incrémenté quand une mesure modifie `rowHeights` (l'objet, lui, ne change pas). */
+  private readonly rowHeightsVersion = signal(0);
+
+  /**
+   * Mesure les éléments rendus du corps (une ligne de données ou de groupe, avec la ligne détail qui la suit) et
+   * retient leurs hauteurs. Renvoie la hauteur la plus fréquente : c'est l'estimation des lignes pas encore vues, et
+   * elle ne doit pas changer selon que la première ligne rendue est haute ou non.
+   */
+  private measureRowHeights(wrap: HTMLElement, range: VirtualRange | null): number {
+    const measured: number[] = [];
+    let current = -1;
+    for (const row of wrap.querySelectorAll<HTMLElement>('tbody > tr')) {
+      if (row.classList.contains('spacer-row') || row.hasAttribute('data-ngt-pin')) {
+        continue;
+      }
+      const height = row.getBoundingClientRect().height;
+      if (row.classList.contains('data-row') || row.classList.contains('group-row') || row.classList.contains('loading-row')) {
+        measured.push(height);
+        current = measured.length - 1;
+      } else if (current >= 0) {
+        measured[current] += height; // ligne détail, actions mobiles : avec la ligne qui précède
+      }
+    }
+    const usual = mostCommonHeight(measured);
+    const heights = this.rowHeights();
+    // Les mesures ne valent que si la tranche rendue est bien celle attendue, et l'estimation à jour.
+    if (heights && range && measured.length === range.end - range.start && Math.abs(usual - heights.defaultHeight) <= 0.5) {
+      let changed = false;
+      for (let i = 0; i < measured.length; i++) {
+        changed = heights.set(range.start + i, measured[i]) || changed;
+      }
+      if (changed) {
+        this.rowHeightsVersion.update((version) => version + 1);
+      }
+    }
+    return usual;
+  }
 
   private readonly virtualRange: Signal<VirtualRange | null> = computed<VirtualRange | null>(
     () => {
@@ -2025,7 +2096,10 @@ export class NgTableComponent<T = any> implements OnDestroy {
     if (!this.virtualActive() || !wrap) {
       return;
     }
-    const top = scrollTopForIndex(index, this.virtualCount(), this.viewportHeight(), this.rowHeight());
+    const heights = this.rowHeights();
+    const top =
+      (heights ? variableScrollTop(heights, index) : null) ??
+      scrollTopForIndex(index, this.virtualCount(), this.viewportHeight(), this.rowHeight());
     wrap.scrollTop = top;
     this.scrollTop.set(top);
   }
@@ -2587,11 +2661,31 @@ export class NgTableComponent<T = any> implements OnDestroy {
         if (wrap.clientHeight !== this.viewportHeight()) {
           this.viewportHeight.set(wrap.clientHeight);
         }
-        const height = wrap.querySelector('tr.data-row')?.getBoundingClientRect().height ?? 0;
+        const height = this.virtualActive()
+          ? this.measureRowHeights(wrap, this.virtualRange())
+          : (wrap.querySelector('tr.data-row')?.getBoundingClientRect().height ?? 0);
         if (height > 0 && Math.abs(height - this.rowHeight()) > 0.5) {
           this.rowHeight.set(height);
         }
       });
+    });
+
+    // Défilement virtuel : une ligne peut changer de hauteur sans que la liste rendue change (détail déplié ou
+    // replié, texte qui passe à la ligne, image chargée). La hauteur du tableau change alors : on remesure.
+    effect((onCleanup) => {
+      const table = this.tableElement()?.nativeElement;
+      const wrap = this.tableWrapElement()?.nativeElement;
+      if (!table || !wrap || !this.virtualActive() || this.blockMode() || typeof ResizeObserver === 'undefined') {
+        return;
+      }
+      const observer = new ResizeObserver(() => {
+        const height = this.measureRowHeights(wrap, untracked(() => this.virtualRange()));
+        if (height > 0 && Math.abs(height - untracked(() => this.rowHeight())) > 0.5) {
+          this.rowHeight.set(height);
+        }
+      });
+      observer.observe(table);
+      onCleanup(() => observer.disconnect());
     });
 
     // Changer de colonne de regroupement déplie tout et revient en page 0 (pas au
@@ -5200,6 +5294,31 @@ export class NgTableComponent<T = any> implements OnDestroy {
     }
 
     return this.internalExpandedKeys().has(key);
+  }
+
+  /**
+   * Étendue (minimum, maximum) des colonnes en barre de données ou en dégradé sans bornes fixes : mesurée sur les
+   * lignes filtrées en mode local, sur les lignes reçues en mode `remote`. Recalculée quand ces lignes changent.
+   */
+  private readonly cellFormatRanges = computed(() => {
+    const ranges = new Map<string, NgTableValueRange | null>();
+    const columns = this.columns().filter(
+      (column) =>
+        (column.cell?.type === 'dataBar' || column.cell?.type === 'colorScale') && (column.cell.min === undefined || column.cell.max === undefined),
+    );
+    if (columns.length === 0) {
+      return ranges;
+    }
+    const rows = this.dataMode() === 'local' ? this.filteredSortedRows() : this.rows();
+    for (const column of columns) {
+      const accessor = column.valueAccessor;
+      ranges.set(column.id, valueRange({[Symbol.iterator]: function* () { for (const row of rows) { yield accessor(row); } }}));
+    }
+    return ranges;
+  });
+
+  protected cellFormatRange(column: NgTableColumn<T>): NgTableValueRange | null {
+    return this.cellFormatRanges().get(column.id) ?? null;
   }
 
   /** Mots de la recherche globale à surligner dans les cellules (vide : rien à surligner). */

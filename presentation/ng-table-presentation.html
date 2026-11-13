@@ -275,7 +275,7 @@ début = premier − 8
 fin   = premier + visibles + 8</pre>
         <ul>
           <li>Deux lignes d'espacement donnent à la barre de défilement la hauteur de la liste complète.</li>
-          <li>La hauteur de ligne est <b>mesurée</b> sur la première ligne rendue (densité, thème).</li>
+          <li>Les hauteurs sont <b>mesurées</b> : une ligne plus haute (détail déplié, texte sur plusieurs lignes) est retenue, et les positions se lisent dans un arbre de sous-totaux.</li>
           <li>Au-delà de 15 millions de pixels, la barre est <b>comprimée</b> : les navigateurs plafonnent la hauteur d'un élément.</li>
           <li>Même principe en largeur : <code>[virtualColumns]</code>, marge de 300 px.</li>
         </ul>
@@ -285,7 +285,7 @@ fin   = premier + visibles + 8</pre>
   <aside class="notes">
     <p><b>Principe :</b> on ne crée que les lignes de la zone visible, plus 8 lignes de marge de chaque côté pour que le défilement reste fluide et que le focus clavier ait toujours une ligne voisine. Au-dessus et au-dessous, une ligne vide dont la hauteur vaut « nombre de lignes non rendues × hauteur de ligne ».</p>
     <p><b>La formule</b> est dans <code>virtual-window.ts</code> (<code>computeVirtualRange</code>) : une division et quelques bornes. Fonction pure, testée seule.</p>
-    <p><b>Contrainte à connaître :</b> les lignes doivent avoir une hauteur uniforme. Une ligne détail dépliée ou du texte sur plusieurs lignes décalent légèrement la position.</p>
+    <p><b>Hauteurs différentes (ajout récent) :</b> la formule ci-dessus vaut tant que toutes les lignes ont la même hauteur. Dès qu'une ligne rendue s'en écarte, la grille retient l'écart et calcule les positions avec un arbre de Fenwick (des sous-totaux : une position se lit en une vingtaine d'opérations sur un million de lignes, <code>row-heights.ts</code>). Limites : une ligne jamais affichée n'est qu'estimée ; les mesures sont oubliées quand la liste change ; pas en mode blocs ni quand la barre est comprimée.</p>
     <p><b>La compression</b> (question fréquente des experts) : Chrome plafonne un élément à environ 33 millions de px, Firefox à 17,9 millions. Un million de lignes de 48 px fait 48 millions de px : la fin serait inatteignable. Au-delà de 15 millions, la position de la barre est convertie proportionnellement en position réelle (<code>scrollRatio</code>). AG Grid fait la même chose.</p>
     <p><b>Colonnes :</b> avec 100 colonnes, seules celles de la zone visible (plus 300 px de marge) sont rendues ; les colonnes épinglées le sont toujours.</p>
     <p><b>Modèle serveur par blocs</b> (si on vous le demande) : même fenêtre, mais les lignes viennent du serveur par blocs de 100. Cache de 50 blocs, les moins récemment affichés sont oubliés (LRU), 2 requêtes simultanées au plus ; un numéro de « génération » fait ignorer les réponses arrivées après un changement de tri ou de filtre.</p>
@@ -418,6 +418,7 @@ pour chaque ligne :
     <p><b>Dictionnaire :</b> liste des valeurs distinctes + un numéro par ligne (2 octets). Limité à 4 096 valeurs distinctes ; une colonne de références uniques reste filtrée ligne par ligne.</p>
     <p><b>Filtre plus strict :</b> la grille ne prend le raccourci que si elle est sûre (saisie de texte prolongée, filtre ajouté, mot ajouté à la recherche). « 1 » puis « 12 » sur des nombres n'est pas plus strict : calcul complet. Vérifié sur 3 000 couples de filtres aléatoires.</p>
     <p><b>Honnêteté :</b> le premier tri ne gagne rien, donc le benchmark face à AG Grid (qui ne mesure que des premiers tris) ne change pas. Les chiffres du tableau viennent d'un test Node, médiane de 5 passages : ordre de grandeur, pas valeur exacte. Mode live : le cache est vidé à chaque transaction, ni gain ni perte.</p>
+    <p><b>Cellules prêtes à l'emploi :</b> <code>cell: {type: 'badge' | 'avatar' | 'link' | 'progress' | 'rating' | 'dataBar' | 'colorScale'}</code> sur une colonne, sans gabarit. À montrer en démonstration : page Simple, second tableau.</p>
     <p><b>Aussi ajouté :</b> surlignage du texte trouvé (<code>[highlightSearch]</code>), état vide avec bouton « réinitialiser les filtres », feuille de style d'impression ; modèle par blocs : demandes annulables (<code>AbortSignal</code>) et chargement d'avance (<code>[prefetchBlocks]</code>).</p>
   </aside>
 </section>
@@ -542,7 +543,7 @@ pour chaque ligne :
         </ul>
         <h3>Quand s'en passer</h3>
         <ul>
-          <li><b>Flux live</b> : chaque transaction recalcule tout dans le worker ; la fusion incrémentale du fil principal est bien meilleure</li>
+          <li><b>Flux live</b> : le worker ne reçoit plus que les lignes modifiées, mais retrie tout à chaque lot ; sur des listes moyennes, la fusion du fil principal reste meilleure</li>
           <li>Données arborescentes, filtre à fonction sur mesure (<code>filterPredicate</code>) : calcul sur le fil principal</li>
           <li>Petits volumes : le coût du message dépasse le gain</li>
         </ul>
@@ -553,7 +554,7 @@ pour chaque ligne :
     <p><b>C'est la nuance qui montre qu'on maîtrise le sujet.</b> Un worker n'accélère pas un algorithme. Ce qu'on mesure, c'est le <b>gel</b> : la plus longue période pendant laquelle le fil principal ne répond pas.</p>
     <p><b>Lecture du tableau :</b> sans worker, un tri de texte d'un million de lignes gèle la page 1 à 2,5 s. Avec worker, le gel tombe à l'extraction de la colonne (≈ 155 ms la première fois) puis à la reconstitution (≈ 80 ms) ; les fois suivantes, seulement ≈ 80 ms.</p>
     <p><b>Honnêteté :</b> ces coûts ont été mesurés sous Node sur le poste de développement. Le banc « Calcul en Web Worker » de la page <code>/benchmark</code> mesure le gel avec et sans worker dans le navigateur ; je n'ai pas encore de relevé publié fait dans un Chrome visible. Si la question vient, dites-le tel quel et proposez de le lancer en direct.</p>
-    <p><b>Pourquoi pas pour le live :</b> le worker ne connaît que des colonnes figées. À chaque transaction il faudrait renvoyer les colonnes et tout recalculer. Sur le fil principal, la fusion incrémentale traite 1 000 mises à jour sur un million de lignes en quelques millisecondes.</p>
+    <p><b>Et le live ?</b> Avant, chaque transaction renvoyait toutes les colonnes au worker (relecture du million de lignes sur le fil principal). Depuis l'ajout récent, la grille envoie une <b>retouche</b> : valeurs des lignes modifiées, indices des lignes retirées, lignes ajoutées ; le worker corrige ses colonnes. Il refait ensuite tri et filtre en entier, hors du fil principal. Sur le fil principal, la fusion incrémentale reste imbattable pour 1 000 mises à jour (quelques millisecondes). Le gain de la retouche n'a pas été chronométré dans un navigateur.</p>
     <p><b>Seuil :</b> <code>[workerThreshold]</code>, 100 000 lignes par défaut. <code>(computing)</code> émet le début et la fin du calcul pour afficher un indicateur.</p>
   </aside>
 </section>
@@ -756,10 +757,10 @@ résultat = médiane(temps);</pre>
     <div class="cols c2">
       <div>
         <ul>
-          <li><b>Défilement virtuel</b> : lignes de hauteur uniforme. Un détail déplié ou du texte sur plusieurs lignes décale un peu la position.</li>
+          <li><b>Défilement virtuel</b> : hauteurs différentes gérées, mais une ligne jamais affichée n'est qu'estimée ; lignes uniformes supposées en mode blocs et au-delà de 15 M px.</li>
           <li><b>Modèle serveur par blocs</b> : pas de regroupement ni de paginateur ; sélection et clavier portent sur les lignes chargées.</li>
           <li><b>Colonnes virtuelles</b> : la navigation clavier ne parcourt que les colonnes rendues.</li>
-          <li><b>Worker</b> : pas pour les arbres, les filtres à fonction, ni les flux live.</li>
+          <li><b>Worker</b> : pas pour les arbres ni les filtres à fonction ; en flux live, il retrie tout à chaque lot.</li>
         </ul>
       </div>
       <div>
@@ -774,7 +775,7 @@ résultat = médiane(temps);</pre>
   </div>
   <aside class="notes">
     <p><b>Posture :</b> une bibliothèque sérieuse connaît ses limites. Chacune de celles-ci est documentée dans le README.</p>
-    <p><b>Sur la hauteur uniforme :</b> c'est le compromis classique de la virtualisation simple ; gérer des hauteurs variables demande de mesurer et de mémoriser la hauteur de chaque ligne.</p>
+    <p><b>Sur les hauteurs :</b> la grille mesure et mémorise la hauteur des lignes rendues qui s'écartent de la hauteur habituelle. Ce qui reste estimé, ce sont les lignes jamais affichées.</p>
     <p><b>Sur le texte accentué :</b> le résultat est correct, c'est seulement la voie rapide qui ne s'applique pas. Les valeurs peu nombreuses (statuts, pays) restent rapides grâce aux rangs.</p>
     <p><b>Feuille de route</b> (<code>ROADMAP.md</code>) : gardez deux ou trois priorités en tête pour répondre à « et ensuite ? » : tests manuels d'accessibilité, mesures worker en conditions réelles, poursuite du découpage du composant.</p>
   </aside>

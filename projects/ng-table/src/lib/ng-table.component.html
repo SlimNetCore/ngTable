@@ -729,6 +729,7 @@
                      [attr.aria-label]="column.header" [checked]="!!cell.value" class="ngt-inline-check" type="checkbox"/>
             }
             <div class="cell-content" [class.cell-content--hidden]="isEditing(row, column) || isInlineCheckbox(row, column)"
+                 [class.cell-content--fill]="column.cell?.type === 'dataBar' || column.cell?.type === 'colorScale' || column.cell?.type === 'progress'"
                  [class.cell-content--wrap]="column.textOverflow === 'wrap'">
               @if (treeActive() && column.id === leadColumnId()) {
                 <span [style.width.px]="treeDepth(row) * treeIndent()" aria-hidden="true" class="ngt-tree-indent"></span>
@@ -750,6 +751,9 @@
                       [class.cell-text--wrap]="column.textOverflow === 'wrap'">
                   <ng-container *ngTemplateOutlet="column.cellTemplate; context: cell.context" />
                 </span>
+              } @else if (column.cell; as format) {
+                <ng-table-cell-format [format]="format" [label]="column.header" [range]="cellFormatRange(column)" [ratingLabel]="effectiveLabels().ratingLabel"
+                                      [row]="row" [text]="cell.text" [value]="cell.value"/>
               } @else if (column.textOverflow === 'wrap') {
                 <span class="cell-text cell-text--wrap">
                   @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {

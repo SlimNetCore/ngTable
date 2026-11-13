@@ -2461,3 +2461,13 @@ ng-table:dir(rtl) {
     text-decoration: underline;
   }
 }
+
+/* Barre de données, dégradé, progression : la mise en forme occupe toute la largeur de la cellule. */
+.cell-content--fill {
+  display: flex;
+  width: 100%;
+}
+
+.cell-content--fill > ng-table-cell-format {
+  flex: 1 1 auto;
+}

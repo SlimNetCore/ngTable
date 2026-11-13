@@ -47,9 +47,26 @@ export interface WorkerRequest {
   collator: {locale?: string; options?: Intl.CollatorOptions};
 }
 
+/**
+ * Retouche d'un jeu de données déjà envoyé (transaction du mode live) : au lieu de renvoyer toutes les colonnes, le fil
+ * principal n'envoie que ce qui a changé. Les indices sont ceux d'AVANT la retouche ; l'ordre d'application est :
+ * mises à jour sur place, retraits (les lignes suivantes remontent), puis ajouts en fin de liste.
+ */
+export interface WorkerPatch {
+  /** Nombre de lignes après la retouche (contrôle de cohérence). */
+  count: number;
+  /** Indices des lignes mises à jour. */
+  updated: Uint32Array;
+  /** Indices des lignes retirées, croissants. */
+  removed: Uint32Array;
+  /** Par colonne envoyée : nouvelles valeurs des lignes mises à jour (même ordre que `updated`) et valeurs des lignes ajoutées. */
+  entries: Record<string, {updates: unknown[]; appended: unknown[]}>;
+}
+
 /** Messages du fil principal vers le worker. */
 export type ToWorker =
   | {type: 'data'; dataset: number; count: number; entries: Record<string, WorkerValues>}
+  | {type: 'patch'; dataset: number; patch: WorkerPatch}
   | {type: 'run'; dataset: number; job: number; request: WorkerRequest}
   | {type: 'drop'; dataset: number};
 
@@ -74,6 +91,22 @@ export class WorkerComputeCore {
 
   drop(dataset: number): void {
     this.datasets.delete(dataset);
+  }
+
+  /** Applique une retouche (voir `WorkerPatch`) à toutes les colonnes du jeu de données. */
+  patch(dataset: number, patch: WorkerPatch): void {
+    const data = this.datasets.get(dataset);
+    if (!data) {
+      throw new Error(`Jeu de données inconnu : ${dataset}`);
+    }
+    for (const [key, column] of data.columns) {
+      const entry = patch.entries[key];
+      if (!entry) {
+        throw new Error(`Retouche sans la colonne ${key}`);
+      }
+      data.columns.set(key, patchColumn(column, patch, entry));
+    }
+    data.count = patch.count;
   }
 
   /** Indices des lignes retenues par les filtres et la recherche, triés selon les niveaux ; dans l'ordre d'origine sans tri. */
@@ -134,6 +167,40 @@ export class WorkerComputeCore {
     // Niveau qu'on ne sait pas ranger en nombres (types mêlés...) : tri générique, comme sur le fil principal.
     return Uint32Array.from(sortRows(matched, levels, collator));
   }
+}
+
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+/** Colonne après une retouche. Une colonne de nombres qui reçoit autre chose qu'un nombre devient un tableau ordinaire. */
+function patchColumn(
+  column: Float64Array | unknown[],
+  patch: WorkerPatch,
+  entry: {updates: unknown[]; appended: unknown[]},
+): Float64Array | unknown[] {
+  const {updated, removed} = patch;
+  const kept = column.length - removed.length;
+  const numeric = column instanceof Float64Array && entry.updates.every(isFiniteNumber) && entry.appended.every(isFiniteNumber);
+  const source: Float64Array | unknown[] = column instanceof Float64Array && !numeric ? Array.from(column) : column;
+  for (let i = 0; i < updated.length; i++) {
+    source[updated[i]] = entry.updates[i] as number;
+  }
+  const result: Float64Array | unknown[] = numeric ? new Float64Array(kept + entry.appended.length) : new Array<unknown>(kept + entry.appended.length);
+  let write = 0;
+  let nextRemoved = 0;
+  for (let read = 0; read < source.length; read++) {
+    if (nextRemoved < removed.length && removed[nextRemoved] === read) {
+      nextRemoved++;
+      continue;
+    }
+    result[write++] = source[read] as number;
+  }
+  for (const value of entry.appended) {
+    result[write++] = value as number;
+  }
+  if (write !== patch.count) {
+    throw new Error(`Retouche incohérente : ${write} lignes au lieu de ${patch.count}`);
+  }
+  return result;
 }
 
 /** Valeurs d'une colonne : `Float64Array` quand toutes sont des nombres finis, sinon tableau tel quel. */

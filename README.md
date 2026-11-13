@@ -479,6 +479,40 @@ readonly columns = computed<NgTableColumn<Commande>[]>(() => [
 
 (`columns` devient un `computed()` car `viewChild()` n'est disponible qu'après le premier rendu — pattern standard pour toute colonne avec `cellTemplate`.)
 
+### Étape 8ter — Cellules prêtes à l'emploi et mise en forme conditionnelle
+
+Pour les rendus courants, pas besoin de `cellTemplate` : déclarez `cell` sur la colonne.
+
+```ts
+columns: NgTableColumn<Commande>[] = [
+  {id: 'client', header: 'Client', valueAccessor: (c) => c.client, cell: {type: 'avatar'}},
+  {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference,
+   cell: {type: 'link', href: (c) => '/commandes/' + c.reference}},
+  {id: 'statut', header: 'Statut', valueAccessor: (c) => c.statut,
+   cell: {type: 'badge', tone: {Validée: 'info', Expédiée: 'success', Annulée: 'danger'}}},
+  {id: 'montant', header: 'Montant', valueAccessor: (c) => c.montant, cell: {type: 'dataBar'}},
+  {id: 'avancement', header: 'Avancement', valueAccessor: (c) => c.avancement, cell: {type: 'progress'}},
+  {id: 'note', header: 'Note', valueAccessor: (c) => c.note, cell: {type: 'rating'}},
+  {id: 'marge', header: 'Marge', valueAccessor: (c) => c.marge, cell: {type: 'colorScale', diverging: true}},
+];
+```
+
+| `type`       | Rendu                                                                 | Options                                                                                   |
+|--------------|-----------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| `badge`      | Pastille autour du texte                                              | `tone` : table `{valeur: teinte}` ou fonction `(value, row)` ; `label(value, row)`        |
+| `progress`   | Barre de progression et pourcentage                                   | `max` (100), `showValue` (`true`)                                                         |
+| `rating`     | Étoiles, demi-étoiles arrondies                                       | `max` (5)                                                                                 |
+| `link`       | Le texte devient un lien                                              | `href(row, value)` (`null` : texte simple), `external` (nouvel onglet)                    |
+| `avatar`     | Pastille ronde (initiales ou image) suivie du texte                   | `image(row)`                                                                              |
+| `dataBar`    | Barre proportionnelle derrière le nombre ; négatifs à gauche de zéro  | `min`, `max`, `tone`                                                                      |
+| `colorScale` | Fond d'autant plus soutenu que la valeur est grande                   | `min`, `max`, `diverging` (deux teintes de part et d'autre de zéro)                       |
+
+- **Teintes** : `neutral`, `info`, `success`, `warning`, `danger`, tirées des jetons du thème (`--ngt-primary`, `--ngt-success`, `--ngt-warning`, `--ngt-danger`). Autres réglages : `--ngt-rating-color`, `--ngt-scale-color`, `--ngt-scale-negative-color`.
+- **Bornes des barres et des dégradés** : sans `min` / `max`, la table prend le minimum et le maximum de la colonne sur les lignes filtrées (mode local) ou sur les lignes reçues (mode `remote`, donc la page courante). En mode `remote` ou par blocs, donnez `min` et `max` pour que deux pages se comparent. L'axe d'une barre de données est toujours à zéro : une colonne qui va de 100 à 200 ne fait pas paraître 100 comme « vide ».
+- **Accessibilité** : le texte ou le nombre reste affiché dans tous les cas ; la couleur ne porte jamais seule l'information. La note a un nom accessible (« 3.5 sur 5 », libellé `ratingLabel`), la progression le rôle `progressbar`, l'avatar est masqué aux lecteurs d'écran (le texte suit).
+- **Priorités** : `sparkline` puis `cellTemplate` passent avant `cell`. Tri, filtres, recherche, copie et export continuent de lire `valueAccessor`.
+- **Hors d'une table** : `<ng-table-cell-format [format]="{type: 'progress'}" [value]="72" />` (`NgTableCellFormatComponent`).
+
 ### Étape 8bis — Débordement du texte de cellule
 
 Quand le texte d'une cellule dépasse la largeur de sa colonne, deux modes au choix via `textOverflow` :
@@ -582,7 +616,7 @@ Sans pagination, une table de 50 000 lignes crée 50 000 lignes dans le DOM : l'
 ```
 
 - **Hauteur** : la zone a une hauteur fixe, `[maxHeight]` (70vh par défaut). L'en-tête y est toujours fixe.
-- **Hauteur de ligne** : elle est **mesurée** sur la première ligne rendue, ce qui suit la densité compacte ou votre thème. Les lignes doivent avoir une **hauteur uniforme** : une ligne détail dépliée ou du texte sur plusieurs lignes (`textOverflow: 'wrap'`) décalent un peu la position.
+- **Hauteur de ligne** : elle est **mesurée**, ce qui suit la densité compacte ou votre thème. Les lignes peuvent avoir des **hauteurs différentes** (ligne détail dépliée, texte sur plusieurs lignes avec `textOverflow: 'wrap'`, en-tête de groupe) : la table retient la hauteur réelle de chaque ligne qu'elle a rendue, et estime les autres à la hauteur la plus fréquente. La barre de défilement et `scrollToIndex()` en tiennent compte. Trois limites : une ligne jamais affichée n'est qu'estimée, donc la barre peut s'ajuster légèrement quand on la découvre ; les mesures repartent de zéro quand la liste change (tri, filtre, nouvelles données) ; au-delà de 15 millions de pixels de hauteur totale et en modèle par blocs, la table suppose des lignes uniformes.
 - **Compatibilité** : filtres, tri, recherche, regroupement, sélection (« tout sélectionner » porte sur toutes les lignes), export et navigation clavier (`cellNavigation`) fonctionnent comme sans défilement virtuel. `displayedRows()` renvoie toujours toutes les lignes.
 - **Très longues listes** : au-delà de 15 millions de px de hauteur (environ 290 000 lignes de 52 px), la barre de défilement est comprimée pour que la fin de la liste reste atteignable malgré le plafond des navigateurs (voir Étape 10sexies).
 
@@ -608,6 +642,7 @@ socket.onmessage = (message) => this.table().applyTransactionAsync({update: JSON
 
 - **Ce qui est recalculé.** Seules les lignes touchées sont refiltrées. Elles sont replacées dans le résultat déjà trié par recherche dichotomique, au lieu de tout retrier. Changer un filtre, le tri ou les colonnes recalcule tout, comme avant.
 - **`applyTransactionAsync(transaction, callback?)`** regroupe les transactions reçues pendant `[asyncTransactionWaitMillis]` (50 ms par défaut). `flushAsyncTransactions()` les applique tout de suite, et `(asyncTransactionsFlushed)` signale chaque lot appliqué.
+- **Avec `[workerCompute]`.** Sur un grand jeu de données calculé dans le Web Worker, une transaction n'envoie au worker que les lignes modifiées, ajoutées ou retirées : il retouche ses colonnes au lieu de tout recevoir à nouveau. Le tri et le filtre sont ensuite refaits en entier dans le worker, hors du fil principal.
 - **Données immuables.** Le mode live marche aussi sans transactions : à chaque nouveau tableau `[rows]`, la table compare clé par clé avec le précédent. Seules les lignes dont l'objet a changé sont retraitées. Les lignes doivent donc être de **nouveaux objets** quand elles changent (`{...ligne, prix}`). Si l'ordre du tableau change, ou qu'une ligne est insérée ailleurs qu'à la fin, tout est recalculé.
 - **Surbrillance.** `[flashCells]="true"` surligne les cellules modifiées pendant `[flashDurationMs]` (1 000 ms) : vert si un nombre monte, rouge s'il baisse, bleu sinon. Colonne par colonne : `flashOnChange: true | false`. Les couleurs se règlent avec `--ngt-flash-up-bg`, `--ngt-flash-down-bg` et `--ngt-flash-change-bg`. La cellule porte l'attribut `data-ngt-flash` (`up-0`, `down-1`...) pour un style personnalisé. L'animation est quasi instantanée si l'utilisateur a demandé moins d'animations (`prefers-reduced-motion`).
 - **Avec `[rows]`.** Un nouveau tableau `[rows]` redevient la référence : ce qui n'y figure pas est retiré, y compris les lignes ajoutées par transaction.

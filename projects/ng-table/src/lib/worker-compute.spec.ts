@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {ComputeWorkerClient, ComputeWorkerLike} from './compute-worker-client';
+import {rowsPatch, RowStore} from './live-rows';
 import {compileFilters} from './filter-compile';
 import {matchesSearchTerms, searchTerms} from './filter-matching';
 import {sortRows} from './row-pipeline';
@@ -51,6 +52,8 @@ function inProcessWorker(): ComputeWorkerLike & {messages: ToWorker[]} {
         core.addData(message.dataset, message.count, message.entries);
       } else if (message.type === 'drop') {
         core.drop(message.dataset);
+      } else if (message.type === 'patch') {
+        core.patch(message.dataset, message.patch);
       } else {
         try {
           reply({type: 'done', job: message.job, order: core.run(message.dataset, message.request)});
@@ -158,6 +161,70 @@ describe('calcul en worker', () => {
     await client.compute(changed, input({}, [{column: amount, factor: 1}]));
     expect(worker.messages.some((message) => message.type === 'drop')).toBe(true);
     expect(dataMessages()).toBe(3); // autres données : on renvoie
+    client.dispose();
+  });
+
+  it('transactions : le worker est retouché au lieu de tout recevoir, et répond comme un envoi complet (60 lots aléatoires)', async () => {
+    let seed = 77;
+    const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const worker = inProcessWorker();
+    const client = new ComputeWorkerClient(() => worker);
+    const store = new RowStore<Row>((row) => row.id);
+    store.replaceAll(makeRows(400));
+    store.drain();
+    const levels = [{column: zone, factor: 1 as const}, {column: amount, factor: -1 as const}];
+    const filters = {amount: '>20', name: 'client 1'};
+    const input = {
+      filterColumns: [name, amount],
+      filters,
+      levels,
+      search: {terms: searchTerms('client'), source: 'recherche', read: (row: Row) => `${row.name}\n${row.zone}`.toLowerCase()},
+      collator: {options: collatorOptions},
+    };
+    const check = async (patch?: Parameters<typeof client.compute<Row>>[2]) => {
+      const current = store.rows();
+      const {order} = await client.compute(current, input, patch);
+      expect([...order].map((index) => current[index].id)).toEqual(reference(current, filters, levels, 'client'));
+    };
+    await check();
+    const sentAtStart = client.stats.columnsSent;
+
+    let nextId = 10_000;
+    for (let round = 0; round < 60; round++) {
+      const before = {rows: store.rows(), seqs: store.seqs()};
+      const all = before.rows;
+      const pick = () => all[Math.floor(next() * all.length)];
+      const update = Array.from({length: Math.floor(next() * 5)}, () => {
+        const row = pick();
+        // De temps en temps une valeur vide : la colonne de nombres doit devenir un tableau ordinaire dans le worker.
+        return {...row, amount: next() < 0.2 ? null : Math.round(next() * 1000) / 10, zone: next() < 0.5 ? 'Nord' : 'Sud', name: `Client ${Math.floor(next() * 200)} x`};
+      });
+      const remove = Array.from({length: Math.floor(next() * 3)}, pick);
+      const add = Array.from({length: Math.floor(next() * 4)}, () => ({...pick(), id: nextId++}));
+      // Parfois une ligne retirée puis rajoutée dans le même lot : elle doit passer en fin de liste.
+      if (remove.length > 0 && next() < 0.3) {
+        add.push({...remove[0], name: 'Client 1 revenu'});
+      }
+      store.applyTransaction({update, remove, add});
+      const changes = store.drain();
+      const delta = changes.reset || changes.keys.size === 0 ? null : rowsPatch(store, changes.keys, before.seqs);
+      await check(delta ? {from: before.rows, ...delta} : undefined);
+    }
+    expect(client.stats.patches).toBeGreaterThan(40);
+    expect(client.stats.columnsSent, 'aucune colonne renvoyée en entier').toBe(sentAtStart);
+    client.dispose();
+  });
+
+  it('retouche refusée quand le worker ne connaît pas le tableau précédent : tout est renvoyé', async () => {
+    const worker = inProcessWorker();
+    const client = new ComputeWorkerClient(() => worker);
+    const input = {filterColumns: [], filters: {}, levels: [{column: amount, factor: 1 as const}], search: null, collator: {options: collatorOptions}};
+    await client.compute(rows, input);
+    const changed = [...rows.slice(1), {...rows[0], id: 99_999, amount: 1}];
+    const {order} = await client.compute(changed, input, {from: [], updated: [], removed: [], appended: []});
+    expect([...order].map((index) => changed[index].id)).toEqual(reference(changed, {}, [{column: amount, factor: 1}]));
+    expect(client.stats.patches).toBe(0);
+    expect(client.stats.columnsSent).toBe(2);
     client.dispose();
   });
 

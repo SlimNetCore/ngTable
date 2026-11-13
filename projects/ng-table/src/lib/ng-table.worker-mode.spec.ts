@@ -26,19 +26,25 @@ const columns = (): NgTableColumn<Row>[] => [
 ];
 
 /** Un « worker » qui exécute le cœur dans le même fil, de façon asynchrone. `failing` : chaque calcul échoue. */
-function fakeWorker(options: {failing?: boolean} = {}): ComputeWorkerLike & {runs: number} {
+function fakeWorker(options: {failing?: boolean} = {}): ComputeWorkerLike & {runs: number; dataMessages: number; patches: number} {
   const core = new WorkerComputeCore();
-  const worker: ComputeWorkerLike & {runs: number} = {
+  const worker: ComputeWorkerLike & {runs: number; dataMessages: number; patches: number} = {
     runs: 0,
+    dataMessages: 0,
+    patches: 0,
     onmessage: null,
     onerror: null,
     terminate: () => undefined,
     postMessage(message: ToWorker) {
       const reply = (answer: FromWorker) => setTimeout(() => worker.onmessage?.({data: answer}), 0);
       if (message.type === 'data') {
+        worker.dataMessages++;
         core.addData(message.dataset, message.count, message.entries);
       } else if (message.type === 'drop') {
         core.drop(message.dataset);
+      } else if (message.type === 'patch') {
+        worker.patches++;
+        core.patch(message.dataset, message.patch);
       } else {
         worker.runs++;
         if (options.failing) {
@@ -134,6 +140,13 @@ describe('NgTableComponent — calcul en worker', () => {
     component.applyTransaction({update: [{id: 1, nom: 'Charlie', montant: 10, statut: 'VALIDEE'}]});
     await settle();
     expect(ids()).toEqual([1, 4, 2, 3]);
+    // La transaction est partie en retouche : la colonne n'a été envoyée en entier qu'une fois.
+    expect({data: worker.dataMessages, patches: worker.patches}).toEqual({data: 1, patches: 1});
+
+    component.applyTransaction({remove: [{id: 4} as Row], add: [{id: 9, nom: 'Zoé', montant: 5, statut: 'VALIDEE'} as Row]});
+    await settle();
+    expect(ids()).toEqual([9, 1, 2, 3]);
+    expect({data: worker.dataMessages, patches: worker.patches}).toEqual({data: 1, patches: 2});
   });
 
   it('un worker en échec ne casse pas la table : retour au fil principal, résultat identique', async () => {

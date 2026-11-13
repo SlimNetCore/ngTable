@@ -107,6 +107,22 @@
 <span class="c">// Une colonne : un titre + une façon de lire la valeur dans la ligne</span>
 { id: 'montant', header: 'Montant', <span class="k">valueAccessor</span>: (ligne) =&gt; ligne.montant }</pre>
 <p><code>valueAccessor</code> veut dire « la fonction qui va chercher la valeur ». On donne une ligne, elle rend ce qu'il faut afficher dans cette colonne. C'est une <b>fonction</b> et non un simple nom de champ, ce qui permet de calculer : <code>(ligne) =&gt; ligne.prix * ligne.quantite</code>.</p>
+<h3>Nouveau : des cellules prêtes à l'emploi</h3>
+<p>Par défaut, une cellule affiche du texte. Pour un rendu plus parlant, il suffit d'ajouter <code>cell</code> à la colonne ; il n'y a pas de gabarit à écrire.</p>
+<pre>{ id: 'statut', header: 'Statut', valueAccessor: (c) =&gt; c.statut,
+  <span class="k">cell</span>: { type: 'badge', tone: { Validée: 'info', Expédiée: 'success', Annulée: 'danger' } } }</pre>
+<table>
+  <tr><th>Type</th><th>Ce qu'on voit</th></tr>
+  <tr><td><code>badge</code></td><td>une pastille colorée autour du texte (statut)</td></tr>
+  <tr><td><code>avatar</code></td><td>un rond avec les initiales, puis le nom</td></tr>
+  <tr><td><code>link</code></td><td>le texte devient un lien</td></tr>
+  <tr><td><code>progress</code></td><td>une barre de progression et un pourcentage</td></tr>
+  <tr><td><code>rating</code></td><td>une note en étoiles</td></tr>
+  <tr><td><code>dataBar</code></td><td>une barre derrière le nombre, proportionnelle à sa valeur (comme dans Excel)</td></tr>
+  <tr><td><code>colorScale</code></td><td>un fond plus ou moins soutenu selon la valeur (vert pour les gains, rouge pour les pertes)</td></tr>
+</table>
+<div class="box warn"><b>La règle d'accessibilité</b><p>Le texte ou le nombre reste toujours affiché : la couleur n'est jamais la seule à porter l'information (une personne daltonienne lit quand même la valeur). Un contrôle automatique a d'ailleurs trouvé deux défauts pendant le développement (une barre sans nom pour les lecteurs d'écran, des initiales trop pâles) : ils sont corrigés.</p></div>
+
 <div class="box idea"><b>Pourquoi c'est important pour la suite</b><p>Trier une colonne, c'est appeler cette fonction sur les lignes pour obtenir les valeurs à comparer. Moins on l'appelle, plus on va vite. Et comme c'est une fonction, on ne pourra pas l'envoyer à un Web Worker (chapitre 10).</p></div>
 
 <!-- 3 -->
@@ -194,7 +210,23 @@ prix.set(12);   <span class="c">// total devient 36 tout seul</span></pre>
 
 <h3>La même chose pour les colonnes</h3>
 <p>Avec 100 colonnes, seules celles qui sont à l'écran (plus 300 px de marge) sont fabriquées. Option <code>[virtualColumns]</code>.</p>
-<div class="box warn"><b>La limite à connaître</b><p>Le calcul « 4 800 ÷ 48 » suppose que toutes les lignes ont la même hauteur. Si une ligne est plus haute (détail déplié, texte sur plusieurs lignes), la position est légèrement décalée.</p></div>
+<h3>Nouveau : et si les lignes n'ont pas toutes la même hauteur ?</h3>
+<p>Le calcul « 4 800 ÷ 48 » suppose que toutes les lignes font 48 px. Si une ligne a un détail déplié de 200 px, tout ce qui est en dessous est décalé de 200 px, et la division donne une mauvaise réponse.</p>
+<p>La grille fait donc deux choses :</p>
+<ol>
+  <li>Elle <b>mesure</b> les lignes qu'elle affiche et retient celles qui ne font pas la hauteur habituelle.</li>
+  <li>Pour savoir où commence la ligne n° 5 000, elle doit additionner les hauteurs des 5 000 lignes précédentes. Faire cette addition à chaque mouvement de la barre serait trop lent : elle garde des <b>sous-totaux</b>.</li>
+</ol>
+<div class="box ex"><b>Image : les sous-totaux d'un ticket de caisse</b>
+<p>Un ticket de 1 000 articles. Pour connaître le total des 600 premiers, vous pouvez additionner 600 prix. Ou bien, si le ticket porte déjà des sous-totaux (« articles 1 à 512 », « 513 à 576 », « 577 à 592 », « 593 à 600 »), vous additionnez <b>4 nombres</b>. Et si un prix change, seuls quelques sous-totaux sont à corriger.</p>
+<p>C'est ce qu'on appelle un <b>arbre de Fenwick</b>. Sur un million de lignes, une position se lit en une vingtaine d'opérations au lieu d'un million.</p></div>
+<div class="box ex"><b>Exemple chiffré</b><p>100 lignes de 48 px, et la ligne n° 5 a un détail de 200 px. La ligne n° 20 commence à 20 × 48 + 200 = <b>1 160 px</b> (et non 960). La grille ne stocke que l'écart : « ligne 5 : +200 ». Tant qu'aucune ligne ne s'écarte, elle ne stocke rien et garde la simple division.</p></div>
+<div class="box warn"><b>Les limites à connaître</b>
+<ul>
+  <li>Une ligne jamais affichée n'a pas été mesurée : sa hauteur est estimée (la hauteur la plus fréquente). La barre peut donc s'ajuster légèrement quand on la découvre.</li>
+  <li>Quand la liste change (tri, filtre, nouvelles données), les mesures sont oubliées et refaites au fil de l'affichage.</li>
+  <li>Sur les très longues listes (barre comprimée) et en mode serveur par blocs, la grille suppose encore des lignes de même hauteur.</li>
+</ul></div>
 <div class="box say"><b>À dire</b><p>« Sur un million de lignes, il n'y a qu'une vingtaine de lignes réellement présentes dans la page. Le temps d'affichage ne dépend donc plus du volume de données. »</p></div>
 
 <!-- 5 -->
@@ -502,8 +534,13 @@ pour chaque ligne (1 000 000 fois) :
   <tr><th>Situation</th><th>Worker ?</th><th>Pourquoi</th></tr>
   <tr><td>Plus de 100 000 lignes, tris et filtres ponctuels</td><td><b>Oui</b></td><td>la page reste fluide pendant le calcul</td></tr>
   <tr><td>Petite liste</td><td>Non</td><td>préparer et envoyer le message prend plus de temps que le calcul</td></tr>
-  <tr><td>Données qui changent en continu (mode live)</td><td>Non</td><td>il faudrait renvoyer les colonnes à chaque changement ; la fusion du chapitre 9 est bien meilleure</td></tr>
+  <tr><td>Données qui changent en continu (mode live)</td><td>Possible</td><td>le worker ne reçoit plus que les lignes modifiées (voir ci-dessous) ; sur des listes moyennes, la fusion du chapitre 9 reste plus rapide</td></tr>
 </table>
+<h3>Nouveau : le worker suit les modifications</h3>
+<p>Avant, dès qu'une ligne changeait, la grille renvoyait <b>toutes</b> les colonnes au worker : il fallait relire le million de lignes sur le fil principal, ce qui gelait la page. Le worker et le mode live ne faisaient donc pas bon ménage.</p>
+<p>Maintenant, la grille envoie une <b>retouche</b> : « la ligne n° 4 812 vaut maintenant 37 ; retire la ligne n° 90 ; ajoute ces deux lignes à la fin ». Le worker corrige ses colonnes, puis refait son tri et son filtre de son côté.</p>
+<div class="box ex"><b>Image</b><p>Vous avez confié un fichier de 1 000 pages à un collègue dans une autre pièce. Une page change. Avant : vous lui reportiez les 1 000 pages. Maintenant : vous lui passez un mot, « page 312, remplace le montant par 37 ».</p></div>
+<div class="box warn"><b>À dire honnêtement</b><p>Le worker refait encore tout son tri à chaque lot (il ne fusionne pas comme au chapitre 9). Ce qui est gagné, c'est le fil principal : il n'a plus à relire toutes les lignes. Le gain n'a pas encore été chronométré dans un navigateur.</p></div>
 <div class="box say"><b>À dire</b><p>« Le worker, c'est un second employé dans une autre pièce. Il ne va pas plus vite, mais pendant qu'il trie, la page continue de répondre. Et pour lui passer les données sans perdre de temps, on lui donne l'original au lieu d'en faire une photocopie. »</p></div>
 
 <!-- 11 -->

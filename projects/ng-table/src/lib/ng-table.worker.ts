@@ -21,6 +21,15 @@ scope.onmessage = ({data}) => {
     case 'drop':
       core.drop(data.dataset);
       break;
+    case 'patch':
+      // Une retouche qui échoue laisse le jeu de données dans un état inconnu : il est oublié, et le calcul suivant
+      // répond par une erreur (le fil principal reprend alors la main).
+      try {
+        core.patch(data.dataset, data.patch);
+      } catch {
+        core.drop(data.dataset);
+      }
+      break;
     case 'run':
       try {
         const order = core.run(data.dataset, data.request);

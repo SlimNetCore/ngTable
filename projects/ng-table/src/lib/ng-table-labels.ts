@@ -25,6 +25,8 @@ export interface NgTableLabels {
   noData: string;
   /** Liste vide à cause des filtres ou de la recherche (un bouton propose de les réinitialiser). */
   noDataFiltered: string;
+  /** Nom accessible d'une note en étoiles (`cell: {type: 'rating'}`) ; `{value}` et `{max}`. */
+  ratingLabel: string;
   /** Filtre par ensemble : case « tout » en tête de liste. */
   selectAll: string;
   /** Filtre par ensemble : libellé des cellules vides. */
@@ -212,6 +214,7 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   search: 'Rechercher',
   noData: 'Aucune donnée',
   noDataFiltered: 'Aucune ligne ne correspond aux filtres',
+  ratingLabel: '{value} sur {max}',
   selectAll: '(Tout sélectionner)',
   blanks: '(Vides)',
   setFilterTruncated: 'Liste tronquée : affinez avec la recherche.',
@@ -345,6 +348,7 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   search: 'Search',
   noData: 'No data',
   noDataFiltered: 'No rows match the filters',
+  ratingLabel: '{value} out of {max}',
   selectAll: '(Select all)',
   blanks: '(Blanks)',
   setFilterTruncated: 'List truncated: narrow it down with the search.',

@@ -245,6 +245,55 @@ ull : la clé est nouvelle dans ce lot ; undefined : la clé n'a pas été touch
   }
 }
 
+/** Retouche d'un tableau de lignes : voir `rowsPatch`. Les indices sont ceux du tableau précédent. */
+export interface RowsDelta<T> {
+  updated: {index: number; row: T}[];
+  removed: number[];
+  appended: T[];
+}
+
+/**
+ * Ce qui sépare le tableau de lignes précédent (dont `previousSeqs` donne l'ordre d'arrivée, croissant) de l'état
+ * actuel du magasin, d'après les clés modifiées du dernier `drain()` : lignes mises à jour sur place, retirées, et
+ * ajoutées en fin de liste. Coût : une recherche dichotomique par clé modifiée, sans parcourir toutes les lignes.
+ * Sert à retoucher une copie des données (le worker de calcul) au lieu de la renvoyer en entier.
+ */
+export function rowsPatch<T>(store: RowStore<T>, keys: ReadonlySet<unknown>, previousSeqs: readonly number[]): RowsDelta<T> | null {
+  const delta: RowsDelta<T> = {updated: [], removed: [], appended: []};
+  const appended: {seq: number; row: T}[] = [];
+  for (const key of keys) {
+    const before = store.previous(key);
+    const row = store.get(key);
+    const seq = store.seqOf(key);
+    if (before) {
+      let low = 0;
+      let high = previousSeqs.length;
+      while (low < high) {
+        const mid = (low + high) >>> 1;
+        if (previousSeqs[mid] < before.seq) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
+      }
+      if (previousSeqs[low] !== before.seq) {
+        return null; // l'ancienne version n'est pas dans le tableau précédent : état inconnu, tout renvoyer
+      }
+      if (row !== undefined && seq === before.seq) {
+        delta.updated.push({index: low, row});
+        continue;
+      }
+      delta.removed.push(low);
+    }
+    if (row !== undefined) {
+      appended.push({seq, row}); // clé nouvelle, ou retirée puis rajoutée : en fin de liste
+    }
+  }
+  appended.sort((a, b) => a.seq - b.seq);
+  delta.appended = appended.map((entry) => entry.row);
+  return delta;
+}
+
 /** Ce que le pipeline doit savoir de la configuration (filtres, tri...). */
 export interface PipelineConfig<T> {
   /** La ligne passe-t-elle les filtres et la recherche ? */
