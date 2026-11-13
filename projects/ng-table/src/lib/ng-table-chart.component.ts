@@ -1,5 +1,6 @@
 import {ChangeDetectionStrategy, Component, computed, effect, input, output, signal, ViewEncapsulation} from '@angular/core';
-import {NgTableTheme} from './theme';
+import {NG_TABLE_TOKENS, NgTableTheme} from './theme';
+import {HATCHES, LINE_DASHES, MARK_COUNT, MARKER_PATHS} from './chart-marks';
 import {isFullRange, panRange, rangeFromBrush, ViewRange, zoomRange} from './chart-zoom';
 import {buildChartLayout, formatAxisNumber, NgTableChartData, NgTableChartType} from './chart';
 
@@ -36,7 +37,8 @@ const ZOOM_LABELS_FR: ZoomLabels = {
  * infobulle (`<title>`), et un tableau masqué reprend les données pour les lecteurs d'écran.
  */
 /** Couleurs de série par défaut (thème clair) : les jetons --ngt-chart-1 à --ngt-chart-8 les remplacent. */
-const CHART_DEFAULTS = ['#2f6fa8', '#e07a3f', '#5fa36b', '#b5527e', '#8a6fd1', '#d1a83f', '#3fa7a0', '#8c8c8c'];
+let chartInstances = 0;
+const CHART_DEFAULTS = NG_TABLE_TOKENS.filter((token) => /^chart-\d$/.test(token.name)).map((token) => token.light);
 
 @Component({
   selector: 'ng-table-chart',
@@ -78,9 +80,23 @@ const CHART_DEFAULTS = ['#2f6fa8', '#e07a3f', '#5fa36b', '#b5527e', '#8a6fd1', '
             </text>
           }
 
+          @if (patterns()) {
+            <defs>
+              @for (hatch of hatches; track $index) {
+                <pattern [attr.id]="patternId($index)" [attr.patternTransform]="hatch.angle ? 'rotate(' + hatch.angle + ')' : null"
+                         height="8" patternUnits="userSpaceOnUse" width="8">
+                  <rect [style.fill]="color($index)" height="8" width="8"/>
+                  @for (stroke of hatch.strokes; track stroke) {
+                    <path [attr.d]="stroke" [class.ngt-chart__hatch--dots]="hatch.dots" class="ngt-chart__hatch"/>
+                  }
+                </pattern>
+              }
+            </defs>
+          }
+
           @for (bar of layout().bars; track $index) {
             <rect [attr.height]="bar.height" [attr.width]="bar.width" [attr.x]="bar.x" [attr.y]="bar.y"
-                  [class.ngt-chart__shape--dim]="dimmed(bar.series)" [style.fill]="color(bar.series)" class="ngt-chart__shape"
+                  [class.ngt-chart__shape--dim]="dimmed(bar.series)" [style.fill]="fill(bar.series)" class="ngt-chart__shape"
                   rx="2">
               <title>{{ chart.series[bar.series].name }} — {{ chart.categories[bar.category] }} : {{ number(bar.value) }}</title>
             </rect>
@@ -90,17 +106,18 @@ const CHART_DEFAULTS = ['#2f6fa8', '#e07a3f', '#5fa36b', '#b5527e', '#8a6fd1', '
             @if (line.area) {
               <path [attr.d]="line.area" [style.fill]="color(line.series)" class="ngt-chart__area"/>
             }
-            <path [attr.d]="line.path" [class.ngt-chart__shape--dim]="dimmed(line.series)" [style.stroke]="color(line.series)"
-                  class="ngt-chart__line"/>
+            <path [attr.d]="line.path" [attr.stroke-dasharray]="dash(line.series)" [class.ngt-chart__shape--dim]="dimmed(line.series)"
+                  [style.stroke]="color(line.series)" class="ngt-chart__line"/>
             @for (point of line.points; track point.category) {
-              <circle [attr.cx]="point.x" [attr.cy]="point.y" [style.fill]="color(line.series)" class="ngt-chart__point" r="3.5">
+              <path [attr.d]="marker(line.series)" [attr.transform]="'translate(' + point.x + ' ' + point.y + ')'" [style.fill]="color(line.series)"
+                    class="ngt-chart__point">
                 <title>{{ chart.series[line.series].name }} — {{ chart.categories[point.category] }} : {{ number(point.value) }}</title>
-              </circle>
+              </path>
             }
           }
 
           @for (slice of layout().slices; track slice.index) {
-            <path [attr.d]="slice.path" [style.fill]="color(slice.index)" class="ngt-chart__shape ngt-chart__slice" fill-rule="evenodd">
+            <path [attr.d]="slice.path" [style.fill]="fill(slice.index)" class="ngt-chart__shape ngt-chart__slice" fill-rule="evenodd">
               <title>{{ chart.categories[slice.index] }} : {{ number(slice.value) }} ({{ percent(slice.share) }})</title>
             </path>
           }
@@ -119,7 +136,15 @@ const CHART_DEFAULTS = ['#2f6fa8', '#e07a3f', '#5fa36b', '#b5527e', '#8a6fd1', '
         <ul class="ngt-chart__legend">
           @for (item of legend(); track $index) {
             <li (mouseenter)="highlight.set($index)" (mouseleave)="highlight.set(null)" class="ngt-chart__legend-item">
-              <span [style.background]="color($index)" class="ngt-chart__swatch"></span>{{ item }}
+              <!-- La légende reprend la marque de la série (tireté et forme du point, ou hachures), pas seulement sa couleur. -->
+              <svg aria-hidden="true" class="ngt-chart__swatch" height="12" viewBox="0 0 22 12" width="22">
+                @if (isLineType()) {
+                  <line [attr.stroke-dasharray]="dash($index)" [style.stroke]="color($index)" class="ngt-chart__line" x1="0" x2="22" y1="6" y2="6"/>
+                  <path [attr.d]="marker($index)" [style.fill]="color($index)" class="ngt-chart__point" transform="translate(11 6)"/>
+                } @else {
+                  <rect [style.fill]="fill($index)" height="12" rx="2" width="22"/>
+                }
+              </svg>{{ item }}
             </li>
           }
         </ul>
@@ -238,9 +263,19 @@ const CHART_DEFAULTS = ['#2f6fa8', '#e07a3f', '#5fa36b', '#b5527e', '#8a6fd1', '
     }
 
     .ngt-chart__swatch {
-      width: 10px;
-      height: 10px;
-      border-radius: 2px;
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+
+    .ngt-chart__hatch {
+      fill: none;
+      stroke: var(--ngt-surface, var(--app-surface, #fff));
+      stroke-width: 2;
+    }
+
+    .ngt-chart__hatch--dots {
+      stroke-width: 2.6;
+      stroke-linecap: round;
     }
 
     .ngt-chart__toolbar {
@@ -304,6 +339,12 @@ export class NgTableChartComponent {
   readonly title = input('');
   /** Hauteur du cadre ; la largeur suit le conteneur (le tracé se met à l'échelle). */
   readonly height = input(320);
+
+  /**
+   * Hachures sur les barres et les secteurs (une par série, reprises dans la légende), pour qu'on les distingue sans la
+   * couleur : daltonisme, impression en noir et blanc. Les courbes ont toujours un point et un tireté propres à chaque série.
+   */
+  readonly patterns = input(false);
 
   /** Zoom : sélection à la souris, Ctrl + molette, boutons ou clavier (+, −, flèches, Origine). Barres, courbes et zones. */
   readonly zoomable = input(true);
@@ -463,6 +504,27 @@ export class NgTableChartComponent {
     const n = (index % 8) + 1;
     return `var(--ngt-chart-${n}, ${CHART_DEFAULTS[n - 1]})`;
   }
+
+  /** Remplissage d'une barre ou d'un secteur : la couleur de la série, ou ses hachures avec `[patterns]`. */
+  protected fill(index: number): string {
+    return this.patterns() ? `url(#${this.patternId(index)})` : this.color(index);
+  }
+
+  protected patternId(index: number): string {
+    return `${this.uid}-hatch-${index % MARK_COUNT}`;
+  }
+
+  protected marker(index: number): string {
+    return MARKER_PATHS[index % MARK_COUNT];
+  }
+
+  protected dash(index: number): string | null {
+    return LINE_DASHES[index % MARK_COUNT] || null;
+  }
+
+  protected readonly isLineType = computed(() => this.type() === 'line' || this.type() === 'area');
+  protected readonly hatches = HATCHES;
+  private readonly uid = `ngt-chart-${++chartInstances}`;
 
   protected dimmed(series: number): boolean {
     const highlighted = this.highlight();

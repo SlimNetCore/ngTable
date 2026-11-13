@@ -189,7 +189,7 @@ function addDays(isoDay: string, days: number): string {
         <li>Colonne « Livraison » masquée par défaut : bouton « Colonnes ».</li>
         <li>Rendu personnalisé (<code>cellTemplate</code>), copie de cellule, lignes urgentes mises en avant
           (<code>rowClassFn</code>).</li>
-        <li>Ligne détail, menu contextuel (clic droit ou Maj+F10), sélection de lignes.</li>
+        <li>Ligne détail : le chevron en tête de ligne (natif dès qu'un détail est fourni) ou un clic sur la ligne la déplie ; menu contextuel (clic droit ou Maj+F10), sélection de lignes.</li>
         <li>Navigation clavier cellule par cellule (<code>cellNavigation</code>) : Tab entre dans la table, flèches,
           Début/Fin, Entrée ou F2 pour les boutons d'une cellule, Échap pour en sortir, Espace pour sélectionner.</li>
         <li>Regroupement (bouton « Grouper », ex. par Statut ou Client), groupes repliables, agrégats par colonne

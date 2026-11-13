@@ -27,14 +27,14 @@ ng-table-sparkline[data-ngt-theme='dark'],
   --ngt-success: #7fdba3;
   --ngt-warning: #f0c15a;
   --ngt-on-primary: #0b1620;
-  --ngt-chart-1: #7fb4d6;
-  --ngt-chart-2: #f0955f;
-  --ngt-chart-3: #86c493;
-  --ngt-chart-4: #d77fa6;
-  --ngt-chart-5: #b3a0ea;
-  --ngt-chart-6: #e6c460;
-  --ngt-chart-7: #6cc9c2;
-  --ngt-chart-8: #a9b3bd;
+  --ngt-chart-1: #7ed7ff;
+  --ngt-chart-2: #ff793c;
+  --ngt-chart-3: #0d8673;
+  --ngt-chart-4: #9c71fc;
+  --ngt-chart-5: #ffe34a;
+  --ngt-chart-6: #bd2824;
+  --ngt-chart-7: #90c385;
+  --ngt-chart-8: #eeffff;
   --mat-sys-surface: var(--ngt-surface, #11171d);
   --mat-sys-background: var(--ngt-surface, #11171d);
   --mat-sys-surface-container: var(--ngt-surface-alt, #19212a);
@@ -82,14 +82,14 @@ ng-table-sparkline[data-ngt-theme='dark'],
     --ngt-success: #7fdba3;
     --ngt-warning: #f0c15a;
     --ngt-on-primary: #0b1620;
-    --ngt-chart-1: #7fb4d6;
-    --ngt-chart-2: #f0955f;
-    --ngt-chart-3: #86c493;
-    --ngt-chart-4: #d77fa6;
-    --ngt-chart-5: #b3a0ea;
-    --ngt-chart-6: #e6c460;
-    --ngt-chart-7: #6cc9c2;
-    --ngt-chart-8: #a9b3bd;
+    --ngt-chart-1: #7ed7ff;
+    --ngt-chart-2: #ff793c;
+    --ngt-chart-3: #0d8673;
+    --ngt-chart-4: #9c71fc;
+    --ngt-chart-5: #ffe34a;
+    --ngt-chart-6: #bd2824;
+    --ngt-chart-7: #90c385;
+    --ngt-chart-8: #eeffff;
     --mat-sys-surface: var(--ngt-surface, #11171d);
     --mat-sys-background: var(--ngt-surface, #11171d);
     --mat-sys-surface-container: var(--ngt-surface-alt, #19212a);
@@ -118,4 +118,32 @@ ng-table-pivot[data-ngt-theme='light'],
 ng-table-sparkline[data-ngt-theme='light'],
 .ngt-overlay[data-ngt-theme='light'] {
   color-scheme: light;
+}
+
+/* Apparence « material » (`provideNgTableLook('material')` : classe `ngt-look-material` sur <html>) : texte noir en thème
+   clair, blanc en thème sombre. Placée après les règles sombres ; les sélecteurs sombres ont une classe de plus. */
+.ngt-look-material {
+  --ngt-text: #000000;
+  --ngt-text-muted: #000000;
+}
+
+.ngt-look-material.ngt-dark,
+.ngt-look-material ng-table[data-ngt-theme='dark'],
+.ngt-look-material ng-table-chart[data-ngt-theme='dark'],
+.ngt-look-material ng-table-pivot[data-ngt-theme='dark'],
+.ngt-look-material ng-table-sparkline[data-ngt-theme='dark'],
+.ngt-look-material .ngt-overlay[data-ngt-theme='dark'] {
+  --ngt-text: #ffffff;
+  --ngt-text-muted: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ngt-look-material ng-table[data-ngt-theme='auto'],
+  .ngt-look-material ng-table-chart[data-ngt-theme='auto'],
+  .ngt-look-material ng-table-pivot[data-ngt-theme='auto'],
+  .ngt-look-material ng-table-sparkline[data-ngt-theme='auto'],
+  .ngt-look-material .ngt-overlay[data-ngt-theme='auto'] {
+    --ngt-text: #ffffff;
+    --ngt-text-muted: #ffffff;
+  }
 }

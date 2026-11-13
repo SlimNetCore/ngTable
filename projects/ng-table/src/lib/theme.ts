@@ -42,14 +42,14 @@ export const NG_TABLE_TOKENS: readonly NgTableToken[] = [
   {name: 'success', light: '#2e7d32', dark: '#7fdba3', description: 'Succès : confirmation d’une action (vue mise à jour).'},
   {name: 'warning', light: '#c98a00', dark: '#f0c15a', description: 'Avertissement, favori : vue par défaut, ligne mise en avant.'},
   {name: 'on-primary', light: '#ffffff', dark: '#0b1620', description: 'Texte posé sur un fond d’accent ou d’erreur (pastilles, bouton plein).'},
-  {name: 'chart-1', light: '#2f6fa8', dark: '#7fb4d6', description: 'Graphiques : série 1 (les suivantes tournent sur 8 couleurs).'},
-  {name: 'chart-2', light: '#e07a3f', dark: '#f0955f', description: 'Graphiques : série 2.'},
-  {name: 'chart-3', light: '#5fa36b', dark: '#86c493', description: 'Graphiques : série 3.'},
-  {name: 'chart-4', light: '#b5527e', dark: '#d77fa6', description: 'Graphiques : série 4.'},
-  {name: 'chart-5', light: '#8a6fd1', dark: '#b3a0ea', description: 'Graphiques : série 5.'},
-  {name: 'chart-6', light: '#d1a83f', dark: '#e6c460', description: 'Graphiques : série 6.'},
-  {name: 'chart-7', light: '#3fa7a0', dark: '#6cc9c2', description: 'Graphiques : série 7.'},
-  {name: 'chart-8', light: '#8c8c8c', dark: '#a9b3bd', description: 'Graphiques : série 8.'},
+  {name: 'chart-1', light: '#5d2af9', dark: '#7ed7ff', description: 'Graphiques : série 1 (les suivantes tournent sur 8 couleurs, choisies pour rester distinguables avec un daltonisme ; voir color-vision.spec.ts).'},
+  {name: 'chart-2', light: '#6b1d01', dark: '#ff793c', description: 'Graphiques : série 2.'},
+  {name: 'chart-3', light: '#007b73', dark: '#0d8673', description: 'Graphiques : série 3.'},
+  {name: 'chart-4', light: '#cf78b4', dark: '#9c71fc', description: 'Graphiques : série 4.'},
+  {name: 'chart-5', light: '#99880c', dark: '#ffe34a', description: 'Graphiques : série 5.'},
+  {name: 'chart-6', light: '#5773de', dark: '#bd2824', description: 'Graphiques : série 6.'},
+  {name: 'chart-7', light: '#62306c', dark: '#90c385', description: 'Graphiques : série 7.'},
+  {name: 'chart-8', light: '#1a1a1a', dark: '#eeffff', description: 'Graphiques : série 8.'},
   {name: 'radius-card', light: '16px', dark: '16px', kind: 'size', description: 'Rayon des cartes et des panneaux de filtre.'},
   {name: 'radius-control', light: '10px', dark: '10px', kind: 'size', description: 'Rayon des champs, des listes et des menus (les boutons restent des pastilles).'},
   {name: 'row-height', light: '48px', dark: '48px', kind: 'size', description: 'Hauteur d’une ligne (la densité compacte la remplace).'},
@@ -66,6 +66,17 @@ const PREFIX = '--ngt-';
 /** `{'--ngt-primary': '#2f6fa8', ...}` : à appliquer sur `:root` ou sur un conteneur pour imposer un thème. */
 export const NG_TABLE_THEME_LIGHT: Readonly<Record<string, string>> = Object.fromEntries(NG_TABLE_TOKENS.map((token) => [PREFIX + token.name, token.light]));
 export const NG_TABLE_THEME_DARK: Readonly<Record<string, string>> = Object.fromEntries(NG_TABLE_TOKENS.map((token) => [PREFIX + token.name, token.dark]));
+
+/**
+ * Jetons redéfinis par l'apparence « material » (`provideNgTableLook('material')`, classe `ngt-look-material` sur `<html>`) :
+ * texte noir en thème clair, blanc en thème sombre. Seuls le texte et les icônes changent ; les traits des boutons, des champs
+ * et des cartes (`--ngt-border`, `--ngt-border-strong`) gardent leur nuance, et les lignes de la grille sont noircies par une
+ * règle dédiée (ng-table.component.css).
+ */
+export const NG_TABLE_LOOK_OVERRIDES: {readonly light: Readonly<Record<string, string>>; readonly dark: Readonly<Record<string, string>>} = {
+  light: {'--ngt-text': '#000000', '--ngt-text-muted': '#000000'},
+  dark: {'--ngt-text': '#ffffff', '--ngt-text-muted': '#ffffff'},
+};
 
 /** Lecture d'un jeton dans un style : `var(--ngt-NOM, var(--app-ANCIEN, valeur claire))`. */
 export function ngTableVar(name: string): string {

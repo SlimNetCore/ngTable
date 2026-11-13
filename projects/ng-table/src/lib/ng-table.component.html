@@ -462,6 +462,29 @@
         </ng-container>
       }
 
+      @if (detailToggleActive()) {
+        <!-- Bouton natif du master/detail : un chevron par ligne qui peut se déplier. -->
+        <ng-container [sticky]="hasLeftPinnedColumns()" [cdkColumnDef]="detailToggleColumnId">
+          <th *cdkHeaderCellDef [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" class="detail-toggle-cell" cdk-header-cell>
+            <span class="ngt-visually-hidden">{{ effectiveLabels().detailColumn }}</span>
+          </th>
+          <td *cdkFooterCellDef [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" class="totals-cell" cdk-footer-cell></td>
+          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" class="detail-toggle-cell" cdk-cell>
+            @if (hasDetailToggle(row)) {
+              <button (click)="onDetailToggleClick($event, rowIndex, row)" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()"
+                      [attr.aria-expanded]="isDetailExpanded(rowIndex, row)"
+                      [attr.aria-label]="isDetailExpanded(rowIndex, row) ? effectiveLabels().detailCollapse : effectiveLabels().detailExpand"
+                      [class.ngt-detail-toggle--open]="isDetailExpanded(rowIndex, row)" class="ngt-detail-toggle" type="button">
+                <ng-table-icon aria-hidden="true" name="chevron_right"/>
+              </button>
+            }
+          </td>
+        </ng-container>
+        <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__group____detail_toggle__">
+          <td *cdkCellDef="let item" class="group-cell" cdk-cell></td>
+        </ng-container>
+      }
+
       @if (rowSelectionEnabled()) {
         <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_selection__">
           <th *cdkHeaderCellDef [attr.aria-colindex]="ariaColIndex(selectionColumnId)" class="selection-header-cell" cdk-header-cell>

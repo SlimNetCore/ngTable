@@ -128,6 +128,7 @@ const DEFAULT_MIN_COLUMN_WIDTH_PX = 120;
 /** Largeur de la colonne de cases à cocher. */
 const SELECTION_COLUMN_WIDTH_PX = 48;
 const ROW_DRAG_COLUMN_WIDTH_PX = 40;
+const DETAIL_TOGGLE_COLUMN_WIDTH_PX = 44;
 
 /** Espace insécable (U+00A0), voir `announce`. */
 const NBSP = String.fromCharCode(160);
@@ -715,6 +716,12 @@ export class NgTableComponent<T = any> implements OnDestroy {
   readonly detailRowToggleOnRowClick = input(true);
   /** Uncontrolled mode: only one detail row expanded at a time. */
   readonly detailRowAccordion = input(false);
+  /**
+   * Bouton natif déplier / replier : dès qu'un `detailRowTemplate` est fourni, une colonne étroite en tête de table porte un
+   * chevron par ligne (clavier, `aria-expanded`). `false` le retire, pour garder votre propre bouton ou le seul clic sur la ligne.
+   * En mode contrôlé (`detailRowWhen` / `expandedRowKeys`), le bouton émet `(detailToggle)` : à vous de mettre l'état à jour.
+   */
+  readonly detailRowToggleButton = input(true);
   /** Optional guard: rows for which a detail can be expanded (e.g. has children). */
   readonly detailRowCanExpand = input<((row: T) => boolean) | null>(null);
   /** Stable business key for a row (expansion state, copy feedback, trackBy fallback). */
@@ -1171,6 +1178,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
     const visible = this.visibleColumns();
     const ids = [
       ...(this.rowDragActive() ? [this.rowDragColumnId] : []),
+      ...(this.detailToggleActive() ? [this.detailToggleColumnId] : []),
       ...(this.rowSelectionEnabled() ? [this.selectionColumnId] : []),
       ...visible.filter((column) => sides.get(column.id) === 'left').map((column) => column.id),
       ...visible.filter((column) => !sides.has(column.id)).map((column) => column.id),
@@ -1211,19 +1219,19 @@ export class NgTableComponent<T = any> implements OnDestroy {
             '__colspacer_right__',
             ...ids.filter((id) => sides.get(id) === 'right'),
           ];
-          return this.rowSelectionEnabled() ? [this.selectionColumnId, ...rendered] : rendered;
+          return [...this.leadingColumnIds(), ...rendered];
         }
-        return this.rowSelectionEnabled() ? [this.selectionColumnId, ...ids] : ids;
+        return [...this.leadingColumnIds(), ...ids];
       }
 
       const actionColumn = this.actionColumn();
       if (!actionColumn) {
-        return ids;
+        return this.detailToggleActive() ? [this.detailToggleColumnId, ...ids] : ids;
       }
 
       const withoutActions = ids.filter((id) => id !== actionColumn.id);
       const mobileIds = withoutActions.length > 0 ? withoutActions : ids;
-      return this.rowSelectionEnabled() ? [this.selectionColumnId, ...mobileIds] : mobileIds;
+      return [...this.leadingColumnIds(), ...mobileIds];
     },
     // La liste est passée à `matHeaderRowDef`/`matRowDef` : garder la même référence
     // quand les ids n'ont pas changé évite à mat-table de reconstruire ses colonnes.
@@ -1231,6 +1239,15 @@ export class NgTableComponent<T = any> implements OnDestroy {
   );
 
   protected readonly rowDragColumnId = '__row_drag__';
+  protected readonly detailToggleColumnId = '__detail_toggle__';
+
+  /** La colonne du bouton déplier / replier est affichée : un détail est fourni et le bouton natif n'a pas été retiré. */
+  protected readonly detailToggleActive = computed(() => !!this.detailRowTemplate() && this.detailRowToggleButton());
+
+  /** Colonnes techniques placées avant les colonnes de données : bouton de détail, puis case de sélection. */
+  private leadingColumnIds(): string[] {
+    return [...(this.detailToggleActive() ? [this.detailToggleColumnId] : []), ...(this.rowSelectionEnabled() ? [this.selectionColumnId] : [])];
+  }
 
   /** Le glisser-déposer de lignes est actif : demandé, en mode local, sans tri ni regroupement. */
   protected readonly rowDragActive = computed(
@@ -1255,7 +1272,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
         this.displayedColumnIds().map((id) => {
           const column = columns.get(id);
           if (!column) {
-            return {id, path: [], pin: (id === this.selectionColumnId || id === this.rowDragColumnId) && leftEdge ? ('left' as const) : undefined};
+            return {id, path: [], pin: (id === this.selectionColumnId || id === this.rowDragColumnId || id === this.detailToggleColumnId) && leftEdge ? ('left' as const) : undefined};
           }
           return {id, path: headerGroupPath(column.headerGroup), pin: this.pinnedSide(column)};
         }),
@@ -2173,6 +2190,9 @@ export class NgTableComponent<T = any> implements OnDestroy {
     }
     if (id === this.rowDragColumnId) {
       return ROW_DRAG_COLUMN_WIDTH_PX;
+    }
+    if (id === this.detailToggleColumnId) {
+      return DETAIL_TOGGLE_COLUMN_WIDTH_PX;
     }
     if (id === '__colspacer_left__' || id === '__colspacer_right__') {
       return this.columnSpacerWidth(id === '__colspacer_left__' ? 'left' : 'right');
@@ -3968,6 +3988,29 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
     this.internalExpandedKeys.set(current);
     this.detailToggle.emit({row, expanded, expandedKeys: [...current]});
+  }
+
+  /**
+   * Clic sur le bouton natif. Mode non contrôlé : bascule le détail. Mode contrôlé : n'écrit aucun état et émet
+   * `(detailToggle)` avec l'état demandé (et les clés qui en résultent pour `expandedRowKeys`).
+   */
+  protected onDetailToggleClick(event: Event, rowIndex: number, row: T): void {
+    event.stopPropagation(); // sinon le clic remonte à la ligne, qui basculerait une seconde fois
+    if (this.isUncontrolledDetailMode()) {
+      this.toggleDetail(row);
+      return;
+    }
+    const expanded = !this.isDetailExpanded(rowIndex, row);
+    const external = this.expandedRowKeys();
+    const key = this.rowKey(row);
+    const others = external ? external.filter((candidate) => candidate !== key) : [];
+    const expandedKeys = !external ? [] : expanded ? [...(this.detailRowAccordion() ? [] : others), key] : others;
+    this.detailToggle.emit({row, expanded, expandedKeys});
+  }
+
+  /** Une ligne a le bouton : elle peut se déplier (`detailRowCanExpand`) et n'est pas épinglée. */
+  protected hasDetailToggle(row: T): boolean {
+    return this.rowCanExpand(row) && !this.pinnedInfo().has(row);
   }
 
   /** Collapse every expanded detail row (uncontrolled mode). */
