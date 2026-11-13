@@ -18,6 +18,8 @@ for (const scheme of ['light', 'dark'] as const) {
   for (const route of PAGES) {
     test(`axe : ${route} (${scheme})`, async ({page}) => {
       await open(page, route, scheme);
+      // Icônes de la démo par ligature de police : tant qu'elle n'est pas chargée, leur nom est du texte visible (faux positif axe).
+      await page.evaluate(() => document.fonts.ready);
       const {violations} = await new AxeBuilder({page}).withTags(TAGS).analyze();
       const summary = violations.map((violation) => `${violation.id} (${violation.impact}) ×${violation.nodes.length} — ${violation.help}\n    ${violation.nodes.slice(0, 3).map((node) => node.target.join(' ')).join('\n    ')}`);
       expect(summary, summary.join('\n')).toEqual([]);
