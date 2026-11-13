@@ -152,6 +152,7 @@ But : aller plus loin en performance, en rendu et en confort d'usage. Aucune de 
 | H10 | Calcul découpé en tranches sur le fil principal | Reporté après la 5.0 | Rendre la main entre deux tranches (`scheduler.postTask` / `scheduler.yield`, avec repli) : page réactive sans worker |
 | H11 | Benchmark en intégration continue | Fait (non exécuté sur GitHub) | `npm run perf:check` : six budgets exprimés en rapports dans une même exécution, donc peu sensibles à la machine ; 2 tests du script (`node --test`) ; étape ajoutée à `ci.yml`. Ne rejoue pas la page `/benchmark` face à AG Grid. Cible d'origine : scénarios de `/benchmark` rejoués avec Playwright, seuils de régression |
 | H12 | Mesurer face à AG Grid Enterprise | En attente d'une licence | Demande une licence d'essai ; ajouter regroupement, pivot et modèle serveur aux scénarios |
+| H16 | Réutiliser les lignes de données au défilement (prévu pour la 5.1) | À faire | Aujourd'hui, un saut détruit et recrée toutes les lignes rendues (vues Angular du CdkTable) : environ 20 ms pour 26 lignes, mesuré le 2026-11-13. Garder les lignes de données et ne changer que leur contenu ; `recycleRows` du CDK ne convient pas (il mélange les gabarits de ligne). À juger sur le travail par saut (profil), pas sur la ligne « saut » du benchmark, qui plafonne à deux images. Refonte du cœur du rendu : tests de non-régression sur le focus clavier, la sélection, l'édition, les lignes détail et les hauteurs mesurées |
 
 ### 8.2 Fonctions
 
