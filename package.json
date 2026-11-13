@@ -18,6 +18,7 @@
     "schematics:test": "node --test scripts/test-schematics.mjs",
     "worker:bundle": "node scripts/bundle-worker.mjs",
     "worker:check": "node scripts/bundle-worker.mjs --check",
+    "perf:check": "node scripts/perf-check.mjs",
     "docs:api": "typedoc",
     "docs:build": "node scripts/build-docs.mjs && typedoc",
     "docs:demo": "node scripts/build-demo-docs.mjs",

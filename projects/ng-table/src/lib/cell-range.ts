@@ -174,3 +174,90 @@ export function buildPasteAssignments(
   });
   return assignments;
 }
+
+/** Sens d'une recopie : la plage source est prolongée vers le bas, le haut, la droite ou la gauche. */
+export type FillDirection = 'down' | 'up' | 'right' | 'left';
+
+/**
+ * Plage obtenue en tirant la poignée de recopie de `source` jusqu'à la cellule `to` : la source est prolongée dans
+ * UNE direction (celle où `to` sort le plus de la source). `null` quand `to` est dans la source : rien à recopier.
+ */
+export function fillTarget(source: CellRange, to: CellPosition): {range: CellRange; direction: FillDirection} | null {
+  const down = to.row - source.row2;
+  const up = source.row1 - to.row;
+  const right = to.col - source.col2;
+  const left = source.col1 - to.col;
+  const furthest = Math.max(down, up, right, left);
+  if (furthest <= 0) {
+    return null;
+  }
+  if (furthest === down) {
+    return {range: {...source, row2: to.row}, direction: 'down'};
+  }
+  if (furthest === up) {
+    return {range: {...source, row1: to.row}, direction: 'up'};
+  }
+  return furthest === right ? {range: {...source, col2: to.col}, direction: 'right'} : {range: {...source, col1: to.col}, direction: 'left'};
+}
+
+/** Pas d'une suite de nombres à pas constant (1, 2, 3 → 1 ; 10, 20 → 10) ; `null` sinon, ou avec moins de deux valeurs. */
+function seriesStep(values: readonly unknown[]): number | null {
+  if (values.length < 2 || !values.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+    return null;
+  }
+  const numbers = values as number[];
+  const step = numbers[1] - numbers[0];
+  for (let i = 2; i < numbers.length; i++) {
+    if (Math.abs(numbers[i] - numbers[i - 1] - step) > 1e-9 * Math.max(1, Math.abs(step))) {
+      return null;
+    }
+  }
+  return step;
+}
+
+/** Valeur écrite par une recopie dans une cellule cible. */
+export interface FillAssignment {
+  row: number;
+  col: number;
+  value: unknown;
+}
+
+/**
+ * Valeurs d'une recopie : les cellules de `target` hors de `source` reçoivent les valeurs de la source, répétées
+ * dans l'ordre (comme la poignée d'un tableur). Quand les valeurs sources d'une ligne ou d'une colonne sont des
+ * nombres à pas constant (1, 2, 3), la suite est PROLONGÉE (4, 5...) au lieu d'être répétée.
+ * `read(row, col)` lit la valeur d'une cellule source.
+ */
+export function buildFillAssignments(
+  source: CellRange,
+  target: CellRange,
+  direction: FillDirection,
+  read: (row: number, col: number) => unknown,
+): FillAssignment[] {
+  const assignments: FillAssignment[] = [];
+  const vertical = direction === 'down' || direction === 'up';
+  const forward = direction === 'down' || direction === 'right';
+  const lanes = vertical ? [source.col1, source.col2] : [source.row1, source.row2];
+  const [from, to] = vertical ? [source.row1, source.row2] : [source.col1, source.col2];
+  const count = vertical ? (forward ? target.row2 - source.row2 : source.row1 - target.row1) : forward ? target.col2 - source.col2 : source.col1 - target.col1;
+  for (let lane = lanes[0]; lane <= lanes[1]; lane++) {
+    const values: unknown[] = [];
+    for (let i = from; i <= to; i++) {
+      values.push(vertical ? read(i, lane) : read(lane, i));
+    }
+    const step = seriesStep(values);
+    for (let k = 0; k < count; k++) {
+      const position = forward ? to + 1 + k : from - 1 - k;
+      let value: unknown;
+      if (step !== null) {
+        const base = forward ? (values[values.length - 1] as number) : (values[0] as number);
+        // Arrondi : 0,1 + 0,2 ne doit pas écrire 0,30000000000000004.
+        value = Number((base + (forward ? 1 : -1) * step * (k + 1)).toPrecision(12));
+      } else {
+        value = forward ? values[k % values.length] : values[values.length - 1 - (k % values.length)];
+      }
+      assignments.push(vertical ? {row: position, col: lane, value} : {row: lane, col: position, value});
+    }
+  }
+  return assignments;
+}

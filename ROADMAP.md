@@ -150,7 +150,7 @@ But : aller plus loin en performance, en rendu et en confort d'usage. Aucune de 
 | H8 | Blocs : pagination par clé | Fait (côté table) | `request.afterRow` / `beforeRow` ; 1 test composant. Le serveur Spring d'exemple ne s'en sert pas encore. Cible d'origine : option de requête « après la dernière clé vue », à côté de `startRow` : un décalage profond est lent sur beaucoup de bases. Ne couvre pas le saut direct au milieu, qui garde `startRow` |
 | H9 | Hauteurs de ligne variables en défilement virtuel | Vérifié | `row-heights.ts` (`HeightIndex`, arbre de Fenwick), 13 tests purs dont l'équivalence avec une addition ligne par ligne ; 2 tests e2e dans Chromium (détail déplié hors de la zone rendue, dernière ligne atteignable). Limites : pas en modèle par blocs ni au-delà de 15 M px ; mesures remises à zéro quand la liste change. Cible d'origine : positions par sommes cumulées (arbre de Fenwick) : position d'une ligne et ligne à une position en O(log n) |
 | H10 | Calcul découpé en tranches sur le fil principal | À faire | Rendre la main entre deux tranches (`scheduler.postTask` / `scheduler.yield`, avec repli) : page réactive sans worker |
-| H11 | Benchmark en intégration continue | À faire | Scénarios de `/benchmark` rejoués avec Playwright, seuils de régression |
+| H11 | Benchmark en intégration continue | Fait (non exécuté sur GitHub) | `npm run perf:check` : six budgets exprimés en rapports dans une même exécution, donc peu sensibles à la machine ; 2 tests du script (`node --test`) ; étape ajoutée à `ci.yml`. Ne rejoue pas la page `/benchmark` face à AG Grid. Cible d'origine : scénarios de `/benchmark` rejoués avec Playwright, seuils de régression |
 | H12 | Mesurer face à AG Grid Enterprise | À faire | Demande une licence d'essai ; ajouter regroupement, pivot et modèle serveur aux scénarios |
 
 ### 8.2 Fonctions
@@ -159,7 +159,7 @@ But : aller plus loin en performance, en rendu et en confort d'usage. Aucune de 
 |----|--------------|--------|-------|
 | H13 | Regroupement multi-niveaux et arbre chargés à la demande côté serveur | À faire | Un seul niveau en `remote` aujourd'hui (G23) ; pas de regroupement avec `[remoteDatasource]` |
 | H14 | Constructeur de filtres avancés (ET / OU, groupes de conditions) | À faire | |
-| H15 | Poignée de recopie façon Excel | À faire | S'appuie sur `[rangeSelection]` et l'historique d'édition (G10, G11) |
+| H15 | Poignée de recopie façon Excel | Vérifié | `[fillHandle]`, `fillTarget`, `buildFillAssignments` ; 8 tests purs, 4 tests composant, 1 test e2e (glissement réel dans Chromium, puis Ctrl+Z). Ctrl+D / Ctrl+R au clavier. S'appuie sur `[rangeSelection]` et l'historique d'édition (G10, G11) |
 
 ### 8.3 Visuel
 

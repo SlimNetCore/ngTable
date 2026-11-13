@@ -4,6 +4,13 @@ import {CLIENTS, Commande, generateCommandes, STATUT_LABELS} from './demo-data';
 
 type CommandeMiseEnForme = Commande & {avancement: number; note: number; marge: number};
 
+interface LigneCommande {
+  id: string;
+  article: string;
+  quantite: number;
+  remise: number;
+}
+
 const TOTAL_SERVEUR = 1_000_000;
 
 /**
@@ -209,9 +216,29 @@ const TOTAL_SERVEUR = 1_000_000;
       />
     </div>
 
+    <!-- 5 bis -->
+    <div class="demo-card" style="margin-top: 16px">
+      <h2>6. Poignée de recopie, comme dans un tableur</h2>
+      <p class="try">
+        <b>À essayer</b>
+        Cliquez une cellule « Quantité » ou « Remise » : un petit carré apparaît à son coin. Tirez-le vers le bas : la valeur
+        est recopiée. Sélectionnez d'abord les deux premières quantités (10 et 20), puis tirez : la suite continue (30, 40…).
+        Ctrl+Z annule toute la recopie d'un coup. Au clavier : sélectionnez une plage avec Maj+flèches, puis Ctrl+D.
+      </p>
+      <ng-table
+        [ariaLabel]="'Lignes de commande modifiables'"
+        [cellNavigation]="true"
+        [columns]="fillColumns"
+        [density]="'compact'"
+        [fillHandle]="true"
+        [rangeSelection]="true"
+        [rows]="fillRows"
+      />
+    </div>
+
     <!-- 5 -->
     <div class="demo-card" style="margin-top: 16px">
-      <h2>6. Un million de lignes sur le serveur : annuler et charger d'avance</h2>
+      <h2>7. Un million de lignes sur le serveur : annuler et charger d'avance</h2>
       <p class="try">
         <b>À essayer</b>
         Le « serveur » est simulé et répond en 400 ms. Cliquez « Sauter à un endroit, puis aussitôt à un autre » : les demandes du
@@ -349,6 +376,34 @@ export class WhatsNewDemoComponent {
   ];
   /** Repère rouge : les plus grosses commandes (plus de 9 950 €, une trentaine sur 6 000). */
   protected readonly markBigOrders = (commande: Commande) => (commande.montant > 9950 ? ('danger' as const) : null);
+
+  // ------------------------------------------------------------------ 7. poignée de recopie
+  protected readonly fillRows: LigneCommande[] = ['Vis M6', 'Écrou M6', 'Rondelle', 'Cheville', 'Équerre', 'Charnière', 'Poignée', 'Serrure'].map((article, index) => ({
+    id: `${index + 1}`,
+    article,
+    quantite: index < 2 ? (index + 1) * 10 : 1,
+    remise: 0,
+  }));
+  protected readonly fillColumns: NgTableColumn<LigneCommande>[] = [
+    {id: 'article', header: 'Article', valueAccessor: (ligne) => ligne.article},
+    {
+      id: 'quantite',
+      header: 'Quantité',
+      valueAccessor: (ligne) => ligne.quantite,
+      editable: true,
+      editor: 'number',
+      valueSetter: (ligne, value) => ({...ligne, quantite: value as number}),
+      validate: (value) => ((value as number) < 0 ? 'Une quantité ne peut pas être négative' : null),
+    },
+    {
+      id: 'remise',
+      header: 'Remise (%)',
+      valueAccessor: (ligne) => ligne.remise,
+      editable: true,
+      editor: 'number',
+      valueSetter: (ligne, value) => ({...ligne, remise: value as number}),
+    },
+  ];
 
   // ------------------------------------------------------------------ 6. blocs : annulation et chargement d'avance
   private readonly blocksTable = viewChild<NgTableComponent<Commande>>('blocks');

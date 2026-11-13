@@ -692,9 +692,14 @@
               [attr.data-ngt-editable]="hasEditableColumns() && isEditable(row, column) ? '' : null"
               (dblclick)="onCellDoubleClick($event, row, column)"
               [attr.data-ngt-range]="cellRangeAttr(row, column)"
+              [attr.data-ngt-fill]="cellFillAttr(row, column)"
               [style.max-width.px]="column.maxWidthPx ?? null"
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" cdk-cell>
             @let cell = cellView(row, column);
+            @if (isFillHandleCell(row, column)) {
+              <!-- Décoratif pour un lecteur d'écran : au clavier, la recopie se fait par Ctrl+D / Ctrl+R. -->
+              <span (mousedown)="onFillStart($event)" aria-hidden="true" class="ngt-fill-handle"></span>
+            }
             @if (isEditing(row, column)) {
               <div class="cell-editor">
                 @switch (editorKind(column)) {

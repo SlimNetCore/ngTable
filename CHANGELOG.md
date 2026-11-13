@@ -4,6 +4,9 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+- `[fillHandle]` : poignée de recopie, comme dans un tableur. Un carré au coin de la plage sélectionnée se tire vers le bas, le haut, la droite ou la gauche ; les valeurs sont recopiées dans l'ordre, et une suite de nombres à pas constant est prolongée (10, 20 → 30, 40). Aperçu en pointillés pendant le glissement ; l'ensemble s'annule en une fois (Ctrl+Z) et passe par `validate`. Au clavier : Ctrl+D (vers le bas) et Ctrl+R (vers la droite) sur une plage. Demande `[rangeSelection]`, le mode local et des colonnes à `valueSetter`. `(cellEdited)` porte `source: 'fill'`.
+- Garde-fou de performance : `npm run perf:check` (`scripts/perf-check.mjs`, budgets dans `scripts/perf-budget.json`) vérifie des rapports entre deux temps d'une même exécution (« inverser un tri coûte moins de la moitié du premier tri »...), ajouté à la CI.
+
 - `[animateRows]` : au changement de tri, les lignes déjà à l'écran glissent vers leur nouvelle place et les autres apparaissent en fondu (260 ms). Rien ne bouge si l'utilisateur a demandé moins d'animations, ni au-delà de 120 lignes rendues.
 - `[stickyGroupHeaders]` : l'en-tête du groupe en cours, et de ses groupes parents, reste collé sous l'en-tête des colonnes pendant le défilement, y compris en défilement virtuel (l'en-tête sorti de la tranche rendue y est remis).
 - `[scrollMarkers]` et `[rowMarker]` : repères le long du bord de la zone défilante, à la hauteur des lignes sélectionnées et des lignes signalées (`'danger'`, `'warning'`, `'info'`, `'success'`), 200 au plus. Décoratifs (masqués aux lecteurs d'écran) ; l'épaisseur du trait distingue une alerte d'une sélection.

@@ -2553,3 +2553,50 @@ ng-table:dir(rtl) {
     display: none;
   }
 }
+
+/* [fillHandle] : poignée de recopie au coin de la plage, et aperçu en pointillés des cellules qui seront remplies. */
+.ng-table td[data-ngt-range~='bottom'][data-ngt-range~='right']:not(.cdk-table-sticky) {
+  position: relative;
+}
+
+.ngt-fill-handle {
+  position: absolute;
+  inset-inline-end: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--ngt-surface, #fff);
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  cursor: crosshair;
+  z-index: 3;
+}
+
+/* Zone de prise plus grande que le carré visible (cible de 24 px, WCAG 2.5.8). */
+.ngt-fill-handle::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.ng-table td[data-ngt-fill] {
+  outline: 1px dashed var(--ngt-primary, var(--app-primary, #2f6fa8));
+  outline-offset: -1px;
+  background: var(--ngt-primary-soft, rgba(47, 111, 168, 0.1));
+}
+
+@media (forced-colors: active) {
+  .ngt-fill-handle {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+
+  .ng-table td[data-ngt-fill] {
+    outline-color: Highlight;
+  }
+}
+
+@media print {
+  .ngt-fill-handle {
+    display: none;
+  }
+}

@@ -94,6 +94,9 @@ import {
   rangeContains,
   rangeEdges,
   toClipboardText,
+  buildFillAssignments,
+  FillDirection,
+  fillTarget,
 } from './cell-range';
 import {downloadFile, ExportCell, NgTableExportFormat, toCsv, toXlsx, XLSX_MIME} from './export-writers';
 import {ComputeWorkerClient, ComputeWorkerLike, createDefaultComputeWorker} from './compute-worker-client';
@@ -258,7 +261,7 @@ export interface NgTableCellEditEvent<T> {
   column: NgTableColumn<T>;
   oldValue: unknown;
   newValue: unknown;
-  source: 'edit' | 'paste' | 'undo' | 'redo';
+  source: 'edit' | 'paste' | 'fill' | 'undo' | 'redo';
 }
 
 /** Une saisie refusée (nombre ou date illisible, ou `validate` qui renvoie un message). */
@@ -891,6 +894,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
    * `(rangePasted)`. Non disponible avec `[remoteDatasource]`.
    */
   readonly rangeSelection = input(false);
+  /**
+   * Poignée de recopie, comme dans un tableur : un petit carré au coin de la plage sélectionnée, à tirer vers le bas,
+   * le haut, la droite ou la gauche pour recopier les valeurs dans les cellules voisines (une suite de nombres à pas
+   * constant est prolongée). Au clavier : Ctrl+D recopie la première ligne de la plage vers le bas, Ctrl+R la première
+   * colonne vers la droite. Demande `[rangeSelection]`, le mode local et des colonnes éditables (`valueSetter`) ;
+   * l'ensemble de la recopie s'annule en une fois (Ctrl+Z).
+   */
+  readonly fillHandle = input(false);
   /**
    * Un collage (Ctrl+V sur une plage) écrit dans les cellules éditables de la plage, en
    * une seule opération annulable. `(rangePasted)` est émis dans tous les cas.
@@ -3625,9 +3636,84 @@ export class NgTableComponent<T = any> implements OnDestroy {
     } else if (modifier && key === 'a' && this.rangePositionOf(target)) {
       event.preventDefault();
       this.selectAllCells();
+    } else if (modifier && (key === 'd' || key === 'r') && this.fillHandle() && this.rangeBounds()) {
+      // Ctrl+D / Ctrl+R : la première ligne (ou colonne) de la plage est recopiée dans le reste de la plage.
+      const bounds = this.rangeBounds()!;
+      const source = key === 'd' ? {...bounds, row2: bounds.row1} : {...bounds, col2: bounds.col1};
+      if (source.row2 !== bounds.row2 || source.col2 !== bounds.col2) {
+        event.preventDefault();
+        this.fillRange(source, bounds, key === 'd' ? 'down' : 'right');
+      }
     } else if (event.key === 'Escape' && this.rangeBounds()) {
       this.clearRangeSelection();
     }
+  }
+
+  // ------------------------------------------------------------------ poignée de recopie
+
+  /** Plage visée pendant qu'on tire la poignée (source comprise), et sens de la recopie. */
+  private readonly fillPreview = signal<{range: CellRange; direction: FillDirection} | null>(null);
+
+  /** La cellule porte la poignée : coin bas-droit de la plage (côté fin de ligne). */
+  protected isFillHandleCell(row: T, column: NgTableColumn<T>): boolean {
+    const bounds = this.rangeBounds();
+    if (!this.fillHandle() || !bounds || this.dataMode() !== 'local') {
+      return false;
+    }
+    return this.renderedRowIndexes().get(row) === bounds.row2 && this.visibleColumnIndexes().get(column.id) === bounds.col2;
+  }
+
+  /** `data-ngt-fill` d'une cellule : elle sera remplie si la poignée est lâchée maintenant. */
+  protected cellFillAttr(row: T, column: NgTableColumn<T>): '' | null {
+    const preview = this.fillPreview();
+    const bounds = this.rangeBounds();
+    if (!preview || !bounds) {
+      return null;
+    }
+    const r = this.renderedRowIndexes().get(row);
+    const c = this.visibleColumnIndexes().get(column.id);
+    return r !== undefined && c !== undefined && rangeContains(preview.range, r, c) && !rangeContains(bounds, r, c) ? '' : null;
+  }
+
+  protected onFillStart(event: MouseEvent): void {
+    if (event.button !== 0 || !this.rangeBounds()) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation(); // ce n'est pas le début d'une nouvelle sélection
+    document.addEventListener('mousemove', this.onFillMove);
+    document.addEventListener('mouseup', this.onFillEnd);
+  }
+
+  private readonly onFillMove = (event: MouseEvent): void => {
+    const bounds = this.rangeBounds();
+    const position = this.rangePositionOf(event.target as Element | null);
+    if (bounds && position) {
+      this.fillPreview.set(fillTarget(bounds, position));
+    }
+  };
+
+  private readonly onFillEnd = (): void => {
+    document.removeEventListener('mousemove', this.onFillMove);
+    document.removeEventListener('mouseup', this.onFillEnd);
+    const preview = this.fillPreview();
+    const bounds = this.rangeBounds();
+    this.fillPreview.set(null);
+    if (preview && bounds) {
+      this.fillRange(bounds, preview.range, preview.direction);
+    }
+  };
+
+  /** Recopie `source` dans le reste de `target`, en un lot annulable, puis étend la sélection à `target`. */
+  private fillRange(source: CellRange, target: CellRange, direction: FillDirection): void {
+    const rows = this.displayedRows();
+    const columns = this.visibleColumns();
+    const assignments = buildFillAssignments(source, target, direction, (row, col) => columns[col].valueAccessor(rows[row]))
+      .filter(({row, col}) => row >= 0 && row < rows.length && col >= 0 && col < columns.length)
+      .map(({row, col, value}) => ({row: rows[row], column: columns[col], value: draftFromValue(this.editorKind(columns[col]), value)}));
+    this.applyPastedValues(assignments, 'fill');
+    this.rangeAnchor.set({row: target.row1, col: target.col1});
+    this.rangeFocus.set({row: target.row2, col: target.col2});
   }
 
   protected onRangePaste(event: ClipboardEvent): void {
@@ -4088,7 +4174,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
   }
 
   /** Écrit les valeurs collées dans les cellules éditables, en un seul lot annulable. Renvoie le nombre de cellules modifiées. */
-  private applyPastedValues(assignments: readonly { row: T; column: NgTableColumn<T>; value: string }[]): number {
+  private applyPastedValues(assignments: readonly { row: T; column: NgTableColumn<T>; value: string }[], source: 'paste' | 'fill' = 'paste'): number {
     if (this.dataMode() !== 'local') {
       return 0;
     }
@@ -4115,7 +4201,7 @@ export class NgTableComponent<T = any> implements OnDestroy {
       const next = column.valueSetter(current, parsed.value);
       latest.set(key, next);
       changes.push({key, columnId: column.id, previous: current, current: next});
-      events.push({row: current, newRow: next, column, oldValue, newValue: parsed.value, source: 'paste'});
+      events.push({row: current, newRow: next, column, oldValue, newValue: parsed.value, source});
     }
     if (changes.length > 0) {
       this.applyTransaction({update: [...latest.values()]});

@@ -1010,6 +1010,8 @@ Comme dans un tableur : sélectionner un rectangle de cellules, le copier vers E
 - **Accessibilité.** Avec `[cellNavigation]`, les cellules de la plage portent `aria-selected="true"`. Sans lui, la plage se fait à la souris seulement.
 - **Limites.** Pas avec `[remoteDatasource]` (les lignes ne sont chargées que par blocs). Pas de défilement automatique en glissant au bord de la zone : utilisez Maj+clic ou Maj+flèches pour une plage plus longue.
 
+**Poignée de recopie.** Avec `[fillHandle]="true"` (en plus de `[rangeSelection]` et de colonnes éditables), un petit carré apparaît au coin de la plage. Tirez-le vers le bas, le haut, la droite ou la gauche : les valeurs de la plage sont recopiées dans l'ordre dans les cellules traversées. Si la plage contient, dans le sens de la recopie, des nombres à pas constant (`10, 20`), la suite est prolongée (`30, 40`) ; sinon les valeurs se répètent. Chaque valeur passe par `validate` (une valeur refusée laisse la cellule intacte et émet `(cellEditRejected)`), et toute la recopie forme un seul lot annulable. Au clavier : sélectionnez une plage (Maj+flèches), puis **Ctrl+D** recopie sa première ligne vers le bas et **Ctrl+R** sa première colonne vers la droite. `(cellEdited)` porte `source: 'fill'`.
+
 ### Étape 10nonies — En-têtes de colonnes groupés
 
 Un libellé commun au-dessus de plusieurs colonnes, sur un ou plusieurs niveaux, comme les « column groups » d'AG Grid.
@@ -2905,6 +2907,7 @@ interface NgTableFilterConfig {
 | `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
 | `highlightSearch`           | `boolean`                                                        | `false`   | Surligne dans les cellules le texte trouvé par la recherche globale (cellules en texte, hors `cellTemplate`).        |
 | `animateRows`               | `boolean`                                                        | `false`   | Au changement de tri, les lignes glissent vers leur nouvelle place (respecte `prefers-reduced-motion`).             |
+| `fillHandle`                | `boolean`                                                        | `false`   | Poignée de recopie au coin de la plage sélectionnée ; Ctrl+D / Ctrl+R au clavier (voir Étape 10decies).             |
 | `stickyGroupHeaders`        | `boolean`                                                        | `false`   | L'en-tête du groupe en cours reste collé sous l'en-tête des colonnes (zone défilante requise).                      |
 | `scrollMarkers`             | `boolean`                                                        | `false`   | Repères le long de la zone défilante pour les lignes sélectionnées et celles signalées par `rowMarker`.             |
 | `rowMarker`                 | `((row: T) => NgTableTone \| null) \| null`                      | `null`    | Teinte du repère d'une ligne (`'danger'`, `'warning'`, `'info'`, `'success'`) ; voir `scrollMarkers`.               |

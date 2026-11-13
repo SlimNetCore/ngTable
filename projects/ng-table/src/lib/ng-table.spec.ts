@@ -1884,6 +1884,74 @@ describe('NgTableComponent', () => {
       expect(component.displayedRows().map((r) => `${r.nom}/${r.montant}`)).toEqual(['Charlie/300', 'alice/100', 'Bob/200']);
     });
 
+    describe('poignée de recopie ([fillHandle])', () => {
+      const montants = (component: NgTableComponent) => component.displayedRows().map((r) => r.montant);
+      const select = (fixture: ComponentFixture<NgTableComponent>, from: number, to: number) => {
+        cell(fixture, from, 'montant').dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}));
+        if (to !== from) {
+          cell(fixture, to, 'montant').dispatchEvent(new MouseEvent('mousemove', {bubbles: true}));
+        }
+        document.body.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+      };
+      const handle = (fixture: ComponentFixture<NgTableComponent>) => (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.ngt-fill-handle');
+
+      it('tirer la poignée recopie la valeur vers le bas, en un lot annulable', async () => {
+        const {fixture, component} = await createTable({columns: editableColumns(), rangeSelection: true, fillHandle: true});
+        const sources: string[] = [];
+        component.cellEdited.subscribe((event) => sources.push(event.source));
+        select(fixture, 0, 0);
+        await fixture.whenStable();
+        expect(handle(fixture)?.closest('td')).toBe(cell(fixture, 0, 'montant'));
+
+        handle(fixture)!.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}));
+        cell(fixture, 2, 'montant').dispatchEvent(new MouseEvent('mousemove', {bubbles: true}));
+        await fixture.whenStable();
+        // Aperçu : les deux cellules sous la source seront remplies.
+        expect((fixture.nativeElement as HTMLElement).querySelectorAll('td[data-ngt-fill]')).toHaveLength(2);
+        document.body.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+        await fixture.whenStable();
+
+        expect(montants(component)).toEqual([300, 300, 300]);
+        expect(sources).toEqual(['fill', 'fill']);
+        expect((fixture.nativeElement as HTMLElement).querySelectorAll('td[data-ngt-fill]')).toHaveLength(0);
+        // La sélection couvre maintenant toute la zone remplie, et la poignée a suivi.
+        expect(component.getSelectedRange()?.rows).toHaveLength(3);
+        expect(handle(fixture)?.closest('td')).toBe(cell(fixture, 2, 'montant'));
+
+        component.undo();
+        await fixture.whenStable();
+        expect(montants(component)).toEqual([300, 100, 200]);
+      });
+
+      it('deux nombres : la suite est prolongée, ici vers le haut', async () => {
+        const {fixture, component} = await createTable({columns: editableColumns(), rangeSelection: true, fillHandle: true});
+        select(fixture, 1, 2); // 100, 200 : pas de 100
+        await fixture.whenStable();
+        handle(fixture)!.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}));
+        cell(fixture, 0, 'montant').dispatchEvent(new MouseEvent('mousemove', {bubbles: true}));
+        document.body.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+        await fixture.whenStable();
+        expect(montants(component), 'vers le haut : 100 − 100').toEqual([0, 100, 200]);
+      });
+
+      it('au clavier : Ctrl+D recopie la première ligne de la plage vers le bas', async () => {
+        const {fixture, component} = await createTable({columns: editableColumns(), rangeSelection: true, fillHandle: true});
+        select(fixture, 0, 2);
+        await fixture.whenStable();
+        const first = cell(fixture, 0, 'montant');
+        first.dispatchEvent(new KeyboardEvent('keydown', {key: 'd', ctrlKey: true, bubbles: true, cancelable: true}));
+        await fixture.whenStable();
+        expect(montants(component)).toEqual([300, 300, 300]);
+      });
+
+      it('pas de poignée sans [fillHandle]', async () => {
+        const {fixture} = await createTable({columns: editableColumns(), rangeSelection: true});
+        select(fixture, 0, 0);
+        await fixture.whenStable();
+        expect(handle(fixture)).toBeNull();
+      });
+    });
+
     it('[editOnPaste]="false" laisse le collage à l’application', async () => {
       const {fixture, component} = await createTable({columns: editableColumns(), rangeSelection: true, editOnPaste: false});
       cell(fixture, 0, 'nom').dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}));
