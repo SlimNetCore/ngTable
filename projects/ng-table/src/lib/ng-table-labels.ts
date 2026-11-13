@@ -23,6 +23,24 @@ export interface NgTableLabels {
   all: string;
   search: string;
   noData: string;
+  /** Liste vide à cause des filtres ou de la recherche (un bouton propose de les réinitialiser). */
+  noDataFiltered: string;
+  /** Nom accessible d'une note en étoiles (`cell: {type: 'rating'}`) ; `{value}` et `{max}`. */
+  ratingLabel: string;
+  /** Constructeur de filtres avancés (`ng-table-filter-builder`). */
+  filterBuilderLabel: string;
+  filterBuilderAll: string;
+  filterBuilderAny: string;
+  filterBuilderAnd: string;
+  filterBuilderOr: string;
+  filterBuilderNot: string;
+  filterBuilderColumn: string;
+  filterBuilderValue: string;
+  filterBuilderAddCondition: string;
+  filterBuilderAddGroup: string;
+  filterBuilderRemove: string;
+  filterBuilderRemoveGroup: string;
+  filterBuilderClear: string;
   /** Filtre par ensemble : case « tout » en tête de liste. */
   selectAll: string;
   /** Filtre par ensemble : libellé des cellules vides. */
@@ -209,6 +227,21 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   all: 'Tous',
   search: 'Rechercher',
   noData: 'Aucune donnée',
+  noDataFiltered: 'Aucune ligne ne correspond aux filtres',
+  ratingLabel: '{value} sur {max}',
+  filterBuilderLabel: 'Filtre avancé',
+  filterBuilderAll: 'Toutes les conditions (ET)',
+  filterBuilderAny: 'Au moins une condition (OU)',
+  filterBuilderAnd: 'ET',
+  filterBuilderOr: 'OU',
+  filterBuilderNot: 'Sauf',
+  filterBuilderColumn: 'Colonne',
+  filterBuilderValue: 'Valeur',
+  filterBuilderAddCondition: 'Ajouter une condition',
+  filterBuilderAddGroup: 'Ajouter un groupe',
+  filterBuilderRemove: 'Retirer la condition',
+  filterBuilderRemoveGroup: 'Retirer le groupe',
+  filterBuilderClear: 'Tout effacer',
   selectAll: '(Tout sélectionner)',
   blanks: '(Vides)',
   setFilterTruncated: 'Liste tronquée : affinez avec la recherche.',
@@ -341,6 +374,21 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   all: 'All',
   search: 'Search',
   noData: 'No data',
+  noDataFiltered: 'No rows match the filters',
+  ratingLabel: '{value} out of {max}',
+  filterBuilderLabel: 'Advanced filter',
+  filterBuilderAll: 'All conditions (AND)',
+  filterBuilderAny: 'Any condition (OR)',
+  filterBuilderAnd: 'AND',
+  filterBuilderOr: 'OR',
+  filterBuilderNot: 'Not',
+  filterBuilderColumn: 'Column',
+  filterBuilderValue: 'Value',
+  filterBuilderAddCondition: 'Add condition',
+  filterBuilderAddGroup: 'Add group',
+  filterBuilderRemove: 'Remove condition',
+  filterBuilderRemoveGroup: 'Remove group',
+  filterBuilderClear: 'Clear all',
   selectAll: '(Select all)',
   blanks: '(Blanks)',
   setFilterTruncated: 'List truncated: narrow it down with the search.',

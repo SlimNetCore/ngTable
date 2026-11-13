@@ -10,7 +10,8 @@
  *   trié, en O(n + k·log k) au lieu de O(n·log n) avec un appel aux accessors par
  *   comparaison. Il recalcule tout quand les filtres, le tri ou les colonnes changent.
  */
-import {buildSortOrder} from './fast-sort';
+import type {ColumnStore} from './column-store';
+import {buildSortOrder, radixSortByDigits, SortDigits} from './fast-sort';
 import {compareSortKeys, numericValue, SortLevel, sortKeysOf, SortValue} from './row-pipeline';
 
 /** Transaction sur les lignes (même forme que la `RowDataTransaction` d'AG Grid). */
@@ -244,6 +245,55 @@ ull : la clé est nouvelle dans ce lot ; undefined : la clé n'a pas été touch
   }
 }
 
+/** Retouche d'un tableau de lignes : voir `rowsPatch`. Les indices sont ceux du tableau précédent. */
+export interface RowsDelta<T> {
+  updated: {index: number; row: T}[];
+  removed: number[];
+  appended: T[];
+}
+
+/**
+ * Ce qui sépare le tableau de lignes précédent (dont `previousSeqs` donne l'ordre d'arrivée, croissant) de l'état
+ * actuel du magasin, d'après les clés modifiées du dernier `drain()` : lignes mises à jour sur place, retirées, et
+ * ajoutées en fin de liste. Coût : une recherche dichotomique par clé modifiée, sans parcourir toutes les lignes.
+ * Sert à retoucher une copie des données (le worker de calcul) au lieu de la renvoyer en entier.
+ */
+export function rowsPatch<T>(store: RowStore<T>, keys: ReadonlySet<unknown>, previousSeqs: readonly number[]): RowsDelta<T> | null {
+  const delta: RowsDelta<T> = {updated: [], removed: [], appended: []};
+  const appended: {seq: number; row: T}[] = [];
+  for (const key of keys) {
+    const before = store.previous(key);
+    const row = store.get(key);
+    const seq = store.seqOf(key);
+    if (before) {
+      let low = 0;
+      let high = previousSeqs.length;
+      while (low < high) {
+        const mid = (low + high) >>> 1;
+        if (previousSeqs[mid] < before.seq) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
+      }
+      if (previousSeqs[low] !== before.seq) {
+        return null; // l'ancienne version n'est pas dans le tableau précédent : état inconnu, tout renvoyer
+      }
+      if (row !== undefined && seq === before.seq) {
+        delta.updated.push({index: low, row});
+        continue;
+      }
+      delta.removed.push(low);
+    }
+    if (row !== undefined) {
+      appended.push({seq, row}); // clé nouvelle, ou retirée puis rajoutée : en fin de liste
+    }
+  }
+  appended.sort((a, b) => a.seq - b.seq);
+  delta.appended = appended.map((entry) => entry.row);
+  return delta;
+}
+
 /** Ce que le pipeline doit savoir de la configuration (filtres, tri...). */
 export interface PipelineConfig<T> {
   /** La ligne passe-t-elle les filtres et la recherche ? */
@@ -261,6 +311,22 @@ export interface PipelineConfig<T> {
    * À inclure dans `deps` (une nouvelle liste recalcule tout).
    */
   sums?: readonly {id: string; value: (row: T) => unknown}[];
+  /**
+   * Colonnes de tri mises en cache d'un recalcul à l'autre (voir `ColumnStore`). Sans lui, les
+   * valeurs de tri sont relues à chaque recalcul complet.
+   */
+  columnStore?: ColumnStore<T>;
+  /**
+   * Variante de `matches` pour un recalcul complet : reçoit toutes les lignes et renvoie un test par INDICE, ce qui
+   * permet de filtrer par les colonnes en dictionnaire. Doit retenir exactement les mêmes lignes que `matches`.
+   */
+  matchesAt?: (rows: readonly T[]) => (index: number) => boolean;
+  /**
+   * Filtre plus strict que le précédent : quand `base` est inchangé (comparaison par référence, comme `deps`) et que
+   * `narrows(état précédent)` répond vrai, le résultat précédent, déjà trié, est seulement refiltré.
+   * `base` doit contenir tout `deps` sauf ce que décrit `state` (les saisies de filtre et de recherche).
+   */
+  narrowing?: {base: readonly unknown[]; state: unknown; narrows: (previousState: never) => boolean};
 }
 
 /** Somme et nombre de valeurs numériques d'une colonne sur le résultat. */
@@ -284,7 +350,9 @@ export class IncrementalPipeline<T> {
   private seqs: number[] = [];
   private deps: readonly unknown[] | null = null;
   /** Nombre de recalculs complets / de fusions : pour les tests et le diagnostic. */
-  readonly stats = {rebuilds: 0, merges: 0};
+  readonly stats = {rebuilds: 0, merges: 0, narrows: 0};
+  private narrowBase: readonly unknown[] | null = null;
+  private narrowState: unknown = undefined;
   private totals = new Map<string, RunningTotal>();
   private mergesSinceSums = 0;
 
@@ -299,7 +367,9 @@ export class IncrementalPipeline<T> {
   compute(store: RowStore<T>, config: PipelineConfig<T>): T[] {
     const changes = store.drain();
     const sameConfig = !!this.deps && this.deps.length === config.deps.length && this.deps.every((dep, i) => dep === config.deps[i]);
-    if (!sameConfig || changes.reset) {
+    if (!sameConfig && !changes.reset && changes.keys.size === 0 && this.canNarrow(store, config)) {
+      this.narrow(config);
+    } else if (!sameConfig || changes.reset) {
       this.rebuild(store, config);
     } else if (changes.keys.size > 0) {
       this.merge(store, config, changes.keys);
@@ -308,7 +378,52 @@ export class IncrementalPipeline<T> {
       }
     }
     this.deps = config.deps;
+    this.narrowBase = config.narrowing?.base ?? null;
+    this.narrowState = config.narrowing?.state;
     return this.result;
+  }
+
+  private canNarrow(store: RowStore<T>, config: PipelineConfig<T>): boolean {
+    const narrowing = config.narrowing;
+    const base = this.narrowBase;
+    if (!narrowing || !base || base.length !== narrowing.base.length || !base.every((dep, i) => dep === narrowing.base[i])) {
+      return false;
+    }
+    // Le résultat précédent est dans l'ordre du tri : ses lignes sont éparpillées en mémoire, et les relire coûte
+    // environ trois fois plus cher par ligne que de parcourir toutes les lignes dans l'ordre. Le raccourci vaut donc
+    // quand il reste peu de lignes à tester, ou quand retrier coûterait cher (colonnes de tri pas encore en cache).
+    const columns = config.columnStore;
+    const cheapSort =
+      config.levels.length === 0 ||
+      (!!columns && config.levels.every((level) => columns.has(store.rows(), level.column, config.collator)));
+    if (cheapSort && this.result.length * 3 > store.size) {
+      return false;
+    }
+    return narrowing.narrows(this.narrowState as never);
+  }
+
+  /** Filtre plus strict : seules les lignes du résultat précédent sont testées ; leur ordre (le tri) ne change pas. */
+  private narrow(config: PipelineConfig<T>): void {
+    this.stats.narrows++;
+    const previousRows = this.result;
+    const previousSeqs = this.seqs;
+    const matches = config.matches;
+    const count = previousRows.length;
+    const kept = new Uint32Array(count);
+    let size = 0;
+    for (let i = 0; i < count; i++) {
+      if (matches(previousRows[i])) {
+        kept[size++] = i;
+      }
+    }
+    const rows = new Array<T>(size);
+    const seqs = new Array<number>(size);
+    for (let i = 0; i < size; i++) {
+      rows[i] = previousRows[kept[i]];
+      seqs[i] = previousSeqs[kept[i]];
+    }
+    this.setResult(rows, seqs);
+    this.resyncTotals(config);
   }
 
   /** Somme et nombre de valeurs de la colonne `id` (déclarée dans `config.sums`) sur le résultat. */
@@ -348,34 +463,86 @@ export class IncrementalPipeline<T> {
     this.stats.rebuilds++;
     const all = store.rows();
     const allSeqs = store.seqs();
-    const matched: T[] = [];
-    const matchedSeqs: number[] = [];
-    for (let i = 0; i < all.length; i++) {
-      if (config.matches(all[i])) {
-        matched.push(all[i]);
-        matchedSeqs.push(allSeqs[i]);
+    // Indices des lignes retenues : les lignes elles-mêmes ne sont copiées qu'une fois, dans l'ordre final.
+    const matchedIndex: number[] = [];
+    const matchesAt = config.matchesAt?.(all);
+    if (matchesAt) {
+      for (let i = 0; i < all.length; i++) {
+        if (matchesAt(i)) {
+          matchedIndex.push(i);
+        }
+      }
+    } else {
+      for (let i = 0; i < all.length; i++) {
+        if (config.matches(all[i])) {
+          matchedIndex.push(i);
+        }
       }
     }
+    const pick = (order: ArrayLike<number>): void => {
+      const rows = new Array<T>(order.length);
+      const seqs = new Array<number>(order.length);
+      for (let i = 0; i < order.length; i++) {
+        rows[i] = all[order[i]];
+        seqs[i] = allSeqs[order[i]];
+      }
+      this.setResult(rows, seqs);
+    };
     if (config.levels.length === 0) {
-      this.setResult(matched, matchedSeqs);
-    } else {
+      pick(matchedIndex);
+    } else if (!this.sortByColumns(all, matchedIndex, config, pick)) {
+      const matched = new Array<T>(matchedIndex.length);
+      for (let i = 0; i < matchedIndex.length; i++) {
+        matched[i] = all[matchedIndex[i]];
+      }
       const order = buildSortOrder(matched, config.levels, config.collator);
       if (order) {
-        const rows = new Array<T>(order.length);
-        const seqs = new Array<number>(order.length);
         for (let i = 0; i < order.length; i++) {
-          rows[i] = matched[order[i]];
-          seqs[i] = matchedSeqs[order[i]];
+          order[i] = matchedIndex[order[i]];
         }
-        this.setResult(rows, seqs);
+        pick(order);
       } else {
         // Niveau qu'on ne sait pas ranger en nombres (types mêlés...) : tri par comparaisons.
-        const entries = matched.map((row, i) => ({row, seq: matchedSeqs[i], sortKeys: sortKeysOf(row, config.levels)}));
+        const entries = matched.map((row, i) => ({row, seq: allSeqs[matchedIndex[i]], sortKeys: sortKeysOf(row, config.levels)}));
         entries.sort((a, b) => this.compare(a, b, config));
         this.setResult(entries.map((entry) => entry.row), entries.map((entry) => entry.seq));
       }
     }
     this.resyncTotals(config);
+  }
+
+  /**
+   * Tri par les colonnes en cache (`config.columnStore`) : les valeurs de tri ne sont lues qu'une fois par jeu de
+   * lignes, puis chaque tri ne coûte que les passes du tri par base sur les indices retenus. Renvoie `false` quand ce
+   * chemin ne s'applique pas ; l'appelant trie alors comme avant.
+   *
+   * Une colonne absente du cache se construit pour TOUTES les lignes : quand les filtres n'en retiennent qu'une petite
+   * part, lire les seules lignes retenues coûte moins, et le cache n'est pas rempli.
+   */
+  private sortByColumns(all: readonly T[], matchedIndex: readonly number[], config: PipelineConfig<T>, pick: (order: ArrayLike<number>) => void): boolean {
+    const store = config.columnStore;
+    if (!store || matchedIndex.length < 2) {
+      return false;
+    }
+    const worthBuilding = matchedIndex.length * 2 >= all.length;
+    if (!worthBuilding && !config.levels.every((level) => store.has(all, level.column, config.collator))) {
+      return false;
+    }
+    const digits: SortDigits[] = [];
+    for (const level of config.levels) {
+      const column = store.sortDigits(all, level.column, config.collator);
+      if (!column) {
+        return false;
+      }
+      digits.push(column);
+    }
+    // Du niveau le moins important au plus important : chaque passe est stable.
+    let order: Uint32Array = Uint32Array.from(matchedIndex);
+    for (let level = digits.length - 1; level >= 0; level--) {
+      order = radixSortByDigits(order, digits[level], config.levels[level].factor < 0);
+    }
+    pick(order);
+    return true;
   }
 
   private setResult(rows: T[], seqs: number[]): void {

@@ -12,6 +12,9 @@ async function open(page: Page, route: string, language = 'fr'): Promise<void> {
 }
 
 async function expectNoViolations(page: Page, selector?: string): Promise<void> {
+  // Les boutons de la démo affichent une icône par ligature de police : tant que la police n'est pas chargée, le nom
+  // de l'icône (« open_in_new ») est du texte visible et axe signale un écart avec le nom accessible. On attend la police.
+  await page.evaluate(() => document.fonts.ready);
   const builder = new AxeBuilder({page}).withTags(TAGS);
   const {violations} = await (selector ? builder.include(selector) : builder).analyze();
   const summary = violations.map((violation) => `${violation.id} (${violation.impact}) ×${violation.nodes.length} — ${violation.help}\n    ${violation.nodes.slice(0, 3).map((node) => node.target.join(' ')).join('\n    ')}`);

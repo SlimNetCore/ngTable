@@ -20,12 +20,16 @@ jobs:
       - run: npm run lint
       - run: npm run test:ci
       - run: npm run build
+      # Rendu côté serveur : la table rendue dans Node sans navigateur simulé, à partir du paquet construit.
+      - run: npm run ssr:check
       - run: npm run build:demo
       - run: npm run theme:check
       - run: npm run worker:check
       - run: npm run schematics:check
       - run: npm run schematics:test
       - run: npm run docs:build
+      # Garde-fou de performance : rapports entre deux temps d'une même exécution (voir scripts/perf-budget.json).
+      - run: npm run perf:check
 
       # Navigateur réel : audit d'accessibilité axe (WCAG 2.2 A/AA) de la démo, clair / sombre, RTL, écran étroit, barre d'actions.
       - run: npx playwright install --with-deps chromium

@@ -1,3 +1,4 @@
+import {sanitizeFilterGroup} from '@sbourahla/ng-table';
 import type {NgTableQueryState, NgTableSortChange} from '@sbourahla/ng-table';
 
 /** Paramètres d'URL : `null` = paramètre à retirer de l'URL. */
@@ -9,7 +10,7 @@ export type NgTableUrlParams = Record<string, string | null>;
  */
 export function urlParamNames(prefix: string) {
   const p = prefix ? `${prefix}.` : '';
-  return {sort: `${p}s`, search: `${p}q`, page: `${p}p`, pageSize: `${p}ps`, groupBy: `${p}g`, filterPrefix: `${p}f.`};
+  return {sort: `${p}s`, search: `${p}q`, page: `${p}p`, pageSize: `${p}ps`, groupBy: `${p}g`, advanced: `${p}af`, filterPrefix: `${p}f.`};
 }
 
 /**
@@ -46,6 +47,10 @@ export function toUrlParams(
   }
   if (state.groupBy) {
     params[names.groupBy] = state.groupBy;
+  }
+  if (state.advancedFilter) {
+    // Le filtre avancé est un arbre : il voyage en JSON dans un seul paramètre.
+    params[names.advanced] = JSON.stringify(state.advancedFilter);
   }
   for (const [columnId, value] of Object.entries(state.filters)) {
     if (value) {
@@ -88,6 +93,7 @@ export function fromUrlParams(
     pageSize: pageSize > 0 ? pageSize : defaultPageSize,
     groupBy: params[names.groupBy] || null,
     collapsedGroups: [],
+    advancedFilter: parseAdvancedFilter(params[names.advanced]),
   };
 }
 
@@ -97,8 +103,20 @@ export function sameUrlState(a: NgTableQueryState, b: NgTableQueryState, prefix:
     JSON.stringify(sortKeys(toUrlParams(b, prefix, defaultPageSize)));
 }
 
+/** Filtre avancé lu dans l'URL : `null` s'il est absent, illisible ou mal formé (une URL se modifie à la main). */
+function parseAdvancedFilter(raw: string | undefined): NgTableQueryState['advancedFilter'] {
+  if (!raw) {
+    return null;
+  }
+  try {
+    return sanitizeFilterGroup(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
 function isOwnKey(key: string, names: ReturnType<typeof urlParamNames>): boolean {
-  return [names.sort, names.search, names.page, names.pageSize, names.groupBy].includes(key) || key.startsWith(names.filterPrefix);
+  return [names.sort, names.search, names.page, names.pageSize, names.groupBy, names.advanced].includes(key) || key.startsWith(names.filterPrefix);
 }
 
 function sortKeys(params: NgTableUrlParams): [string, string | null][] {

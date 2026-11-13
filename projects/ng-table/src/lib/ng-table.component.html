@@ -692,9 +692,14 @@
               [attr.data-ngt-editable]="hasEditableColumns() && isEditable(row, column) ? '' : null"
               (dblclick)="onCellDoubleClick($event, row, column)"
               [attr.data-ngt-range]="cellRangeAttr(row, column)"
+              [attr.data-ngt-fill]="cellFillAttr(row, column)"
               [style.max-width.px]="column.maxWidthPx ?? null"
               [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" cdk-cell>
             @let cell = cellView(row, column);
+            @if (isFillHandleCell(row, column)) {
+              <!-- Décoratif pour un lecteur d'écran : au clavier, la recopie se fait par Ctrl+D / Ctrl+R. -->
+              <span (mousedown)="onFillStart($event)" aria-hidden="true" class="ngt-fill-handle"></span>
+            }
             @if (isEditing(row, column)) {
               <div class="cell-editor">
                 @switch (editorKind(column)) {
@@ -729,6 +734,7 @@
                      [attr.aria-label]="column.header" [checked]="!!cell.value" class="ngt-inline-check" type="checkbox"/>
             }
             <div class="cell-content" [class.cell-content--hidden]="isEditing(row, column) || isInlineCheckbox(row, column)"
+                 [class.cell-content--fill]="column.cell?.type === 'dataBar' || column.cell?.type === 'colorScale' || column.cell?.type === 'progress'"
                  [class.cell-content--wrap]="column.textOverflow === 'wrap'">
               @if (treeActive() && column.id === leadColumnId()) {
                 <span [style.width.px]="treeDepth(row) * treeIndent()" aria-hidden="true" class="ngt-tree-indent"></span>
@@ -750,10 +756,25 @@
                       [class.cell-text--wrap]="column.textOverflow === 'wrap'">
                   <ng-container *ngTemplateOutlet="column.cellTemplate; context: cell.context" />
                 </span>
+              } @else if (column.cell; as format) {
+                <ng-table-cell-format [format]="format" [label]="column.header" [range]="cellFormatRange(column)" [ratingLabel]="effectiveLabels().ratingLabel"
+                                      [row]="row" [text]="cell.text" [value]="cell.value"/>
               } @else if (column.textOverflow === 'wrap') {
-                <span class="cell-text cell-text--wrap">{{ cell.value }}</span>
+                <span class="cell-text cell-text--wrap">
+                  @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
+                    <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
+                  } @else {
+                    {{ cell.value }}
+                  }
+                </span>
               } @else {
-                <span [ngTableTruncateTooltip]="cell.text" class="cell-text cell-text--truncate">{{ cell.value }}</span>
+                <span [ngTableTruncateTooltip]="cell.text" class="cell-text cell-text--truncate">
+                  @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
+                    <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
+                  } @else {
+                    {{ cell.value }}
+                  }
+                </span>
               }
 
               @if (cell.copyText) {
@@ -876,6 +897,9 @@
         [attr.aria-expanded]="groupsCollapsible() ? !item.collapsed : null"
         [attr.aria-rowindex]="ariaRowIndex(item)"
         [attr.tabindex]="groupsCollapsible() ? 0 : null"
+        [attr.data-ngt-group-extra]="isStickyGroupExtra(item) ? '' : null"
+        [class.group-row--sticky]="stickyGroupHeaders()"
+        [style.--ngt-group-depth]="stickyGroupHeaders() ? item.depth : null"
         [class.group-row--static]="!groupsCollapsible()"
         class="group-row"
         cdk-row
@@ -898,6 +922,7 @@
         [attr.data-ngt-pin]="pinInfo(row)?.side ?? null"
         [attr.data-ngt-row]="rowRangeIndex(row)"
         [attr.data-ngt-pin-edge]="pinInfo(row)?.edge ? '' : null"
+        [attr.data-ngt-located]="isLocated(row) ? '' : null"
         [attr.tabindex]="isRowInteractive() && !cellNavigation() ? 0 : null"
         [style.--ngt-pin-index]="pinInfo(row)?.index ?? null"
         [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
@@ -919,11 +944,29 @@
       ></tr>
       <tr *cdkNoDataRow class="cdk-row">
         <td [attr.colspan]="displayedColumnIds().length || 1" class="cdk-cell no-data-cell">
-          {{ resolvedEmptyLabel() }}
+          @if (emptyBecauseFiltered()) {
+            <span class="no-data-cell__text">{{ effectiveLabels().noDataFiltered }}</span>
+            <button (click)="clearAllFilters()" class="no-data-cell__action" ngt-stroked-button type="button">
+              <ng-table-icon aria-hidden="true" name="filter_alt_off"/>
+              {{ effectiveLabels().resetFiltersButton }}
+            </button>
+          } @else {
+            {{ resolvedEmptyLabel() }}
+          }
         </td>
       </tr>
     </table>
   </div>
+
+  @if (scrollMarks().length > 0 && !(sidePanel() && sidePanelOpen() && sidePanelPinned())) {
+    <!-- Décoratif : la sélection et l'état des lignes sont déjà exposés ligne par ligne. -->
+    <!-- La bande a la hauteur de la barre de défilement : un trait y est à la position du curseur quand sa ligne est à l'écran. -->
+    <div [style.height.px]="virtualActive() ? viewportHeightPx() : null" aria-hidden="true" class="ngt-scroll-markers">
+      @for (mark of scrollMarks(); track mark.index) {
+        <span (mousedown)="onScrollMarkerClick($event, mark)" [attr.data-kind]="mark.kind" [style.top.%]="mark.top" class="ngt-scroll-marker"></span>
+      }
+    </div>
+  }
 
   @if (busy()) {
     <div aria-live="polite" class="ngt-loading-overlay" role="status">
@@ -1047,3 +1090,6 @@
   }
 
 </section>
+
+<!-- Texte d'une cellule découpé par la recherche globale : les morceaux trouvés sont marqués. -->
+<ng-template #highlighted let-parts>@for (part of parts; track $index) {@if (part.hit) {<mark class="ngt-search-hit">{{ part.text }}</mark>} @else {{{ part.text }}}}</ng-template>

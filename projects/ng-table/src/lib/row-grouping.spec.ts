@@ -9,6 +9,7 @@ import {
   GROUP_PATH_SEPARATOR,
   groupedUnits,
   NgTableGroupRow,
+  openGroupHeaders,
   remoteGroupedPage,
   withGroupHeaders,
 } from './row-grouping';
@@ -160,5 +161,35 @@ describe('regroupement sur plusieurs niveaux', () => {
     const units = groupedUnits(tree(), new Set());
     const page = withGroupHeaders(units.slice(2)); // commence à la ligne 3 (Nord > B)
     expect(page.slice(0, 3).map((item) => (item instanceof NgTableGroupRow ? item.group.rawKey : (item as Sale).id))).toEqual(['Nord', 'B', 3]);
+  });
+});
+describe('openGroupHeaders', () => {
+  // Liste affichée : A(0) [a1(1) .. ] a2(5) .. B(10) b1(11) ..
+  const headers = [
+    {index: 0, depth: 0},
+    {index: 1, depth: 1},
+    {index: 5, depth: 1},
+    {index: 10, depth: 0},
+    {index: 11, depth: 1},
+  ];
+
+  it('en-tête du groupe en cours, précédé de ses parents', () => {
+    expect(openGroupHeaders(headers, 3)).toEqual([0, 1]);
+    expect(openGroupHeaders(headers, 8)).toEqual([0, 5]);
+    expect(openGroupHeaders(headers, 20)).toEqual([10, 11]);
+  });
+
+  it('un en-tête situé à la position même n’est pas « avant » : il sera rendu dans la tranche', () => {
+    expect(openGroupHeaders(headers, 0)).toEqual([]);
+    expect(openGroupHeaders(headers, 1)).toEqual([0]);
+    expect(openGroupHeaders(headers, 5)).toEqual([0, 1]);
+    expect(openGroupHeaders(headers, 10)).toEqual([0, 5]);
+    expect(openGroupHeaders(headers, 11)).toEqual([10]);
+  });
+
+  it('un seul niveau, ou aucun groupe', () => {
+    expect(openGroupHeaders([{index: 0, depth: 0}, {index: 40, depth: 0}], 30)).toEqual([0]);
+    expect(openGroupHeaders([{index: 0, depth: 0}, {index: 40, depth: 0}], 90)).toEqual([40]);
+    expect(openGroupHeaders([], 12)).toEqual([]);
   });
 });

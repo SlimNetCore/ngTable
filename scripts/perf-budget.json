@@ -1,0 +1,43 @@
+{
+  "rows": 200000,
+  "budgets": [
+    {
+      "name": "Inverser un tri de texte coûte moins de la moitié du premier tri",
+      "numerator": {"label": "inversion du sens", "series": "with"},
+      "denominator": {"label": "tri texte (ref), première fois", "series": "with"},
+      "maxRatio": 0.5
+    },
+    {
+      "name": "Revenir à une colonne déjà triée coûte moins de la moitié du premier tri",
+      "numerator": {"label": "retour au tri texte", "series": "with"},
+      "denominator": {"label": "tri texte (ref), première fois", "series": "with"},
+      "maxRatio": 0.5
+    },
+    {
+      "name": "Filtrer en restant trié : le cache fait au moins deux fois mieux que sans",
+      "numerator": {"label": "filtre « >2000 » en restant trié", "series": "with"},
+      "denominator": {"label": "filtre « >2000 » en restant trié", "series": "without"},
+      "maxRatio": 0.5
+    },
+    {
+      "name": "Le premier tri n'est pas ralenti par le cache",
+      "numerator": {"label": "tri texte (ref), première fois", "series": "with"},
+      "denominator": {"label": "tri texte (ref), première fois", "series": "without"},
+      "maxRatio": 1.6
+    },
+    {
+      "name": "Le premier tri numérique n'est pas ralenti par le cache",
+      "numerator": {"label": "tri numérique (montant), première fois", "series": "with"},
+      "denominator": {"label": "tri numérique (montant), première fois", "series": "without"},
+      "maxRatio": 1.8,
+      "ignoreBelowMs": 60
+    },
+    {
+      "name": "Nouvelle saisie sur une colonne en dictionnaire : pas plus lente que sans",
+      "numerator": {"label": "autre saisie sur la même colonne", "series": "with"},
+      "denominator": {"label": "autre saisie sur la même colonne", "series": "without"},
+      "maxRatio": 1.0,
+      "ignoreBelowMs": 10
+    }
+  ]
+}

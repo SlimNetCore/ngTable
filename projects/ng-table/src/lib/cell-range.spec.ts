@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {
+  buildFillAssignments,
   buildPasteAssignments,
+  fillTarget,
   clampRange,
   normalizeRange,
   parseClipboardText,
@@ -74,5 +76,62 @@ describe('cell-range', () => {
     it('rien à coller : aucune cellule', () => {
       expect(buildPasteAssignments([], {row1: 0, row2: 0, col1: 0, col2: 0}, 10, 10)).toEqual([]);
     });
+  });
+});
+
+describe('poignée de recopie', () => {
+  const source = {row1: 2, col1: 1, row2: 3, col2: 2};
+
+  it('fillTarget : la plage est prolongée dans la direction où la souris sort le plus', () => {
+    expect(fillTarget(source, {row: 6, col: 2})).toEqual({range: {row1: 2, col1: 1, row2: 6, col2: 2}, direction: 'down'});
+    expect(fillTarget(source, {row: 0, col: 1})).toEqual({range: {row1: 0, col1: 1, row2: 3, col2: 2}, direction: 'up'});
+    expect(fillTarget(source, {row: 3, col: 5})).toEqual({range: {row1: 2, col1: 1, row2: 3, col2: 5}, direction: 'right'});
+    expect(fillTarget(source, {row: 2, col: 0})).toEqual({range: {row1: 2, col1: 0, row2: 3, col2: 2}, direction: 'left'});
+    // En diagonale : la plus grande sortie l'emporte (3 lignes contre 1 colonne).
+    expect(fillTarget(source, {row: 6, col: 3})?.direction).toBe('down');
+    expect(fillTarget(source, {row: 3, col: 1}), 'dans la source : rien à recopier').toBeNull();
+  });
+
+  const grid: unknown[][] = [
+    ['a', 1, 10],
+    ['b', 2, 10],
+    ['c', 4, null],
+    ['d', 8, null],
+    ['e', 0, null],
+  ];
+  const read = (row: number, col: number) => grid[row][col];
+  const fill = (from: [number, number, number, number], to: [number, number, number, number], direction: 'down' | 'up' | 'right' | 'left') =>
+    buildFillAssignments({row1: from[0], col1: from[1], row2: from[2], col2: from[3]}, {row1: to[0], col1: to[1], row2: to[2], col2: to[3]}, direction, read).map(
+      ({row, col, value}) => `${row},${col}=${String(value)}`,
+    );
+
+  it('une seule valeur est répétée ; plusieurs valeurs sont répétées dans l’ordre', () => {
+    expect(fill([0, 0, 0, 0], [0, 0, 2, 0], 'down')).toEqual(['1,0=a', '2,0=a']);
+    expect(fill([0, 0, 1, 0], [0, 0, 4, 0], 'down')).toEqual(['2,0=a', '3,0=b', '4,0=a']);
+  });
+
+  it('une suite de nombres à pas constant est prolongée, dans les deux sens', () => {
+    expect(fill([0, 1, 1, 1], [0, 1, 4, 1], 'down')).toEqual(['2,1=3', '3,1=4', '4,1=5']);
+    expect(fill([3, 1, 4, 1], [1, 1, 4, 1], 'up'), '8, 0 : pas de -8, vers le haut 16 puis 24').toEqual(['2,1=16', '1,1=24']);
+    // Pas nul (10, 10) : la valeur est répétée, ce qui revient au même.
+    expect(fill([0, 2, 1, 2], [0, 2, 3, 2], 'down')).toEqual(['2,2=10', '3,2=10']);
+  });
+
+  it('des nombres sans pas constant sont répétés, pas prolongés', () => {
+    expect(fill([0, 1, 2, 1], [0, 1, 4, 1], 'down'), '1, 2, 4').toEqual(['3,1=1', '4,1=2']);
+  });
+
+  it('vers le haut, la répétition part de la dernière valeur', () => {
+    expect(fill([3, 0, 4, 0], [0, 0, 4, 0], 'up')).toEqual(['2,0=e', '1,0=d', '0,0=e']);
+  });
+
+  it('vers la droite et la gauche : chaque ligne est recopiée pour elle-même', () => {
+    expect(fill([0, 0, 1, 0], [0, 0, 1, 2], 'right')).toEqual(['0,1=a', '0,2=a', '1,1=b', '1,2=b']);
+    expect(fill([0, 1, 1, 2], [0, 0, 1, 2], 'left'), 'ligne 0 : 1, 10 → pas de 9, donc -8 à gauche').toEqual(['0,0=-8', '1,0=-6']);
+  });
+
+  it('pas d’erreur d’arrondi sur les décimales', () => {
+    const decimals = buildFillAssignments({row1: 0, col1: 0, row2: 1, col2: 0}, {row1: 0, col1: 0, row2: 3, col2: 0}, 'down', (row) => [0.1, 0.2][row]);
+    expect(decimals.map((a) => a.value)).toEqual([0.3, 0.4]);
   });
 });

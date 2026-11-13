@@ -12,6 +12,23 @@ export type {NgTableRowTransaction, NgTableTransactionResult} from './lib/live-r
 export type {NgTableEditorKind} from './lib/cell-edit';
 export type {RowDropPosition} from './lib/row-drag';
 export {NgTableSparklineComponent} from './lib/ng-table-sparkline.component';
+export {NgTableCellFormatComponent} from './lib/ng-table-cell-format.component';
+export type {NgTableMarkedRow, NgTableMarkerKind, NgTableScrollMarker} from './lib/scroll-markers';
+export {compileAdvancedFilter, countActiveConditions, describeAdvancedFilter, isFilterGroup, sanitizeFilterGroup} from './lib/advanced-filter';
+export type {NgTableFilterCondition, NgTableFilterGroup, NgTableFilterNode} from './lib/advanced-filter';
+export {NgTableFilterBuilderComponent} from './lib/ng-table-filter-builder.component';
+export type {
+  NgTableAvatarFormat,
+  NgTableBadgeFormat,
+  NgTableCellFormat,
+  NgTableColorScaleFormat,
+  NgTableDataBarFormat,
+  NgTableLinkFormat,
+  NgTableProgressFormat,
+  NgTableRatingFormat,
+  NgTableTone,
+  NgTableValueRange,
+} from './lib/cell-format';
 export type {NgTableSparklineOptions, SparklineType} from './lib/sparkline';
 export {buildPivotModel, NgTablePivotComponent} from './lib/ng-table-pivot.component';
 export type {NgTablePivotModel, NgTablePivotRow} from './lib/ng-table-pivot.component';

@@ -411,6 +411,34 @@ export class MontantMinFilterComponent {
 
 `componentInputs` passe des `@Input()` additionnels au composant custom (ici `step`).
 
+### Étape 6ter — Filtre avancé (conditions ET / OU)
+
+Les filtres de colonnes se combinent tous par « ET ». Pour « (Validée OU Expédiée) ET montant > 5 000 », utilisez le filtre avancé :
+
+```html
+<ng-table-filter-builder [columns]="columns" [(filter)]="filtre" />
+<ng-table [columns]="columns" [rows]="rows" [(advancedFilter)]="filtre" />
+```
+
+```ts
+filtre = signal<NgTableFilterGroup | null>({
+  operator: 'and',
+  children: [
+    {operator: 'or', children: [{columnId: 'statut', value: 'Validée'}, {columnId: 'statut', value: 'Expédiée'}]},
+    {columnId: 'montant', value: '>5000'},
+  ],
+});
+```
+
+- **Une condition** = une colonne et une saisie, lue **comme le filtre de cette colonne** : `>5000`, `10..50`, `Validée,Annulée`, un texte. `not: true` l'inverse (« sauf »).
+- **Un groupe** = `and` (toutes les conditions) ou `or` (au moins une), et peut contenir d'autres groupes. Le constructeur en propose trois niveaux.
+- **Ce qui ne contraint rien est ignoré** : saisie vide, colonne inconnue, groupe vide.
+- Le filtre avancé **s'ajoute** aux filtres de colonnes et à la recherche globale. « Réinitialiser les filtres » l'efface aussi.
+- **Mode `remote`** : il part dans la requête (`query.advancedFilter`, le même objet) ; c'est le serveur qui l'applique.
+- **Sans le constructeur** : l'objet est simple et sérialisable, vous pouvez le fabriquer vous-même, l'enregistrer ou le mettre dans une URL. `describeAdvancedFilter(filtre, columns, {and: 'ET', or: 'OU', not: 'SAUF'})` en donne la phrase lisible ; `compileAdvancedFilter(filtre, columns)` le prédicat.
+- **Vues, état et URL** : le filtre avancé est enregistré dans les vues, renvoyé par `getQueryState()`, accepté par `applyQueryState({advancedFilter})` (`null` le retire), et écrit dans l'URL par `ngTableUrlState` (paramètre `af`, en JSON). Un filtre relu d'une URL ou d'une vue est validé (`sanitizeFilterGroup`) : mal formé, il est ignoré.
+- **Limite** : avec un filtre avancé actif, le calcul reste sur le fil principal même avec `[workerCompute]`.
+
 ### Étape 6bis — Recherche globale
 
 Un champ « Rechercher… » en haut à gauche de la table, qui cherche dans toutes les colonnes visibles :
@@ -478,6 +506,40 @@ readonly columns = computed<NgTableColumn<Commande>[]>(() => [
 ```
 
 (`columns` devient un `computed()` car `viewChild()` n'est disponible qu'après le premier rendu — pattern standard pour toute colonne avec `cellTemplate`.)
+
+### Étape 8ter — Cellules prêtes à l'emploi et mise en forme conditionnelle
+
+Pour les rendus courants, pas besoin de `cellTemplate` : déclarez `cell` sur la colonne.
+
+```ts
+columns: NgTableColumn<Commande>[] = [
+  {id: 'client', header: 'Client', valueAccessor: (c) => c.client, cell: {type: 'avatar'}},
+  {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference,
+   cell: {type: 'link', href: (c) => '/commandes/' + c.reference}},
+  {id: 'statut', header: 'Statut', valueAccessor: (c) => c.statut,
+   cell: {type: 'badge', tone: {Validée: 'info', Expédiée: 'success', Annulée: 'danger'}}},
+  {id: 'montant', header: 'Montant', valueAccessor: (c) => c.montant, cell: {type: 'dataBar'}},
+  {id: 'avancement', header: 'Avancement', valueAccessor: (c) => c.avancement, cell: {type: 'progress'}},
+  {id: 'note', header: 'Note', valueAccessor: (c) => c.note, cell: {type: 'rating'}},
+  {id: 'marge', header: 'Marge', valueAccessor: (c) => c.marge, cell: {type: 'colorScale', diverging: true}},
+];
+```
+
+| `type`       | Rendu                                                                 | Options                                                                                   |
+|--------------|-----------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| `badge`      | Pastille autour du texte                                              | `tone` : table `{valeur: teinte}` ou fonction `(value, row)` ; `label(value, row)`        |
+| `progress`   | Barre de progression et pourcentage                                   | `max` (100), `showValue` (`true`)                                                         |
+| `rating`     | Étoiles, demi-étoiles arrondies                                       | `max` (5)                                                                                 |
+| `link`       | Le texte devient un lien                                              | `href(row, value)` (`null` : texte simple), `external` (nouvel onglet)                    |
+| `avatar`     | Pastille ronde (initiales ou image) suivie du texte                   | `image(row)`                                                                              |
+| `dataBar`    | Barre proportionnelle derrière le nombre ; négatifs à gauche de zéro  | `min`, `max`, `tone`                                                                      |
+| `colorScale` | Fond d'autant plus soutenu que la valeur est grande                   | `min`, `max`, `diverging` (deux teintes de part et d'autre de zéro)                       |
+
+- **Teintes** : `neutral`, `info`, `success`, `warning`, `danger`, tirées des jetons du thème (`--ngt-primary`, `--ngt-success`, `--ngt-warning`, `--ngt-danger`). Autres réglages : `--ngt-rating-color`, `--ngt-scale-color`, `--ngt-scale-negative-color`.
+- **Bornes des barres et des dégradés** : sans `min` / `max`, la table prend le minimum et le maximum de la colonne sur les lignes filtrées (mode local) ou sur les lignes reçues (mode `remote`, donc la page courante). En mode `remote` ou par blocs, donnez `min` et `max` pour que deux pages se comparent. L'axe d'une barre de données est toujours à zéro : une colonne qui va de 100 à 200 ne fait pas paraître 100 comme « vide ».
+- **Accessibilité** : le texte ou le nombre reste affiché dans tous les cas ; la couleur ne porte jamais seule l'information. La note a un nom accessible (« 3.5 sur 5 », libellé `ratingLabel`), la progression le rôle `progressbar`, l'avatar est masqué aux lecteurs d'écran (le texte suit).
+- **Priorités** : `sparkline` puis `cellTemplate` passent avant `cell`. Tri, filtres, recherche, copie et export continuent de lire `valueAccessor`.
+- **Hors d'une table** : `<ng-table-cell-format [format]="{type: 'progress'}" [value]="72" />` (`NgTableCellFormatComponent`).
 
 ### Étape 8bis — Débordement du texte de cellule
 
@@ -582,7 +644,7 @@ Sans pagination, une table de 50 000 lignes crée 50 000 lignes dans le DOM : l'
 ```
 
 - **Hauteur** : la zone a une hauteur fixe, `[maxHeight]` (70vh par défaut). L'en-tête y est toujours fixe.
-- **Hauteur de ligne** : elle est **mesurée** sur la première ligne rendue, ce qui suit la densité compacte ou votre thème. Les lignes doivent avoir une **hauteur uniforme** : une ligne détail dépliée ou du texte sur plusieurs lignes (`textOverflow: 'wrap'`) décalent un peu la position.
+- **Hauteur de ligne** : elle est **mesurée**, ce qui suit la densité compacte ou votre thème. Les lignes peuvent avoir des **hauteurs différentes** (ligne détail dépliée, texte sur plusieurs lignes avec `textOverflow: 'wrap'`, en-tête de groupe) : la table retient la hauteur réelle de chaque ligne qu'elle a rendue, et estime les autres à la hauteur la plus fréquente. La barre de défilement et `scrollToIndex()` en tiennent compte. Trois limites : une ligne jamais affichée n'est qu'estimée, donc la barre peut s'ajuster légèrement quand on la découvre ; les mesures repartent de zéro quand la liste change (tri, filtre, nouvelles données) ; au-delà de 15 millions de pixels de hauteur totale et en modèle par blocs, la table suppose des lignes uniformes.
 - **Compatibilité** : filtres, tri, recherche, regroupement, sélection (« tout sélectionner » porte sur toutes les lignes), export et navigation clavier (`cellNavigation`) fonctionnent comme sans défilement virtuel. `displayedRows()` renvoie toujours toutes les lignes.
 - **Très longues listes** : au-delà de 15 millions de px de hauteur (environ 290 000 lignes de 52 px), la barre de défilement est comprimée pour que la fin de la liste reste atteignable malgré le plafond des navigateurs (voir Étape 10sexies).
 
@@ -608,6 +670,7 @@ socket.onmessage = (message) => this.table().applyTransactionAsync({update: JSON
 
 - **Ce qui est recalculé.** Seules les lignes touchées sont refiltrées. Elles sont replacées dans le résultat déjà trié par recherche dichotomique, au lieu de tout retrier. Changer un filtre, le tri ou les colonnes recalcule tout, comme avant.
 - **`applyTransactionAsync(transaction, callback?)`** regroupe les transactions reçues pendant `[asyncTransactionWaitMillis]` (50 ms par défaut). `flushAsyncTransactions()` les applique tout de suite, et `(asyncTransactionsFlushed)` signale chaque lot appliqué.
+- **Avec `[workerCompute]`.** Sur un grand jeu de données calculé dans le Web Worker, une transaction n'envoie au worker que les lignes modifiées, ajoutées ou retirées : il retouche ses colonnes au lieu de tout recevoir à nouveau. Le tri et le filtre sont ensuite refaits en entier dans le worker, hors du fil principal.
 - **Données immuables.** Le mode live marche aussi sans transactions : à chaque nouveau tableau `[rows]`, la table compare clé par clé avec le précédent. Seules les lignes dont l'objet a changé sont retraitées. Les lignes doivent donc être de **nouveaux objets** quand elles changent (`{...ligne, prix}`). Si l'ordre du tableau change, ou qu'une ligne est insérée ailleurs qu'à la fin, tout est recalculé.
 - **Surbrillance.** `[flashCells]="true"` surligne les cellules modifiées pendant `[flashDurationMs]` (1 000 ms) : vert si un nombre monte, rouge s'il baisse, bleu sinon. Colonne par colonne : `flashOnChange: true | false`. Les couleurs se règlent avec `--ngt-flash-up-bg`, `--ngt-flash-down-bg` et `--ngt-flash-change-bg`. La cellule porte l'attribut `data-ngt-flash` (`up-0`, `down-1`...) pour un style personnalisé. L'animation est quasi instantanée si l'utilisateur a demandé moins d'animations (`prefers-reduced-motion`).
 - **Avec `[rows]`.** Un nouveau tableau `[rows]` redevient la référence : ce qui n'y figure pas est retiré, y compris les lignes ajoutées par transaction.
@@ -635,6 +698,9 @@ readonly datasource: NgTableRemoteDatasource<Commande> = {
 
 - **Ce qui est chargé.** Seuls les blocs de la zone affichée (plus une marge de 8 lignes) sont demandés. En attendant, des lignes grisées animées prennent leur place. Un défilement rapide ne demande pas les blocs intermédiaires.
 - **Le cache.** Il garde `[maxBlocksInCache]` blocs (50 par défaut) et oublie au-delà les moins récemment affichés. Il y a au plus `[maxConcurrentBlockRequests]` requêtes simultanées (2 par défaut).
+- **Annulation.** Chaque demande porte `request.signal` (`AbortSignal`). La table le lève quand le bloc ne sert plus : tri ou filtre changé, ou zone quittée par un défilement rapide. Passez-le à `fetch(url, {signal: request.signal})` pour que le navigateur abandonne la requête ; avec une source Observable (`HttpClient`), la table se désabonne elle-même, ce qui annule la requête HTTP. Une demande annulée n'est pas une erreur : ni `(remoteBlockError)`, ni bloc en échec. Ignorer le signal est sans danger.
+- **Pagination par clé.** Demander « 100 lignes à partir de la 4 999 900ᵉ » oblige beaucoup de bases à parcourir les lignes précédentes. Quand la table a en mémoire la dernière ligne du bloc précédent, elle la joint à la demande (`request.afterRow`) : le serveur peut répondre par `WHERE (tri, id) > (valeurs de afterRow) ORDER BY tri, id LIMIT 100`, qui utilise l'index. En défilant vers le haut, c'est `request.beforeRow`. Après un saut direct, ni l'une ni l'autre n'est connue : il reste `startRow`.
+- **Chargement d'avance.** `[prefetchBlocks]="1"` demande, une fois la zone affichée servie, le bloc suivant dans le sens du défilement : moins de lignes d'attente quand on défile régulièrement. `0` par défaut.
 - **Tri, filtres, recherche.** Changer l'un d'eux purge le cache, revient en haut de la liste et redemande les blocs visibles. Une réponse arrivée après ce changement est ignorée. `getRows` reçoit la requête complète (`sort`, `sorts`, `filters`, `search`), plus `startRow` / `endRow`. `(remoteQueryChange)` n'est pas émis dans ce mode.
 - **Erreurs.** Un bloc en échec affiche « Chargement impossible » et émet `(remoteBlockError)`. Il n'est pas redemandé en boucle : `refreshRemoteDatasource()` relance le chargement, et sert aussi après une modification des données côté serveur, en gardant la position.
 - **Très longues listes.** Les navigateurs plafonnent la hauteur d'un élément (environ 33 millions de px pour Chrome, 17,9 millions pour Firefox) : sans précaution, la fin d'un million de lignes serait inatteignable. Au-delà de 15 millions de px, la barre de défilement est **comprimée**, comme dans AG Grid : sa position est convertie proportionnellement en position réelle. Cela vaut aussi pour `[virtualScroll]` en local. `scrollToIndex(n)` amène la ligne `n` en haut de la zone.
@@ -768,6 +834,7 @@ Au-delà de quelques centaines de milliers de lignes, un tri de texte ou un filt
           (computing)="busy.set($event)"/>
 ```
 
+- **Pivot** : `<ng-table-pivot [workerCompute]="true">` calcule aussi le tableau croisé dans le worker au-delà de `[workerThreshold]` lignes. Les valeurs des champs partent une fois ; changer d'agrégat ou permuter lignes et colonnes ne renvoie que la configuration.
 - **Comment** : un worker ne reçoit pas de fonctions. La table lui envoie les **colonnes de valeurs** (les résultats des accesseurs ; les colonnes numériques partent en `Float64Array`, transférées sans copie), **une seule fois par jeu de données**. Le worker y exécute les mêmes modules que le fil principal (filtres compilés, tri par base, recherche) et renvoie l'ordre des lignes retenues. Les tris et filtres suivants n'envoient plus que quelques réglages.
 - **Pendant le calcul**, l'ancien résultat reste affiché sous l'indicateur d'attente (`aria-busy`), la table reste utilisable ; `(computing)` signale le début et la fin. Une demande plus récente remplace celle en cours.
 - **S'applique** en mode local, sans données arborescentes, quand le nombre de lignes atteint `[workerThreshold]` (100 000 par défaut). Un filtre à `filterPredicate` (fonction) se calcule sur le fil principal.
@@ -793,6 +860,9 @@ Mesures sur **1 000 000 de lignes** en mémoire (poste de développement ; `PERF
 Ce qui a changé :
 
 - **Tri par base (radix)** : chaque niveau de tri devient une colonne de nombres (valeur, date, booléen, rang du texte), puis les indices sont triés par un tri par base stable, du niveau le moins important au plus important. Pas de comparateur, pas d'objet par ligne. Les mêmes règles qu'avant s'appliquent (vides en dernier dans les deux sens, égalités dans l'ordre d'origine) : un test compare le résultat à l'ancien tri sur des données aléatoires. Un niveau qu'on ne sait pas ranger en nombres (types mêlés, date invalide, `NaN`) retombe sur l'ancien tri par comparaisons.
+- **Colonnes de tri en cache** : les clés d'une colonne (deux `Uint32Array`, 8 octets par ligne) sont gardées tant que le tableau de lignes ne change pas, pour 8 colonnes au plus. Le premier tri d'une colonne lit les valeurs ; les suivants (sens inversé, filtre modifié, niveau ajouté, retour à cette colonne) ne font plus que les passes du tri par base. Le sens décroissant lit les mêmes chiffres en complément, les cellules vides mises de côté pour rester en fin de liste. Quand un filtre ne retient qu'une petite part des lignes et que la colonne n'est pas en cache, seules les lignes retenues sont lues. Une transaction ou un nouveau `[rows]` vide le cache.
+- **Colonnes en dictionnaire pour les filtres** : une colonne dont les valeurs se répètent (statut, client, pays... jusqu'à 4 096 valeurs distinctes) est gardée comme la liste de ses valeurs distinctes et, pour chaque ligne, le numéro de sa valeur (2 octets). Le filtre est évalué une fois par valeur distincte ; chaque ligne ne coûte plus qu'une lecture dans un tableau. Les colonnes à beaucoup de valeurs distinctes (références, montants) restent filtrées ligne par ligne.
+- **Filtre plus strict : on repart du résultat précédent.** Prolonger une saisie de texte (« dup » → « dupo »), ajouter un filtre sur une autre colonne ou ajouter un mot à la recherche globale ne peut que retirer des lignes. La table refiltre alors le résultat précédent, déjà trié, au lieu de toutes les lignes, sans retrier. La reconnaissance est prudente : une saisie lisible comme un nombre (`12`, `>5`) ou un booléen, un opérateur « égal à », un `filterPredicate` ou un filtre raccourci repassent par le calcul complet.
 - **Texte** : le rang d'une valeur vient d'un tri des valeurs *distinctes*. Pour les textes ASCII, la table construit des **clés de tri en octets** (chiffres comparés par valeur, casse ignorée) triées elles aussi par base ; ces clés sont **vérifiées contre `Intl.Collator`** sur un corpus avant le premier usage, et abandonnées au moindre écart : le résultat reste celui du collateur. Texte accentué ou non ASCII : le collateur, comme avant.
 - **Filtres compilés** : `>5000`, `10..50`, `Validée,Annulée` ou une période sont lus *une fois* par changement de filtre au lieu d'une fois par ligne. Un test compare le prédicat compilé à l'ancien sur plus de 12 000 couples valeur / saisie.
 - **Pas de travail inutile** : un recalcul complet ne construit plus ni l'index par clé ni les clés de tri du résultat ; la première fusion live qui suit les construit (une fois). La clé de ligne est lue une fois, pas un signal par ligne.
@@ -968,6 +1038,8 @@ Comme dans un tableur : sélectionner un rectangle de cellules, le copier vers E
 - **Méthodes.** `getSelectedRange()` (lignes, colonnes, texte), `copySelectedRange()`, `pasteIntoRange(texte)`, `selectAllCells()`, `clearRangeSelection()`.
 - **Accessibilité.** Avec `[cellNavigation]`, les cellules de la plage portent `aria-selected="true"`. Sans lui, la plage se fait à la souris seulement.
 - **Limites.** Pas avec `[remoteDatasource]` (les lignes ne sont chargées que par blocs). Pas de défilement automatique en glissant au bord de la zone : utilisez Maj+clic ou Maj+flèches pour une plage plus longue.
+
+**Poignée de recopie.** Avec `[fillHandle]="true"` (en plus de `[rangeSelection]` et de colonnes éditables), un petit carré apparaît au coin de la plage. Tirez-le vers le bas, le haut, la droite ou la gauche : les valeurs de la plage sont recopiées dans l'ordre dans les cellules traversées. Si la plage contient, dans le sens de la recopie, des nombres à pas constant (`10, 20`), la suite est prolongée (`30, 40`) ; sinon les valeurs se répètent. Chaque valeur passe par `validate` (une valeur refusée laisse la cellule intacte et émet `(cellEditRejected)`), et toute la recopie forme un seul lot annulable. Au clavier : sélectionnez une plage (Maj+flèches), puis **Ctrl+D** recopie sa première ligne vers le bas et **Ctrl+R** sa première colonne vers la droite. `(cellEdited)` porte `source: 'fill'`.
 
 ### Étape 10nonies — En-têtes de colonnes groupés
 
@@ -2815,7 +2887,7 @@ interface NgTableFilterConfig {
 | `filters`                   | `Record<string, string> \| null`                                 | `null`    | Mode contrôlé des filtres.                                                                                           |
 | `labels`                    | `Partial<NgTableLabels>`                                         | `{}`      | Textes à surcharger (voir "Personnaliser les textes").                                                              |
 | `ariaLabel`                 | `string \| null`                                                 | `null`    | `aria-label` du `<table>` (ex. "Liste des commandes"). `null` = `labels.tableLabel` (générique, toujours présent).   |
-| `emptyLabel`                | `string \| null`                                                 | `null`    | Message si liste vide ; `null` = utilise `labels.noData`.                                                            |
+| `emptyLabel`                | `string \| null`                                                 | `null`    | Message si liste vide ; `null` = utilise `labels.noData`. Liste vidée par les filtres : `labels.noDataFiltered` et un bouton de réinitialisation. |
 | `loading`                   | `boolean`                                                        | `false`   | Affiche un overlay de chargement centré sur la table (bloque l'interaction tant qu'il est visible). Piloté par le parent. |
 | `loadingTemplate`           | `TemplateRef<unknown> \| null`                                   | `null`    | Contenu custom de l'overlay de chargement ; `null` = spinner intégré.                                                 |
 | `minTableWidthPx`           | `number`                                                         | `760`     | Largeur mini avant scroll horizontal (desktop). Le tableau ne descend jamais sous la somme des largeurs mini de ses colonnes visibles (`widthPx`, sinon `minWidthPx`, sinon 120 px) : au-delà, il défile au lieu d'écraser les en-têtes. |
@@ -2839,6 +2911,7 @@ interface NgTableFilterConfig {
 | `cacheBlockSize`            | `number`                                                         | `100`     | Lignes par bloc demandé au serveur.                                                                                  |
 | `maxBlocksInCache`          | `number`                                                         | `50`      | Blocs gardés en mémoire.                                                                                             |
 | `maxConcurrentBlockRequests`| `number`                                                         | `2`       | Requêtes de blocs simultanées au plus.                                                                               |
+| `prefetchBlocks`            | `number`                                                         | `0`       | Blocs chargés d'avance dans le sens du défilement (modèle par blocs).                                                |
 | `virtualColumns`            | `boolean`                                                        | `false`   | Affichage partiel des colonnes (Étape 10septies).                                                                     |
 | `editOnPaste`               | `boolean`                                                        | `true`    | Un collage écrit dans les cellules éditables de la plage (Étape 10undecies).                                          |
 | `undoRedoLimit`             | `number`                                                         | `100`     | Taille de l'historique annuler / rétablir.                                                                            |
@@ -2861,6 +2934,13 @@ interface NgTableFilterConfig {
 | `showTotals`                | `boolean`                                                        | `false`   | Ligne de totaux (colonnes avec `aggregate`, mode local).                                                             |
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
 | `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
+| `highlightSearch`           | `boolean`                                                        | `false`   | Surligne dans les cellules le texte trouvé par la recherche globale (cellules en texte, hors `cellTemplate`).        |
+| `advancedFilter` (model)    | `NgTableFilterGroup \| null`                                     | `null`    | Conditions combinées par ET / OU (voir Étape 6ter).                                                                  |
+| `animateRows`               | `boolean`                                                        | `false`   | Au changement de tri, les lignes glissent vers leur nouvelle place (respecte `prefers-reduced-motion`).             |
+| `fillHandle`                | `boolean`                                                        | `false`   | Poignée de recopie au coin de la plage sélectionnée ; Ctrl+D / Ctrl+R au clavier (voir Étape 10decies).             |
+| `stickyGroupHeaders`        | `boolean`                                                        | `false`   | L'en-tête du groupe en cours reste collé sous l'en-tête des colonnes (zone défilante requise).                      |
+| `scrollMarkers`             | `boolean`                                                        | `false`   | Repères le long de la barre de défilement pour les lignes sélectionnées et celles signalées par `rowMarker` ; un clic sur un repère amène à la ligne. |
+| `rowMarker`                 | `((row: T) => NgTableTone \| null) \| null`                      | `null`    | Teinte du repère d'une ligne (`'danger'`, `'warning'`, `'info'`, `'success'`) ; voir `scrollMarkers`.               |
 | `globalSearch`              | `string \| null`                                                 | `null`    | Mode contrôlé de la recherche globale.                                                                               |
 | `rowSelectionEnabled`       | `boolean`                                                        | `false`   | Ajoute une colonne checkbox de sélection.                                                                            |
 | `selectedRowKeys`           | `ReadonlyArray<unknown> \| null`                                 | `null`    | Mode contrôlé de la sélection.                                                                                       |
@@ -3530,6 +3610,25 @@ await (await table.getPaginator())?.goToNextPage();  // NgTablePaginatorHarness 
 | `search(text)`, `getSearchValue()` | Recherche globale. |
 | `getPaginator()` | `NgTablePaginatorHarness` du paginateur intégré (`goToNextPage()`, `goToPreviousPage()`, `goToFirstPage()`, `goToLastPage()`, `getRangeLabel()`, `getPageSize()`, `setPageSize()`), ou `null`. |
 | `getEmptyText()`, `isLoading()`, `getLiveAnnouncement()`, `getAriaLabel()` | États affichés et accessibilité. |
+
+## Migrer de 4 vers 5
+
+Rien à modifier dans le code : aucune entrée, sortie, méthode ni type n'est retiré ou renommé. La version est majeure parce que quatre comportements visibles changent. Vérifiez seulement ceux qui vous concernent.
+
+| Ce qui change | Avant (4.x) | Maintenant (5.0) | Que faire |
+|---|---|---|---|
+| Liste vidée par les filtres ou la recherche | `[emptyLabel]` (ou « Aucune donnée ») | « Aucune ligne ne correspond aux filtres » et un bouton « Réinitialiser les filtres » | Rien. Pour un autre texte : `[labels]="{noDataFiltered: '...'}"`. `[emptyLabel]` reste affiché quand la liste est vide sans filtre |
+| Défilement virtuel, lignes de hauteurs différentes | Toutes les lignes supposées de la hauteur de la première ligne rendue | Hauteur estimée = la plus fréquente ; les lignes plus hautes (détail déplié, texte sur plusieurs lignes) sont mesurées et gardent leur place | Rien. `scrollToIndex()` devient exact avec des détails dépliés |
+| Tri après modification d'une ligne **sur place** | Un nouveau tri relisait toutes les valeurs | Les valeurs de tri sont gardées tant que le tableau `[rows]` est le même objet | Si vous modifiez un objet ligne sans changer de tableau : passez un nouveau tableau (`[...rows]`) ou une transaction (`applyTransaction`). C'était déjà la règle pour l'affichage |
+| Compteur d'un groupe, initiales d'un avatar | Couleur d'accent | Couleur du texte (contraste suffisant) | Rien |
+
+À savoir aussi :
+
+- `fromUrlParams()` (`@sbourahla/ng-table/router`) renvoie un champ de plus, `advancedFilter` (`null` sans filtre avancé).
+- `NgTableBlockRequest` est devenu générique (`NgTableBlockRequest<T>`, `unknown` par défaut) et porte `signal`, `afterRow`, `beforeRow` : une source `getRows(request)` existante n'a rien à changer.
+- `(cellEdited)` peut porter `source: 'fill'` (poignée de recopie), en plus de `'edit'`, `'paste'`, `'undo'`, `'redo'`.
+- Le rendu côté serveur fonctionne (il plantait à la destruction de la table en 4.x).
+- Toutes les nouvelles options sont désactivées par défaut : `highlightSearch`, `animateRows`, `stickyGroupHeaders`, `scrollMarkers`, `fillHandle`, `prefetchBlocks`, `advancedFilter`, `cell` sur une colonne, `workerCompute` sur le pivot.
 
 ## Migrer de 0.4 vers 1.0
 

@@ -3,7 +3,7 @@ import {expect, Page, test} from '@playwright/test';
 
 // Audit axe (WCAG 2.0 / 2.1 / 2.2 niveaux A et AA) de chaque page de la démo, en clair et en sombre.
 // axe détecte une partie seulement des défauts : ces tests évitent les régressions, ils ne remplacent pas un test au lecteur d'écran.
-const PAGES = ['simple', 'avance', 'expert', 'analyse', 'live'] as const;
+const PAGES = ['simple', 'nouveautes', 'theme', 'avance', 'expert', 'analyse', 'live'] as const;
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 async function open(page: Page, route: string, scheme: 'light' | 'dark'): Promise<void> {

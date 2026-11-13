@@ -88,7 +88,41 @@ describe('live-rows', () => {
 
       store.applyTransaction({update: [{...rows[0], price: 35}]});
       expect(pipeline.compute(store, cfg).map(keyOf)).toEqual([4, 1, 3, 2]);
-      expect(pipeline.stats).toEqual({rebuilds: 1, merges: 1});
+      expect(pipeline.stats).toEqual({rebuilds: 1, merges: 1, narrows: 0});
+    });
+
+    it('filtre plus strict : refiltre le résultat précédent sans retrier, sinon recalcule', () => {
+      const store = new RowStore(keyOf);
+      const pipeline = new IncrementalPipeline<Quote>();
+      const rows = Array.from({length: 200}, (_, id) => ({id, symbol: `S${id % 7}`, price: (id * 37) % 101}));
+      store.replaceAll(rows);
+      const base = ['socle'];
+      const above = (min: number): PipelineConfig<Quote> =>
+        config({
+          matches: (q) => (q.price ?? 0) >= min,
+          deps: [min],
+          sums: [{id: 'price', value: (q: Quote) => q.price}],
+          narrowing: {base, state: min, narrows: (previous: number) => min >= previous},
+        });
+      pipeline.compute(store, above(10));
+      expect(pipeline.compute(store, above(40)).map(keyOf)).toEqual(reference(rows, above(40)));
+      expect(pipeline.stats).toEqual({rebuilds: 1, merges: 0, narrows: 1});
+      const expectedSum = rows.filter((q) => q.price >= 40).reduce((sum, q) => sum + q.price, 0);
+      expect(pipeline.total('price')).toEqual({sum: expectedSum, count: rows.filter((q) => q.price >= 40).length});
+
+      // Filtre élargi : recalcul complet.
+      expect(pipeline.compute(store, above(20)).map(keyOf)).toEqual(reference(rows, above(20)));
+      expect(pipeline.stats.rebuilds).toBe(2);
+
+      // Données modifiées en même temps que le filtre : pas de raccourci.
+      store.applyTransaction({update: [{...rows[3], price: 100}]});
+      expect(pipeline.compute(store, above(50)).map(keyOf)).toEqual(reference(store.rows(), above(50)));
+      expect(pipeline.stats).toEqual({rebuilds: 3, merges: 0, narrows: 1});
+
+      // Socle différent (autre tri, autres colonnes...) : pas de raccourci non plus.
+      const other = {...above(60), narrowing: {base: ['autre'], state: 60, narrows: () => true}};
+      expect(pipeline.compute(store, other).map(keyOf)).toEqual(reference(store.rows(), other));
+      expect(pipeline.stats.rebuilds).toBe(4);
     });
 
     it('recalcule tout quand la configuration change', () => {

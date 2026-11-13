@@ -85,10 +85,12 @@ function storedTheme(): DemoTheme {
 export class AppComponent {
   protected readonly modes = [
     {path: '/simple', label: 'Simple', hint: 'le minimum'},
+    {path: '/nouveautes', label: 'Nouveautés', hint: 'ajouts récents'},
     {path: '/avance', label: 'Avancé', hint: 'toutes les options'},
     {path: '/expert', label: 'Expert', hint: 'serveur, contrôle, API'},
     {path: '/live', label: 'Live', hint: 'flux temps réel'},
     {path: '/analyse', label: 'Analyse', hint: 'pivot, graphiques'},
+    {path: '/theme', label: 'Thème', hint: 'bac à sable'},
     {path: '/benchmark', label: 'Benchmark', hint: 'face à AG Grid'},
   ];
 

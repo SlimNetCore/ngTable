@@ -1,5 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {ComputeWorkerClient, ComputeWorkerLike} from './compute-worker-client';
+import {rowsPatch, RowStore} from './live-rows';
+import {computePivot, PivotConfig} from './pivot';
 import {compileFilters} from './filter-compile';
 import {matchesSearchTerms, searchTerms} from './filter-matching';
 import {sortRows} from './row-pipeline';
@@ -51,6 +53,14 @@ function inProcessWorker(): ComputeWorkerLike & {messages: ToWorker[]} {
         core.addData(message.dataset, message.count, message.entries);
       } else if (message.type === 'drop') {
         core.drop(message.dataset);
+      } else if (message.type === 'patch') {
+        core.patch(message.dataset, message.patch);
+      } else if (message.type === 'pivot') {
+        try {
+          reply({type: 'pivot-done', job: message.job, result: core.pivot(message.dataset, message.spec)});
+        } catch (error) {
+          reply({type: 'error', job: message.job, message: String(error)});
+        }
       } else {
         try {
           reply({type: 'done', job: message.job, order: core.run(message.dataset, message.request)});
@@ -158,6 +168,96 @@ describe('calcul en worker', () => {
     await client.compute(changed, input({}, [{column: amount, factor: 1}]));
     expect(worker.messages.some((message) => message.type === 'drop')).toBe(true);
     expect(dataMessages()).toBe(3); // autres données : on renvoie
+    client.dispose();
+  });
+
+  it('transactions : le worker est retouché au lieu de tout recevoir, et répond comme un envoi complet (60 lots aléatoires)', async () => {
+    let seed = 77;
+    const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const worker = inProcessWorker();
+    const client = new ComputeWorkerClient(() => worker);
+    const store = new RowStore<Row>((row) => row.id);
+    store.replaceAll(makeRows(400));
+    store.drain();
+    const levels = [{column: zone, factor: 1 as const}, {column: amount, factor: -1 as const}];
+    const filters = {amount: '>20', name: 'client 1'};
+    const input = {
+      filterColumns: [name, amount],
+      filters,
+      levels,
+      search: {terms: searchTerms('client'), source: 'recherche', read: (row: Row) => `${row.name}\n${row.zone}`.toLowerCase()},
+      collator: {options: collatorOptions},
+    };
+    const check = async (patch?: Parameters<typeof client.compute<Row>>[2]) => {
+      const current = store.rows();
+      const {order} = await client.compute(current, input, patch);
+      expect([...order].map((index) => current[index].id)).toEqual(reference(current, filters, levels, 'client'));
+    };
+    await check();
+    const sentAtStart = client.stats.columnsSent;
+
+    let nextId = 10_000;
+    for (let round = 0; round < 60; round++) {
+      const before = {rows: store.rows(), seqs: store.seqs()};
+      const all = before.rows;
+      const pick = () => all[Math.floor(next() * all.length)];
+      const update = Array.from({length: Math.floor(next() * 5)}, () => {
+        const row = pick();
+        // De temps en temps une valeur vide : la colonne de nombres doit devenir un tableau ordinaire dans le worker.
+        return {...row, amount: next() < 0.2 ? null : Math.round(next() * 1000) / 10, zone: next() < 0.5 ? 'Nord' : 'Sud', name: `Client ${Math.floor(next() * 200)} x`};
+      });
+      const remove = Array.from({length: Math.floor(next() * 3)}, pick);
+      const add = Array.from({length: Math.floor(next() * 4)}, () => ({...pick(), id: nextId++}));
+      // Parfois une ligne retirée puis rajoutée dans le même lot : elle doit passer en fin de liste.
+      if (remove.length > 0 && next() < 0.3) {
+        add.push({...remove[0], name: 'Client 1 revenu'});
+      }
+      store.applyTransaction({update, remove, add});
+      const changes = store.drain();
+      const delta = changes.reset || changes.keys.size === 0 ? null : rowsPatch(store, changes.keys, before.seqs);
+      await check(delta ? {from: before.rows, ...delta} : undefined);
+    }
+    expect(client.stats.patches).toBeGreaterThan(40);
+    expect(client.stats.columnsSent, 'aucune colonne renvoyée en entier').toBe(sentAtStart);
+    client.dispose();
+  }, 30_000);
+
+  it('retouche refusée quand le worker ne connaît pas le tableau précédent : tout est renvoyé', async () => {
+    const worker = inProcessWorker();
+    const client = new ComputeWorkerClient(() => worker);
+    const input = {filterColumns: [], filters: {}, levels: [{column: amount, factor: 1 as const}], search: null, collator: {options: collatorOptions}};
+    await client.compute(rows, input);
+    const changed = [...rows.slice(1), {...rows[0], id: 99_999, amount: 1}];
+    const {order} = await client.compute(changed, input, {from: [], updated: [], removed: [], appended: []});
+    expect([...order].map((index) => changed[index].id)).toEqual(reference(changed, {}, [{column: amount, factor: 1}]));
+    expect(client.stats.patches).toBe(0);
+    expect(client.stats.columnsSent).toBe(2);
+    client.dispose();
+  });
+
+  it('pivot : même résultat que sur le fil principal, et les colonnes ne partent qu’une fois', async () => {
+    const worker = inProcessWorker();
+    const client = new ComputeWorkerClient(() => worker);
+    const fields = {
+      zone: {id: 'zone', header: 'Zone', accessor: (r: Row) => r.zone},
+      name: {id: 'name', header: 'Nom', accessor: (r: Row) => r.name},
+      month: {id: 'month', header: 'Mois', accessor: (r: Row) => (r.when ? r.when.getUTCMonth() + 1 : null)},
+      amount: {id: 'amount', header: 'Montant', accessor: (r: Row) => r.amount},
+    };
+    const configs: PivotConfig<Row>[] = [
+      {rows: [fields.zone], columns: fields.month, values: [{...fields.amount, aggregate: 'sum'}]},
+      {rows: [fields.zone, fields.name], columns: null, values: [{...fields.amount, aggregate: 'avg'}, {...fields.amount, id: 'n', aggregate: 'count'}]},
+      {rows: [fields.month], columns: [fields.zone], values: [{...fields.amount, aggregate: 'max'}], rowTotals: false, grandTotal: false, columnSort: 'desc'},
+      {rows: [fields.name], columns: [fields.zone, fields.month], values: [{...fields.amount, aggregate: 'min'}], totalLabel: 'Tout'},
+    ];
+    for (const config of configs) {
+      const {result} = await client.pivot(rows, config);
+      expect(result).toEqual(computePivot(rows, config));
+    }
+    // Quatre champs distincts par leur fonction de lecture (zone, nom, mois, montant) + le second « montant » (id `n`).
+    expect(client.stats.columnsSent).toBe(5);
+    await client.pivot(rows, configs[0]);
+    expect(client.stats.columnsSent, 'même jeu de lignes : rien n’est renvoyé').toBe(5);
     client.dispose();
   });
 

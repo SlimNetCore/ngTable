@@ -1249,7 +1249,8 @@
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--ngt-primary-soft, var(--app-primary-soft, rgba(47, 111, 168, 0.1)));
-  color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  /* Couleur du texte, pas l'accent : à cette taille, l'accent sur son fond pâle manque de contraste (audit axe). */
+  color: var(--ngt-text, var(--app-text, #14212b));
   font-size: 0.75rem;
 }
 
@@ -2381,5 +2382,250 @@ ng-table:dir(rtl) {
 
   .ngt-select__box {
     border: 1px solid ButtonText;
+  }
+}
+
+/* État vide dû aux filtres : message et bouton de réinitialisation. */
+.no-data-cell__text {
+  display: block;
+  margin-bottom: 10px;
+}
+
+/* Texte trouvé par la recherche globale ([highlightSearch]) : fond coloré ET gras, pour ne pas dépendre de la couleur seule. */
+.ngt-search-hit {
+  background: var(--ngt-search-hit-bg, #ffe58a);
+  color: var(--ngt-search-hit-text, #14212b);
+  font-weight: 600;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+@media (forced-colors: active) {
+  .ngt-search-hit {
+    background: Mark;
+    color: MarkText;
+  }
+}
+
+/*
+ * Impression : seul le tableau est imprimé, en entier (plus de zone défilante), avec ses en-têtes répétés à chaque
+ * page. Les commandes (barre d'actions, filtres, pagination, poignées, boutons) sont retirées. En défilement virtuel,
+ * seules les lignes rendues à l'écran existent : pour tout imprimer, exportez ou désactivez-le le temps d'imprimer.
+ */
+@media print {
+  .list-actions,
+  .active-filters-bar,
+  .ngt-group-panel,
+  .ngt-side-panel,
+  .ngt-action-dock,
+  .ngt-status-bar,
+  .ngt-loading-overlay,
+  ng-table-paginator,
+  .resize-handle,
+  .copy-action-btn,
+  .no-data-cell__action,
+  .filter-button,
+  .inline-filter,
+  .ngt-detail-toggle,
+  .drag-handle {
+    display: none !important;
+  }
+
+  .table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .ng-table thead {
+    display: table-header-group;
+  }
+
+  .ng-table th.cdk-header-cell,
+  .ng-table td.cdk-cell,
+  .ng-table td.cdk-footer-cell {
+    position: static !important;
+    box-shadow: none !important;
+  }
+
+  .ng-table tr {
+    break-inside: avoid;
+  }
+
+  .cell-text--truncate {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .ngt-search-hit {
+    background: none;
+    text-decoration: underline;
+  }
+}
+
+/* Barre de données, dégradé, progression : la mise en forme occupe toute la largeur de la cellule. */
+.cell-content--fill {
+  display: flex;
+  width: 100%;
+}
+
+.cell-content--fill > ng-table-cell-format {
+  flex: 1 1 auto;
+}
+
+/* [stickyGroupHeaders] : l'en-tête du groupe en cours reste sous l'en-tête des colonnes ; un sous-groupe se place sous
+   son parent. Fond opaque : les lignes passent dessous. */
+.ng-table tr.group-row--sticky td {
+  position: sticky;
+  top: calc(var(--ngt-header-h, 0px) + var(--ngt-group-depth, 0) * var(--ngt-row-h, 48px));
+  z-index: 2;
+  background: var(--ngt-surface-alt, var(--app-surface-alt, #f4f6f9));
+  box-shadow: 0 1px 0 var(--ngt-border, rgba(20, 33, 43, 0.12));
+}
+
+.ng-table tr.group-row--sticky td.cdk-table-sticky {
+  z-index: 3;
+}
+
+.ng-table tr.group-row--sticky:hover td {
+  background: var(--ngt-hover-surface, var(--app-hover-surface, #e8f0f8));
+}
+
+@media print {
+  .ng-table tr.group-row--sticky td {
+    position: static;
+  }
+}
+
+/* [scrollMarkers] : traits le long du bord de la zone défilante, à la hauteur des lignes sélectionnées ou signalées.
+   La bande couvre la hauteur de la barre de défilement. La forme change avec la nature du repère (trait fin pour la
+   sélection, plus épais pour une alerte) : pas la couleur seule. Un clic sur un trait amène à la ligne. */
+.ngt-scroll-markers {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.ngt-scroll-marker {
+  position: absolute;
+  inset-inline: 2px;
+  height: 2px;
+  min-height: 2px;
+  /* Le trait est centré sur sa position : sa ligne commence au milieu du trait. */
+  transform: translateY(-50%);
+  border-radius: 1px;
+  background: var(--ngt-primary, #2f6fa8);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Zone de clic plus haute que le trait visible, sans recouvrir le trait voisin (4 px d'écart au moins). */
+.ngt-scroll-marker::before {
+  content: '';
+  position: absolute;
+  inset: -1px -2px;
+}
+
+.ngt-scroll-marker:hover {
+  inset-inline: 0;
+  filter: brightness(0.85);
+}
+
+.ngt-scroll-marker[data-kind='info'],
+.ngt-scroll-marker[data-kind='success'],
+.ngt-scroll-marker[data-kind='warning'],
+.ngt-scroll-marker[data-kind='danger'] {
+  inset-inline: 0;
+  height: 4px;
+}
+
+.ngt-scroll-marker[data-kind='success'] {
+  background: var(--ngt-success, #1f8a4c);
+}
+
+.ngt-scroll-marker[data-kind='warning'] {
+  background: var(--ngt-warning, #b26a00);
+}
+
+.ngt-scroll-marker[data-kind='danger'] {
+  background: var(--ngt-danger, #c0392b);
+}
+
+.ngt-scroll-marker[data-kind='neutral'] {
+  background: var(--ngt-text-muted, #5f7080);
+}
+
+/* Ligne atteinte par un clic sur un repère : contour et fond pendant un instant. */
+.ng-table tr.data-row[data-ngt-located] td.cdk-cell {
+  background: var(--ngt-primary-soft, rgba(47, 111, 168, 0.14));
+  box-shadow: inset 0 2px 0 var(--ngt-primary, #2f6fa8), inset 0 -2px 0 var(--ngt-primary, #2f6fa8);
+}
+
+@media (forced-colors: active) {
+  .ngt-scroll-marker {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+
+  .ng-table tr.data-row[data-ngt-located] td.cdk-cell {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+@media print {
+  .ngt-scroll-markers {
+    display: none;
+  }
+}
+
+/* [fillHandle] : poignée de recopie au coin de la plage, et aperçu en pointillés des cellules qui seront remplies. */
+.ng-table td[data-ngt-range~='bottom'][data-ngt-range~='right']:not(.cdk-table-sticky) {
+  position: relative;
+}
+
+.ngt-fill-handle {
+  position: absolute;
+  inset-inline-end: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--ngt-surface, #fff);
+  background: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  cursor: crosshair;
+  z-index: 3;
+}
+
+/* Zone de prise plus grande que le carré visible (cible de 24 px, WCAG 2.5.8). */
+.ngt-fill-handle::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.ng-table td[data-ngt-fill] {
+  outline: 1px dashed var(--ngt-primary, var(--app-primary, #2f6fa8));
+  outline-offset: -1px;
+  background: var(--ngt-primary-soft, rgba(47, 111, 168, 0.1));
+}
+
+@media (forced-colors: active) {
+  .ngt-fill-handle {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+
+  .ng-table td[data-ngt-fill] {
+    outline-color: Highlight;
+  }
+}
+
+@media print {
+  .ngt-fill-handle {
+    display: none;
   }
 }
