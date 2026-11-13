@@ -20,6 +20,8 @@ jobs:
       - run: npm run lint
       - run: npm run test:ci
       - run: npm run build
+      # Rendu côté serveur : la table rendue dans Node sans navigateur simulé, à partir du paquet construit.
+      - run: npm run ssr:check
       - run: npm run build:demo
       - run: npm run theme:check
       - run: npm run worker:check

@@ -4,6 +4,17 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+**Version 5.0.0.** Aucune API n'est retirée ni renommée : le code écrit pour la 4.x compile et fonctionne sans changement. La version est majeure pour quatre changements de comportement visibles, détaillés dans le README (« Migrer de 4 vers 5 ») :
+
+1. Liste vidée par les filtres : le message « Aucune ligne ne correspond aux filtres » et un bouton de réinitialisation remplacent `[emptyLabel]` dans ce cas.
+2. Défilement virtuel : la hauteur estimée d'une ligne est la plus fréquente des lignes rendues (et non celle de la première), et les lignes plus hautes sont mesurées.
+3. Tri : les valeurs de tri sont gardées tant que le tableau de lignes ne change pas ; une ligne modifiée sur place puis retriée garde son ancienne valeur.
+4. Compteur de groupe et initiales d'avatar : texte dans la couleur du texte, plus dans la couleur d'accent (contraste).
+
+Toutes les nouvelles options sont désactivées par défaut.
+
+- Rendu côté serveur : corrigé, la table plantait à sa destruction sur un serveur (`document` appelé sans exister). `npm run ssr:check` rend désormais la table, le constructeur de filtres et le pivot dans Node, sans navigateur simulé, à partir du paquet construit ; ajouté à la CI.
+
 - Démo : page **Thème**, un bac à sable où régler les jetons `--ngt-*` (couleurs, rayons, hauteur de ligne, taille du texte), voir la table changer aussitôt et copier le CSS obtenu ; quatre thèmes tout faits pour partir de quelque chose.
 
 - Filtre avancé : enregistré dans les vues, présent dans `getQueryState()` / `applyQueryState()` (`advancedFilter`, `null` pour le retirer) et dans l'URL (`ngTableUrlState`, paramètre `af`). `sanitizeFilterGroup` valide un filtre venu de l'extérieur. À noter : `fromUrlParams()` renvoie maintenant aussi `advancedFilter` (`null` s'il n'y en a pas).
@@ -35,6 +46,7 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 - Performance, filtres : une colonne aux valeurs répétées (4 096 valeurs distinctes au plus, à partir de 2 000 lignes) est gardée en **dictionnaire** (`column-store.ts`, 2 octets par ligne) : le filtre se calcule une fois par valeur distincte, puis chaque ligne ne coûte qu'une lecture. Et quand une saisie est **prolongée** (« dup » → « dupo ») ou qu'un filtre est ajouté, la recherche globale comprise, seul le résultat précédent est refiltré, sans nouveau tri, tant qu'il reste peu de lignes ou que retrier coûterait cher. Mesuré sur 200 000 lignes (Node, médiane de 5) : filtre de texte sur 500 valeurs répétées 17 → 10 ms la première fois, 14 → 3 ms ensuite ; filtre posé sous un tri de texte 104 → 26 ms. Aucun changement d'API.
 
 - Performance, tri : les valeurs de tri d'une colonne sont gardées **en colonnes** (`column-store.ts`, 8 octets par ligne, 8 colonnes au plus) tant que les lignes ne changent pas. Un tri ne rappelle donc `valueAccessor` et ne reclasse les textes que la première fois : inverser le sens, changer un filtre en restant trié, revenir à une colonne déjà triée ou ajouter un niveau ne coûte plus que les passes du tri par base. Mesuré sur 200 000 lignes (Node, `column-store.performance.spec.ts`) : inversion d'un tri de texte 196 → 32 ms, filtre modifié sous un tri de texte 172 → 21 ms, retour à une colonne déjà triée 316 → 18 ms ; le premier tri d'une colonne ne change pas. À savoir : le cache suit l'identité du tableau de lignes ; une ligne modifiée **sur place** puis retriée garde son ancienne valeur de tri (les lignes sont immuables : passez un nouveau tableau ou une transaction). Aucun changement d'API.
+
 ## [4.0.1] — 2026-11-13
 
 - Master / detail : bouton **natif** déplier / replier. Dès qu'un `detailRowTemplate` est fourni, une colonne en tête porte un chevron par ligne (clavier, `aria-expanded`, libellés `detailExpand` / `detailCollapse` / `detailColumn` dans les cinq langues). `[detailRowToggleButton]="false"` le retire. En mode contrôlé, le bouton émet `(detailToggle)` avec les clés à appliquer. Changement visible : les tables qui ont un détail gagnent une colonne de 44 px.

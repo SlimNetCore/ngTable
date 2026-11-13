@@ -3678,8 +3678,14 @@ export class NgTableComponent<T = any> implements OnDestroy {
 
   private detachRangeDragListeners(): void {
     this.rangeDragging = false;
+    // Appelé à la destruction, donc aussi en rendu côté serveur, où `document` n'existe pas.
+    if (typeof document === 'undefined') {
+      return;
+    }
     document.removeEventListener('mousemove', this.onRangeMouseMove);
     document.removeEventListener('mouseup', this.onRangeMouseUp);
+    document.removeEventListener('mousemove', this.onFillMove);
+    document.removeEventListener('mouseup', this.onFillEnd);
   }
 
   /** Ctrl+C copie la plage, Ctrl+A la étend à toute la page, Échap l'efface. */

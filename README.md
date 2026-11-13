@@ -3611,6 +3611,25 @@ await (await table.getPaginator())?.goToNextPage();  // NgTablePaginatorHarness 
 | `getPaginator()` | `NgTablePaginatorHarness` du paginateur intégré (`goToNextPage()`, `goToPreviousPage()`, `goToFirstPage()`, `goToLastPage()`, `getRangeLabel()`, `getPageSize()`, `setPageSize()`), ou `null`. |
 | `getEmptyText()`, `isLoading()`, `getLiveAnnouncement()`, `getAriaLabel()` | États affichés et accessibilité. |
 
+## Migrer de 4 vers 5
+
+Rien à modifier dans le code : aucune entrée, sortie, méthode ni type n'est retiré ou renommé. La version est majeure parce que quatre comportements visibles changent. Vérifiez seulement ceux qui vous concernent.
+
+| Ce qui change | Avant (4.x) | Maintenant (5.0) | Que faire |
+|---|---|---|---|
+| Liste vidée par les filtres ou la recherche | `[emptyLabel]` (ou « Aucune donnée ») | « Aucune ligne ne correspond aux filtres » et un bouton « Réinitialiser les filtres » | Rien. Pour un autre texte : `[labels]="{noDataFiltered: '...'}"`. `[emptyLabel]` reste affiché quand la liste est vide sans filtre |
+| Défilement virtuel, lignes de hauteurs différentes | Toutes les lignes supposées de la hauteur de la première ligne rendue | Hauteur estimée = la plus fréquente ; les lignes plus hautes (détail déplié, texte sur plusieurs lignes) sont mesurées et gardent leur place | Rien. `scrollToIndex()` devient exact avec des détails dépliés |
+| Tri après modification d'une ligne **sur place** | Un nouveau tri relisait toutes les valeurs | Les valeurs de tri sont gardées tant que le tableau `[rows]` est le même objet | Si vous modifiez un objet ligne sans changer de tableau : passez un nouveau tableau (`[...rows]`) ou une transaction (`applyTransaction`). C'était déjà la règle pour l'affichage |
+| Compteur d'un groupe, initiales d'un avatar | Couleur d'accent | Couleur du texte (contraste suffisant) | Rien |
+
+À savoir aussi :
+
+- `fromUrlParams()` (`@sbourahla/ng-table/router`) renvoie un champ de plus, `advancedFilter` (`null` sans filtre avancé).
+- `NgTableBlockRequest` est devenu générique (`NgTableBlockRequest<T>`, `unknown` par défaut) et porte `signal`, `afterRow`, `beforeRow` : une source `getRows(request)` existante n'a rien à changer.
+- `(cellEdited)` peut porter `source: 'fill'` (poignée de recopie), en plus de `'edit'`, `'paste'`, `'undo'`, `'redo'`.
+- Le rendu côté serveur fonctionne (il plantait à la destruction de la table en 4.x).
+- Toutes les nouvelles options sont désactivées par défaut : `highlightSearch`, `animateRows`, `stickyGroupHeaders`, `scrollMarkers`, `fillHandle`, `prefetchBlocks`, `advancedFilter`, `cell` sur une colonne, `workerCompute` sur le pivot.
+
 ## Migrer de 0.4 vers 1.0
 
 La 1.0.0 apporte des changements cassants. Le détail est dans le [CHANGELOG](https://github.com/SlimNetCore/ngTable/blob/main/CHANGELOG.md#100--2026-09-25). En pratique, vérifiez ces points :
