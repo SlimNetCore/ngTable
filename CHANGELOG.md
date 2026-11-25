@@ -4,6 +4,8 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+## [6.0.0] — 2026-11-25
+
 **Version 6.0.0.** Aucune entrée, sortie, méthode ni type n'est retiré ou renommé. La version est majeure parce que le comportement au clavier change par défaut, pour l'accessibilité. Guide « Migrer de 5 vers 6 » dans le README.
 
 - **Changement par défaut : navigation par cellule d'office.** Dès qu'une colonne est éditable, que `[rangeSelection]` est actif, ou que des lignes se déplient (détail, arbre, groupes repliables), la table se parcourt cellule par cellule aux flèches, comme avec `[cellNavigation]`. Conséquences : Tab entre dans la table sur une seule cellule (les lignes et les en-têtes de groupe ne sont plus chacun un arrêt de tabulation) ; les boutons des cellules s'atteignent par les flèches puis Entrée ou F2 ; le rôle `grid` / `treegrid` n'est posé que dans ce cas. Les en-têtes de groupe font partie de la grille : Flèche droite déplie, Flèche gauche replie, `aria-level` sur les groupes et leurs lignes.
