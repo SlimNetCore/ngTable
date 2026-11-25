@@ -14,7 +14,7 @@ describe('row-view', () => {
   it('calcule valeur, texte, texte copié et contexte de chaque cellule', () => {
     const row = {id: 1, nom: ' Alice '};
     const cell = buildRowViews([row], [nom, id], null).get(row)!.cells.get('nom')!;
-    expect(cell).toEqual({value: ' Alice ', text: ' Alice ', copyText: 'Alice', context: {$implicit: row, row, value: ' Alice ', column: nom}, flash: ''});
+    expect(cell).toEqual({value: ' Alice ', display: ' Alice ', text: ' Alice ', copyText: 'Alice', context: {$implicit: row, row, value: ' Alice ', column: nom}, flash: ''});
   });
 
   it('applique la classe de surbrillance fournie (mode live)', () => {

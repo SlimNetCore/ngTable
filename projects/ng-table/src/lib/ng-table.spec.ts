@@ -1140,6 +1140,416 @@ describe('NgTableComponent', () => {
     });
   });
 
+  describe('réutilisation des lignes en défilement virtuel ([rowReuse])', () => {
+    const many: Row[] = Array.from({length: 5000}, (_, i) => ({id: `${i}`, nom: `Client ${i}`, montant: i, statut: i % 2 ? 'VALIDEE' : 'BROUILLON', actif: true, date: '2026-01-01'}));
+    const plain = (): NgTableColumn<Row>[] => [
+      {id: 'nom', header: 'Nom', valueAccessor: (r) => r.nom, sortable: true},
+      {id: 'montant', header: 'Montant', valueAccessor: (r) => r.montant, sortable: true},
+    ];
+    const rowsOf = (fixture: ComponentFixture<NgTableComponent>) => [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('tr.data-row')];
+    const names = (fixture: ComponentFixture<NgTableComponent>) => rowsOf(fixture).map((row) => row.querySelector('td')?.textContent?.trim());
+
+    it('un saut ne recrée aucune ligne : les mêmes éléments montrent les nouvelles données, dans l’ordre', async () => {
+      const {fixture, component} = await createTable({columns: plain(), rows: many, virtualScroll: true});
+      // Depuis le haut de liste, la tranche n'a pas de marge au-dessus : on part d'une position au milieu.
+      component.scrollToIndex(1000);
+      await fixture.whenStable();
+      const before = new Set(rowsOf(fixture));
+      expect(before.size).toBeGreaterThan(10);
+
+      component.scrollToIndex(3000);
+      await fixture.whenStable();
+      const after = rowsOf(fixture);
+      expect(after.filter((row) => before.has(row)), 'éléments repris').toHaveLength(after.length);
+      // Tranche rendue : 8 lignes de marge au-dessus de la ligne visée.
+      expect(names(fixture).slice(0, 3)).toEqual(['Client 2992', 'Client 2993', 'Client 2994']);
+      const all = names(fixture);
+      expect(all).toEqual(Array.from({length: all.length}, (_, i) => `Client ${2992 + i}`));
+    });
+
+    it('défiler d’une ligne garde toutes les lignes communes intactes : une créée, une détruite, aucune déplacée ni réécrite', async () => {
+      const {fixture, component} = await createTable({columns: plain(), rows: many, virtualScroll: true});
+      component.scrollToIndex(100);
+      await fixture.whenStable();
+      const before = rowsOf(fixture);
+      const texts = new Map(before.map((row) => [row, row.textContent]));
+
+      component.scrollToIndex(101);
+      await fixture.whenStable();
+      const after = rowsOf(fixture);
+      expect(after.filter((row) => !before.includes(row)), 'une ligne créée').toHaveLength(1);
+      expect(before.filter((row) => !after.includes(row)), 'une ligne détruite').toHaveLength(1);
+      expect(after.filter((row) => before.includes(row) && texts.get(row) !== row.textContent), 'aucune ligne commune réécrite').toEqual([]);
+      expect(after.slice(0, -1)).toEqual(before.slice(1)); // même ordre dans le document
+      expect(names(fixture)[0]).toBe('Client 93');
+
+      // Puis un saut : toutes les lignes sont reprises, y compris celle créée à l'instant.
+      component.scrollToIndex(4000);
+      await fixture.whenStable();
+      expect(rowsOf(fixture)).toEqual(after);
+      expect(names(fixture)[0]).toBe('Client 3992');
+    });
+
+    it('tri, filtre et sélection restent justes sur des lignes reprises', async () => {
+      const {fixture, component} = await createTable({columns: plain(), rows: many, virtualScroll: true, rowSelectionEnabled: true, selectedRowKeys: ['4999']});
+      component['onHeaderSort'](component.columns()[1]);
+      component['onHeaderSort'](component.columns()[1]); // montant décroissant
+      await fixture.whenStable();
+      expect(rowsOf(fixture)[0].textContent).toContain('Client 4999');
+      expect(rowsOf(fixture)[0].querySelector('ng-table-checkbox input, ng-table-checkbox [aria-checked="true"], input:checked')).not.toBeNull();
+      component.scrollToIndex(2000);
+      await fixture.whenStable();
+      expect(rowsOf(fixture).some((row) => row.textContent?.includes('Client 4999'))).toBe(false);
+      expect((fixture.nativeElement as HTMLElement).querySelector('tr.data-row input:checked')).toBeNull();
+    });
+
+    it('mode auto : pas de réutilisation avec un cellTemplate ou un détail ; [rowReuse]="false" la coupe', async () => {
+      const off = await createTable({columns: plain(), rows: many, virtualScroll: true, rowReuse: false});
+      const before = new Set(rowsOf(off.fixture));
+      off.component.scrollToIndex(3000);
+      await off.fixture.whenStable();
+      expect(rowsOf(off.fixture).filter((row) => before.has(row))).toHaveLength(0);
+    });
+  });
+
+  describe('accessibilité au clavier (audit de novembre 2026)', () => {
+    const el = (fixture: ComponentFixture<NgTableComponent>) => fixture.nativeElement as HTMLElement;
+    const key = (target: Element, name: string) => {
+      const event = new KeyboardEvent('keydown', {key: name, bubbles: true, cancelable: true});
+      target.dispatchEvent(event);
+      return event;
+    };
+
+    it('[rowActivatable] : chaque ligne reçoit le focus, Entrée et Espace émettent rowClick', async () => {
+      const off = await createTable();
+      expect(el(off.fixture).querySelector('tr.data-row')?.getAttribute('tabindex')).toBeNull();
+
+      const {fixture, component} = await createTable({rowActivatable: true});
+      const clicks: string[] = [];
+      component.rowClick.subscribe((row) => clicks.push((row as Row).id));
+      const row = el(fixture).querySelector<HTMLElement>('tr.data-row')!;
+      expect(row.getAttribute('tabindex')).toBe('0');
+      expect(key(row, 'Enter').defaultPrevented).toBe(true);
+      key(row, ' ');
+      expect(clicks).toEqual(['1', '1']);
+    });
+
+    it('Entrée ou Espace sur un contrôle de la ligne lui appartient : la ligne ne capte pas la touche', async () => {
+      const {fixture, component} = await createTable({rowActivatable: true, rowSelectionEnabled: true});
+      const clicks: unknown[] = [];
+      component.rowClick.subscribe((row) => clicks.push(row));
+      const control = el(fixture).querySelector<HTMLElement>('tr.data-row .selection-cell input, tr.data-row .copy-action-btn')!;
+      expect(control).not.toBeNull();
+      const event = key(control, 'Enter');
+      expect(event.defaultPrevented, 'l’action du contrôle n’est pas annulée').toBe(false);
+      expect(key(control, ' ').defaultPrevented).toBe(false);
+      expect(clicks).toEqual([]);
+    });
+
+    it('aria-expanded seulement sur une ligne qui peut se déplier', async () => {
+      @Component({imports: [NgTableComponent], template: `<ng-table [columns]="cols" [rows]="rows" [detailRowTemplate]="tpl" [detailRowCanExpand]="can"/><ng-template #tpl let-row>détail</ng-template>`})
+      class Host {
+        cols = columns();
+        rows = ROWS;
+        can = (row: Row) => row.id !== '2';
+      }
+      const fixture = TestBed.createComponent(Host);
+      await fixture.whenStable();
+      const expanded = [...(fixture.nativeElement as HTMLElement).querySelectorAll('tr.data-row')].map((row) => row.getAttribute('aria-expanded'));
+      expect(expanded).toEqual(['false', null, 'false']);
+    });
+
+    it('champ « nom de la vue » nommé ; conteneur défilant avec marge de défilement sous l’en-tête collant', async () => {
+      const {fixture} = await createTable({viewsEnabled: true, viewsStorageKey: 'a11y', stickyHeader: true, maxHeight: '200px'});
+      const wrap = el(fixture).querySelector<HTMLElement>('.table-wrap')!;
+      expect(parseFloat(wrap.style.scrollPaddingTop)).toBeGreaterThan(0);
+    });
+
+    it('panneau latéral : motif « tabs » complet (liste d’onglets seule, lien avec le contenu, flèches)', async () => {
+      const {fixture, component} = await createTable({sidePanel: true});
+      component['toggleSidePanel']();
+      await fixture.whenStable();
+      const list = el(fixture).querySelector<HTMLElement>('[role="tablist"]')!;
+      const tabs = () => [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
+      expect(list.querySelectorAll('button')).toHaveLength(2); // épingler et fermer sont hors de la liste
+      const panel = el(fixture).querySelector<HTMLElement>('[role="tabpanel"]')!;
+      expect(tabs().map((tab) => tab.getAttribute('aria-controls'))).toEqual([panel.id, panel.id]);
+      expect(panel.getAttribute('aria-labelledby')).toBe(tabs()[0].id);
+      expect(tabs().map((tab) => tab.getAttribute('tabindex'))).toEqual(['0', '-1']);
+
+      tabs()[0].focus();
+      expect(key(tabs()[0], 'ArrowRight').defaultPrevented).toBe(true);
+      await fixture.whenStable();
+      expect(tabs().map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+      expect(tabs().map((tab) => tab.getAttribute('tabindex'))).toEqual(['-1', '0']);
+      expect(panel.getAttribute('aria-labelledby')).toBe(tabs()[1].id);
+      key(tabs()[1], 'Home');
+      await fixture.whenStable();
+      expect(tabs().map((tab) => tab.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+    });
+
+    it('barre d’actions de sélection : F6 y mène depuis la table, les flèches passent d’un bouton à l’autre, F6 en revient', async () => {
+      const {fixture} = await createTable({
+        rowSelectionEnabled: true,
+        selectionBar: true,
+        selectedRowKeys: ['1'],
+        selectionActions: [{id: 'a', label: 'Archiver'}, {id: 'b', label: 'Supprimer'}],
+      });
+      document.body.appendChild(fixture.nativeElement);
+      try {
+        const bar = el(fixture).querySelector<HTMLElement>('.ngt-action-bar')!;
+        expect(bar.getAttribute('aria-keyshortcuts')).toBe('F6');
+        const buttons = [...bar.querySelectorAll<HTMLElement>('button')];
+        expect(buttons.length).toBeGreaterThan(2);
+        const start = el(fixture).querySelector<HTMLElement>('tr.data-row input')!;
+        start.focus();
+        expect(key(start, 'F6').defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(buttons[0]);
+        key(buttons[0], 'ArrowRight');
+        expect(document.activeElement).toBe(buttons[1]);
+        key(buttons[1], 'End');
+        expect(document.activeElement).toBe(buttons[buttons.length - 1]);
+        key(buttons[buttons.length - 1], 'ArrowRight'); // boucle
+        expect(document.activeElement).toBe(buttons[0]);
+        key(buttons[0], 'F6');
+        expect(document.activeElement).toBe(start);
+      } finally {
+        (fixture.nativeElement as HTMLElement).remove();
+      }
+    });
+
+    it('première ligne cochée : l’annonce dit aussi le raccourci de la barre d’actions', async () => {
+      const {fixture, component} = await createTable({rowSelectionEnabled: true, selectionBar: true});
+      const said = () => el(fixture).querySelector('.ngt-live-region')?.textContent ?? '';
+      component['toggleRowSelectionFromKeyboard'](ROWS[0]);
+      await fixture.whenStable();
+      expect(said()).toContain(NG_TABLE_DEFAULT_LABELS.selectionBarHint);
+      component['toggleRowSelectionFromKeyboard'](ROWS[1]);
+      await fixture.whenStable();
+      expect(said()).not.toContain(NG_TABLE_DEFAULT_LABELS.selectionBarHint);
+    });
+
+    it('défilement virtuel : Ctrl+Fin atteint la dernière ligne de la liste, pas la dernière ligne rendue', async () => {
+      const many: Row[] = Array.from({length: 3000}, (_, i) => ({id: `${i}`, nom: `Client ${i}`, montant: i, statut: 'VALIDEE', actif: true, date: '2026-01-01'}));
+      const {fixture} = await createTable({rows: many, virtualScroll: true, cellNavigation: true});
+      document.body.appendChild(fixture.nativeElement);
+      const settle = async () => {
+        await fixture.whenStable();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await fixture.whenStable();
+      };
+      try {
+        const first = el(fixture).querySelector<HTMLElement>('tr.data-row td')!;
+        first.focus();
+        const end = new KeyboardEvent('keydown', {key: 'End', ctrlKey: true, bubbles: true, cancelable: true});
+        first.dispatchEvent(end);
+        expect(end.defaultPrevented).toBe(true);
+        await settle();
+        const active = document.activeElement as HTMLElement;
+        expect(active.tagName).toBe('TD');
+        expect(active.parentElement?.textContent).toContain('Client 2999');
+
+        active.dispatchEvent(new KeyboardEvent('keydown', {key: 'Home', ctrlKey: true, bubbles: true, cancelable: true}));
+        await settle();
+        expect((document.activeElement as HTMLElement).parentElement?.textContent).toContain('Client 0');
+      } finally {
+        (fixture.nativeElement as HTMLElement).remove();
+      }
+    });
+
+    it('tri multi-niveaux sans Maj+clic : un bouton d’en-tête ajoute la colonne au tri', async () => {
+      const {fixture, component} = await createTable({multiSort: true});
+      expect(el(fixture).querySelector('.sort-level-button')).toBeNull(); // aucun tri : rien à compléter
+      component['onHeaderSort'](component.columns()[0]);
+      await fixture.whenStable();
+      const add = el(fixture).querySelector<HTMLElement>('th.cdk-column-montant .sort-level-button')!;
+      expect(add.getAttribute('aria-label')).toBe(NG_TABLE_DEFAULT_LABELS.addSortLevel.replace('{column}', component.columns()[1].header));
+      expect(el(fixture).querySelector('th.cdk-column-nom .sort-level-button'), 'pas sur le seul tri').toBeNull();
+      add.click();
+      await fixture.whenStable();
+      expect(component['sortStates']().map((sort) => sort.columnId)).toEqual(['nom', 'montant']);
+    });
+
+    it('vue enregistrée, vue supprimée et « tout replier » sont annoncés', async () => {
+      const {fixture, component} = await createTable({viewsEnabled: true, viewsStorageKey: 'a11y-annonces', groupBy: 'statut'});
+      const said = () => (el(fixture).querySelector('.ngt-live-region')?.textContent ?? '').replace(/\u00a0/g, '');
+      component.saveCurrentAsView('Ma vue');
+      await fixture.whenStable();
+      expect(said()).toBe(NG_TABLE_DEFAULT_LABELS.announceViewSaved.replace('{name}', 'Ma vue'));
+      component.deleteView(component['effectiveViewsStore']().views[0]);
+      await fixture.whenStable();
+      expect(said()).toBe(NG_TABLE_DEFAULT_LABELS.announceViewDeleted.replace('{name}', 'Ma vue'));
+      component.collapseAllGroups();
+      await fixture.whenStable();
+      expect(said()).toBe(NG_TABLE_DEFAULT_LABELS.announceAllCollapsed);
+    });
+  });
+
+  describe('mémoire de la recherche globale', () => {
+    it('les textes de recherche sont rendus une fois la recherche effacée, et recalculés à la saisie suivante', async () => {
+      const {component} = await createTable({globalSearchEnabled: true});
+      component['commitGlobalSearch']('ali');
+      const before = component['searchHaystacks']();
+      expect(ids(component.displayedRows()).length).toBeGreaterThan(0);
+      component['releaseSearchCache'](); // recherche en cours : rien n'est rendu
+      expect(component['searchHaystacks']()).toBe(before);
+      component.clearGlobalSearch();
+      expect(component['searchCacheTimer']).not.toBeNull();
+      component['releaseSearchCache']();
+      expect(component['searchHaystacks']()).not.toBe(before);
+      component['commitGlobalSearch']('ali');
+      expect(ids(component.displayedRows()).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('aspect (version 6.0)', () => {
+    const el = (fixture: ComponentFixture<NgTableComponent>) => fixture.nativeElement as HTMLElement;
+
+    it('une colonne de nombres est alignée à droite (en-tête et cellules) ; `align` l’emporte', async () => {
+      const {fixture, setInput} = await createTable();
+      expect(el(fixture).querySelector('th.cdk-column-montant')!.classList.contains('ngt-align-end')).toBe(true);
+      expect(el(fixture).querySelector('td.cdk-column-montant')!.classList.contains('ngt-align-end')).toBe(true);
+      expect(el(fixture).querySelector('td.cdk-column-nom')!.classList.contains('ngt-align-end')).toBe(false);
+
+      const cols = columns();
+      cols[1] = {...cols[1], align: 'center'};
+      cols[0] = {...cols[0], align: 'end'};
+      await setInput('columns', cols);
+      expect(el(fixture).querySelector('td.cdk-column-montant')!.className).toContain('ngt-align-center');
+      expect(el(fixture).querySelector('td.cdk-column-montant')!.className).not.toContain('ngt-align-end');
+      expect(el(fixture).querySelector('th.cdk-column-nom')!.className).toContain('ngt-align-end');
+    });
+
+    it('numberFormat et dateFormat changent l’affichage, pas la valeur : le tri reste numérique', async () => {
+      const cols = columns();
+      cols[1] = {...cols[1], numberFormat: {minimumFractionDigits: 2}};
+      cols.push({id: 'date', header: 'Date', valueAccessor: (r) => r.date, dateFormat: {year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'UTC'}});
+      const big: Row = {id: '9', nom: 'Zoé', montant: 1234567.5, statut: 'VALIDEE', actif: true, date: '2026-03-09'};
+      const {fixture, component} = await createTable({columns: cols, rows: [...ROWS, big]});
+      const cellText = (id: string, column: string) =>
+        [...el(fixture).querySelectorAll('tr.data-row')].find((row) => row.textContent?.includes(id))!.querySelector(`td.cdk-column-${column}`)!.textContent!.trim();
+      expect(cellText('Zoé', 'montant')).toBe(new Intl.NumberFormat(undefined, {minimumFractionDigits: 2}).format(1234567.5));
+      expect(cellText('Zoé', 'date')).toBe(new Intl.DateTimeFormat(undefined, {year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'UTC'}).format(new Date('2026-03-09')));
+      component['onHeaderSort'](component.columns()[1]);
+      component['onHeaderSort'](component.columns()[1]);
+      expect((component.displayedRows() as Row[])[0].id).toBe('9'); // 1 234 567,5 est bien le plus grand nombre, pas un texte
+    });
+
+    it('ligne sélectionnée et lignes alternées portent une classe', async () => {
+      const {fixture, setInput} = await createTable({rowSelectionEnabled: true, selectedRowKeys: ['2']});
+      const rows = () => [...el(fixture).querySelectorAll('tr.data-row')];
+      expect(rows().map((row) => row.classList.contains('ngt-row-selected'))).toEqual([false, true, false]);
+      expect(rows().some((row) => row.classList.contains('ngt-row-alt'))).toBe(false);
+      await setInput('striped', true);
+      expect(rows().map((row) => row.classList.contains('ngt-row-alt'))).toEqual([false, true, false]);
+    });
+
+    it('liste vidée par un filtre : un seul bouton de réinitialisation quand la barre des filtres est affichée', async () => {
+      const without = await createTable({filters: {statut: 'INCONNU'}});
+      expect(el(without.fixture).querySelectorAll('.no-data-cell__action')).toHaveLength(1);
+      const withBar = await createTable({filters: {statut: 'INCONNU'}, showActiveFiltersBar: true});
+      expect(el(withBar.fixture).querySelector('.active-filters-bar__reset')).not.toBeNull();
+      expect(el(withBar.fixture).querySelectorAll('.no-data-cell__action')).toHaveLength(0);
+    });
+
+    it('table à l’étroit : les colonnes épinglées sont libérées, sauf avec [pinColumnsOnMobile]', async () => {
+      const cols = columns();
+      cols[0] = {...cols[0], pinned: 'left'};
+      const {fixture, component, setInput} = await createTable({columns: cols});
+      const sticky = () => el(fixture).querySelector('th.cdk-column-nom')!.classList.contains('cdk-table-sticky');
+      expect(sticky()).toBe(true);
+      component['isMobileView'].set(true);
+      await fixture.whenStable();
+      expect(component['pinnedSide'](component.columns()[0])).toBeUndefined();
+      expect(sticky()).toBe(false);
+      await setInput('pinColumnsOnMobile', true);
+      expect(component['pinnedSide'](component.columns()[0])).toBe('left');
+    });
+
+    it('filtre : même entonnoir au repos et actif, l’état actif est porté par une classe', async () => {
+      const {fixture, setInput} = await createTable();
+      const button = () => el(fixture).querySelector<HTMLElement>('th.cdk-column-nom .filter-button')!;
+      expect(button().classList.contains('filter-active')).toBe(false);
+      expect(button().querySelector('ng-table-icon')!.getAttribute('name')).toBe('filter_alt');
+      await setInput('filters', {nom: 'a'});
+      expect(button().classList.contains('filter-active')).toBe(true);
+      expect(button().querySelector('ng-table-icon')!.getAttribute('name')).toBe('filter_alt');
+    });
+
+    it('cellule de texte simple : chemin court, même structure que les autres cellules', async () => {
+      const {fixture} = await createTable();
+      const plain = el(fixture).querySelector('td.cdk-column-montant')!;
+      expect(plain.querySelector(':scope > .cell-content > .cell-text.cell-text--truncate')).not.toBeNull();
+      // « nom » a un bouton de copie : il garde le chemin complet.
+      expect(el(fixture).querySelector('td.cdk-column-nom .copy-action-btn')).not.toBeNull();
+    });
+  });
+
+  describe('suspendre les mises à jour en direct ([livePauseButton], liveUpdatesPaused)', () => {
+    it('un lot déjà programmé au moment de la pause attend lui aussi la reprise', async () => {
+      const {fixture, component} = await createTable();
+      component.applyTransactionAsync({update: [{...ROWS[0], montant: 777}]});
+      component.liveUpdatesPaused.set(true);
+      await new Promise((resolve) => setTimeout(resolve, 90));
+      await fixture.whenStable();
+      expect((component.displayedRows() as Row[]).find((row) => row.id === '1')?.montant).toBe(ROWS[0].montant);
+      component.liveUpdatesPaused.set(false);
+      await fixture.whenStable();
+      expect((component.displayedRows() as Row[]).find((row) => row.id === '1')?.montant).toBe(777);
+    });
+
+    it('en pause, [rows] et les transactions attendent ; à la reprise tout est appliqué', async () => {
+      const {fixture, component, setInput} = await createTable({livePauseButton: true});
+      const button = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.ngt-live-pause')!;
+      expect(button().textContent).toContain(NG_TABLE_DEFAULT_LABELS.livePause);
+      button().click();
+      await fixture.whenStable();
+      expect(component.liveUpdatesPaused()).toBe(true);
+      expect(button().textContent).toContain(NG_TABLE_DEFAULT_LABELS.liveResume);
+      expect((fixture.nativeElement as HTMLElement).querySelector('.ngt-live-region')?.textContent).toContain(NG_TABLE_DEFAULT_LABELS.announceLivePaused);
+
+      const extra: Row = {id: '4', nom: 'Dan', montant: 250, statut: 'VALIDEE', actif: true, date: '2026-04-01'};
+      await setInput('rows', [...ROWS, extra]);
+      component.applyTransactionAsync({update: [{...ROWS[0], montant: 999}]});
+      expect(component.applyTransaction({add: [{...extra, id: '5'}]}).add).toEqual([]);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      await fixture.whenStable();
+      expect(ids(component.displayedRows())).toEqual(['1', '2', '3']);
+
+      button().click();
+      await fixture.whenStable();
+      expect(component.liveUpdatesPaused()).toBe(false);
+      expect(ids(component.displayedRows()).sort()).toEqual(['1', '2', '3', '4', '5']);
+      expect((component.displayedRows() as Row[]).find((row) => row.id === '1')?.montant).toBe(999);
+    });
+  });
+
+  describe('déplacer une ligne sans glisser', () => {
+    it('un clic sur une poignée saisit la ligne, un clic sur une autre l’y dépose ; un second clic sur la même annule', async () => {
+      const {fixture, component} = await createTable({rowDrag: true});
+      const handles = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.ngt-row-handle')];
+      const ids = () => (component.displayedRows() as Row[]).map((row) => row.id);
+      expect(ids()).toEqual(['1', '2', '3']);
+
+      handles()[0].click();
+      await fixture.whenStable();
+      expect(handles()[0].getAttribute('aria-pressed')).toBe('true');
+      handles()[0].click(); // même poignée : annulé
+      await fixture.whenStable();
+      expect(handles()[0].getAttribute('aria-pressed')).toBe('false');
+      expect(ids()).toEqual(['1', '2', '3']);
+
+      handles()[0].click();
+      await fixture.whenStable();
+      const moves: NgTableRowMoveEvent<Row>[] = [];
+      component.rowMoved.subscribe((event) => moves.push(event as NgTableRowMoveEvent<Row>));
+      handles()[2].click(); // dépose la ligne 1 après la ligne 3 : même événement qu'un glisser-déposer
+      await fixture.whenStable();
+      expect(moves.map((move) => `${move.position}:${move.rows.map((row) => row.id).join(',')}`)).toEqual(['after:2,3,1']);
+      expect(handles().map((handle) => handle.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false']);
+    });
+  });
+
   describe('surlignage de la recherche et état vide', () => {
     const el = (fixture: ComponentFixture<NgTableComponent>) => fixture.nativeElement as HTMLElement;
 
@@ -3194,8 +3604,15 @@ describe('NgTableComponent', () => {
       const column = component.columns()[0];
       const nonResizable = columns()[1];
 
-      component['onResizeHandleKeydown']({key: 'Enter', target: null} as unknown as KeyboardEvent, column);
+      component['onResizeHandleKeydown']({key: 'a', target: null} as unknown as KeyboardEvent, column);
       expect(component['columnWidthPx'](column)).toBe(200);
+
+      // Début et Fin vont aux butées (équivalents clavier, avec Entrée pour ajuster au contenu).
+      const press = (key: string) => component['onResizeHandleKeydown']({key, target: null, preventDefault: () => undefined} as unknown as KeyboardEvent, column);
+      press('End');
+      expect(component['columnWidthPx'](column)).toBe(column.maxWidthPx ?? 620);
+      press('Home');
+      expect(component['columnWidthPx'](column)).toBe(column.minWidthPx ?? 80);
 
       component['onResizeHandleKeydown'](
         {key: 'ArrowRight', target: null, preventDefault: () => undefined} as unknown as KeyboardEvent,
@@ -3331,8 +3748,9 @@ describe('NgTableComponent', () => {
       const rowCheckboxInputs = fixture.nativeElement.querySelectorAll('.selection-cell input[type="checkbox"]');
 
       expect(headerCheckboxInput.getAttribute('aria-label')).toBe(NG_TABLE_DEFAULT_LABELS.selectAllRows);
-      expect(rowCheckboxInputs[0].getAttribute('aria-label')).toBe('Sélectionner la ligne 1');
-      expect(rowCheckboxInputs[1].getAttribute('aria-label')).toBe('Sélectionner la ligne 2');
+      // La case est nommée par la valeur de la première colonne, stable au défilement, et non par son rang de rendu.
+      expect(rowCheckboxInputs[0].getAttribute('aria-label')).toBe('Sélectionner la ligne Charlie');
+      expect(rowCheckboxInputs[1].getAttribute('aria-label')).toBe('Sélectionner la ligne alice');
     });
 
     it('rend les lignes focusables au clavier seulement quand elles font quelque chose', async () => {
@@ -3357,14 +3775,46 @@ describe('NgTableComponent', () => {
       const hostFixture = TestBed.createComponent(HostComponent);
       await hostFixture.whenStable();
 
-      const {component} = await createTable({detailRowTemplate: hostFixture.componentInstance.tpl()});
+      // Une table dont les lignes se déplient se parcourt cellule par cellule (rôle treegrid) : Entrée sur une cellule
+      // sans contrôle équivaut à un clic sur la ligne.
+      const {component, fixture} = await createTable({detailRowTemplate: hostFixture.componentInstance.tpl()});
       const row = ROWS[0];
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('table')?.getAttribute('role')).toBe('treegrid');
+      expect(root.querySelector('tr.data-row')?.getAttribute('tabindex'), 'la ligne n’est plus un arrêt de tabulation').toBeNull();
+      const cell = root.querySelector<HTMLElement>('tr.data-row td.cdk-column-montant')!;
+      expect(root.querySelectorAll('tr.data-row td[tabindex="0"]'), 'une seule cellule atteinte par Tab').toHaveLength(1);
 
-      component['onRowKeydown']({key: 'Enter', preventDefault: () => undefined} as unknown as KeyboardEvent, row);
+      cell.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
       expect(component.isRowExpanded(row)).toBe(true);
-
-      component['onRowKeydown']({key: ' ', preventDefault: () => undefined} as unknown as KeyboardEvent, row);
+      cell.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
       expect(component.isRowExpanded(row)).toBe(false);
+    });
+
+    it('en-têtes de groupe dans la grille : flèches pour y aller, Flèche droite / gauche pour déplier / replier, niveaux annoncés', async () => {
+      const {component, fixture} = await createTable({groupBy: 'statut'});
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('table')?.getAttribute('role')).toBe('treegrid');
+      const group = () => root.querySelector<HTMLElement>('tr.group-row')!;
+      expect(group().getAttribute('tabindex')).toBeNull();
+      expect(group().getAttribute('aria-level')).toBe('1');
+      expect(root.querySelector('tr.data-row')?.getAttribute('aria-level')).toBe('2');
+
+      const press = (target: Element, key: string) => target.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles: true, cancelable: true}));
+      const cell = group().querySelector<HTMLElement>('td')!;
+      cell.focus();
+      expect(group().getAttribute('aria-expanded')).toBe('true');
+      press(cell, 'ArrowLeft');
+      await fixture.whenStable();
+      expect(group().getAttribute('aria-expanded')).toBe('false');
+      expect(component['collapsedGroups']().size).toBe(1);
+      press(group().querySelector('td')!, 'ArrowRight');
+      await fixture.whenStable();
+      expect(group().getAttribute('aria-expanded')).toBe('true');
+
+      // Depuis l'en-tête de groupe, Flèche bas atteint la première ligne de données.
+      press(group().querySelector('td')!, 'ArrowDown');
+      expect((document.activeElement as HTMLElement).closest('tr')?.classList.contains('data-row')).toBe(true);
     });
 
     it('réordonne les colonnes au clavier (flèches gauche/droite sur la poignée)', async () => {

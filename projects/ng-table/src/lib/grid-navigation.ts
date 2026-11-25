@@ -64,12 +64,17 @@ export function nextGridPosition(
   return clamped.row === from.row && clamped.col === from.col ? null : clamped;
 }
 
-/** Lignes de données de la grille (hors en-tête, lignes détail et lignes d'actions mobiles). */
+/** Une ligne de la grille : ligne de données, ou en-tête de groupe (on y navigue pour le déplier ou le replier). */
+function isGridRow(row: Element): boolean {
+  return row.classList.contains('data-row') || row.classList.contains('group-row');
+}
+
+/** Lignes de la grille : données et en-têtes de groupe (hors en-tête, lignes détail et lignes d'actions mobiles). */
 export function gridRows(table: HTMLTableElement): HTMLTableRowElement[] {
   const rows: HTMLTableRowElement[] = [];
   for (const body of Array.from(table.tBodies)) {
     for (const row of Array.from(body.rows)) {
-      if (row.classList.contains('data-row')) {
+      if (isGridRow(row)) {
         rows.push(row);
       }
     }
@@ -84,7 +89,7 @@ export function locateGridCell(
 ): { cell: HTMLTableCellElement; position: GridPosition } | null {
   const cell = element.closest('td');
   const row = cell?.parentElement;
-  if (!cell || !(row instanceof HTMLTableRowElement) || !row.classList.contains('data-row') || !table.contains(row)) {
+  if (!cell || !(row instanceof HTMLTableRowElement) || !isGridRow(row) || !table.contains(row)) {
     return null;
   }
   return {cell, position: {row: gridRows(table).indexOf(row), col: Array.from(row.cells).indexOf(cell)}};
@@ -105,9 +110,14 @@ export function gridCellAt(table: HTMLTableElement, position: GridPosition): HTM
  * `tabindex="-1"` (atteints au clavier par les flèches, puis Entrée / F2).
  * Renvoie la cellule active.
  */
-export function syncGridTabStops(table: HTMLTableElement, position: GridPosition): HTMLTableCellElement | null {
+export function syncGridTabStops(table: HTMLTableElement, position: GridPosition, known?: WeakSet<Element>): HTMLTableCellElement | null {
   const active = gridCellAt(table, position);
   for (const row of gridRows(table)) {
+    // Lignes déjà traitées (`known`) : en défilement, seules les lignes qui entrent sont parcourues.
+    if (known?.has(row)) {
+      continue;
+    }
+    known?.add(row);
     for (const cell of Array.from(row.cells)) {
       cell.tabIndex = cell === active ? 0 : -1;
       for (const inner of Array.from(cell.querySelectorAll<HTMLElement>(FOCUSABLE_IN_CELL))) {
@@ -117,8 +127,21 @@ export function syncGridTabStops(table: HTMLTableElement, position: GridPosition
       }
     }
   }
+  if (known) {
+    const previous = lastActiveCell.get(table);
+    if (previous && previous !== active) {
+      previous.tabIndex = -1;
+    }
+    if (active) {
+      active.tabIndex = 0;
+      lastActiveCell.set(table, active);
+    }
+  }
   return active;
 }
+
+/** Dernière cellule rendue atteignable par Tab, par table (pour la retirer sans reparcourir toutes les lignes). */
+const lastActiveCell = new WeakMap<HTMLTableElement, HTMLTableCellElement>();
 
 /** Déplace le tabindex itinérant d'une cellule à une autre (sans tout reparcourir). */
 export function moveGridTabStop(from: HTMLTableCellElement | null, to: HTMLTableCellElement): void {
@@ -126,6 +149,14 @@ export function moveGridTabStop(from: HTMLTableCellElement | null, to: HTMLTable
     from.tabIndex = -1;
   }
   to.tabIndex = 0;
+  const table = to.closest('table');
+  if (table) {
+    const previous = lastActiveCell.get(table);
+    if (previous && previous !== to) {
+      previous.tabIndex = -1;
+    }
+    lastActiveCell.set(table, to);
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -18,6 +18,8 @@ import {
 
 /** Éléments du menu navigables aux flèches : les nôtres, ceux des rôles ARIA, et l'attribut hérité de Material. */
 const ITEM_SELECTOR = '[ngt-menu-item], [mat-menu-item], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
+/** Ce que Tab atteint dans un panneau. */
+const TABBABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 /** Panneaux et surcouches qui appartiennent au menu même s'ils sont posés ailleurs dans `<body>`. */
 const OWNED_SELECTOR = '.ngt-select__panel, .cdk-overlay-container';
 const GAP = 4;
@@ -104,6 +106,13 @@ const MARGIN = 8;
     .ngt-menu-panel [mat-menu-item]:focus-visible {
       background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
       outline: none;
+    }
+
+    /* Le fond de survol seul (1,07:1 sur blanc) ne se voit pas : l'élément qui a le focus clavier porte un contour (WCAG 2.4.7). */
+    .ngt-menu-panel [ngt-menu-item]:focus-visible,
+    .ngt-menu-panel [mat-menu-item]:focus-visible {
+      outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
+      outline-offset: -2px;
     }
 
     .ngt-menu-panel [ngt-menu-item]:disabled,
@@ -322,6 +331,16 @@ export class NgTableMenuTriggerDirective {
       const next = event.relatedTarget;
       if (next && !owned(next)) {
         this.closeMenu(false);
+        return;
+      }
+      // L'élément qui avait le focus vient d'être retiré du panneau (vue supprimée...) : le focus tomberait sur la
+      // page, et Échap ne fermerait plus le menu. Le panneau le reprend (WCAG 2.4.3).
+      if (!next) {
+        setTimeout(() => {
+          if (this.panel === panel && (this.document.activeElement === this.document.body || this.document.activeElement === null)) {
+            panel.focus({preventScroll: true});
+          }
+        });
       }
     };
     const onClick = (event: MouseEvent) => {
@@ -338,6 +357,16 @@ export class NgTableMenuTriggerDirective {
         return;
       }
       const target = event.target as HTMLElement;
+      // Tab au bord du panneau (posé en fin de page) : sans cela le focus partirait en fin de document. Le menu se
+      // ferme et le focus revient au bouton ; le navigateur poursuit alors Tab à partir de lui (WCAG 2.4.3).
+      if (event.key === 'Tab') {
+        const stops = [...panel.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR)].filter((element) => element.getClientRects().length > 0);
+        const edge = event.shiftKey ? (stops[0] ?? panel) : (stops[stops.length - 1] ?? panel);
+        if (target === edge || target === panel || stops.length === 0) {
+          this.closeMenu(true);
+        }
+        return;
+      }
       const onItem = target === panel || target.matches(ITEM_SELECTOR);
       if (!onItem || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
         return;

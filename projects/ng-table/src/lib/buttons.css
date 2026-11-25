@@ -38,7 +38,7 @@
 }
 
 [ngt-stroked-button] {
-  border-color: var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  border-color: var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
   color: var(--ngt-text, var(--app-text, #14212b));
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }

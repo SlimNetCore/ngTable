@@ -45,9 +45,24 @@ describe('info-bulle', () => {
     expect(bubble()?.getAttribute('role')).toBe('tooltip');
     expect(button.getAttribute('aria-describedby')).toBe(bubble()?.id);
 
+    // La bulle reste un court instant après la sortie, le temps que le pointeur l'atteigne (contenu survolable).
     button.dispatchEvent(new Event('mouseleave'));
+    expect(bubble()).not.toBeNull();
+    vi.advanceTimersByTime(160);
     expect(bubble()).toBeNull();
     expect(button.hasAttribute('aria-describedby')).toBe(false);
+  });
+
+  it('reste affichée tant que le pointeur est sur la bulle ; Échap la ferme même sans focus sur l’élément', () => {
+    const {button} = create();
+    button.dispatchEvent(new Event('mouseenter'));
+    vi.advanceTimersByTime(350);
+    button.dispatchEvent(new Event('mouseleave'));
+    bubble()!.dispatchEvent(new Event('mouseenter'));
+    vi.advanceTimersByTime(1000);
+    expect(bubble()).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
+    expect(bubble()).toBeNull();
   });
 
   it('s’ouvre tout de suite au focus clavier et se ferme à Échap', () => {

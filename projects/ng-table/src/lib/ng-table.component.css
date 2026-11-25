@@ -137,12 +137,42 @@
   background: var(--ngt-surface, var(--app-surface, #ffffff));
 }
 
-.ng-table .cdk-table-sticky-border-elem-left {
-  box-shadow: 6px 0 8px -6px rgba(15, 23, 42, 0.18);
+/* Colonnes figées et en-têtes collants. La table pose `position: sticky` elle-même (plus le CdkTable) : le décalage
+   de chaque colonne figée est un style en ligne (`inset-inline-start` / `-end`, donc juste aussi de droite à gauche).
+   `!important` tient le rôle des styles en ligne que posait le CDK : une règle de la table qui devait l'emporter sur
+   eux était déjà marquée `!important`, et l'emporte toujours par sa précision. */
+.ng-table .ngt-sticky-col {
+  position: sticky !important;
+  z-index: 1 !important;
 }
 
-.ng-table .cdk-table-sticky-border-elem-right {
-  box-shadow: -6px 0 8px -6px rgba(15, 23, 42, 0.18);
+.ng-table thead tr.ngt-sticky-head > th {
+  position: sticky !important;
+  top: var(--ngt-sticky-top, 0px) !important;
+  z-index: 100 !important;
+}
+
+.ng-table thead tr.ngt-sticky-head > th.ngt-sticky-col {
+  z-index: 101 !important;
+}
+
+.ng-table tfoot tr.ngt-sticky-foot > td {
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 10 !important;
+}
+
+.ng-table tfoot tr.ngt-sticky-foot > td.ngt-sticky-col {
+  z-index: 11 !important;
+}
+
+/* Ombre au bord de la dernière colonne figée, du côté des colonnes qui défilent. */
+.ng-table .ngt-sticky-edge-start {
+  box-shadow: calc(6px * var(--ngt-dir, 1)) 0 8px -6px rgba(15, 23, 42, 0.18);
+}
+
+.ng-table .ngt-sticky-edge-end {
+  box-shadow: calc(-6px * var(--ngt-dir, 1)) 0 8px -6px rgba(15, 23, 42, 0.18);
 }
 
 .ng-table .cdk-table-sticky-border-elem-top {
@@ -618,7 +648,7 @@
   min-width: 0;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  border: 1px solid var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
   border-radius: 10px;
   background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
   color: inherit;
@@ -685,7 +715,7 @@
 .export-range-input {
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  border: 1px solid var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
   border-radius: 10px;
   background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
   color: var(--ngt-text, var(--app-text, #14212b));
@@ -863,7 +893,8 @@
   position: fixed;
   z-index: 3000;
   box-sizing: border-box;
-  pointer-events: none;
+  /* Survolable : le pointeur peut aller sur la bulle sans qu'elle disparaisse (WCAG 1.4.13). */
+  pointer-events: auto;
   max-width: var(--ngt-tooltip-max-width, 420px);
   padding: var(--ngt-tooltip-padding, 8px 12px);
   border-radius: var(--ngt-tooltip-radius, 10px);
@@ -1183,7 +1214,7 @@
 }
 
 /* Navigation cellule par cellule : cellule active bien visible au clavier. */
-.ng-table[role='grid'] td.cdk-cell:focus-visible {
+.ng-table:is([role='grid'], [role='treegrid']) td.cdk-cell:focus-visible {
   outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
   outline-offset: -2px;
 }
@@ -1313,8 +1344,10 @@
 .ng-table td[data-ngt-flash='change-0'] { animation: ngt-flash-change-0 var(--ngt-flash-duration, 1s) ease-out; }
 .ng-table td[data-ngt-flash='change-1'] { animation: ngt-flash-change-1 var(--ngt-flash-duration, 1s) ease-out; }
 
+/* « Moins d'animations » : pas de fondu, mais le repère reste. La teinte et le symbole ▲ ▼ ◆ s'affichent d'un coup,
+   tiennent le temps de la surbrillance, puis disparaissent d'un coup (WCAG 2.3.3 sans perdre l'information). */
 @media (prefers-reduced-motion: reduce) {
-  .ng-table td[data-ngt-flash] { animation-duration: 1ms; }
+  .ng-table td[data-ngt-flash] { animation-timing-function: step-end; }
 }
 
 /* --- Modèle serveur par blocs : lignes en attente ---------------------- */
@@ -1431,7 +1464,7 @@
 }
 
 /* La cellule active (navigation clavier) garde son contour de focus par-dessus celui de la plage. */
-.ng-table[role='grid'] td.cdk-cell:focus-visible[data-ngt-range~='in'] {
+.ng-table:is([role='grid'], [role='treegrid']) td.cdk-cell:focus-visible[data-ngt-range~='in'] {
   outline-offset: -2px;
 }
 
@@ -1801,7 +1834,7 @@ button.ngt-tree-toggle:focus-visible {
 .global-search {
   height: 38px;
   border-radius: var(--ngt-radius-button, 999px);
-  border-color: var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  border-color: var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
   background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -2628,4 +2661,238 @@ ng-table:dir(rtl) {
   .ngt-fill-handle {
     display: none;
   }
+}
+
+/* Moins d'animations (WCAG 2.3.3) : l'indicateur de chargement ne tourne plus, il garde sa forme d'anneau entamé. */
+@media (prefers-reduced-motion: reduce) {
+  .ngt-spinner {
+    animation: none;
+  }
+}
+
+/* Menu Colonnes : boutons pour déplacer et ajuster une colonne sans glisser. */
+.columns-menu-moves {
+  display: inline-flex;
+  gap: 2px;
+  margin-inline-start: auto;
+}
+
+.columns-menu-moves [ngt-icon-button] {
+  width: 28px;
+  height: 28px;
+}
+
+/* Ligne saisie par un clic sur sa poignée : la poignée est marquée, pas seulement colorée. */
+.ngt-row-handle[aria-pressed='true'] {
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* Recopie armée par un clic : la poignée grossit et s'entoure d'un anneau. */
+.ngt-fill-handle--armed {
+  width: 13px;
+  height: 13px;
+  box-shadow: 0 0 0 3px var(--ngt-primary-outline, rgba(47, 111, 168, 0.32));
+}
+
+/* Cibles d'au moins 24 × 24 px (WCAG 2.5.8) : la zone cliquable s'étend, le dessin ne change pas. */
+.ngt-group-chip__remove,
+.active-filter-chip__clear {
+  position: relative;
+}
+
+.ngt-group-chip__remove::after,
+.active-filter-chip__clear::after {
+  content: '';
+  position: absolute;
+  inset: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+
+.ngt-inline-check {
+  min-width: 18px;
+  min-height: 18px;
+  margin: 3px;
+}
+
+/* Panneau latéral : la liste d'onglets occupe la place, « épingler » et « fermer » restent à côté. */
+.ngt-side-panel__tablist {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.ngt-side-panel__tab:focus-visible {
+  outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
+  outline-offset: -2px;
+}
+
+/* Niveau de tri sans Maj+clic : réservé aux écrans tactiles, où Maj+clic n'existe pas. À la souris et au clavier,
+   Maj+clic et Maj+Entrée restent le chemin, et l'en-tête garde toute sa largeur. */
+.sort-level-button {
+  display: none;
+  flex: none;
+}
+
+@media (any-pointer: coarse) {
+  .sort-level-button {
+    display: inline-flex;
+  }
+}
+
+/* Mises à jour suspendues : le bouton le montre aussi par sa bordure, pas seulement par son texte. */
+.ngt-live-pause--on {
+  border-color: var(--ngt-primary, var(--app-primary, #2f6fa8));
+  border-style: dashed;
+}
+
+/* ====================================================================== Aspect, version 6.0 */
+
+/* Alignement des colonnes (`NgTableColumn.align` ; à droite d'office pour une colonne de nombres). */
+.ng-table .ngt-align-end {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.ng-table .ngt-align-center {
+  text-align: center;
+}
+
+.ng-table th.ngt-align-end .th-wrap {
+  justify-content: flex-end;
+}
+
+.ng-table th.ngt-align-center .th-wrap {
+  justify-content: center;
+}
+
+/* Ligne sélectionnée : un fond teinté et un liseré, pas seulement la case cochée. Fond opaque (mélangé à la
+   surface) pour que les colonnes figées ne laissent rien voir dessous. */
+.ng-table tr.data-row.ngt-row-selected td.cdk-cell:not(.detail-row):not([data-ngt-range~='in']) {
+  background-color: var(
+    --ngt-row-selected-bg,
+    color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 9%, var(--ngt-surface, var(--app-surface, #ffffff)))
+  );
+}
+
+.ng-table tr.data-row.ngt-row-selected:not([data-ngt-pin]):hover td.cdk-cell:not(.detail-row):not([data-ngt-range~='in']) {
+  background-color: var(
+    --ngt-row-selected-hover-bg,
+    color-mix(in srgb, var(--ngt-primary, var(--app-primary, #2f6fa8)) 14%, var(--ngt-surface, var(--app-surface, #ffffff)))
+  );
+}
+
+.ng-table tr.data-row.ngt-row-selected td.cdk-cell:first-child {
+  box-shadow: inset calc(3px * var(--ngt-dir, 1)) 0 0 var(--ngt-primary, var(--app-primary, #2f6fa8));
+}
+
+/* Lignes alternées (`[striped]`). */
+.ng-table tr.data-row.ngt-row-alt:not(.ngt-row-selected) td.cdk-cell:not(.detail-row):not([data-ngt-range~='in']) {
+  background-color: var(--ngt-row-alt-bg, var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc)));
+}
+
+.ng-table tr.data-row.ngt-row-alt:not(.ngt-row-selected):not([data-ngt-pin]):hover td.cdk-cell:not(.detail-row):not([data-ngt-range~='in']) {
+  background-color: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
+}
+
+/* Filtre : un entonnoir simple et discret au repos (l'ancien entonnoir barré se lisait « filtre désactivé ») ;
+   actif, il est plein, coloré, sur une pastille, avec un point : la couleur n'est pas le seul signe. */
+.filter-button:not(.filter-active) {
+  opacity: 0.6;
+}
+
+.filter-button:not(.filter-active):hover,
+.filter-button:not(.filter-active):focus-visible,
+.filter-button[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.filter-button.filter-active svg {
+  fill: currentColor;
+}
+
+.filter-button.filter-active {
+  position: relative;
+}
+
+.filter-button.filter-active::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  inset-inline-end: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Colonne étroite : le titre passe avant les icônes. Sous 120 px, l'icône de tri au repos et le bouton de filtre
+   inactif se replient ; ils reviennent au survol de l'en-tête ou dès qu'un de ses contrôles a le focus. Un tri ou un
+   filtre actif reste toujours visible. Pas sur un écran tactile, où rien ne les ferait revenir. */
+.th-wrap {
+  container: ngt-th / inline-size;
+}
+
+@media (hover: hover) {
+  @container ngt-th (max-width: 120px) {
+    .ng-table .cdk-header-cell:not(:hover):not(:focus-within) .sort-icon:not(.sort-icon--active) {
+      display: none;
+    }
+
+    .ng-table .cdk-header-cell:not(:hover):not(:focus-within) .filter-button:not(.filter-active)[ngt-icon-button] {
+      width: 0;
+      min-width: 0;
+      margin-inline-start: -8px;
+      overflow: hidden;
+      opacity: 0;
+    }
+  }
+}
+
+/* Poignée de ligne : discrète au repos, pleine au survol de la ligne, au focus, ou saisie. Toujours pleine sur un
+   écran tactile et en contraste élevé. */
+.ngt-row-handle {
+  opacity: 0.4;
+  transition: opacity 0.12s ease;
+}
+
+.ng-table tr.data-row:hover .ngt-row-handle,
+.ng-table tr.data-row:focus-within .ngt-row-handle,
+.ngt-row-handle:focus-visible,
+.ngt-row-handle[aria-pressed='true'] {
+  opacity: 1;
+}
+
+@media (hover: none), (forced-colors: active) {
+  .ngt-row-handle {
+    opacity: 1;
+  }
+}
+
+/* Ligne détail : rattachée visuellement à sa ligne par un fond léger et un liseré. */
+.ng-table tr.detail-row-container:not(.detail-row-collapsed) td.detail-row {
+  background: var(--ngt-detail-bg, var(--ngt-surface-soft, var(--app-surface-soft, #f8fafc)));
+  box-shadow: inset calc(3px * var(--ngt-dir, 1)) 0 0 var(--ngt-primary-outline, var(--app-primary-outline, rgba(47, 111, 168, 0.32)));
+}
+
+/* Ligne de totaux : un total ne passe pas sur deux lignes. */
+.ng-table tr.totals-row td.totals-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  .ng-table tr.data-row.ngt-row-selected td.cdk-cell {
+    border-block: 1px solid Highlight;
+  }
+}
+
+/* Le bouton de tri reste une cible d'au moins 24 px, même quand son icône est repliée (WCAG 2.5.8). */
+.header-button {
+  min-width: 24px;
+  min-height: 24px;
 }

@@ -175,18 +175,63 @@ test('filtre avancé : le constructeur filtre la table, « OU » élargit, « To
   await expect(builder.locator('.ngt-fb__condition')).toHaveCount(0);
 });
 
-test('bac à sable de thème : un jeton réglé change la table et apparaît dans le CSS à copier', async ({page}) => {
-  await page.emulateMedia({reducedMotion: 'reduce'});
-  await page.goto('/#/theme');
-  await page.locator('tr.data-row').first().waitFor();
-  const accent = () => page.locator('ng-table').evaluate((host) => getComputedStyle(host).getPropertyValue('--ngt-primary').trim());
-  expect(await accent()).toBe('');
+test.describe('bac à sable de thème', () => {
+  const open = async (page: Page) => {
+    await page.emulateMedia({reducedMotion: 'reduce'});
+    await page.goto('/#/theme');
+    await page.evaluate(() => localStorage.removeItem('ngt-demo-theme-sandbox'));
+    await page.reload();
+    await page.locator('tr.data-row').first().waitFor();
+  };
+  const accent = (page: Page) => page.locator('ng-table').evaluate((host) => getComputedStyle(host).getPropertyValue('--ngt-primary').trim());
+  const css = (page: Page) => page.locator('pre.demo-code');
 
-  await page.getByRole('button', {name: 'Forêt'}).click();
-  await expect.poll(accent).toBe('#1f6f4a');
-  await expect(page.locator('pre.demo-code')).toContainText('--ngt-primary: #1f6f4a;');
+  test('un thème tout fait change la table et le CSS à copier ; tout réinitialiser le retire', async ({page}) => {
+    await open(page);
+    await page.getByLabel('Thème tout fait').selectOption('Forêt');
+    await expect.poll(() => accent(page)).toBe('#1f6f4a');
+    await expect(css(page)).toContainText('--ngt-primary: #1f6f4a;');
+    // Le thème tout fait porte aussi des valeurs sombres, écrites pour la table en thème sombre.
+    await expect(css(page)).toContainText("ng-table[data-ngt-theme='dark']");
 
-  await page.getByRole('button', {name: 'Par défaut'}).click();
-  await expect.poll(accent).toBe('');
-  await expect(page.locator('pre.demo-code')).toContainText('Aucun jeton modifié');
+    await page.getByRole('button', {name: 'Tout réinitialiser'}).click();
+    await expect.poll(() => accent(page)).toBe(''); // en thème clair, rien n'est déclaré : les valeurs par défaut sont dans les styles
+  });
+
+  test('régler l’accent déduit ses teintes légères, et le réglage survit à un rechargement', async ({page}) => {
+    await open(page);
+    const field = page.locator('#token-primary');
+    await field.fill('#aa0055');
+    await field.press('Tab');
+    await expect(css(page)).toContainText('--ngt-primary: #aa0055;');
+    await expect(css(page)).toContainText('--ngt-primary-soft: rgba(170, 0, 85, 0.1);');
+    await page.reload();
+    await page.locator('tr.data-row').first().waitFor();
+    await expect.poll(() => accent(page)).toBe('#aa0055');
+    await page.getByRole('button', {name: 'Rétablir --ngt-primary', exact: true}).click();
+    await expect(css(page)).not.toContainText('--ngt-primary: #aa0055;');
+  });
+
+  test('contrôle des contrastes : un texte trop pâle est signalé, en clair comme en sombre', async ({page}) => {
+    await open(page);
+    const muted = page.locator('.checks tr', {hasText: 'Texte secondaire'});
+    await expect(muted).toContainText('✓ Conforme');
+    const field = page.locator('#token-text-muted');
+    await field.fill('#c8c8c8');
+    await field.press('Tab');
+    await expect(muted).toContainText('✗ Insuffisant');
+
+    // Le thème sombre a ses propres réglages : le défaut introduit en clair ne le concerne pas.
+    await page.getByRole('button', {name: 'Thème sombre', exact: true}).click();
+    await expect(muted).toContainText('✓ Conforme');
+    await expect.poll(() => page.locator('ng-table').getAttribute('data-ngt-theme')).toBe('dark');
+  });
+
+  test('reprendre un thème existant : les jetons connus sont appliqués, les autres ignorés', async ({page}) => {
+    await open(page);
+    await page.getByLabel('CSS à reprendre').fill(':root { --ngt-primary: #123456; --ngt-inconnu: 4px; --ngt-radius-control: 3px; }');
+    await page.getByRole('button', {name: 'Appliquer'}).click();
+    await expect(page.getByText('2 jeton(s) appliqué(s), 1 inconnu(s) ignoré(s).')).toBeVisible();
+    await expect(css(page)).toContainText('--ngt-radius-control: 3px;');
+  });
 });

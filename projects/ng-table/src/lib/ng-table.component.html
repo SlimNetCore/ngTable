@@ -67,6 +67,25 @@
             >
               {{ column.header }}
             </ng-table-checkbox>
+            <!-- Déplacer et ajuster sans glisser : pour qui ne peut que cliquer ou toucher (WCAG 2.5.7). -->
+            @if (isColumnVisible(column.id)) {
+              <span class="columns-menu-moves">
+                <button (click)="moveColumnBy(column, -1)" [attr.aria-label]="effectiveLabels().moveColumnEarlier.replace('{column}', column.header)"
+                        [disabled]="!canMoveColumn(column, -1)" [title]="effectiveLabels().moveColumnEarlier.replace('{column}', column.header)" ngt-icon-button type="button">
+                  <ng-table-icon aria-hidden="true" name="north"/>
+                </button>
+                <button (click)="moveColumnBy(column, 1)" [attr.aria-label]="effectiveLabels().moveColumnLater.replace('{column}', column.header)"
+                        [disabled]="!canMoveColumn(column, 1)" [title]="effectiveLabels().moveColumnLater.replace('{column}', column.header)" ngt-icon-button type="button">
+                  <ng-table-icon aria-hidden="true" name="south"/>
+                </button>
+                @if (column.resizable) {
+                  <button (click)="autoFitColumn(column)" [attr.aria-label]="effectiveLabels().autoFitColumn.replace('{column}', column.header)"
+                          [title]="effectiveLabels().autoFitColumn.replace('{column}', column.header)" ngt-icon-button type="button">
+                    <ng-table-icon aria-hidden="true" name="unfold_more"/>
+                  </button>
+                }
+              </span>
+            }
             @if (referenceColumnSelectable()) {
               <button
                 (click)="toggleReferenceColumn(column)"
@@ -92,6 +111,14 @@
               ngt-stroked-button type="button">
         <ng-table-icon aria-hidden="true" name="dock_to_left"/>
         {{ effectiveLabels().sidePanelButton }}
+      </button>
+    }
+
+    @if (livePauseButton()) {
+      <!-- Le libellé dit l'action à venir : pas d'`aria-pressed` en plus, qui dirait deux fois l'état. -->
+      <button (click)="toggleLivePause()" [class.ngt-live-pause--on]="liveUpdatesPaused()" class="ngt-live-pause" ngt-stroked-button type="button">
+        <ng-table-icon aria-hidden="true" name="sync"/>
+        {{ liveUpdatesPaused() ? effectiveLabels().liveResume : effectiveLabels().livePause }}
       </button>
     }
 
@@ -139,7 +166,7 @@
         }
       </button>
 
-      <ng-table-menu #viewsMenu class="ngt-views-menu-panel">
+      <ng-table-menu #viewsMenu [panelLabel]="effectiveLabels().viewsButton" class="ngt-views-menu-panel" panelRole="dialog">
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
         <div (click)="$event.stopPropagation()" class="views-menu-body">
           <div class="views-save-row">
@@ -147,6 +174,7 @@
               (input)="newViewName.set($any($event.target).value)"
               (keydown.enter)="saveCurrentAsView(newViewName())"
               [value]="newViewName()"
+              [attr.aria-label]="effectiveLabels().viewNamePlaceholder"
               class="views-name-input"
               [placeholder]="effectiveLabels().viewNamePlaceholder"
               type="text"
@@ -235,7 +263,7 @@
         {{ effectiveLabels().exportButton }}
       </button>
 
-      <ng-table-menu #exportMenu class="ngt-export-menu-panel">
+      <ng-table-menu #exportMenu [panelLabel]="effectiveLabels().exportButton" class="ngt-export-menu-panel" panelRole="dialog">
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
         <div (click)="$event.stopPropagation()" class="export-menu-body">
           <p class="export-menu-title">{{ effectiveLabels().exportDialogTitle }}</p>
@@ -335,7 +363,7 @@
             <span class="active-filter-chip__value">{{ summary.value }}</span>
             <button
               (click)="clearFilter(summary.columnId)"
-              [attr.aria-label]="effectiveLabels().clearFilter"
+              [attr.aria-label]="clearFilterLabel(summary.label)"
               class="active-filter-chip__clear"
               ngt-icon-button
               type="button"
@@ -359,18 +387,25 @@
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- seul Échap ferme, géré par keydown -->
     <aside (keydown.escape)="sidePanelOpen.set(false)" [attr.aria-label]="effectiveLabels().sidePanelTitle"
            [class.ngt-side-panel--docked]="sidePanelPinned()" class="ngt-side-panel">
-      <div class="ngt-side-panel__tabs" role="tablist">
-        <button (click)="sidePanelTab.set('columns')" [attr.aria-selected]="sidePanelTab() === 'columns'"
-                [class.ngt-side-panel__tab--on]="sidePanelTab() === 'columns'" class="ngt-side-panel__tab" role="tab" type="button">
-          {{ effectiveLabels().sidePanelColumns }}
-        </button>
-        <button (click)="sidePanelTab.set('filters')" [attr.aria-selected]="sidePanelTab() === 'filters'"
-                [class.ngt-side-panel__tab--on]="sidePanelTab() === 'filters'" class="ngt-side-panel__tab" role="tab" type="button">
-          {{ effectiveLabels().sidePanelFilters }}
-          @if (activeFilterSummaries().length > 0) {
-            <span class="ngt-side-panel__badge">{{ activeFilterSummaries().length }}</span>
-          }
-        </button>
+      <div class="ngt-side-panel__tabs">
+        <!-- Motif « tabs » : la liste ne contient que les onglets (épingler et fermer sont à côté), un seul est dans
+             l'ordre de tabulation, les flèches passent de l'un à l'autre, chacun désigne le contenu qu'il commande. -->
+        <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les onglets qui reçoivent le focus -->
+        <div (keydown)="onSidePanelTabsKeydown($event)" [attr.aria-label]="effectiveLabels().sidePanelTitle" class="ngt-side-panel__tablist" role="tablist">
+          <button (click)="sidePanelTab.set('columns')" [attr.aria-controls]="sidePanelId + '-panel'" [attr.aria-selected]="sidePanelTab() === 'columns'"
+                  [attr.tabindex]="sidePanelTab() === 'columns' ? 0 : -1" [class.ngt-side-panel__tab--on]="sidePanelTab() === 'columns'"
+                  [id]="sidePanelId + '-tab-columns'" class="ngt-side-panel__tab" role="tab" type="button">
+            {{ effectiveLabels().sidePanelColumns }}
+          </button>
+          <button (click)="sidePanelTab.set('filters')" [attr.aria-controls]="sidePanelId + '-panel'" [attr.aria-selected]="sidePanelTab() === 'filters'"
+                  [attr.tabindex]="sidePanelTab() === 'filters' ? 0 : -1" [class.ngt-side-panel__tab--on]="sidePanelTab() === 'filters'"
+                  [id]="sidePanelId + '-tab-filters'" class="ngt-side-panel__tab" role="tab" type="button">
+            {{ effectiveLabels().sidePanelFilters }}
+            @if (activeFilterSummaries().length > 0) {
+              <span class="ngt-side-panel__badge">{{ activeFilterSummaries().length }}</span>
+            }
+          </button>
+        </div>
         <button (click)="sidePanelPinned.set(!sidePanelPinned())" [attr.aria-label]="effectiveLabels().sidePanelPin"
                 [attr.aria-pressed]="sidePanelPinned()" [class.ngt-side-panel__pin--on]="sidePanelPinned()"
                 [title]="effectiveLabels().sidePanelPin" class="ngt-side-panel__pin" type="button">
@@ -381,7 +416,7 @@
           <ng-table-icon aria-hidden="true" name="close"/>
         </button>
       </div>
-      <div class="ngt-side-panel__body" role="tabpanel">
+      <div [attr.aria-labelledby]="sidePanelId + '-tab-' + sidePanelTab()" [id]="sidePanelId + '-panel'" class="ngt-side-panel__body" role="tabpanel">
         @if (sidePanelTab() === 'columns') {
           @for (column of columnsMenuItems(); track column.id) {
             <div class="ngt-side-panel__column">
@@ -404,7 +439,7 @@
             <div class="ngt-side-panel__filter">
               <span class="active-filter-chip__field">{{ summary.label }}</span>
               <span class="active-filter-chip__value">{{ summary.value }}</span>
-              <button (click)="clearFilter(summary.columnId)" [attr.aria-label]="effectiveLabels().clearFilter"
+              <button (click)="clearFilter(summary.columnId)" [attr.aria-label]="clearFilterLabel(summary.label)"
                       class="active-filter-chip__clear" ngt-icon-button type="button">
                 <ng-table-icon aria-hidden="true" name="close"/>
               </button>
@@ -422,11 +457,11 @@
       </div>
     </aside>
   }
-  <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" class="table-wrap">
+  <div #tableWrap (scroll)="onTableWrapScroll($event)" [style.max-height]="effectiveMaxHeight()" [style.scroll-padding-bottom.px]="pinFooterOffset()"
+       [style.scroll-padding-top.px]="pinHeaderOffset()" class="table-wrap">
     <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- délégation : ce sont les cellules (tabindex itinérant) qui reçoivent le focus -->
-    <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onGridKeydown($event); onRangeKeydown($event); onEditKeydown($event)"
-           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.aria-rowcount]="ariaRowCount()" [attr.aria-colcount]="ariaColCount()" [attr.role]="rowsExpandable() ? 'treegrid' : cellNavigation() ? 'grid' : null"
-           [dataSource]="tableRows()"
+    <table #gridTable (focusin)="onGridFocusIn($event)" (keydown)="onMarkerKeydown($event); onSelectionBarShortcut($event); onGridKeydown($event); onRangeKeydown($event); onEditKeydown($event)"
+           [attr.aria-label]="ariaLabel() ?? effectiveLabels().tableLabel" [attr.aria-rowcount]="ariaRowCount()" [attr.aria-colcount]="ariaColCount()" [attr.role]="gridActive() ? (rowsExpandable() ? 'treegrid' : 'grid') : null"
            [style.--ngt-flash-duration]="flashDurationMs() + 'ms'"
            [style.--ngt-row-h]="rowHeight() + 'px'"
            [style.--ngt-header-h]="pinHeaderOffset() + 'px'"
@@ -435,10 +470,9 @@
            [class.ngt-range-enabled]="rangeSelection()"
            (mousedown)="onRangeMouseDown($event)"
            (paste)="onRangePaste($event)"
-           [fixedLayout]="true" [style.min-width.px]="tableMinWidthPx()"
+           [style.min-width.px]="tableMinWidthPx()"
            [style.width.px]="columnVirtualization() ? tableMinWidthPx() : null"
-           [trackBy]="resolvedTrackBy"
-           class="ng-table" cdk-table multiTemplateDataRows>
+           cdk-table class="ng-table cdk-table cdk-table-fixed-layout">
       <!-- Largeurs des colonnes : en `table-layout: fixed` elles viennent de la première ligne, qui est une ligne
            d'en-têtes groupés (sans largeur) dès qu'il y en a. Le `<colgroup>` les donne indépendamment des lignes. -->
       <colgroup>
@@ -446,515 +480,558 @@
           <col [style.width.px]="colWidthFor(id)"/>
         }
       </colgroup>
-      @if (rowDragActive()) {
-        <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_drag__">
-          <th *cdkHeaderCellDef [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" class="row-drag-cell" cdk-header-cell></th>
-          <td *cdkFooterCellDef [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" class="totals-cell" cdk-footer-cell></td>
-          <td *cdkCellDef="let row" [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" class="row-drag-cell" cdk-cell>
-            @if (!pinInfo(row)) {
-              <button (click)="$event.stopPropagation()" (dragend)="onRowDragEnd()" (dragstart)="onRowDragStart($event, row)"
-                      (keydown)="onRowHandleKeydown($event, row)" [attr.aria-label]="effectiveLabels().rowDragHandle"
-                      [title]="effectiveLabels().rowDragHandle" class="ngt-row-handle" draggable="true" type="button">
-                <ng-table-icon aria-hidden="true" name="drag_indicator"/>
-              </button>
+      <!-- Rendu direct, sans CdkTable : un `@for` par ligne et par cellule. Les classes `cdk-*` et les rôles sont gardés
+           (feuilles de style et tests des applications). Colonnes et en-têtes figés : `position: sticky`, décalages
+           calculés par la table (`dataCells()`, `leadCells()`). -->
+      <thead>
+        <!-- En-têtes de colonnes groupés : une ligne par niveau, cellules fusionnées par `colspan`. -->
+        @for (level of headerGroupLevels(); track $index; let levelIndex = $index) {
+          <tr [attr.aria-rowindex]="ariaRowCount() === null ? null : levelIndex + 1" [class.ngt-sticky-head]="headSticky()"
+              [style.--ngt-sticky-top.px]="headerRowTop(levelIndex)" cdk-header-row class="cdk-header-row header-group-row" role="row">
+            @for (run of level.runs; track run.key; let runIndex = $index) {
+              @let runCell = headerRunCell(level, runIndex);
+              <th [attr.aria-colindex]="headerRunColIndex(level, runIndex)" [attr.colspan]="run.span" [class.header-group-cell--empty]="!run.label"
+                  [class]="headSticky() ? runCell.headCls : runCell.cls" [style.inset-inline-end.px]="runCell.end" [style.inset-inline-start.px]="runCell.start"
+                  cdk-header-cell class="cdk-header-cell header-group-cell" role="columnheader" scope="colgroup">{{ run.label }}</th>
             }
-          </td>
-        </ng-container>
-      }
-
-      @if (detailToggleActive()) {
-        <!-- Bouton natif du master/detail : un chevron par ligne qui peut se déplier. -->
-        <ng-container [sticky]="hasLeftPinnedColumns()" [cdkColumnDef]="detailToggleColumnId">
-          <th *cdkHeaderCellDef [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" class="detail-toggle-cell" cdk-header-cell>
-            <span class="ngt-visually-hidden">{{ effectiveLabels().detailColumn }}</span>
-          </th>
-          <td *cdkFooterCellDef [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" class="totals-cell" cdk-footer-cell></td>
-          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" class="detail-toggle-cell" cdk-cell>
-            @if (hasDetailToggle(row)) {
-              <button (click)="onDetailToggleClick($event, rowIndex, row)" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()"
-                      [attr.aria-expanded]="isDetailExpanded(rowIndex, row)"
-                      [attr.aria-label]="isDetailExpanded(rowIndex, row) ? effectiveLabels().detailCollapse : effectiveLabels().detailExpand"
-                      [class.ngt-detail-toggle--open]="isDetailExpanded(rowIndex, row)" class="ngt-detail-toggle" type="button">
-                <ng-table-icon aria-hidden="true" name="chevron_right"/>
-              </button>
-            }
-          </td>
-        </ng-container>
-        <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__group____detail_toggle__">
-          <td *cdkCellDef="let item" class="group-cell" cdk-cell></td>
-        </ng-container>
-      }
-
-      @if (rowSelectionEnabled()) {
-        <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__row_selection__">
-          <th *cdkHeaderCellDef [attr.aria-colindex]="ariaColIndex(selectionColumnId)" class="selection-header-cell" cdk-header-cell>
-            <ng-table-checkbox
-              (checkedChange)="onToggleAllDisplayedRows($event)"
-              [ariaLabel]="effectiveLabels().selectAllRows"
-              [checked]="areAllDisplayedRowsSelected()"
-              [indeterminate]="hasPartiallySelectedDisplayedRows()"
-            />
-          </th>
-          <td *cdkFooterCellDef [attr.aria-colindex]="ariaColIndex(selectionColumnId)" class="totals-cell" cdk-footer-cell></td>
-          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.aria-colindex]="ariaColIndex(selectionColumnId)" class="selection-cell" cdk-cell>
-            @if (!pinInfo(row)) {
+          </tr>
+        }
+        <tr [attr.aria-rowindex]="ariaRowCount() === null ? null : headerRowCount()" [class.ngt-sticky-head]="headSticky()"
+            [class.ngt-sticky-head--last]="headSticky()" [style.--ngt-sticky-top.px]="headerRowTop(headerGroupLevels().length)" cdk-header-row class="cdk-header-row" role="row">
+          @if (leadCells().drag; as lead) {
+            <th [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" [class]="headSticky() ? lead.headCls : lead.cls" [style.inset-inline-start.px]="lead.start"
+                cdk-header-cell class="cdk-header-cell row-drag-cell" role="columnheader"></th>
+          }
+          @if (leadCells().toggle; as lead) {
+            <th [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" [class]="headSticky() ? lead.headCls : lead.cls" [style.inset-inline-start.px]="lead.start"
+                cdk-header-cell class="cdk-header-cell detail-toggle-cell" role="columnheader">
+              <span class="ngt-visually-hidden">{{ effectiveLabels().detailColumn }}</span>
+            </th>
+          }
+          @if (leadCells().selection; as lead) {
+            <th [attr.aria-colindex]="ariaColIndex(selectionColumnId)" [class]="headSticky() ? lead.headCls : lead.cls" [style.inset-inline-start.px]="lead.start"
+                cdk-header-cell class="cdk-header-cell selection-header-cell" role="columnheader">
               <ng-table-checkbox
-                (checkedChange)="onToggleRowSelection($event, row)"
-                (click)="$event.stopPropagation()"
-                [ariaLabel]="rowSelectAriaLabel(rowIndex)"
-                [checked]="isRowSelected(row)"
+                (checkedChange)="onToggleAllDisplayedRows($event)"
+                [ariaLabel]="effectiveLabels().selectAllRows"
+                [checked]="areAllDisplayedRowsSelected()"
+                [indeterminate]="hasPartiallySelectedDisplayedRows()"
               />
-            }
-          </td>
-        </ng-container>
-      }
-
-      @for (column of columns(); track trackByColumn($index, column)) {
-        <ng-container [cdkColumnDef]="column.id" [sticky]="pinnedSide(column) === 'left'"
-                      [stickyEnd]="pinnedSide(column) === 'right'">
-          <th (dragleave)="onColumnDragLeave(column)"
-              (dragover)="onColumnDragOver($event, column)"
-              (drop)="onColumnDrop($event, column)"
-              *cdkHeaderCellDef
-              [attr.aria-colindex]="ariaColIndex(column.id)"
-              [attr.aria-sort]="ariaSortValue(column)"
-              [class.column-drag-over]="dragOverColumnId() === column.id"
-              [class.column-dragging]="draggingColumnId() === column.id"
-              [style.max-width.px]="column.maxWidthPx ?? null" [style.min-width.px]="column.minWidthPx ?? null"
-              [style.width.px]="columnWidthPx(column)" cdk-header-cell>
-            <div class="th-wrap">
-              <span
-                (dragend)="onColumnDragEnd()"
-                (dragstart)="onColumnDragStart($event, column)"
-                (keydown)="onColumnHandleKeydown($event, column)"
-                [attr.aria-label]="effectiveLabels().dragHandleLabel"
-                draggable="true"
-                [title]="effectiveLabels().dragToReorder"
-                class="drag-handle"
-                role="button"
-                tabindex="0"
-              >
-                <ng-table-icon aria-hidden="true" name="drag_indicator"/>
-              </span>
-              <button
-                (click)="onHeaderSort(column, $event)"
-                [attr.aria-label]="currentSortAriaLabel(column)"
-                [attr.title]="multiSort() && column.sortable ? effectiveLabels().multiSortHint : null"
-                [disabled]="!column.sortable"
-                class="header-button"
-                type="button"
-              >
-                <span [ngTableTruncateTooltip]="column.header" class="header-label">{{ column.header }}</span>
-                @if (column.sortable) {
-                  <ng-table-icon aria-hidden="true" class="sort-icon" [class.sort-icon--active]="currentSortIcon(column) !== 'swap_vert'" [name]="currentSortIcon(column)"/>
-                  @if (sortPriority(column); as priority) {
-                    <span aria-hidden="true" class="sort-priority">{{ priority }}</span>
-                  }
-                }
-              </button>
-
-              @if (column.filter; as filter) {
-                @if (!shouldRenderInlineFilter(column)) {
+            </th>
+          }
+          @for (c of dataCells(); track c.id) {
+            @if (c.spacer) {
+              <!-- Virtualisation horizontale : largeur des colonnes non rendues, à gauche et à droite. -->
+              <th [class]="c.cls" [style.width.px]="columnSpacerWidth(c.spacer)" aria-hidden="true" cdk-header-cell class="cdk-header-cell" role="columnheader"></th>
+            } @else {
+              @let column = c.column;
+              <th (dragleave)="onColumnDragLeave(column)"
+                  (dragover)="onColumnDragOver($event, column)"
+                  (drop)="onColumnDrop($event, column)"
+                  [attr.aria-colindex]="ariaColIndex(column.id)"
+                  [attr.aria-label]="column.header"
+                  [attr.aria-sort]="ariaSortValue(column)"
+                  [attr.data-ngt-header]="column.id"
+                  [class]="headSticky() ? c.headCls : c.cls"
+                  [class.ngt-align-center]="alignOf(column) === 'center'"
+                  [class.ngt-align-end]="alignOf(column) === 'end'"
+                  [class.column-drag-over]="dragOverColumnId() === column.id"
+                  [class.column-dragging]="draggingColumnId() === column.id"
+                  [style.inset-inline-end.px]="c.end" [style.inset-inline-start.px]="c.start"
+                  [style.max-width.px]="column.maxWidthPx ?? null" [style.min-width.px]="column.minWidthPx ?? null"
+                  [style.width.px]="columnWidthPx(column)" cdk-header-cell class="cdk-header-cell" role="columnheader">
+                <div class="th-wrap">
+                  <span
+                    (dragend)="onColumnDragEnd()"
+                    (dragstart)="onColumnDragStart($event, column)"
+                    (keydown)="onColumnHandleKeydown($event, column)"
+                    [attr.aria-label]="effectiveLabels().dragHandleLabel"
+                    draggable="true"
+                    [title]="effectiveLabels().dragToReorder"
+                    class="drag-handle"
+                    role="button"
+                    tabindex="0"
+                  >
+                    <ng-table-icon aria-hidden="true" name="drag_indicator"/>
+                  </span>
                   <button
-                    #filterTrigger="ngTableMenuTrigger"
-                    (menuClosed)="onFilterMenuClosed(column.id)"
-                    (menuOpened)="onFilterMenuOpened(column.id, filterTrigger, filter)"
-                    [attr.aria-label]="filterByAriaLabel(column)"
-                    [class.filter-active]="isFilterActive(column.id)"
-                    [ngTableMenuTriggerFor]="menu"
-                    class="filter-button"
-                    ngt-icon-button
+                    (click)="onHeaderSort(column, $event)"
+                    [attr.aria-label]="currentSortAriaLabel(column)"
+                    [attr.title]="multiSort() && column.sortable ? effectiveLabels().multiSortHint : null"
+                    [disabled]="!column.sortable"
+                    class="header-button"
                     type="button"
                   >
-                    <ng-table-icon aria-hidden="true" [name]="isFilterActive(column.id) ? 'filter_alt' : 'filter_alt_off'"/>
+                    <span [ngTableTruncateTooltip]="column.header" class="header-label">{{ column.header }}</span>
+                    @if (column.sortable) {
+                      <ng-table-icon aria-hidden="true" class="sort-icon" [class.sort-icon--active]="currentSortIcon(column) !== 'swap_vert'" [name]="currentSortIcon(column)"/>
+                      @if (sortPriority(column); as priority) {
+                        <span aria-hidden="true" class="sort-priority">{{ priority }}</span>
+                      }
+                    }
                   </button>
+                  <!-- Tri multi-niveaux sans Maj+clic : affiché sur les écrans tactiles (voir la feuille de style). -->
+                  @if (canAddSortLevel(column)) {
+                    <button (click)="onHeaderSort(column, {shiftKey: true})" [attr.aria-label]="sortLevelLabel(column)" [title]="sortLevelLabel(column)"
+                            class="sort-level-button" ngt-icon-button type="button">
+                      <ng-table-icon aria-hidden="true" name="add"/>
+                    </button>
+                  }
 
-                  <ng-table-menu #menu class="ngt-filter-menu-panel">
-                    <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
-                    <div
-                      (click)="$event.stopPropagation()"
-                      (keydown.enter)="closeFilterMenuOnEnter($event, filterTrigger)"
-                      class="menu-body"
-                    >
-                      @if (filterMenuTitle(column); as menuTitle) {
-                        <div class="filter-menu-title">
-                          <ng-table-icon aria-hidden="true" name="filter_alt"/>
-                          <span>{{ menuTitle }}</span>
+                  @if (column.filter; as filter) {
+                    @if (!shouldRenderInlineFilter(column)) {
+                      <button
+                        #filterTrigger="ngTableMenuTrigger"
+                        (menuClosed)="onFilterMenuClosed(column.id)"
+                        (menuOpened)="onFilterMenuOpened(column.id, filterTrigger, filter)"
+                        [attr.aria-label]="filterByAriaLabel(column)"
+                        [class.filter-active]="isFilterActive(column.id)"
+                        [ngTableMenuTriggerFor]="menu"
+                        class="filter-button"
+                        ngt-icon-button
+                        type="button"
+                      >
+                        <ng-table-icon aria-hidden="true" name="filter_alt"/>
+                      </button>
+
+                      <ng-table-menu #menu [panelLabel]="filterByAriaLabel(column)" class="ngt-filter-menu-panel" panelRole="dialog">
+                        <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
+                        <div
+                          (click)="$event.stopPropagation()"
+                          (keydown.enter)="closeFilterMenuOnEnter($event, filterTrigger)"
+                          class="menu-body"
+                        >
+                          @if (filterMenuTitle(column); as menuTitle) {
+                            <div class="filter-menu-title">
+                              <ng-table-icon aria-hidden="true" name="filter_alt"/>
+                              <span>{{ menuTitle }}</span>
+                            </div>
+                          }
+
+                          @if (isFilterOptionsLoading(column.id)) {
+                            <div class="filter-loading-inline">
+                              <span aria-hidden="true" class="ngt-spinner"></span>
+                              <span class="filter-loading-label">{{ effectiveLabels().refOptionsLoading }}</span>
+                            </div>
+                          }
+
+                          @if (filterOptionsError(column.id)) {
+                            <div class="filter-loading-error" role="alert">{{ filterOptionsError(column.id) }}</div>
+                          }
+
+                          @if (filter.component) {
+                            <ng-table-dynamic-filter-host
+                              (clear)="clearFilter(column.id)"
+                              (valueChange)="onFilterValue(column.id, $event)"
+                              [componentInputs]="filter.componentInputs ?? {}"
+                              [component]="filter.component"
+                              [value]="currentFilterValue(column.id)"
+                            />
+                          } @else {
+                            <ng-table-column-filter
+                              (clear)="clearFilter(column.id)"
+                              (valueChange)="onFilterValue(column.id, $event)"
+                              [label]="filter.label ?? column.header"
+                              [labels]="effectiveLabels()"
+                              [options]="resolvedFilterOptions(column.id, filter)"
+                              [placeholder]="filter.placeholder ?? ''"
+                              [setTruncated]="setFilterTruncated(column.id)"
+                              [setValues]="setFilterValues(column.id, filter)"
+                              [type]="filter.type ?? 'text'"
+                              [value]="currentFilterValue(column.id)"
+                            />
+                          }
                         </div>
-                      }
+                      </ng-table-menu>
+                    }
+                  }
 
-                      @if (isFilterOptionsLoading(column.id)) {
-                        <div class="filter-loading-inline">
-                          <span aria-hidden="true" class="ngt-spinner"></span>
-                          <span class="filter-loading-label">{{ effectiveLabels().refOptionsLoading }}</span>
-                        </div>
-                      }
+                </div>
 
-                      @if (filterOptionsError(column.id)) {
-                        <div class="filter-loading-error">{{ filterOptionsError(column.id) }}</div>
-                      }
+                @if (shouldRenderInlineFilter(column) && column.filter; as filter) {
+                  <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
+                  <div (click)="$event.stopPropagation()" class="inline-filter">
+                    @if (isFilterOptionsLoading(column.id)) {
+                      <div class="filter-loading-inline">
+                        <span aria-hidden="true" class="ngt-spinner ngt-spinner--sm"></span>
+                      </div>
+                    }
 
-                      @if (filter.component) {
-                        <ng-table-dynamic-filter-host
-                          (clear)="clearFilter(column.id)"
-                          (valueChange)="onFilterValue(column.id, $event)"
-                          [componentInputs]="filter.componentInputs ?? {}"
-                          [component]="filter.component"
-                          [value]="currentFilterValue(column.id)"
-                        />
-                      } @else {
-                        <ng-table-column-filter
-                          (clear)="clearFilter(column.id)"
-                          (valueChange)="onFilterValue(column.id, $event)"
-                          [label]="filter.label ?? column.header"
-                          [labels]="effectiveLabels()"
-                          [options]="resolvedFilterOptions(column.id, filter)"
-                          [placeholder]="filter.placeholder ?? ''"
-                          [setTruncated]="setFilterTruncated(column.id)"
-                          [setValues]="setFilterValues(column.id, filter)"
-                          [type]="filter.type ?? 'text'"
-                          [value]="currentFilterValue(column.id)"
-                        />
-                      }
-                    </div>
-                  </ng-table-menu>
-                }
-              }
+                    @if (filterOptionsError(column.id)) {
+                      <div class="filter-loading-error" role="alert">{{ filterOptionsError(column.id) }}</div>
+                    }
 
-            </div>
-
-            @if (shouldRenderInlineFilter(column) && column.filter; as filter) {
-              <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -- stopPropagation seul : garde le menu ouvert, rien d'interactif -->
-              <div (click)="$event.stopPropagation()" class="inline-filter">
-                @if (isFilterOptionsLoading(column.id)) {
-                  <div class="filter-loading-inline">
-                    <span aria-hidden="true" class="ngt-spinner ngt-spinner--sm"></span>
+                    @if (filter.component) {
+                      <ng-table-dynamic-filter-host
+                        (clear)="clearFilter(column.id)"
+                        (valueChange)="onFilterValue(column.id, $event)"
+                        [componentInputs]="filter.componentInputs ?? {}"
+                        [component]="filter.component"
+                        [value]="currentFilterValue(column.id)"
+                      />
+                    } @else {
+                      <ng-table-column-filter
+                        (clear)="clearFilter(column.id)"
+                        (valueChange)="onFilterValue(column.id, $event)"
+                        [label]="filter.label ?? column.header"
+                        [labels]="effectiveLabels()"
+                        [options]="resolvedFilterOptions(column.id, filter)"
+                        [placeholder]="filter.placeholder ?? ''"
+                        [setTruncated]="setFilterTruncated(column.id)"
+                        [setValues]="setFilterValues(column.id, filter)"
+                        [type]="filter.type ?? 'text'"
+                        [value]="currentFilterValue(column.id)"
+                      />
+                    }
                   </div>
                 }
 
-                @if (filterOptionsError(column.id)) {
-                  <div class="filter-loading-error">{{ filterOptionsError(column.id) }}</div>
+                @if (column.resizable) {
+                  <span
+                    (dblclick)="onResizeAutoFit($event, column)"
+                    (keydown)="onResizeHandleKeydown($event, column)"
+                    (mousedown)="onResizeStart($event, column)"
+                    [attr.aria-label]="effectiveLabels().resizeHandleLabel"
+                    [attr.aria-valuemax]="column.maxWidthPx ?? null"
+                    [attr.aria-valuemin]="column.minWidthPx ?? null"
+                    [attr.aria-valuenow]="columnWidthPx(column) ?? column.minWidthPx ?? 0"
+                    aria-orientation="vertical"
+                    class="resize-handle"
+                    role="separator"
+                    tabindex="0"
+                  ></span>
                 }
+              </th>
+            }
+          }
+        </tr>
+      </thead>
 
-                @if (filter.component) {
-                  <ng-table-dynamic-filter-host
-                    (clear)="clearFilter(column.id)"
-                    (valueChange)="onFilterValue(column.id, $event)"
-                    [componentInputs]="filter.componentInputs ?? {}"
-                    [component]="filter.component"
-                    [value]="currentFilterValue(column.id)"
-                  />
+      <tbody>
+        @for (item of tableRows(); track resolvedTrackBy($index, item); let rowIndex = $index) {
+          @if (spacerRowWhen(rowIndex, item)) {
+            <!-- Défilement virtuel : espacement pour les lignes non rendues au-dessus / au-dessous. -->
+            <tr aria-hidden="true" cdk-row class="cdk-row spacer-row" role="row">
+              <td [attr.colspan]="detailRowColspan()" [style.height.px]="spacerHeight(asSpacerRow(item).position)" cdk-cell class="cdk-cell cdk-column-__spacer__ spacer-cell" role="cell"></td>
+            </tr>
+          } @else if (loadingRowWhen(rowIndex, item)) {
+            <!-- Modèle par blocs : ligne en attente de son bloc (ou bloc en échec). -->
+            <tr [attr.aria-rowindex]="ariaRowIndex(item)" cdk-row class="cdk-row loading-row" role="row">
+              <td [attr.colspan]="detailRowColspan()" [style.height.px]="loadingRowHeight()" cdk-cell class="cdk-cell cdk-column-__loading__ loading-cell" role="cell">
+                @if (isFailedLoadingRow(asLoadingRow(item))) {
+                  <span class="loading-failed" role="alert">{{ effectiveLabels().blockLoadError }}</span>
                 } @else {
-                  <ng-table-column-filter
-                    (clear)="clearFilter(column.id)"
-                    (valueChange)="onFilterValue(column.id, $event)"
-                    [label]="filter.label ?? column.header"
-                    [labels]="effectiveLabels()"
-                    [options]="resolvedFilterOptions(column.id, filter)"
-                    [placeholder]="filter.placeholder ?? ''"
-                    [setTruncated]="setFilterTruncated(column.id)"
-                    [setValues]="setFilterValues(column.id, filter)"
-                    [type]="filter.type ?? 'text'"
-                    [value]="currentFilterValue(column.id)"
-                  />
+                  <span aria-hidden="true" class="loading-skeleton"></span>
                 }
-              </div>
-            }
-
-            @if (column.resizable) {
-              <span
-                (dblclick)="onResizeAutoFit($event, column)"
-                (keydown)="onResizeHandleKeydown($event, column)"
-                (mousedown)="onResizeStart($event, column)"
-                [attr.aria-label]="effectiveLabels().resizeHandleLabel"
-                [attr.aria-valuemax]="column.maxWidthPx ?? null"
-                [attr.aria-valuemin]="column.minWidthPx ?? null"
-                [attr.aria-valuenow]="columnWidthPx(column) ?? column.minWidthPx ?? 0"
-                aria-orientation="vertical"
-                class="resize-handle"
-                role="separator"
-                tabindex="0"
-              ></span>
-            }
-          </th>
-
-          <td *cdkFooterCellDef [attr.aria-colindex]="ariaColIndex(column.id)" [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="columnWidthPx(column)"
-              class="totals-cell" cdk-footer-cell>
-            @if (totals()?.[column.id]; as total) {
-              {{ total }}
-            } @else if (column.id === leadColumnId()) {
-              <span class="totals-label">{{ effectiveLabels().totalsLabel }}</span>
-            }
-          </td>
-          <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.aria-colindex]="ariaColIndex(column.id)" [attr.data-ngt-flash]="cellView(row, column).flash || null"
-              [attr.aria-selected]="cellRangeSelected(row, column)"
-              [attr.data-ngt-col]="cellsTagged() ? column.id : null"
-              [attr.data-ngt-editable]="hasEditableColumns() && isEditable(row, column) ? '' : null"
-              (dblclick)="onCellDoubleClick($event, row, column)"
-              [attr.data-ngt-range]="cellRangeAttr(row, column)"
-              [attr.data-ngt-fill]="cellFillAttr(row, column)"
-              [style.max-width.px]="column.maxWidthPx ?? null"
-              [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="columnWidthPx(column)" cdk-cell>
-            @let cell = cellView(row, column);
-            @if (isFillHandleCell(row, column)) {
-              <!-- Décoratif pour un lecteur d'écran : au clavier, la recopie se fait par Ctrl+D / Ctrl+R. -->
-              <span (mousedown)="onFillStart($event)" aria-hidden="true" class="ngt-fill-handle"></span>
-            }
-            @if (isEditing(row, column)) {
-              <div class="cell-editor">
-                @switch (editorKind(column)) {
-                  @case ('select') {
-                    <select (blur)="onEditorBlur()" (change)="onEditSelect($any($event.target).value)"
-                            (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
-                            [attr.aria-label]="column.header" class="ngt-editor">
-                      <option [selected]="!editing()?.draft" value="">—</option>
-                      @for (option of editorOptions(column); track option.value) {
-                        <option [selected]="option.value === editing()?.draft" [value]="option.value">{{ option.label }}</option>
+              </td>
+            </tr>
+          } @else if (groupRowWhen(rowIndex, item)) {
+            <!-- En-têtes de groupe : une cellule par colonne affichée, pour aligner les agrégats. -->
+            @let group = asGroupRow(item);
+            <tr
+              (click)="toggleGroup(group.group)"
+              (keydown.enter)="toggleGroup(group.group)"
+              (keydown.space)="$event.preventDefault(); toggleGroup(group.group)"
+              [attr.aria-expanded]="groupsCollapsible() ? !group.collapsed : null"
+              [attr.aria-rowindex]="ariaRowIndex(group)"
+              [attr.aria-level]="group.depth + 1"
+              [attr.tabindex]="groupsCollapsible() && !gridActive() ? 0 : null"
+              [attr.data-ngt-group-extra]="isStickyGroupExtra(group) ? '' : null"
+              [class.group-row--sticky]="stickyGroupHeaders()"
+              [style.--ngt-group-depth]="stickyGroupHeaders() ? group.depth : null"
+              [class.group-row--static]="!groupsCollapsible()"
+              cdk-row class="cdk-row group-row"
+              role="row"
+            >
+              @if (leadCells().drag; as lead) {
+                <td [class]="lead.groupCls" [style.inset-inline-start.px]="lead.start" cdk-cell class="cdk-cell group-cell" role="cell"></td>
+              }
+              @if (leadCells().toggle; as lead) {
+                <td [class]="lead.groupCls" [style.inset-inline-start.px]="lead.start" cdk-cell class="cdk-cell group-cell" role="cell"></td>
+              }
+              @if (leadCells().selection; as lead) {
+                <td [class]="lead.groupCls" [style.inset-inline-start.px]="lead.start" cdk-cell class="cdk-cell group-cell" role="cell"></td>
+              }
+              @for (c of dataCells(); track c.id) {
+                @let column = c.column;
+                <td [attr.aria-colindex]="ariaColIndex(column.id)" [attr.aria-hidden]="c.spacer ? 'true' : null" [class.group-cell--lead]="column.id === leadColumnId()"
+                    [class]="c.groupCls" [style.inset-inline-end.px]="c.end" [style.inset-inline-start.px]="c.start" cdk-cell class="cdk-cell group-cell" role="cell">
+                @if (column.id === leadColumnId()) {
+                  <span [style.padding-inline-start.px]="group.depth * 20" class="group-label">
+                    @if (groupsCollapsible()) {
+                      <ng-table-icon aria-hidden="true" class="group-chevron" [name]="group.collapsed ? 'chevron_right' : 'expand_more'"/>
+                    }
+                    <!-- Espaces DANS les textes : Angular retire ceux entre les balises, et le nom lu
+                         par un lecteur d'écran deviendrait « Statut :Brouillon1 ligne(s) ». -->
+                    <span class="group-name">{{ (group.group.column ?? groupColumn())?.header }} : </span>
+                    <span class="group-value">{{ groupValueLabel(group.group) }} </span>
+                    @if (groupCountLabel(group.group); as count) {
+                      <span class="group-count">{{ count }}</span>
+                    }
+                  </span>
+                } @else {
+                  {{ groupAggregate(group.group, column.id) }}
+                }
+                </td>
+              }
+            </tr>
+          } @else {
+            @let row = asDataRow(item);
+            <tr
+              (click)="onRowClick(row)"
+              (contextmenu)="onRowContextMenu($event, row)"
+              (dragover)="onRowDragOver($event, row)"
+              (drop)="onRowDrop($event, row)"
+              (keydown)="onRowKeydown($event, row)"
+              [attr.aria-expanded]="detailRowTemplate() && !pinInfo(row) ? (hasDetailToggle(row) ? isDetailExpanded(rowIndex, row) : null) : treeAriaExpanded(row)"
+              [attr.aria-level]="treeActive() ? treeDepth(row) + 1 : groupColumns().length > 0 && !pinInfo(row) ? groupColumns().length + 1 : null"
+              [attr.aria-rowindex]="ariaRowIndex(row)"
+              [attr.data-ngt-drop]="rowDropAttr(row)"
+              [class.ngt-row-dragging]="isRowDragging(row)"
+              [attr.data-ngt-pin]="pinInfo(row)?.side ?? null"
+              [attr.data-ngt-row]="rowRangeIndex(row)"
+              [attr.data-ngt-pin-edge]="pinInfo(row)?.edge ? '' : null"
+              [attr.data-ngt-located]="isLocated(row) ? '' : null"
+              [attr.tabindex]="isRowInteractive() && !gridActive() ? 0 : null"
+              [style.--ngt-pin-index]="pinInfo(row)?.index ?? null"
+              [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
+              [class.ngt-row-selected]="isRowSelected(row)"
+              [class.ngt-row-alt]="isAltRow(row)"
+              [ngClass]="rowClasses(row)"
+              cdk-row class="cdk-row data-row"
+              role="row"
+            >
+              @if (leadCells().drag; as lead) {
+                <td [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" [class]="lead.cls" [style.inset-inline-start.px]="lead.start" cdk-cell class="cdk-cell row-drag-cell" role="cell">
+                  @if (!pinInfo(row)) {
+                    <button (click)="onRowHandleClick($event, row)" (dragend)="onRowDragEnd()" (dragstart)="onRowDragStart($event, row)"
+                            (keydown)="onRowHandleKeydown($event, row)" [attr.aria-label]="effectiveLabels().rowDragHandle" [attr.aria-pressed]="isRowPicked(row)"
+                            [title]="effectiveLabels().rowDragHandle" class="ngt-row-handle" draggable="true" type="button">
+                      <ng-table-icon aria-hidden="true" name="drag_indicator"/>
+                    </button>
+                  }
+                </td>
+              }
+              @if (leadCells().toggle; as lead) {
+                <!-- Bouton natif du master/detail : un chevron par ligne qui peut se déplier. -->
+                <td [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" [class]="lead.cls" [style.inset-inline-start.px]="lead.start" cdk-cell class="cdk-cell detail-toggle-cell" role="cell">
+                  @if (hasDetailToggle(row)) {
+                    <button (click)="onDetailToggleClick($event, rowIndex, row)" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()"
+                            [attr.aria-expanded]="isDetailExpanded(rowIndex, row)"
+                            [attr.aria-label]="isDetailExpanded(rowIndex, row) ? effectiveLabels().detailCollapse : effectiveLabels().detailExpand"
+                            [class.ngt-detail-toggle--open]="isDetailExpanded(rowIndex, row)" class="ngt-detail-toggle" type="button">
+                      <ng-table-icon aria-hidden="true" name="chevron_right"/>
+                    </button>
+                  }
+                </td>
+              }
+              @if (leadCells().selection; as lead) {
+                <td [attr.aria-colindex]="ariaColIndex(selectionColumnId)" [class]="lead.cls" [style.inset-inline-start.px]="lead.start" cdk-cell class="cdk-cell selection-cell" role="cell">
+                  @if (!pinInfo(row)) {
+                    <ng-table-checkbox
+                      (checkedChange)="onToggleRowSelection($event, row)"
+                      (click)="$event.stopPropagation()"
+                      [ariaLabel]="rowSelectAriaLabel(rowIndex, row)"
+                      [checked]="isRowSelected(row)"
+                    />
+                  }
+                </td>
+              }
+              @for (c of dataCells(); track c.id) {
+                @let column = c.column;
+                <td [attr.aria-colindex]="ariaColIndex(column.id)" [attr.data-ngt-flash]="cellView(row, column).flash || null"
+                    [attr.aria-hidden]="c.spacer ? 'true' : null"
+                    [attr.aria-selected]="cellRangeSelected(row, column)"
+                    [attr.data-ngt-col]="cellsTagged() ? column.id : null"
+                    [attr.data-ngt-editable]="hasEditableColumns() && isEditable(row, column) ? '' : null"
+                    (dblclick)="onCellDoubleClick($event, row, column)"
+                    [attr.data-ngt-range]="cellRangeAttr(row, column)"
+                    [attr.data-ngt-fill]="cellFillAttr(row, column)"
+                    [class]="c.cls"
+                    [class.ngt-align-center]="alignOf(column) === 'center'"
+                    [class.ngt-align-end]="alignOf(column) === 'end'"
+                    [style.inset-inline-end.px]="c.end" [style.inset-inline-start.px]="c.start"
+                    [style.max-width.px]="column.maxWidthPx ?? null"
+                    [style.min-width.px]="column.minWidthPx ?? null" [style.width.px]="c.spacer ? columnSpacerWidth(c.spacer) : columnWidthPx(column)" cdk-cell class="cdk-cell" role="cell">
+                  @let cell = cellView(row, column);
+                  @if (plainColumnIds().has(column.id)) {
+                    <!-- Chemin court : une cellule de texte simple n'évalue aucune des branches ci-dessous (édition, arbre,
+                         mise en forme, gabarit, copie), ce qui allège chaque ligne rendue. Même structure, mêmes classes. -->
+                    <div class="cell-content">
+                      <span [ngTableTruncateTooltip]="cell.text" class="cell-text cell-text--truncate">
+                        @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
+                          <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
+                        } @else {
+                          {{ cell.display }}
+                        }
+                      </span>
+                    </div>
+                  } @else if (!c.spacer) {
+                  @if (isFillHandleCell(row, column)) {
+                    <!-- Décoratif pour un lecteur d'écran : au clavier, la recopie se fait par Ctrl+D / Ctrl+R. -->
+                    <span (mousedown)="onFillStart($event)" [class.ngt-fill-handle--armed]="fillArmed()" aria-hidden="true" class="ngt-fill-handle"></span>
+                  }
+                  @if (isEditing(row, column)) {
+                    <div class="cell-editor">
+                      @switch (editorKind(column)) {
+                        @case ('select') {
+                          <select (blur)="onEditorBlur()" (change)="onEditSelect($any($event.target).value)"
+                                  (keydown)="onEditorKeydown($event)" [attr.aria-describedby]="editing()?.error ? editorErrorId : null" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                                  [attr.aria-label]="column.header" class="ngt-editor">
+                            <option [selected]="!editing()?.draft" value="">—</option>
+                            @for (option of editorOptions(column); track option.value) {
+                              <option [selected]="option.value === editing()?.draft" [value]="option.value">{{ option.label }}</option>
+                            }
+                          </select>
+                        }
+                        @case ('date') {
+                          <input (blur)="onEditorBlur()" (input)="onEditInput($any($event.target).value)"
+                                 (keydown)="onEditorKeydown($event)" [attr.aria-describedby]="editing()?.error ? editorErrorId : null" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                                 [attr.aria-label]="column.header" [value]="editing()?.draft ?? ''" class="ngt-editor" type="date"/>
+                        }
+                        @default {
+                          <input (blur)="onEditorBlur()" (input)="onEditInput($any($event.target).value)"
+                                 (keydown)="onEditorKeydown($event)" [attr.aria-describedby]="editing()?.error ? editorErrorId : null" [attr.aria-invalid]="editing()?.error ? 'true' : null"
+                                 [attr.aria-label]="column.header" [attr.inputmode]="editorKind(column) === 'number' ? 'decimal' : null"
+                                 [value]="editing()?.draft ?? ''" class="ngt-editor" type="text"/>
+                        }
                       }
-                    </select>
+                      @if (editing()?.error; as error) {
+                        <span [id]="editorErrorId" class="ngt-editor-error" role="alert">{{ error }}</span>
+                      }
+                    </div>
+                  } @else if (isInlineCheckbox(row, column)) {
+                    <input (change)="onInlineCheckbox(row, column, $any($event.target).checked)" (click)="$event.stopPropagation()"
+                           [attr.aria-label]="column.header" [checked]="!!cell.value" class="ngt-inline-check" type="checkbox"/>
                   }
-                  @case ('date') {
-                    <input (blur)="onEditorBlur()" (input)="onEditInput($any($event.target).value)"
-                           (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
-                           [attr.aria-label]="column.header" [value]="editing()?.draft ?? ''" class="ngt-editor" type="date"/>
+                  <div class="cell-content" [class.cell-content--hidden]="isEditing(row, column) || isInlineCheckbox(row, column)"
+                       [class.cell-content--fill]="column.cell?.type === 'dataBar' || column.cell?.type === 'colorScale' || column.cell?.type === 'progress'"
+                       [class.cell-content--wrap]="column.textOverflow === 'wrap'">
+                    @if (treeActive() && column.id === leadColumnId()) {
+                      <span [style.width.px]="treeDepth(row) * treeIndent()" aria-hidden="true" class="ngt-tree-indent"></span>
+                      @if (treeHasChildren(row)) {
+                        <button (click)="onTreeToggle($event, row)" [attr.aria-expanded]="isTreeExpanded(row)"
+                                [attr.aria-label]="isTreeExpanded(row) ? effectiveLabels().treeCollapse : effectiveLabels().treeExpand"
+                                class="ngt-tree-toggle" type="button">
+                          <ng-table-icon aria-hidden="true" [name]="isTreeExpanded(row) ? 'expand_more' : 'chevron_right'"/>
+                        </button>
+                      } @else {
+                        <span aria-hidden="true" class="ngt-tree-toggle"></span>
+                      }
+                    }
+                    @if (column.sparkline; as spark) {
+                      <ng-table-sparkline [color]="spark.color ?? null" [height]="spark.height ?? 24" [type]="spark.type ?? 'line'"
+                                     [values]="cell.value" [width]="spark.width ?? 96"/>
+                    } @else if (column.cellTemplate) {
+                      <span class="cell-text" [class.cell-text--truncate]="column.textOverflow !== 'wrap'"
+                            [class.cell-text--wrap]="column.textOverflow === 'wrap'">
+                        <ng-container *ngTemplateOutlet="column.cellTemplate; context: cell.context" />
+                      </span>
+                    } @else if (column.cell; as format) {
+                      <ng-table-cell-format [externalLabel]="effectiveLabels().linkOpensNewTab" [format]="format" [label]="column.header" [range]="cellFormatRange(column)" [ratingLabel]="effectiveLabels().ratingLabel"
+                                            [row]="row" [text]="cell.text" [value]="cell.value"/>
+                    } @else if (column.textOverflow === 'wrap') {
+                      <span class="cell-text cell-text--wrap">
+                        @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
+                          <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
+                        } @else {
+                          {{ cell.display }}
+                        }
+                      </span>
+                    } @else {
+                      <span [ngTableTruncateTooltip]="cell.text" class="cell-text cell-text--truncate">
+                        @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
+                          <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
+                        } @else {
+                          {{ cell.display }}
+                        }
+                      </span>
+                    }
+
+                    @if (cell.copyText) {
+                      <button
+                        (click)="onCopyCellValue($event, column, row, rowIndex)"
+                        [attr.aria-label]="copyTooltip(column)"
+                        [ngTableTooltip]="copyTooltip(column)"
+                        class="copy-action-btn"
+                        ngt-icon-button
+                        type="button"
+                      >
+                        <ng-table-icon aria-hidden="true" [name]="copyIconName(column, row, rowIndex)"/>
+                      </button>
+                    }
+                  </div>
                   }
-                  @default {
-                    <input (blur)="onEditorBlur()" (input)="onEditInput($any($event.target).value)"
-                           (keydown)="onEditorKeydown($event)" [attr.aria-invalid]="editing()?.error ? 'true' : null"
-                           [attr.aria-label]="column.header" [attr.inputmode]="editorKind(column) === 'number' ? 'decimal' : null"
-                           [value]="editing()?.draft ?? ''" class="ngt-editor" type="text"/>
+                </td>
+              }
+            </tr>
+            @if (detailRowRenderWhen(rowIndex, item)) {
+              <tr [class.detail-row-collapsed]="!isDetailExpanded(rowIndex, row)" cdk-row class="cdk-row detail-row-container" role="row">
+                <td [attr.colspan]="detailRowColspan()" cdk-cell class="cdk-cell cdk-column-__detail_row__ detail-row" role="cell">
+                  @if (detailRowTemplate() && isDetailExpanded(rowIndex, row)) {
+                    <ng-container *ngTemplateOutlet="detailRowTemplate()!; context: { $implicit: row, row: row }"/>
                   }
-                }
-                @if (editing()?.error; as error) {
-                  <span class="ngt-editor-error" role="alert">{{ error }}</span>
-                }
-              </div>
-            } @else if (isInlineCheckbox(row, column)) {
-              <input (change)="onInlineCheckbox(row, column, $any($event.target).checked)" (click)="$event.stopPropagation()"
-                     [attr.aria-label]="column.header" [checked]="!!cell.value" class="ngt-inline-check" type="checkbox"/>
+                </td>
+              </tr>
             }
-            <div class="cell-content" [class.cell-content--hidden]="isEditing(row, column) || isInlineCheckbox(row, column)"
-                 [class.cell-content--fill]="column.cell?.type === 'dataBar' || column.cell?.type === 'colorScale' || column.cell?.type === 'progress'"
-                 [class.cell-content--wrap]="column.textOverflow === 'wrap'">
-              @if (treeActive() && column.id === leadColumnId()) {
-                <span [style.width.px]="treeDepth(row) * treeIndent()" aria-hidden="true" class="ngt-tree-indent"></span>
-                @if (treeHasChildren(row)) {
-                  <button (click)="onTreeToggle($event, row)" [attr.aria-expanded]="isTreeExpanded(row)"
-                          [attr.aria-label]="isTreeExpanded(row) ? effectiveLabels().treeCollapse : effectiveLabels().treeExpand"
-                          class="ngt-tree-toggle" type="button">
-                    <ng-table-icon aria-hidden="true" [name]="isTreeExpanded(row) ? 'expand_more' : 'chevron_right'"/>
+            @if (mobileActionsRowWhen(rowIndex, item)) {
+              <tr [attr.data-mobile-row-key]="mobileRowKey(row)" cdk-row class="cdk-row mobile-actions-row" role="row">
+                <td [attr.colspan]="mobileActionsColspan()" cdk-cell class="cdk-cell cdk-column-__mobile_actions__ mobile-actions-cell" role="cell">
+                  @if (actionColumn()?.cellTemplate && mobileActionsCellContext(row); as context) {
+                    <ng-container *ngTemplateOutlet="actionColumn()!.cellTemplate; context: context"/>
+                  }
+                </td>
+              </tr>
+            }
+          }
+        } @empty {
+          <tr class="cdk-row">
+            <td [attr.colspan]="displayedColumnIds().length || 1" class="cdk-cell no-data-cell">
+              @if (emptyBecauseFiltered()) {
+                <span class="no-data-cell__text">{{ effectiveLabels().noDataFiltered }}</span>
+                <!-- La barre des filtres actifs, quand elle est là, porte déjà ce bouton juste au-dessus. -->
+                @if (!(showActiveFiltersBar() && activeFilterSummaries().length > 0)) {
+                  <button (click)="clearAllFilters()" class="no-data-cell__action" ngt-stroked-button type="button">
+                    <ng-table-icon aria-hidden="true" name="filter_alt_off"/>
+                    {{ effectiveLabels().resetFiltersButton }}
                   </button>
-                } @else {
-                  <span aria-hidden="true" class="ngt-tree-toggle"></span>
                 }
-              }
-              @if (column.sparkline; as spark) {
-                <ng-table-sparkline [color]="spark.color ?? null" [height]="spark.height ?? 24" [type]="spark.type ?? 'line'"
-                               [values]="cell.value" [width]="spark.width ?? 96"/>
-              } @else if (column.cellTemplate) {
-                <span class="cell-text" [class.cell-text--truncate]="column.textOverflow !== 'wrap'"
-                      [class.cell-text--wrap]="column.textOverflow === 'wrap'">
-                  <ng-container *ngTemplateOutlet="column.cellTemplate; context: cell.context" />
-                </span>
-              } @else if (column.cell; as format) {
-                <ng-table-cell-format [format]="format" [label]="column.header" [range]="cellFormatRange(column)" [ratingLabel]="effectiveLabels().ratingLabel"
-                                      [row]="row" [text]="cell.text" [value]="cell.value"/>
-              } @else if (column.textOverflow === 'wrap') {
-                <span class="cell-text cell-text--wrap">
-                  @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
-                    <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
-                  } @else {
-                    {{ cell.value }}
-                  }
-                </span>
               } @else {
-                <span [ngTableTruncateTooltip]="cell.text" class="cell-text cell-text--truncate">
-                  @if (highlightTerms().length > 0 && (column.searchable === undefined || column.searchable === true)) {
-                    <ng-container *ngTemplateOutlet="highlighted; context: {$implicit: highlightParts(cell.text)}"/>
-                  } @else {
-                    {{ cell.value }}
-                  }
-                </span>
+                {{ resolvedEmptyLabel() }}
               }
-
-              @if (cell.copyText) {
-                <button
-                  (click)="onCopyCellValue($event, column, row, rowIndex)"
-                  [attr.aria-label]="copyTooltip(column)"
-                  [ngTableTooltip]="copyTooltip(column)"
-                  class="copy-action-btn"
-                  ngt-icon-button
-                  type="button"
-                >
-                  <ng-table-icon aria-hidden="true" [name]="copyIconName(column, row, rowIndex)"/>
-                </button>
-              }
-            </div>
-          </td>
-        </ng-container>
-      }
-
-      <!-- En-têtes de groupe : une cellule par colonne affichée, pour aligner les agrégats. -->
-      <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__group____row_selection__">
-        <td *cdkCellDef="let item" class="group-cell" cdk-cell></td>
-      </ng-container>
-      <ng-container [sticky]="hasLeftPinnedColumns()" cdkColumnDef="__group____row_drag__">
-        <td *cdkCellDef="let item" class="group-cell" cdk-cell></td>
-      </ng-container>
-      @for (column of columns(); track trackByColumn($index, column)) {
-        <ng-container [cdkColumnDef]="'__group__' + column.id" [sticky]="pinnedSide(column) === 'left'"
-                      [stickyEnd]="pinnedSide(column) === 'right'">
-          <td *cdkCellDef="let item" [class.group-cell--lead]="column.id === leadColumnId()" class="group-cell" cdk-cell>
-            @if (column.id === leadColumnId()) {
-              <span [style.padding-inline-start.px]="item.depth * 20" class="group-label">
-                @if (groupsCollapsible()) {
-                  <ng-table-icon aria-hidden="true" class="group-chevron" [name]="item.collapsed ? 'chevron_right' : 'expand_more'"/>
-                }
-                <!-- Espaces DANS les textes : Angular retire ceux entre les balises, et le nom lu
-                     par un lecteur d'écran deviendrait « Statut :Brouillon1 ligne(s) ». -->
-                <span class="group-name">{{ (item.group.column ?? groupColumn())?.header }} : </span>
-                <span class="group-value">{{ groupValueLabel(item.group) }} </span>
-                @if (groupCountLabel(item.group); as count) {
-                  <span class="group-count">{{ count }}</span>
-                }
-              </span>
-            } @else {
-              {{ groupAggregate(item.group, column.id) }}
-            }
-          </td>
-        </ng-container>
-      }
-
-      <ng-container cdkColumnDef="__mobile_actions__">
-        <td *cdkCellDef="let row" [attr.colspan]="mobileActionsColspan()" class="mobile-actions-cell" cdk-cell>
-          @if (actionColumn()?.cellTemplate && mobileActionsCellContext(row); as context) {
-            <ng-container *ngTemplateOutlet="actionColumn()!.cellTemplate; context: context"/>
-          }
-        </td>
-      </ng-container>
-
-      <!-- Défilement virtuel : espacement pour les lignes non rendues au-dessus / au-dessous. -->
-      <ng-container cdkColumnDef="__spacer__">
-        <td *cdkCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="spacerHeight(item.position)" class="spacer-cell"
-            cdk-cell></td>
-      </ng-container>
-
-      <!-- En-têtes de colonnes groupés : une ligne par niveau, cellules fusionnées par `colspan`. -->
-      @for (level of headerGroupLevels(); track $index) {
-        @for (run of level.runs; track run.key) {
-          <ng-container [cdkColumnDef]="run.key" [sticky]="run.pin === 'left'" [stickyEnd]="run.pin === 'right'">
-            <th *cdkHeaderCellDef [attr.colspan]="run.span" [class.header-group-cell--empty]="!run.label"
-                class="header-group-cell" cdk-header-cell scope="colgroup">{{ run.label }}</th>
-          </ng-container>
+            </td>
+          </tr>
         }
-        <tr *cdkHeaderRowDef="level.ids; sticky: stickyHeader() || virtualActive()" [attr.aria-rowindex]="ariaRowCount() === null ? null : $index + 1" class="header-group-row" cdk-header-row></tr>
-      }
+      </tbody>
 
-      <!-- Virtualisation horizontale : largeur des colonnes non rendues, à gauche et à droite. -->
-      @for (side of columnSpacerSides; track side) {
-        <ng-container [cdkColumnDef]="'__colspacer_' + side + '__'">
-          <th *cdkHeaderCellDef [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
-              cdk-header-cell></th>
-          <td *cdkCellDef="let row" [style.width.px]="columnSpacerWidth(side)" aria-hidden="true" class="col-spacer-cell"
-              cdk-cell></td>
-          <td *cdkFooterCellDef aria-hidden="true" class="col-spacer-cell" cdk-footer-cell></td>
-        </ng-container>
-        <ng-container [cdkColumnDef]="'__group____colspacer_' + side + '__'">
-          <td *cdkCellDef="let item" aria-hidden="true" class="group-cell col-spacer-cell" cdk-cell></td>
-        </ng-container>
-      }
-
-      <!-- Modèle par blocs : ligne en attente de son bloc (ou bloc en échec). -->
-      <ng-container cdkColumnDef="__loading__">
-        <td *cdkCellDef="let item" [attr.colspan]="detailRowColspan()" [style.height.px]="loadingRowHeight()"
-            class="loading-cell" cdk-cell>
-          @if (isFailedLoadingRow(item)) {
-            <span class="loading-failed">{{ effectiveLabels().blockLoadError }}</span>
-          } @else {
-            <span aria-hidden="true" class="loading-skeleton"></span>
-          }
-        </td>
-      </ng-container>
-
-      <ng-container cdkColumnDef="__detail_row__">
-        <td *cdkCellDef="let row; let rowIndex = dataIndex" [attr.colspan]="detailRowColspan()" class="detail-row"
-            cdk-cell>
-          @if (detailRowTemplate() && isDetailExpanded(rowIndex, row)) {
-            <ng-container *ngTemplateOutlet="detailRowTemplate()!; context: { $implicit: row, row: row }"/>
-          }
-        </td>
-      </ng-container>
-
-      <tr *cdkHeaderRowDef="displayedColumnIds(); sticky: stickyHeader() || virtualActive()" [attr.aria-rowindex]="ariaRowCount() === null ? null : headerRowCount()" cdk-header-row></tr>
-      <tr *cdkRowDef="let item; columns: loadingColumns; when: loadingRowWhen" [attr.aria-rowindex]="ariaRowIndex(item)" class="loading-row" cdk-row></tr>
-      <tr *cdkRowDef="let item; columns: spacerColumns; when: spacerRowWhen" aria-hidden="true" class="spacer-row"
-          cdk-row></tr>
-      <tr
-        (click)="toggleGroup(item.group)"
-        (keydown.enter)="toggleGroup(item.group)"
-        (keydown.space)="$event.preventDefault(); toggleGroup(item.group)"
-        *cdkRowDef="let item; columns: groupRowColumns(); when: groupRowWhen"
-        [attr.aria-expanded]="groupsCollapsible() ? !item.collapsed : null"
-        [attr.aria-rowindex]="ariaRowIndex(item)"
-        [attr.tabindex]="groupsCollapsible() ? 0 : null"
-        [attr.data-ngt-group-extra]="isStickyGroupExtra(item) ? '' : null"
-        [class.group-row--sticky]="stickyGroupHeaders()"
-        [style.--ngt-group-depth]="stickyGroupHeaders() ? item.depth : null"
-        [class.group-row--static]="!groupsCollapsible()"
-        class="group-row"
-        cdk-row
-      ></tr>
       @if (totals()) {
-        <tr *cdkFooterRowDef="displayedColumnIds(); sticky: stickyHeader()" class="totals-row" cdk-footer-row></tr>
+        <tfoot>
+          <tr [attr.aria-rowindex]="ariaRowCount()" [class.ngt-sticky-foot]="stickyHeader()" cdk-footer-row class="cdk-footer-row totals-row" role="row">
+            @if (leadCells().drag; as lead) {
+              <td [attr.aria-colindex]="ariaColIndex(rowDragColumnId)" [class]="stickyHeader() ? lead.footCls : lead.cls" [style.inset-inline-start.px]="lead.start" cdk-footer-cell class="cdk-footer-cell totals-cell" role="cell"></td>
+            }
+            @if (leadCells().toggle; as lead) {
+              <td [attr.aria-colindex]="ariaColIndex(detailToggleColumnId)" [class]="stickyHeader() ? lead.footCls : lead.cls" [style.inset-inline-start.px]="lead.start" cdk-footer-cell class="cdk-footer-cell totals-cell" role="cell"></td>
+            }
+            @if (leadCells().selection; as lead) {
+              <td [attr.aria-colindex]="ariaColIndex(selectionColumnId)" [class]="stickyHeader() ? lead.footCls : lead.cls" [style.inset-inline-start.px]="lead.start" cdk-footer-cell class="cdk-footer-cell totals-cell" role="cell"></td>
+            }
+            @for (c of dataCells(); track c.id) {
+              @let column = c.column;
+              <td [attr.aria-colindex]="ariaColIndex(column.id)" [attr.aria-hidden]="c.spacer ? 'true' : null" [style.max-width.px]="column.maxWidthPx ?? null" [style.width.px]="c.spacer ? null : columnWidthPx(column)"
+                  [class]="stickyHeader() ? c.footCls : c.cls" [class.ngt-align-center]="alignOf(column) === 'center'" [class.ngt-align-end]="alignOf(column) === 'end'"
+                  [class.totals-cell]="!c.spacer" [style.inset-inline-end.px]="c.end" [style.inset-inline-start.px]="c.start"
+                  cdk-footer-cell class="cdk-footer-cell" role="cell">
+              @if (totals()?.[column.id]; as total) {
+                {{ total }}
+              } @else if (column.id === leadColumnId()) {
+                <span class="totals-label">{{ effectiveLabels().totalsLabel }}</span>
+              }
+              </td>
+            }
+          </tr>
+        </tfoot>
       }
-      <tr
-        (click)="onRowClick(row)"
-        (contextmenu)="onRowContextMenu($event, row)"
-        (dragover)="onRowDragOver($event, row)"
-        (drop)="onRowDrop($event, row)"
-        (keydown)="onRowKeydown($event, row)"
-        *cdkRowDef="let row; let rowIndex = dataIndex; columns: displayedColumnIds(); when: dataRowWhen"
-        [attr.aria-expanded]="detailRowTemplate() && !pinInfo(row) ? isDetailExpanded(rowIndex, row) : treeAriaExpanded(row)"
-        [attr.aria-level]="treeActive() ? treeDepth(row) + 1 : null"
-        [attr.aria-rowindex]="ariaRowIndex(row)"
-        [attr.data-ngt-drop]="rowDropAttr(row)"
-        [class.ngt-row-dragging]="isRowDragging(row)"
-        [attr.data-ngt-pin]="pinInfo(row)?.side ?? null"
-        [attr.data-ngt-row]="rowRangeIndex(row)"
-        [attr.data-ngt-pin-edge]="pinInfo(row)?.edge ? '' : null"
-        [attr.data-ngt-located]="isLocated(row) ? '' : null"
-        [attr.tabindex]="isRowInteractive() && !cellNavigation() ? 0 : null"
-        [style.--ngt-pin-index]="pinInfo(row)?.index ?? null"
-        [class.row-expanded]="detailRowTemplate() && isDetailExpanded(rowIndex, row)"
-        [ngClass]="rowClasses(row)"
-        class="data-row"
-        cdk-row
-      ></tr>
-      <tr
-        *cdkRowDef="let row; let rowIndex = dataIndex; columns: detailRowColumns; when: detailRowRenderWhen"
-        [class.detail-row-collapsed]="!isDetailExpanded(rowIndex, row)"
-        class="detail-row-container"
-        cdk-row
-      ></tr>
-      <tr
-        *cdkRowDef="let row; columns: mobileActionRowColumns(); when: mobileActionsRowWhen"
-        [attr.data-mobile-row-key]="mobileRowKey(row)"
-        class="mobile-actions-row"
-        cdk-row
-      ></tr>
-      <tr *cdkNoDataRow class="cdk-row">
-        <td [attr.colspan]="displayedColumnIds().length || 1" class="cdk-cell no-data-cell">
-          @if (emptyBecauseFiltered()) {
-            <span class="no-data-cell__text">{{ effectiveLabels().noDataFiltered }}</span>
-            <button (click)="clearAllFilters()" class="no-data-cell__action" ngt-stroked-button type="button">
-              <ng-table-icon aria-hidden="true" name="filter_alt_off"/>
-              {{ effectiveLabels().resetFiltersButton }}
-            </button>
-          } @else {
-            {{ resolvedEmptyLabel() }}
-          }
-        </td>
-      </tr>
     </table>
   </div>
 
@@ -988,6 +1065,8 @@
     <div class="ngt-action-dock">
       <div
         (keydown.escape)="clearSelection()"
+        (keydown)="onSelectionBarKeydown($event)"
+        aria-keyshortcuts="F6"
         [attr.aria-label]="effectiveLabels().selectionBarLabel"
         class="ngt-action-bar"
         role="toolbar"
@@ -1065,6 +1144,7 @@
         <span class="ngt-status-bar__item">{{ statusText(effectiveLabels().statusSelected, selectedRowsCount()) }}</span>
       }
       @if (rangeStats(); as stats) {
+        @if (stats.count > 1) {
         <span class="ngt-status-bar__spacer"></span>
         <span class="ngt-status-bar__item">{{ statusText(effectiveLabels().statusCells, stats.count) }}</span>
         @if (stats.numericCount > 0) {
@@ -1072,6 +1152,7 @@
           <span class="ngt-status-bar__item">{{ effectiveLabels().statusAvg }} : <b>{{ formatStat(stats.avg) }}</b></span>
           <span class="ngt-status-bar__item">{{ effectiveLabels().statusMin }} : <b>{{ formatStat(stats.min) }}</b></span>
           <span class="ngt-status-bar__item">{{ effectiveLabels().statusMax }} : <b>{{ formatStat(stats.max) }}</b></span>
+        }
         }
       }
     </div>

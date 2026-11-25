@@ -10,6 +10,7 @@
  *
  * Ce fichier ne dépend pas d'Angular : il est aussi compilé dans le worker (`ng-table.worker.ts`).
  */
+import {compileAdvancedFilter, NgTableFilterGroup} from './advanced-filter';
 import {compileFilters} from './filter-compile';
 import {matchesSearchTerms} from './filter-matching';
 import {buildSortOrder} from './fast-sort';
@@ -47,6 +48,8 @@ export interface WorkerRequest {
   levels: {columnId: string; factor: 1 | -1}[];
   /** Termes de la recherche globale (vide : pas de recherche). */
   terms: string[];
+  /** Filtre avancé (conditions ET / OU) : ses colonnes sont dans `v:id`, leurs réglages dans `filterSpecs`. */
+  advanced?: NgTableFilterGroup | null;
   collator: {locale?: string; options?: Intl.CollatorOptions};
 }
 
@@ -184,11 +187,22 @@ export class WorkerComputeCore {
       } as NgTableColumn<number>;
     });
     const predicate = compileFilters(filterColumns, request.filters);
+    // Filtre avancé : toutes les colonnes décrites dans `filterSpecs` peuvent y être citées.
+    const advanced = request.advanced
+      ? compileAdvancedFilter(
+          request.advanced,
+          Object.keys(request.filterSpecs).map((id) => {
+            const values = column(RAW_PREFIX + id);
+            const spec = request.filterSpecs[id];
+            return {id, header: id, valueAccessor: (index: number) => values[index], filter: {type: spec.type, operator: spec.operator}} as NgTableColumn<number>;
+          }),
+        )
+      : null;
     const haystacks = request.terms.length > 0 ? (column(SEARCH_KEY) as string[]) : null;
 
     const matched: number[] = [];
     for (let index = 0; index < count; index++) {
-      if ((!predicate || predicate(index)) && (!haystacks || matchesSearchTerms(haystacks[index], request.terms))) {
+      if ((!predicate || predicate(index)) && (!advanced || advanced(index)) && (!haystacks || matchesSearchTerms(haystacks[index], request.terms))) {
         matched.push(index);
       }
     }

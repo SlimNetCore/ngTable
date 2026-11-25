@@ -1,4 +1,4 @@
-import {InjectionToken, Provider, Signal, isSignal} from '@angular/core';
+import {computed, inject, InjectionToken, Provider, Signal, isSignal} from '@angular/core';
 
 /**
  * Tous les textes affichés par `ng-table` (aucune dépendance i18n externe).
@@ -13,6 +13,11 @@ export interface NgTableLabels {
   activeFilters: string;
   /** Interpolé : `{field}` est remplacé par le libellé de la colonne. */
   filterBy: string;
+  /** Noms accessibles précis : `{field}` est le titre de la colonne, `{name}` la valeur de la première colonne de la ligne. */
+  filterActiveOn: string;
+  clearFilterOf: string;
+  selectRowNamed: string;
+  linkOpensNewTab: string;
   refOptionsLoading: string;
   refOptionsEmpty: string;
   refOptionsLoadError: string;
@@ -160,6 +165,15 @@ export interface NgTableLabels {
   editInvalidDate: string;
   /** Annonce lecteur d'écran après une édition ; `{column}` = en-tête de la colonne. */
   announceCellEdited: string;
+  /** Annonces aux lecteurs d'écran (région `aria-live`). `{count}` et `{name}` sont remplacés. */
+  announceCopied: string;
+  announceCellsCopied: string;
+  announceCellsEdited: string;
+  announceValuesRejected: string;
+  announceRowsSelected: string;
+  announceViewApplied: string;
+  announceRemoteQuery: string;
+  announceExportStarted: string;
   announceEditUndone: string;
   announceEditRedone: string;
   /** Barre d'état. `{count}` et `{total}` sont remplacés. */
@@ -208,6 +222,53 @@ export interface NgTableLabels {
   /** Glisser-déposer de lignes. `{position}` = nouvelle position (à partir de 1). */
   rowDragHandle: string;
   announceRowMoved: string;
+  /** Déplacer et ajuster sans glisser (menu Colonnes, poignées) ; `{column}` et `{position}` sont remplacés. */
+  moveColumnEarlier: string;
+  moveColumnLater: string;
+  autoFitColumn: string;
+  announceColumnMoved: string;
+  /** Mode live : bouton de suspension des mises à jour (`[livePauseButton]`) et annonces associées. */
+  livePause: string;
+  liveResume: string;
+  announceLivePaused: string;
+  announceLiveResumed: string;
+  /** Tri multi-niveaux sans Maj+clic : bouton d'en-tête. `{column}` est le titre de la colonne. */
+  addSortLevel: string;
+  changeSortLevel: string;
+  /** Dit après « N lignes sélectionnées » la première fois : le raccourci qui mène à la barre d'actions. */
+  selectionBarHint: string;
+  announceViewSaved: string;
+  announceViewDeleted: string;
+  announceAllCollapsed: string;
+  announceAllExpanded: string;
+  /** Textes de `<ng-table-pivot>` (son entrée `[labels]` reste prioritaire). */
+  pivotFields: string;
+  pivotRows: string;
+  pivotColumns: string;
+  pivotValues: string;
+  pivotDropHere: string;
+  pivotRemove: string;
+  pivotAdd: string;
+  pivotAggregate: string;
+  pivotLoading: string;
+  pivotError: string;
+  pivotRetry: string;
+  pivotSum: string;
+  pivotAvg: string;
+  pivotMin: string;
+  pivotMax: string;
+  pivotCount: string;
+  /** Textes de la barre de zoom de `<ng-table-chart>` (son entrée `[zoomTexts]` reste prioritaire). */
+  chartZoomToolbar: string;
+  chartZoomIn: string;
+  chartZoomOut: string;
+  chartPanLeft: string;
+  chartPanRight: string;
+  chartZoomReset: string;
+  chartDecimated: string;
+  announceRowPicked: string;
+  announceFillArmed: string;
+  announceMoveCancelled: string;
 }
 
 export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
@@ -217,6 +278,10 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   clearFilter: 'Effacer le filtre',
   activeFilters: 'Filtres actifs',
   filterBy: 'Filtrer par {field}',
+  filterActiveOn: 'Filtre actif sur {field} : modifier',
+  clearFilterOf: 'Effacer le filtre : {field}',
+  selectRowNamed: 'Sélectionner la ligne {name}',
+  linkOpensNewTab: 'nouvel onglet',
   refOptionsLoading: 'Chargement des options...',
   refOptionsEmpty: 'Aucune option chargée.',
   refOptionsLoadError: 'Erreur de chargement des options.',
@@ -308,6 +373,14 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   editInvalidNumber: 'Nombre invalide',
   editInvalidDate: 'Date invalide (AAAA-MM-JJ)',
   announceCellEdited: 'Cellule « {column} » modifiée',
+  announceCopied: 'Copié',
+  announceCellsCopied: '{count} cellule(s) copiée(s)',
+  announceCellsEdited: '{count} cellule(s) modifiée(s)',
+  announceValuesRejected: '{count} valeur(s) refusée(s)',
+  announceRowsSelected: '{count} ligne(s) sélectionnée(s)',
+  announceViewApplied: 'Vue « {name} » appliquée',
+  announceRemoteQuery: 'Filtres appliqués, chargement des résultats',
+  announceExportStarted: 'Export lancé',
   announceEditUndone: 'Modification annulée',
   announceEditRedone: 'Modification rétablie',
   statusBarLabel: 'Barre d’état',
@@ -347,6 +420,47 @@ export const NG_TABLE_DEFAULT_LABELS: NgTableLabels = {
   paginatorRangeEmpty: '0 sur {total}',
   rowDragHandle: 'Déplacer la ligne (Alt + flèches haut / bas)',
   announceRowMoved: 'Ligne déplacée en position {position}',
+  moveColumnEarlier: 'Déplacer « {column} » vers le début',
+  moveColumnLater: 'Déplacer « {column} » vers la fin',
+  autoFitColumn: 'Ajuster la largeur de « {column} » à son contenu',
+  announceColumnMoved: 'Colonne « {column} » en position {position}',
+  livePause: 'Suspendre les mises à jour',
+  liveResume: 'Reprendre les mises à jour',
+  announceLivePaused: 'Mises à jour suspendues',
+  announceLiveResumed: 'Mises à jour reprises',
+  addSortLevel: 'Ajouter {column} au tri',
+  changeSortLevel: 'Tri multiple : changer le sens de {column}',
+  selectionBarHint: 'F6 : barre d’actions',
+  announceViewSaved: 'Vue « {name} » enregistrée',
+  announceViewDeleted: 'Vue « {name} » supprimée',
+  announceAllCollapsed: 'Tout est replié',
+  announceAllExpanded: 'Tout est déplié',
+  pivotFields: 'Champs',
+  pivotRows: 'Lignes',
+  pivotColumns: 'Colonnes',
+  pivotValues: 'Valeurs',
+  pivotDropHere: 'Glissez un champ ici',
+  pivotRemove: 'Retirer {field}',
+  pivotAdd: 'Ajouter à {zone}',
+  pivotAggregate: 'Agrégat de {field}',
+  pivotLoading: 'Calcul du pivot…',
+  pivotError: 'Le pivot n’a pas pu être calculé.',
+  pivotRetry: 'Réessayer',
+  pivotSum: 'Somme',
+  pivotAvg: 'Moyenne',
+  pivotMin: 'Minimum',
+  pivotMax: 'Maximum',
+  pivotCount: 'Nombre',
+  chartZoomToolbar: 'Zoom du graphique',
+  chartZoomIn: 'Zoomer',
+  chartZoomOut: 'Dézoomer',
+  chartPanLeft: 'Vers la gauche',
+  chartPanRight: 'Vers la droite',
+  chartZoomReset: 'Tout',
+  chartDecimated: 'Points écartés pour rester lisible : zoomez pour tout voir',
+  announceRowPicked: 'Ligne saisie. Cliquez la poignée de la ligne de destination, ou de nouveau celle-ci pour annuler.',
+  announceFillArmed: 'Recopie prête. Cliquez la dernière cellule à remplir, ou Échap pour annuler.',
+  announceMoveCancelled: 'Annulé',
 };
 
 /**
@@ -364,6 +478,10 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   clearFilter: 'Clear filter',
   activeFilters: 'Active filters',
   filterBy: 'Filter by {field}',
+  filterActiveOn: 'Filter active on {field}: edit',
+  clearFilterOf: 'Clear filter: {field}',
+  selectRowNamed: 'Select row {name}',
+  linkOpensNewTab: 'new tab',
   refOptionsLoading: 'Loading options...',
   refOptionsEmpty: 'No options loaded.',
   refOptionsLoadError: 'Failed to load options.',
@@ -455,6 +573,14 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   editInvalidNumber: 'Invalid number',
   editInvalidDate: 'Invalid date (YYYY-MM-DD)',
   announceCellEdited: 'Cell "{column}" edited',
+  announceCopied: 'Copied',
+  announceCellsCopied: '{count} cell(s) copied',
+  announceCellsEdited: '{count} cell(s) edited',
+  announceValuesRejected: '{count} value(s) rejected',
+  announceRowsSelected: '{count} row(s) selected',
+  announceViewApplied: 'View "{name}" applied',
+  announceRemoteQuery: 'Filters applied, loading results',
+  announceExportStarted: 'Export started',
   announceEditUndone: 'Edit undone',
   announceEditRedone: 'Edit redone',
   statusBarLabel: 'Status bar',
@@ -494,6 +620,47 @@ export const NG_TABLE_LABELS_EN: NgTableLabels = {
   paginatorRangeEmpty: '0 of {total}',
   rowDragHandle: 'Move row (Alt + up / down arrows)',
   announceRowMoved: 'Row moved to position {position}',
+  moveColumnEarlier: 'Move "{column}" towards the start',
+  moveColumnLater: 'Move "{column}" towards the end',
+  autoFitColumn: 'Fit the width of "{column}" to its content',
+  announceColumnMoved: 'Column "{column}" at position {position}',
+  livePause: 'Pause updates',
+  liveResume: 'Resume updates',
+  announceLivePaused: 'Updates paused',
+  announceLiveResumed: 'Updates resumed',
+  addSortLevel: 'Add {column} to the sort',
+  changeSortLevel: 'Multi-sort: change the direction of {column}',
+  selectionBarHint: 'F6: action bar',
+  announceViewSaved: 'View "{name}" saved',
+  announceViewDeleted: 'View "{name}" deleted',
+  announceAllCollapsed: 'All collapsed',
+  announceAllExpanded: 'All expanded',
+  pivotFields: 'Fields',
+  pivotRows: 'Rows',
+  pivotColumns: 'Columns',
+  pivotValues: 'Values',
+  pivotDropHere: 'Drop a field here',
+  pivotRemove: 'Remove {field}',
+  pivotAdd: 'Add to {zone}',
+  pivotAggregate: 'Aggregate of {field}',
+  pivotLoading: 'Computing pivot…',
+  pivotError: 'The pivot could not be computed.',
+  pivotRetry: 'Retry',
+  pivotSum: 'Sum',
+  pivotAvg: 'Average',
+  pivotMin: 'Minimum',
+  pivotMax: 'Maximum',
+  pivotCount: 'Count',
+  chartZoomToolbar: 'Chart zoom',
+  chartZoomIn: 'Zoom in',
+  chartZoomOut: 'Zoom out',
+  chartPanLeft: 'Pan left',
+  chartPanRight: 'Pan right',
+  chartZoomReset: 'All',
+  chartDecimated: 'Points dropped to stay readable: zoom in to see them all',
+  announceRowPicked: 'Row picked. Click the handle of the destination row, or this one again to cancel.',
+  announceFillArmed: 'Fill ready. Click the last cell to fill, or Escape to cancel.',
+  announceMoveCancelled: 'Cancelled',
 };
 
 /**
@@ -536,6 +703,15 @@ export const NG_TABLE_LABELS = new InjectionToken<NgTableLabelsSource>('NG_TABLE
  */
 export function provideNgTableLabels(factory: () => NgTableLabelsSource): Provider {
   return {provide: NG_TABLE_LABELS, useFactory: factory};
+}
+
+/**
+ * Labels de l'application pour les composants qui vivent à côté de la table (pivot, graphique, liste déroulante) :
+ * les défauts, recouverts par `provideNgTableLabels`. À appeler dans un contexte d'injection.
+ */
+export function injectNgTableLabels(): Signal<NgTableLabels> {
+  const source = inject(NG_TABLE_LABELS, {optional: true});
+  return computed(() => ({...NG_TABLE_DEFAULT_LABELS, ...resolveNgTableLabelsSource(source)}), {equal: ngTableLabelsEqual});
 }
 
 /** Lit une source de labels, qu'elle soit un objet figé ou un `Signal`. */

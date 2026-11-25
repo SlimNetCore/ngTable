@@ -1,7 +1,8 @@
 import {provideZonelessChangeDetection} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {describe, expect, it} from 'vitest';
-import {buildPivotModel, NgTablePivotComponent} from './ng-table-pivot.component';
+import {buildPivotModel, NG_TABLE_PIVOT_LABELS_EN, NG_TABLE_PIVOT_LABELS_FR, NgTablePivotComponent, pivotLabelsFrom} from './ng-table-pivot.component';
+import {NG_TABLE_DEFAULT_LABELS, NG_TABLE_LABELS_EN, provideNgTableLabels} from './ng-table-labels';
 import {PivotConfig} from './pivot';
 import {ComputeWorkerLike} from './compute-worker-client';
 import {FromWorker, ToWorker, WorkerComputeCore} from './worker-compute';
@@ -154,5 +155,22 @@ describe('NgTablePivotComponent — calcul en worker', () => {
     } finally {
       console.warn = warn;
     }
+  });
+});
+
+describe('textes du pivot rattachés aux labels de l’application', () => {
+  it('pivotLabelsFrom redonne les textes historiques, en français et en anglais', () => {
+    expect(pivotLabelsFrom(NG_TABLE_DEFAULT_LABELS)).toEqual(NG_TABLE_PIVOT_LABELS_FR);
+    expect(pivotLabelsFrom(NG_TABLE_LABELS_EN)).toEqual(NG_TABLE_PIVOT_LABELS_EN);
+  });
+
+  it('le pivot suit provideNgTableLabels ; son entrée [labels] reste prioritaire', () => {
+    TestBed.configureTestingModule({providers: [provideZonelessChangeDetection(), provideNgTableLabels(() => NG_TABLE_LABELS_EN)]});
+    const fixture = TestBed.createComponent(NgTablePivotComponent);
+    expect(fixture.componentInstance['texts']().fields).toBe('Fields');
+    expect(fixture.componentInstance['texts']().aggregates.avg).toBe('Average');
+    fixture.componentRef.setInput('labels', {fields: 'Dimensions'});
+    expect(fixture.componentInstance['texts']().fields).toBe('Dimensions');
+    expect(fixture.componentInstance['texts']().rows).toBe('Rows');
   });
 });

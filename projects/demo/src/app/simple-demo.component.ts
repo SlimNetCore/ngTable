@@ -49,8 +49,8 @@ export class SimpleDemoComponent {
       sortable: true,
       filter: {type: 'enum', options: STATUTS},
     },
-    {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, filter: {type: 'number'}},
-    {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, filter: {type: 'range'}},
+    {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, numberFormat: true, filter: {type: 'number'}},
+    {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, dateFormat: true, filter: {type: 'range'}},
   ];
 
   protected readonly code = `<ng-table
@@ -67,7 +67,7 @@ columns: NgTableColumn<Commande>[] = [
   {id: 'client', header: 'Client', valueAccessor: (c) => c.client, sortable: true, filter: {type: 'set'}},
   {id: 'statut', header: 'Statut', valueAccessor: (c) => STATUT_LABELS[c.statut], sortable: true,
    filter: {type: 'enum', options: STATUTS}},  // [{value: 'Validée', label: 'Validée'}, ...]
-  {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, filter: {type: 'number'}},
-  {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, filter: {type: 'range'}},
+  {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, numberFormat: true, filter: {type: 'number'}},
+  {id: 'dateCommande', header: 'Date', valueAccessor: (c) => c.dateCommande, sortable: true, dateFormat: true, filter: {type: 'range'}},
 ];`;
 }

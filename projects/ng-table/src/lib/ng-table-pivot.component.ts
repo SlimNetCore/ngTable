@@ -1,6 +1,7 @@
 import {ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, model, output, signal, untracked, ViewEncapsulation} from '@angular/core';
 import {ComputeWorkerClient, ComputeWorkerLike, createDefaultComputeWorker} from './compute-worker-client';
 import {NgTableTheme} from './theme';
+import {injectNgTableLabels, NgTableLabels} from './ng-table-labels';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
 import {NgTableColumn, NgTableComponent} from './ng-table.component';
 import {
@@ -126,6 +127,24 @@ export interface NgTablePivotLabels {
   error: string;
   retry: string;
   aggregates: Record<PivotAggregate, string>;
+}
+
+/** Textes du pivot tirés des labels de l'application (`provideNgTableLabels`) : le pivot suit la langue de la table. */
+export function pivotLabelsFrom(labels: NgTableLabels): NgTablePivotLabels {
+  return {
+    fields: labels.pivotFields,
+    rows: labels.pivotRows,
+    columns: labels.pivotColumns,
+    values: labels.pivotValues,
+    dropHere: labels.pivotDropHere,
+    remove: labels.pivotRemove,
+    add: labels.pivotAdd,
+    aggregate: labels.pivotAggregate,
+    loading: labels.pivotLoading,
+    error: labels.pivotError,
+    retry: labels.pivotRetry,
+    aggregates: {sum: labels.pivotSum, avg: labels.pivotAvg, min: labels.pivotMin, max: labels.pivotMax, count: labels.pivotCount},
+  };
 }
 
 export const NG_TABLE_PIVOT_LABELS_FR: NgTablePivotLabels = {
@@ -361,6 +380,7 @@ export class NgTablePivotComponent<T> {
   readonly measures = input<readonly PivotField<T>[]>([]);
   /** Affiche les zones « Lignes », « Colonnes » et « Valeurs » où glisser les champs. */
   readonly configurator = input(false);
+  /** Textes du configurateur. Par défaut : ceux de `provideNgTableLabels` (clés `pivot…`), sinon le français. */
   readonly labels = input<Partial<NgTablePivotLabels>>({});
   readonly ariaLabel = input<string | null>(null);
   readonly density = input<'default' | 'compact'>('default');
@@ -385,7 +405,8 @@ export class NgTablePivotComponent<T> {
 
   protected readonly aggregates = AGGREGATES;
   protected readonly zones: { id: PivotZone }[] = [{id: 'rows'}, {id: 'columns'}, {id: 'values'}];
-  protected readonly texts = computed(() => ({...NG_TABLE_PIVOT_LABELS_FR, ...this.labels()}));
+  private readonly sharedLabels = injectNgTableLabels();
+  protected readonly texts = computed<NgTablePivotLabels>(() => ({...pivotLabelsFrom(this.sharedLabels()), ...this.labels()}));
 
   // ---------------------------------------------------------------- calcul serveur
 

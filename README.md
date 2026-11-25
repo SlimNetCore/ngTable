@@ -22,7 +22,7 @@ npm install @sbourahla/ng-table
 
 - `@angular/core`
 - `@angular/common`
-- `@angular/cdk` (table du CDK, sans Angular Material)
+- `@angular/cdk` (sens de lecture et harnais de test ; la table elle-même est rendue sans `CdkTable` depuis la 6.0)
 - `rxjs`
 
 No additional i18n or business dependency is required.
@@ -437,7 +437,7 @@ filtre = signal<NgTableFilterGroup | null>({
 - **Mode `remote`** : il part dans la requête (`query.advancedFilter`, le même objet) ; c'est le serveur qui l'applique.
 - **Sans le constructeur** : l'objet est simple et sérialisable, vous pouvez le fabriquer vous-même, l'enregistrer ou le mettre dans une URL. `describeAdvancedFilter(filtre, columns, {and: 'ET', or: 'OU', not: 'SAUF'})` en donne la phrase lisible ; `compileAdvancedFilter(filtre, columns)` le prédicat.
 - **Vues, état et URL** : le filtre avancé est enregistré dans les vues, renvoyé par `getQueryState()`, accepté par `applyQueryState({advancedFilter})` (`null` le retire), et écrit dans l'URL par `ngTableUrlState` (paramètre `af`, en JSON). Un filtre relu d'une URL ou d'une vue est validé (`sanitizeFilterGroup`) : mal formé, il est ignoré.
-- **Limite** : avec un filtre avancé actif, le calcul reste sur le fil principal même avec `[workerCompute]`.
+- **Web Worker** : avec `[workerCompute]`, le filtre avancé se calcule dans le worker comme les filtres de colonnes, sauf s'il cite une colonne à `filterPredicate` (une fonction ne se transmet pas à un worker).
 
 ### Étape 6bis — Recherche globale
 
@@ -669,10 +669,11 @@ socket.onmessage = (message) => this.table().applyTransactionAsync({update: JSON
 ```
 
 - **Ce qui est recalculé.** Seules les lignes touchées sont refiltrées. Elles sont replacées dans le résultat déjà trié par recherche dichotomique, au lieu de tout retrier. Changer un filtre, le tri ou les colonnes recalcule tout, comme avant.
+- **Suspendre.** `[livePauseButton]="true"` affiche un bouton « Suspendre les mises à jour » dans la barre d'outils : un contenu qui change tout seul doit pouvoir être mis en pause par l'utilisateur (WCAG 2.2.2). `[(liveUpdatesPaused)]` expose le même état, pour le piloter ou couper aussi votre flux. En pause (mode local), un nouveau `[rows]` n'est pas reporté et les transactions attendent (`applyTransaction()` renvoie alors un résultat vide) ; à la reprise, le dernier `[rows]` et les transactions en attente sont appliqués d'un coup. L'édition de cellule reste immédiate.
 - **`applyTransactionAsync(transaction, callback?)`** regroupe les transactions reçues pendant `[asyncTransactionWaitMillis]` (50 ms par défaut). `flushAsyncTransactions()` les applique tout de suite, et `(asyncTransactionsFlushed)` signale chaque lot appliqué.
 - **Avec `[workerCompute]`.** Sur un grand jeu de données calculé dans le Web Worker, une transaction n'envoie au worker que les lignes modifiées, ajoutées ou retirées : il retouche ses colonnes au lieu de tout recevoir à nouveau. Le tri et le filtre sont ensuite refaits en entier dans le worker, hors du fil principal.
 - **Données immuables.** Le mode live marche aussi sans transactions : à chaque nouveau tableau `[rows]`, la table compare clé par clé avec le précédent. Seules les lignes dont l'objet a changé sont retraitées. Les lignes doivent donc être de **nouveaux objets** quand elles changent (`{...ligne, prix}`). Si l'ordre du tableau change, ou qu'une ligne est insérée ailleurs qu'à la fin, tout est recalculé.
-- **Surbrillance.** `[flashCells]="true"` surligne les cellules modifiées pendant `[flashDurationMs]` (1 000 ms) : vert si un nombre monte, rouge s'il baisse, bleu sinon. Colonne par colonne : `flashOnChange: true | false`. Les couleurs se règlent avec `--ngt-flash-up-bg`, `--ngt-flash-down-bg` et `--ngt-flash-change-bg`. La cellule porte l'attribut `data-ngt-flash` (`up-0`, `down-1`...) pour un style personnalisé. L'animation est quasi instantanée si l'utilisateur a demandé moins d'animations (`prefers-reduced-motion`).
+- **Surbrillance.** `[flashCells]="true"` surligne les cellules modifiées pendant `[flashDurationMs]` (1 000 ms) : vert si un nombre monte, rouge s'il baisse, bleu sinon. Colonne par colonne : `flashOnChange: true | false`. Les couleurs se règlent avec `--ngt-flash-up-bg`, `--ngt-flash-down-bg` et `--ngt-flash-change-bg`. La cellule porte l'attribut `data-ngt-flash` (`up-0`, `down-1`...) pour un style personnalisé. Si l'utilisateur a demandé moins d'animations (`prefers-reduced-motion`), il n'y a plus de fondu : la teinte et le repère s'affichent d'un coup, tiennent la durée prévue, puis disparaissent.
 - **Avec `[rows]`.** Un nouveau tableau `[rows]` redevient la référence : ce qui n'y figure pas est retiré, y compris les lignes ajoutées par transaction.
 - **Mode `remote`.** Le serveur est la source : les transactions y sont ignorées.
 
@@ -776,7 +777,7 @@ Les composants de la table lisent directement les jetons `--ngt-*`. `NG_TABLE_MA
 
 Les règles du thème sombre sont dans `projects/ng-table/src/lib/theme.css`, **généré** depuis la table de jetons (`npm run theme:css`) ; `npm run theme:check` échoue si le fichier n'est pas à jour.
 
-**Dépendances.** `ng-table` n'a plus besoin d'Angular Material : ni paquet, ni thème, ni police d'icônes. Il utilise le CDK Angular (`@angular/cdk/table`) pour le moteur de tableau.
+**Dépendances.** `ng-table` n'a plus besoin d'Angular Material : ni paquet, ni thème, ni police d'icônes. Jusqu'à la 5.x il utilisait le `CdkTable` du CDK Angular comme moteur ; depuis la 6.0 la table est rendue directement, et le CDK ne sert plus qu'au sens de lecture et au harnais de test.
 
 ### Étape 10octodecies — Benchmark face à AG Grid Community
 
@@ -2842,6 +2843,9 @@ Chaque option activée ici a été introduite isolément dans les étapes préc�
 | `resizable?`                               | `boolean`                                                              | Active le redimensionnement (drag sur la bordure du `<th>`, double-clic = auto-fit).                                                           |
 | `widthPx?` / `minWidthPx?` / `maxWidthPx?` | `number`                                                               | Contraintes de largeur.                                                                                                                        |
 | `cellTemplate?`                            | `TemplateRef<{$implicit: T; row: T; value: unknown; column}>`          | Template custom de cellule.                                                                                                                    |
+| `align?`                                   | `'start' \| 'center' \| 'end'`                                        | Alignement de l'en-tête, des cellules et du total. Par défaut : `'end'` pour une colonne de nombres (filtre numérique, ou valeurs de type `number` sans gabarit ni mise en forme), `'start'` sinon. |
+| `numberFormat?`                            | `boolean \| Intl.NumberFormatOptions`                                  | Affiche les nombres au format de la langue du navigateur (« 989 810,5 »). `true` : deux décimales au plus. L'affichage seul change : tri, filtres, export et copie lisent la valeur. À éviter sur un identifiant numérique (année, code postal). |
+| `dateFormat?`                              | `boolean \| Intl.DateTimeFormatOptions`                                | Affiche les dates (`Date`, texte ISO, millisecondes) au format de la langue. `true` : date courte. |
 | `textOverflow?`                            | `'truncate' \| 'wrap'`                                                 | Comportement du texte quand il dépasse la colonne, `valueAccessor` ou `cellTemplate` (`'truncate'` par défaut dans les deux cas ; tooltip au survol si réellement tronqué, sauf pour `cellTemplate`). |
 | `sortValueAccessor?`                       | `(row: T) => string \| number \| boolean \| Date \| null \| undefined` | Valeur utilisée pour le tri si différente de `valueAccessor`.                                                                                  |
 | `filter?`                                  | `NgTableFilterConfig`                                                  | Configuration du filtre (voir plus bas).                                                                                                       |
@@ -2925,6 +2929,8 @@ interface NgTableFilterConfig {
 | `flashCells`                | `boolean`                                                        | `false`   | Mode live : surligne les cellules dont la valeur change (voir Étape 10quinquies).                                   |
 | `flashDurationMs`           | `number`                                                         | `1000`    | Durée de la surbrillance (ms).                                                                                       |
 | `asyncTransactionWaitMillis`| `number`                                                         | `50`      | Délai de regroupement de `applyTransactionAsync()` (ms).                                                             |
+| `livePauseButton`           | `boolean`                                                        | `false`   | Mode live : bouton « Suspendre les mises à jour » dans la barre d'outils (WCAG 2.2.2).                               |
+| `liveUpdatesPaused`         | `boolean` (`model`)                                              | `false`   | Mises à jour en direct suspendues ; liable en `[(liveUpdatesPaused)]`. En pause, `[rows]` et les transactions attendent la reprise (mode local). |
 | `virtualScroll`             | `boolean`                                                        | `false`   | Défilement virtuel : seules les lignes visibles sont rendues (voir Étape 10quater).                                   |
 | `groupingEnabled`           | `boolean`                                                        | `false`   | Bouton « Grouper » (local et remote), voir Étape 10ter.                                                              |
 | `groupBy`                   | `string \| null` (`model`)                                       | `null`    | Colonne de regroupement ; liable en `[(groupBy)]`, émet `(groupByChange)`.                                          |
@@ -2935,6 +2941,8 @@ interface NgTableFilterConfig {
 | `multiSort`                 | `boolean`                                                        | `false`   | Maj+clic sur un en-tête ajoute un niveau de tri.                                                                     |
 | `globalSearchEnabled`       | `boolean`                                                        | `false`   | Champ de recherche globale dans la barre d'actions (voir Étape 6bis).                                               |
 | `highlightSearch`           | `boolean`                                                        | `false`   | Surligne dans les cellules le texte trouvé par la recherche globale (cellules en texte, hors `cellTemplate`).        |
+| `rowActivatable`            | `boolean`                                                        | `false`   | Les lignes reçoivent le focus ; Entrée et Espace émettent `(rowClick)`. À activer dès que `(rowClick)` est écouté (équivalent clavier, WCAG 2.1.1). |
+| `rowReuse`                  | `'auto' \| boolean`                                              | `'auto'`  | Défilement virtuel : après un saut, un tri ou un filtre, les lignes déjà créées sont reprises au lieu d'être recréées. `'auto'` : seulement sans `cellTemplate` ni `detailRowTemplate`. |
 | `advancedFilter` (model)    | `NgTableFilterGroup \| null`                                     | `null`    | Conditions combinées par ET / OU (voir Étape 6ter).                                                                  |
 | `animateRows`               | `boolean`                                                        | `false`   | Au changement de tri, les lignes glissent vers leur nouvelle place (respecte `prefers-reduced-motion`).             |
 | `fillHandle`                | `boolean`                                                        | `false`   | Poignée de recopie au coin de la plage sélectionnée ; Ctrl+D / Ctrl+R au clavier (voir Étape 10decies).             |
@@ -2970,6 +2978,9 @@ interface NgTableFilterConfig {
 | `workerThreshold`           | `number`                                                       | `100000`  | Nombre de lignes à partir duquel `workerCompute` s'applique. |
 | `computeWorkerFactory`      | `(() => ComputeWorkerLike) \| null`                            | `null`    | Fabrique d'un worker de calcul, si celui livré (`Blob`) est interdit par la CSP. |
 | `density`                    | `'default' \| 'compact'`                                         | `'default'` | Hauteur des lignes et de l'en-tête.                                                                                 |
+| `striped`                    | `boolean`                                                        | `false`     | Lignes alternées (variable `--ngt-row-alt-bg`), stables au défilement virtuel.                                      |
+| `autoSizeColumns`            | `boolean`                                                        | `false`     | Au premier affichage des lignes, ajuste la largeur de chaque colonne à son contenu. Méthode : `autoSizeAllColumns()`. Coûte une mesure de toutes les cellules rendues au premier affichage. |
+| `pinColumnsOnMobile`         | `boolean`                                                        | `false`     | Garde les colonnes épinglées quand la table est à l'étroit (600 px ou moins, ou fenêtre de 760 px ou moins). Par défaut elles sont libérées. |
 | `maxHeight`                  | `string \| null`                                                 | `null`    | Hauteur maximale de la zone de la table (ex. `'480px'`, `'60vh'`) ; au-delà, défilement vertical.                    |
 | `stickyHeader`               | `boolean`                                                        | `false`   | Garde l'en-tête visible pendant le défilement (à combiner avec `maxHeight`).                                         |
 
@@ -3037,7 +3048,8 @@ ngTableIsRtl('ar'); // true
 
 - Le sens de lecture suit la direction de la page (`<html dir="rtl">`, via le `Directionality` du CDK) ou l'entrée `[dir]` du tableau. Toute la mise en page utilise des propriétés logiques : colonnes figées, ombres, menus, listes déroulantes, paginateur et barre d'actions se retournent ; les icônes directionnelles (flèches, chevrons) sont inversées.
 - La démo a un sélecteur de langue dans l'en-tête (mémorisé) qui applique aussi `lang` et `dir`.
-- **Limites** : les textes du pivot et des graphiques ne sont pas traduits ; les traductions es / de / ar sont des premières versions à faire relire par des locuteurs natifs. Une autre langue s'ajoute avec `provideNgTableLabels` (voir ci-dessous).
+- Le pivot (`<ng-table-pivot>`), la barre de zoom des graphiques et la liste déroulante suivent les mêmes libellés (clés `pivot…`, `chart…`) ; leurs entrées `[labels]` et `[zoomTexts]` restent prioritaires.
+- **Limites** : les traductions es / de / ar sont des premières versions à faire relire par des locuteurs natifs. Une autre langue s'ajoute avec `provideNgTableLabels` (voir ci-dessous).
 
 ## Personnaliser les textes (`NgTableLabels`)
 
@@ -3504,7 +3516,7 @@ Les cases à cocher (`rowSelectionEnabled`) ont un `aria-label` explicite — `l
 Les deux étaient **uniquement à la souris** avant cette passe (drag-and-drop HTML5 natif et `mousedown`/`mousemove`, sans équivalent clavier — une violation WCAG 2.1.1). Les deux poignées sont maintenant des contrôles focusables (`tabindex="0"`) :
 
 - **Poignée de réorganisation** (`role="button"`, `labels.dragHandleLabel`) : flèches gauche/droite au clavier, glisser-déposer à la souris — les deux appellent le même code de réordonnancement, donc un résultat identique quel que soit le mode.
-- **Poignée de redimensionnement** (`role="separator"` + `aria-orientation="vertical"` + `aria-valuenow`/`aria-valuemin`/`aria-valuemax`, `labels.resizeHandleLabel` — le pattern APG "Window Splitter") : flèches gauche/droite pour ±16px, glisser à la souris, double-clic pour l'auto-fit (souris uniquement, l'auto-fit clavier n'a pas d'équivalent direct).
+- **Poignée de redimensionnement** (`role="separator"` + `aria-orientation="vertical"` + `aria-valuenow`/`aria-valuemin`/`aria-valuemax`, `labels.resizeHandleLabel` — le pattern APG "Window Splitter") : flèches gauche/droite pour ±16px, glisser à la souris, double-clic ou Entrée pour ajuster la largeur au contenu, Début et Fin pour les largeurs minimale et maximale. Après un déplacement au clavier, le focus reste sur la poignée de la colonne déplacée.
 
 ### Lignes interactives
 
@@ -3521,8 +3533,10 @@ Par défaut, chaque bouton des cellules (copier, actions...) est un arrêt de ta
 |--------|-------|
 | Tab | Entre dans la table sur la dernière cellule active (un seul arrêt de tabulation pour tout le corps de la table), puis en ressort. |
 | Flèches | Cellule voisine. |
-| Début / Fin | Première / dernière cellule de la ligne ; avec Ctrl : première cellule de la table / dernière cellule. |
-| Page préc. / Page suiv. | 10 lignes plus haut / plus bas. |
+| Début / Fin | Première / dernière cellule de la ligne ; avec Ctrl : première cellule de la table / dernière cellule. En défilement virtuel, Ctrl+Début et Ctrl+Fin visent la liste entière : la table défile, puis le focus s'y pose. |
+| Page préc. / Page suiv. | 10 lignes plus haut / plus bas, y compris au-delà des lignes rendues en défilement virtuel. |
+| F6 | Va à la barre d'actions de sélection quand elle est affichée ; F6 dans la barre revient à la table. Dans la barre : flèches, Début, Fin. |
+| F8 / Maj+F8 | Ligne repérée suivante / précédente (`[scrollMarkers]`). |
 | Entrée ou F2 | Donne le focus au premier bouton ou champ de la cellule ; Échap revient à la cellule. |
 | Entrée (cellule sans bouton) | Active la ligne : `(rowClick)`, ouverture de la ligne détail. |
 | Espace | Sélectionne / désélectionne la ligne (`[rowSelectionEnabled]`). |
@@ -3610,6 +3624,33 @@ await (await table.getPaginator())?.goToNextPage();  // NgTablePaginatorHarness 
 | `search(text)`, `getSearchValue()` | Recherche globale. |
 | `getPaginator()` | `NgTablePaginatorHarness` du paginateur intégré (`goToNextPage()`, `goToPreviousPage()`, `goToFirstPage()`, `goToLastPage()`, `getRangeLabel()`, `getPageSize()`, `setPageSize()`), ou `null`. |
 | `getEmptyText()`, `isLoading()`, `getLiveAnnouncement()`, `getAriaLabel()` | États affichés et accessibilité. |
+
+## Migrer de 5 vers 6
+
+Rien à modifier dans le code : aucune entrée, sortie, méthode ni type n'est retiré ou renommé. La version est majeure pour trois raisons : le comportement au clavier change par défaut, pour l'accessibilité (rapport dans `AUDIT-ACCESSIBILITE.md`) ; l'aspect par défaut change sur quelques points ; et la table n'est plus rendue par le `CdkTable`.
+
+| Ce qui change | Avant (5.x) | Maintenant (6.0) | Que faire |
+|---|---|---|---|
+| Navigation au clavier d'une table éditable, à sélection de plage, ou dont les lignes se déplient (détail, arbre, groupes) | Chaque ligne et chaque en-tête de groupe était un arrêt de tabulation ; l'édition et la plage n'existaient qu'à la souris sans `[cellNavigation]` | Navigation cellule par cellule d'office : Tab entre sur une cellule, flèches pour se déplacer, Entrée ou F2 pour agir, Flèche droite / gauche sur un en-tête de groupe pour le déplier / replier | Rien. Si vos tests cherchaient `tabindex="0"` sur une ligne, ciblez la cellule active |
+| Rôle de la table | `treegrid` dès qu'une ligne pouvait se déplier | `grid` ou `treegrid` seulement quand la navigation par cellule est active, sinon tableau simple | Rien |
+| Nom de la case de sélection | « Sélectionner la ligne 3 » (rang de rendu) | « Sélectionner la ligne CMD-000042 » (valeur de la première colonne) | Tests ou sélecteurs fondés sur ce nom : à adapter. Libellé : `selectRowNamed` |
+| Nom d'un en-tête de colonne, du bouton de filtre, des croix de puces | Titre suivi des libellés des boutons ; « Filtrer par X » ; « Effacer le filtre » | Titre seul ; « Filtre actif sur X » quand il l'est ; « Effacer le filtre : X » | Tests fondés sur ces noms : à adapter |
+| Éditeur à liste (`editor: 'select'`) | Validait à chaque changement | Valide à Entrée, Tab ou à la sortie du champ | Rien |
+| Contour des champs, listes et boutons à contour | 1,44 pour 1 | 3,3 pour 1, jeton `--ngt-control-border` | Pour l'ancien aspect : `--ngt-control-border: rgba(20, 33, 43, 0.18)` |
+| Textes du pivot et de la barre de zoom du graphique | Toujours en français sans `[labels]` / `[zoomTexts]` | Ceux de `provideNgTableLabels` (clés `pivot…`, `chart…`) | Rien si l'application est en français. Sinon, vérifier que le pivot s'affiche bien dans la langue voulue |
+| Défilement virtuel, Ctrl+Fin, Ctrl+Début, Page suivante / précédente | Bornés aux lignes rendues | Visent la liste entière | Rien |
+| Surbrillance du mode live avec « moins d'animations » | Disparaissait aussitôt | Reste affichée sans fondu pendant `[flashDurationMs]` | Rien |
+| Moteur de rendu | `CdkTable` du CDK | Rendu direct ; classes, attributs `cdk-*` et rôles gardés | Rien, sauf si vos styles ou tests lisaient les styles en ligne `left` / `right` / `z-index` des colonnes figées (maintenant `inset-inline-start` / `-end`) ou les classes `cdk-table-sticky-border-elem-left` / `-right` (maintenant `ngt-sticky-edge-start` / `-end`) |
+| Colonne de nombres | Alignée à gauche | Alignée à droite, chiffres à chasse fixe | Pour l'ancien alignement : `align: 'start'` sur la colonne |
+| Ligne sélectionnée | Seule la case cochée la distinguait | Fond teinté et liseré | Pour retirer le fond : `--ngt-row-selected-bg: transparent` (à éviter avec des colonnes figées) |
+| Bouton de filtre au repos | Entonnoir barré | Entonnoir simple, atténué ; plein avec un point quand le filtre est actif | Rien |
+| Colonne de moins de 120 px | Icônes de tri et de filtre toujours visibles | Repliées jusqu'au survol ou au focus de l'en-tête (pas sur écran tactile) | Rien |
+| Colonnes épinglées sur un écran étroit | Toujours épinglées | Libérées sous 600 px de table ou 760 px de fenêtre | `[pinColumnsOnMobile]="true"` pour l'ancien comportement |
+| État vide après filtre, barre des filtres actifs affichée | Deux boutons « Réinitialiser les filtres » | Un seul, celui de la barre | Tests qui cliquaient `.no-data-cell__action` : cibler `.active-filters-bar__reset` |
+| Export `.xlsx` local | `(localExportCompleted)` émis tout de suite | Émis une fois le module Excel chargé (au premier export) | Rien si vous n'attendiez pas l'événement dans le même tour |
+| Défilement virtuel sans `cellTemplate` ni détail | Lignes recréées à chaque saut | Lignes reprises (`[rowReuse]="'auto'"`) ; `[animateRows]` n'anime plus un tri dans ce cas | `[rowReuse]="false"` pour l'ancien comportement |
+
+À activer si vous écoutez `(rowClick)` : `[rowActivatable]="true"`, pour que la ligne soit atteignable et activable au clavier.
 
 ## Migrer de 4 vers 5
 

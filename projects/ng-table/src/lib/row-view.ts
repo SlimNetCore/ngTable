@@ -4,8 +4,10 @@ import type {NgTableColumn} from './ng-table.component';
 export interface NgTableCellView<T> {
   /** `column.valueAccessor(row)`. */
   value: unknown;
-  /** La valeur en texte (tooltip de troncature) : `''` si nulle. */
+  /** Le texte affiché (et celui de la bulle de troncature) : la valeur, mise en forme si la colonne le demande ; `''` si nulle. */
   text: string;
+  /** Ce que la cellule affiche : la valeur brute, ou son texte mis en forme (`numberFormat`, `dateFormat`). */
+  display: unknown;
   /** Texte copié par le bouton de copie ; `''` = pas de bouton. */
   copyText: string;
   /** Contexte de `column.cellTemplate`, avec une référence stable d'un rendu à l'autre. */
@@ -16,6 +18,16 @@ export interface NgTableCellView<T> {
 
 export type NgTableRowClasses = string | string[] | Record<string, boolean>;
 
+/** Vue d'une cellule sans contenu (colonne d'espacement de la virtualisation horizontale). */
+export const EMPTY_CELL_VIEW: NgTableCellView<unknown> = {
+  value: null,
+  display: null,
+  text: '',
+  copyText: '',
+  context: {$implicit: null, row: null, value: null, column: {id: '', header: '', valueAccessor: () => null}},
+  flash: '',
+};
+
 /** Valeur copiée par le bouton de copie d'une cellule (`''` si la colonne n'en a pas). */
 export function copyText<T>(column: NgTableColumn<T>, row: T): string {
   if (!column.copy) {
@@ -25,11 +37,43 @@ export function copyText<T>(column: NgTableColumn<T>, row: T): string {
   return `${accessor(row) ?? ''}`.trim();
 }
 
+const numberFormats = new WeakMap<object, Intl.NumberFormat>();
+const dateFormats = new WeakMap<object, Intl.DateTimeFormat>();
+
+/**
+ * Texte affiché d'une valeur selon `column.numberFormat` / `column.dateFormat` (langue du navigateur). La valeur
+ * elle-même n'est pas touchée : tri, filtres, export et copie continuent de la lire telle quelle.
+ */
+export function formatCellValue<T>(column: NgTableColumn<T>, value: unknown): unknown {
+  if (column.numberFormat && typeof value === 'number' && Number.isFinite(value)) {
+    let format = numberFormats.get(column);
+    if (!format) {
+      format = new Intl.NumberFormat(undefined, column.numberFormat === true ? {maximumFractionDigits: 2} : column.numberFormat);
+      numberFormats.set(column, format);
+    }
+    return format.format(value);
+  }
+  if (column.dateFormat && value !== null && value !== undefined && value !== '') {
+    const date = value instanceof Date ? value : typeof value === 'string' || typeof value === 'number' ? new Date(value) : null;
+    if (date && !Number.isNaN(date.getTime())) {
+      let format = dateFormats.get(column);
+      if (!format) {
+        format = new Intl.DateTimeFormat(undefined, column.dateFormat === true ? {dateStyle: 'medium'} : column.dateFormat);
+        dateFormats.set(column, format);
+      }
+      return format.format(date);
+    }
+  }
+  return value;
+}
+
 export function buildCellView<T>(row: T, column: NgTableColumn<T>, flash = ''): NgTableCellView<T> {
   const value = column.valueAccessor(row);
+  const display = column.numberFormat || column.dateFormat ? formatCellValue(column, value) : value;
   return {
     value,
-    text: value === null || value === undefined ? '' : String(value),
+    display,
+    text: display === null || display === undefined ? '' : String(display),
     copyText: copyText(column, row),
     context: {$implicit: row, row, value, column},
     flash,

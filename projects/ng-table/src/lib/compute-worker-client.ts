@@ -48,6 +48,8 @@ export interface ComputeInput<T> {
   filterColumns: readonly NgTableColumn<T>[];
   filters: Record<string, string>;
   levels: readonly SortLevel<T>[];
+  /** Filtre avancé et colonnes qu'il cite (aucune avec `filterPredicate`). */
+  advanced?: {filter: WorkerRequest['advanced']; columns: readonly NgTableColumn<T>[]} | null;
   /** Recherche globale : termes et lecture du texte d'une ligne ; source change quand les colonnes cherchées changent (textes à renvoyer). */
   search: {terms: string[]; source: unknown; read: (row: T) => string} | null;
   collator: WorkerRequest['collator'];
@@ -116,7 +118,8 @@ export class ComputeWorkerClient {
         this.stats.columnsSent++;
       }
     };
-    for (const column of input.filterColumns) {
+    const rawColumns = [...input.filterColumns, ...(input.advanced?.columns ?? []).filter((column) => !input.filterColumns.includes(column))];
+    for (const column of rawColumns) {
       add(RAW_PREFIX + column.id, column.valueAccessor, column.valueAccessor as (row: never) => unknown);
     }
     for (const level of input.levels) {
@@ -137,7 +140,8 @@ export class ComputeWorkerClient {
     const job = ++this.job;
     const request: WorkerRequest = {
       filters: input.filters,
-      filterSpecs: Object.fromEntries(input.filterColumns.map((column) => [column.id, {type: column.filter?.type, operator: column.filter?.operator}])),
+      filterSpecs: Object.fromEntries(rawColumns.map((column) => [column.id, {type: column.filter?.type, operator: column.filter?.operator}])),
+      advanced: input.advanced?.filter ?? null,
       levels: input.levels.map((level) => ({columnId: level.column.id, factor: level.factor as 1 | -1})),
       terms: input.search?.terms ?? [],
       collator: input.collator,

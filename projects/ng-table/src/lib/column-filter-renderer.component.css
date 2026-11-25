@@ -7,7 +7,7 @@
   margin: 0;
   text-transform: none;
   --filter-font-family: 'Manrope', 'Segoe UI', Tahoma, sans-serif;
-  --filter-font-size: 13px;
+  --filter-font-size: 0.8125rem;
   --filter-font-weight: 600;
 }
 
@@ -38,7 +38,7 @@
   min-height: 40px;
   padding-inline: 12px;
   background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
-  border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+  border: 1px solid var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
   border-radius: 12px;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: border-color 0.18s ease,
@@ -76,10 +76,11 @@
 
 .col-filter {
   flex: 1 1 auto;
-  height: 38px;
+  /* En rem : le champ grandit avec la taille du texte (WCAG 1.4.4). */
+  height: 2.375rem;
   width: 100%;
   min-width: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 38px;
   text-align: center;
   border: 0;

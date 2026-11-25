@@ -25,7 +25,8 @@
     "docs:demo": "node scripts/build-demo-docs.mjs",
     "docs:serve": "npm run docs:build && npm run docs:demo && node scripts/serve-docs.mjs 4400",
     "e2e": "npm run build:demo && playwright test",
-    "e2e:run": "playwright test"
+    "e2e:run": "playwright test",
+    "e2e:nvda": "playwright test --config playwright.nvda.config.ts"
   },
   "dependencies": {
     "@angular/cdk": "^22.1.6",
@@ -46,6 +47,9 @@
     "@angular/platform-server": "22.2.0",
     "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.0.0",
+    "@guidepup/guidepup": "0.40.0",
+    "@guidepup/playwright": "0.21.0",
+    "@guidepup/setup": "0.29.3",
     "@playwright/test": "^1.64.1",
     "ag-grid-community": "^36.2.0",
     "angular-eslint": "^22.0.0",

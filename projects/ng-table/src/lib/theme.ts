@@ -30,6 +30,7 @@ export const NG_TABLE_TOKENS: readonly NgTableToken[] = [
   {name: 'text-muted', light: '#5f7080', dark: '#93a4b4', legacy: ['app-muted', 'app-text-muted'], description: 'Texte secondaire, icônes, en-têtes.'},
   {name: 'border', light: 'rgba(20, 33, 43, 0.09)', dark: 'rgba(255, 255, 255, 0.1)', legacy: ['app-border'], description: 'Séparateurs et contours.'},
   {name: 'border-strong', light: 'rgba(20, 33, 43, 0.18)', dark: 'rgba(255, 255, 255, 0.2)', legacy: ['app-border-strong'], description: 'Contours des champs et des cartes.'},
+  {name: 'control-border', light: 'rgba(20, 33, 43, 0.5)', dark: 'rgba(255, 255, 255, 0.45)', description: 'Contour des champs de saisie, des listes et des boutons à contour : au moins 3:1 avec le fond (WCAG 1.4.11).'},
   {name: 'surface', light: '#ffffff', dark: '#11171d', legacy: ['app-surface', 'app-surface-solid', 'app-frost'], description: 'Fond du tableau et des panneaux.'},
   {name: 'surface-alt', light: '#f4f6f9', dark: '#19212a', legacy: ['app-surface-alt'], description: 'Fond des lignes épinglées, des totaux et des puces.'},
   {name: 'surface-soft', light: '#f8fafc', dark: '#151c24', legacy: ['app-surface-soft'], description: 'Fond très léger (en-têtes, zones de dépôt).'},

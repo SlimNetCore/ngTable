@@ -1,5 +1,6 @@
 import {ChangeDetectionStrategy, Component, computed, effect, input, output, signal, ViewEncapsulation} from '@angular/core';
 import {NG_TABLE_TOKENS, NgTableTheme} from './theme';
+import {injectNgTableLabels} from './ng-table-labels';
 import {HATCHES, LINE_DASHES, MARK_COUNT, MARKER_PATHS} from './chart-marks';
 import {isFullRange, panRange, rangeFromBrush, ViewRange, zoomRange} from './chart-zoom';
 import {buildChartLayout, formatAxisNumber, NgTableChartData, NgTableChartType} from './chart';
@@ -14,15 +15,6 @@ export interface ZoomLabels {
   decimated: string;
 }
 
-const ZOOM_LABELS_FR: ZoomLabels = {
-  toolbar: 'Zoom du graphique',
-  zoomIn: 'Zoomer',
-  zoomOut: 'Dézoomer',
-  left: 'Vers la gauche',
-  right: 'Vers la droite',
-  reset: 'Tout',
-  decimated: 'Points écartés pour rester lisible : zoomez pour tout voir',
-};
 
 /**
  * Graphique en SVG, sans dépendance : barres, courbes, zones, secteurs ou anneau. S'alimente
@@ -66,7 +58,7 @@ const CHART_DEFAULTS = NG_TABLE_TOKENS.filter((token) => /^chart-\d$/.test(token
         <svg (dblclick)="resetZoom()" (keydown)="onKeydown($event)" (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)"
              (pointerup)="onPointerUp($event)" (wheel)="onWheel($event)" [attr.aria-label]="summary()"
              [attr.tabindex]="canZoom() ? 0 : null" [attr.viewBox]="'0 0 ' + layout().width + ' ' + layout().height"
-             [class.ngt-chart__svg--zoomable]="canZoom()" class="ngt-chart__svg" role="img">
+             [class.ngt-chart__svg--zoomable]="canZoom()" [attr.aria-keyshortcuts]="canZoom() ? '+ - 0 ArrowLeft ArrowRight' : null" class="ngt-chart__svg" role="img">
           @for (tick of layout().yTicks; track tick.value) {
             <line [attr.x1]="layout().plot.left" [attr.x2]="layout().plot.right" [attr.y1]="tick.y" [attr.y2]="tick.y"
                   class="ngt-chart__grid"/>
@@ -350,7 +342,7 @@ export class NgTableChartComponent {
   readonly zoomable = input(true);
   /** Points ou barres dessinés au plus par série ; au-delà, les pics et creux sont gardés et le reste écarté. */
   readonly maxPoints = input(600);
-  /** Textes de la barre de zoom. */
+  /** Textes de la barre de zoom. Par défaut : ceux de `provideNgTableLabels` (clés `chart…`), sinon le français. */
   readonly zoomTexts = input<Partial<ZoomLabels>>({});
   /** La fenêtre visible a changé (`null` : tout le graphique). */
   readonly zoomChange = output<ViewRange | null>();
@@ -359,7 +351,20 @@ export class NgTableChartComponent {
   protected readonly brush = signal<{ x: number; width: number } | null>(null);
   private brushStart: number | null = null;
 
-  protected readonly zoomLabels = computed(() => ({...ZOOM_LABELS_FR, ...this.zoomTexts()}));
+  private readonly sharedLabels = injectNgTableLabels();
+  protected readonly zoomLabels = computed<ZoomLabels>(() => {
+    const labels = this.sharedLabels();
+    return {
+      toolbar: labels.chartZoomToolbar,
+      zoomIn: labels.chartZoomIn,
+      zoomOut: labels.chartZoomOut,
+      left: labels.chartPanLeft,
+      right: labels.chartPanRight,
+      reset: labels.chartZoomReset,
+      decimated: labels.chartDecimated,
+      ...this.zoomTexts(),
+    };
+  });
   protected readonly canZoom = computed(() => this.zoomable() && !this.isPie() && (this.data()?.categories.length ?? 0) > 2);
   protected readonly zoomed = computed(() => !isFullRange(this.range(), this.data()?.categories.length ?? 0));
 

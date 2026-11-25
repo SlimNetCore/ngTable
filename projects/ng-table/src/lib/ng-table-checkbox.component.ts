@@ -36,7 +36,14 @@ export interface NgTableCheckboxChange {
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      /* Cible d'au moins 24 × 24 px (WCAG 2.5.8) : l'étiquette entoure la case de 18 px et reçoit le clic. */
+      min-width: 24px;
+      min-height: 24px;
       cursor: pointer;
+    }
+
+    .ngt-checkbox:has(.ngt-checkbox__label:empty) {
+      justify-content: center;
     }
 
     .ngt-checkbox__input {

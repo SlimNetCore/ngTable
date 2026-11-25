@@ -15,6 +15,7 @@ ng-table-sparkline[data-ngt-theme='dark'],
   --ngt-text-muted: #93a4b4;
   --ngt-border: rgba(255, 255, 255, 0.1);
   --ngt-border-strong: rgba(255, 255, 255, 0.2);
+  --ngt-control-border: rgba(255, 255, 255, 0.45);
   --ngt-surface: #11171d;
   --ngt-surface-alt: #19212a;
   --ngt-surface-soft: #151c24;
@@ -70,6 +71,7 @@ ng-table-sparkline[data-ngt-theme='dark'],
     --ngt-text-muted: #93a4b4;
     --ngt-border: rgba(255, 255, 255, 0.1);
     --ngt-border-strong: rgba(255, 255, 255, 0.2);
+    --ngt-control-border: rgba(255, 255, 255, 0.45);
     --ngt-surface: #11171d;
     --ngt-surface-alt: #19212a;
     --ngt-surface-soft: #151c24;

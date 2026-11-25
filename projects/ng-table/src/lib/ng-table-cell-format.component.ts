@@ -56,7 +56,7 @@ import {
       @case ('link') {
         @if (link(); as l) {
           <a (click)="$event.stopPropagation()" [attr.rel]="l.external ? 'noopener noreferrer' : null" [attr.target]="l.external ? '_blank' : null"
-             [href]="l.href" class="ngt-link">{{ shown() }}</a>
+             [href]="l.href" class="ngt-link">{{ shown() }}@if (l.external && externalLabel()) {<span class="ngt-link__hint"> ({{ externalLabel() }})</span>}</a>
         } @else {
           {{ shown() }}
         }
@@ -197,6 +197,16 @@ import {
       white-space: nowrap;
     }
 
+    /* Lue par les lecteurs d'écran, invisible à l'écran : l'ouverture d'un nouvel onglet est annoncée. */
+    .ngt-link__hint {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+
     .ngt-link:focus-visible {
       outline: 2px solid var(--ngt-primary, #2f6fa8);
       outline-offset: 2px;
@@ -320,6 +330,8 @@ export class NgTableCellFormatComponent<T = any> {
   readonly row = input<T | null>(null);
   /** Étendue des valeurs de la colonne, pour les barres de données et les dégradés sans bornes fixes. */
   readonly range = input<NgTableValueRange | null>(null);
+  /** Mention lue après un lien qui ouvre un nouvel onglet (« nouvel onglet ») ; vide : aucune mention. */
+  readonly externalLabel = input('');
   /** Nom accessible de la barre de progression (dans une table : l'en-tête de la colonne). */
   readonly label = input('');
   /** Nom accessible d'une note ; `{value}` et `{max}` sont remplacés. */
