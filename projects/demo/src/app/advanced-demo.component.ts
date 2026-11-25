@@ -32,7 +32,6 @@ function addDays(isoDay: string, days: number): string {
  */
 @Component({
   selector: 'app-advanced-demo',
-  standalone: true,
   imports: [
     NgTableComponent,
     NgTableUrlStateDirective,

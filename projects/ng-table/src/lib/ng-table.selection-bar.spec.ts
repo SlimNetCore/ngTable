@@ -1,7 +1,8 @@
 import {provideZonelessChangeDetection} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {NgTableColumn, NgTableComponent} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import type {NgTableSelectionAction, NgTableSelectionActionEvent} from './selection-actions';
 
 interface Row {
@@ -41,7 +42,7 @@ async function create(inputs: Record<string, unknown> = {}) {
   await fixture.whenStable();
   const root = fixture.nativeElement as HTMLElement;
   const select = async (...ids: string[]) => {
-    fixture.componentInstance['commitSelection'](new Set(ids), null, true);
+    fixture.componentInstance.selection.commitSelection(new Set(ids), null, true);
     await fixture.whenStable();
   };
   const bar = () => root.querySelector('.ngt-action-bar') as HTMLElement | null;

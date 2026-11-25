@@ -16,7 +16,7 @@ import {matchesSearchTerms} from './filter-matching';
 import {buildSortOrder} from './fast-sort';
 import {computePivot, PivotAggregate, PivotResult} from './pivot';
 import {getSortValue, SortLevel, sortRows} from './row-pipeline';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 /**
  * Valeurs d'une colonne, une par ligne : des nombres compacts quand tout est numérique, du texte encodé en un seul tampon quand
@@ -242,8 +242,8 @@ function patchColumn(
 ): Float64Array | unknown[] {
   const {updated, removed} = patch;
   const kept = column.length - removed.length;
-  const numeric = column instanceof Float64Array && entry.updates.every(isFiniteNumber) && entry.appended.every(isFiniteNumber);
-  const source: Float64Array | unknown[] = column instanceof Float64Array && !numeric ? Array.from(column) : column;
+  const numeric = isNumberColumn(column) && entry.updates.every(isFiniteNumber) && entry.appended.every(isFiniteNumber);
+  const source: Float64Array | unknown[] = isNumberColumn(column) && !numeric ? Array.from(column) : column;
   for (let i = 0; i < updated.length; i++) {
     source[updated[i]] = entry.updates[i] as number;
   }
@@ -287,8 +287,13 @@ export function packValues(rows: readonly unknown[], read: (row: never) => unkno
   return values;
 }
 
+/** Colonne de nombres, envoyée telle quelle au worker. */
+export function isNumberColumn(values: unknown): values is Float64Array {
+  return values instanceof Float64Array;
+}
+
 export function isPackedStrings(values: WorkerValues): values is PackedStrings {
-  return !Array.isArray(values) && !(values instanceof Float64Array);
+  return !Array.isArray(values) && !isNumberColumn(values);
 }
 
 /** Valeur de tri d'une ligne pour un niveau : celle que calculerait le fil principal. */

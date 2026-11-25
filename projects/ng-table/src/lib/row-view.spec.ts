@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {buildRowViews, copyText} from './row-view';
 
 interface Row {

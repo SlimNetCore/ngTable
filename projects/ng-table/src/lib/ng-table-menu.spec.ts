@@ -4,7 +4,6 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {NgTableMenuComponent, NgTableMenuTriggerDirective} from './ng-table-menu';
 
 @Component({
-  standalone: true,
   imports: [NgTableMenuComponent, NgTableMenuTriggerDirective],
   template: `
     <button #t="ngTableMenuTrigger" (menuClosed)="events.push('closed')" (menuOpened)="events.push('opened')"

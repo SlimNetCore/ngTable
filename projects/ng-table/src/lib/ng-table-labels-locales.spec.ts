@@ -6,7 +6,7 @@ import {NG_TABLE_DEFAULT_LABELS, NG_TABLE_LABELS_EN, NgTableLabels} from './ng-t
 import {NG_TABLE_LABELS_AR, NG_TABLE_LABELS_DE, NG_TABLE_LABELS_ES, NG_TABLE_LOCALES, ngTableIsRtl, ngTableLabelsFor} from './ng-table-labels-locales';
 import {NgTableComponent} from './ng-table.component';
 
-const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+const placeholders = (text: string) => [...text.matchAll(/\{(\w+)}/g)].map((match) => match[1]).sort();
 
 describe('textes par langue', () => {
   const reference = NG_TABLE_DEFAULT_LABELS as unknown as Record<string, string>;

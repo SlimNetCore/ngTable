@@ -3,7 +3,7 @@ import {ColumnStore} from './column-store';
 import {compileFilters, compileIndexFilters, filtersNarrow} from './filter-compile';
 import {IncrementalPipeline, RowStore} from './live-rows';
 import type {SortLevel} from './row-pipeline';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 /**
  * Ce que rapporte le cache de colonnes : le même enchaînement d'actions (trier, inverser, filtrer en

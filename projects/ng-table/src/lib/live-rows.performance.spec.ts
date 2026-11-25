@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {IncrementalPipeline, PipelineConfig, RowStore} from './live-rows';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 interface Row {
   id: number;

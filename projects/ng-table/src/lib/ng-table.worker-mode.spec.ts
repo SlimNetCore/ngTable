@@ -2,7 +2,8 @@ import {provideZonelessChangeDetection} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {ComputeWorkerLike} from './compute-worker-client';
-import {NgTableColumn, NgTableComponent} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {FromWorker, ToWorker, WorkerComputeCore} from './worker-compute';
 
 interface Row {
@@ -86,7 +87,7 @@ describe('NgTableComponent — calcul en worker', () => {
   it('sous le seuil de lignes, tout reste sur le fil principal : aucun worker n’est créé', async () => {
     const factory = vi.fn(() => fakeWorker());
     const {component, ids, settle} = await create({workerCompute: true, workerThreshold: 1000, computeWorkerFactory: factory});
-    component['onHeaderSort'](component.columns()[1]);
+    component.sorting.onHeaderSort(component.columns()[1]);
     await settle();
     expect(factory).not.toHaveBeenCalled();
     expect(ids()).toEqual([4, 2, 3, 1]);
@@ -97,18 +98,18 @@ describe('NgTableComponent — calcul en worker', () => {
     const {fixture, component, ids, settle, busy} = await create({workerCompute: true, workerThreshold: 1, computeWorkerFactory: () => worker});
     expect(ids()).toEqual([1, 2, 3, 4]); // rien à calculer : l'ordre d'arrivée
 
-    component['onHeaderSort'](component.columns()[1]); // montant croissant
+    component.sorting.onHeaderSort(component.columns()[1]); // montant croissant
     await fixture.whenStable();
-    expect(component['workerBusy']()).toBe(true);
+    expect(component.data.workerBusy()).toBe(true);
     expect(fixture.nativeElement.querySelector('.table-viewport')?.getAttribute('aria-busy')).toBe('true');
 
     await settle();
     expect(ids()).toEqual([4, 2, 3, 1]);
-    expect(component['workerBusy']()).toBe(false);
+    expect(component.data.workerBusy()).toBe(false);
     expect(busy).toEqual([false, true, false]);
     expect(worker.runs).toBe(1);
 
-    component['onHeaderSort'](component.columns()[1]); // décroissant
+    component.sorting.onHeaderSort(component.columns()[1]); // décroissant
     await settle();
     expect(ids()).toEqual([1, 3, 2, 4]);
   });
@@ -133,7 +134,7 @@ describe('NgTableComponent — calcul en worker', () => {
   it('les transactions de données recalculent dans le worker (nouvelles données)', async () => {
     const worker = fakeWorker();
     const {component, ids, settle} = await create({workerCompute: true, workerThreshold: 1, computeWorkerFactory: () => worker});
-    component['onHeaderSort'](component.columns()[1]);
+    component.sorting.onHeaderSort(component.columns()[1]);
     await settle();
     expect(ids()).toEqual([4, 2, 3, 1]);
 
@@ -153,10 +154,10 @@ describe('NgTableComponent — calcul en worker', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const {component, ids, settle} = await create({workerCompute: true, workerThreshold: 1, computeWorkerFactory: () => fakeWorker({failing: true})});
 
-    component['onHeaderSort'](component.columns()[1]);
+    component.sorting.onHeaderSort(component.columns()[1]);
     await settle();
     expect(warn).toHaveBeenCalled();
-    expect(component['workerBusy']()).toBe(false);
+    expect(component.data.workerBusy()).toBe(false);
     expect(ids()).toEqual([4, 2, 3, 1]);
 
     component.applyQueryState({filters: {statut: 'BROUILLON'}});

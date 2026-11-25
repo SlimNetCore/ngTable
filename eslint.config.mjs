@@ -29,6 +29,24 @@ export default tseslint.config(
     },
   },
   {
+    // Les sources de la bibliothèque ne s'importent pas par leur propre nom de paquet : le point d'entrée dépendrait de
+    // lui-même et `ng build` s'arrêterait. L'éditeur le propose pourtant (« Import can be shortened »).
+    files: ['projects/ng-table/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@sbourahla/ng-table', '@sbourahla/ng-table/*'],
+              message: 'Dans la bibliothèque, importez par un chemin relatif (./ ou ../), pas par le nom du paquet.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.html'],
     extends: [...angular.configs.templateRecommended, ...angular.configs.templateAccessibility],
   },

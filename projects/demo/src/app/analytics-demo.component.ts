@@ -67,7 +67,6 @@ const LOCAL_FILES: FileNode[] = [
  */
 @Component({
   selector: 'app-analytics-demo',
-  standalone: true,
   imports: [NgTableComponent, NgTablePivotComponent, NgTableChartComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `

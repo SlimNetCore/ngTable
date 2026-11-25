@@ -94,6 +94,7 @@ export const WORKBOOK_RELS =
   '</Relationships>';
 
 /** Style 0 = normal, style 1 = gras (en-têtes). */
+// language=XML
 const STYLES =
   XML_HEADER +
   `<styleSheet xmlns="${MAIN_NS}">` +

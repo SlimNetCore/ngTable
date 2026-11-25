@@ -23,7 +23,6 @@ function storedTheme(): DemoTheme {
  */
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `

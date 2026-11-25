@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {ColumnStore} from './column-store';
 import {compileColumnFilter, compileFilters, compileIndexFilters, filtersNarrow, searchNarrows} from './filter-compile';
 import {matchesColumnFilter, matchesAllFilters} from './row-pipeline';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 interface Row {
   v: unknown;

@@ -3,7 +3,8 @@ import {ComputeWorkerClient, ComputeWorkerLike, createDefaultComputeWorker} from
 import {NgTableTheme} from './theme';
 import {injectNgTableLabels, NgTableLabels} from './ng-table-labels';
 import {draggedTableColumn, NG_TABLE_COLUMN_DRAG_TYPE} from './column-drag';
-import {NgTableColumn, NgTableComponent} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {
   computePivot,
   configFromLayout,

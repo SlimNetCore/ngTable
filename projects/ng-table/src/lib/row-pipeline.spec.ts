@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {compareSortValues, matchesAllFilters, matchesColumnFilter, searchText, sortRows} from './row-pipeline';
 
 interface Row {

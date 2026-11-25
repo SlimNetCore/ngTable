@@ -20,7 +20,6 @@ interface SubscribableOutput<T> {
 /** Usage interne uniquement — non exporté par `public-api.ts`. */
 @Component({
   selector: 'ng-table-dynamic-filter-host',
-  standalone: true,
   template: '<ng-container #host></ng-container>',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

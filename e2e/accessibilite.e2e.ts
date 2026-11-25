@@ -11,7 +11,7 @@ async function open(page: Page, route: string, scheme: 'light' | 'dark'): Promis
   await page.addInitScript(() => localStorage.setItem('ngt-demo-lang', 'fr'));
   await page.goto(`/#/${route}`);
   await page.locator('ng-table').first().waitFor();
-  await page.locator('tr[cdk-row]:not(.spacer-row)').first().waitFor();
+  await page.locator('tr.cdk-row:not(.spacer-row)').first().waitFor();
 }
 
 for (const scheme of ['light', 'dark'] as const) {

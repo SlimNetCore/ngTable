@@ -5,7 +5,7 @@ import {searchText} from './row-pipeline';
 import {computePivot} from './pivot';
 import {IncrementalPipeline, RowStore} from './live-rows';
 import {buildTreeIndex, layoutTree, withAncestors} from './tree-data';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {compileFilters} from './filter-compile';
 import type {SortLevel} from './row-pipeline';
 

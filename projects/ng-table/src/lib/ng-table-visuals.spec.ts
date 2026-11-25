@@ -1,7 +1,8 @@
 import {TestBed} from '@angular/core/testing';
 import {describe, expect, it} from 'vitest';
 import {NgTableChartComponent} from './ng-table-chart.component';
-import {NgTableColumn, NgTableComponent} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {NgTableChartData} from './chart';
 
 interface Row {

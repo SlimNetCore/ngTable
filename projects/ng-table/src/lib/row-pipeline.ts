@@ -4,7 +4,7 @@
  * Le composant se contente d'enchaîner ces fonctions dans ses `computed`.
  */
 import {compileSetMatcher} from './set-filter';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {
   matchesBoolean,
   matchesDate,

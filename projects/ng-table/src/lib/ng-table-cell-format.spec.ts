@@ -1,7 +1,8 @@
 import {provideZonelessChangeDetection} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {NgTableColumn, NgTableComponent} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 interface Row {
   id: string;
@@ -22,7 +23,7 @@ const ROWS: Row[] = [
 const COLUMNS: NgTableColumn<Row>[] = [
   {id: 'client', header: 'Client', valueAccessor: (r) => r.client, cell: {type: 'avatar'}},
   {id: 'ref', header: 'Fiche', valueAccessor: (r) => r.id, cell: {type: 'link', href: (r) => (r.id === 'c' ? null : `/fiches/${r.id}`), external: true}},
-  {id: 'statut', header: 'Statut', valueAccessor: (r) => r.statut, cell: {type: 'badge', tone: {Validée: 'success', Annulée: 'danger'}}},
+  {id: 'statut', header: 'Statut', valueAccessor: (r) => r.statut, cell: {type: 'badge', tone: {'Validée': 'success', 'Annulée': 'danger'}}},
   {id: 'montant', header: 'Montant', valueAccessor: (r) => r.montant, filter: {type: 'number'}, cell: {type: 'dataBar'}},
   {id: 'avancement', header: 'Avancement', valueAccessor: (r) => r.avancement, cell: {type: 'progress'}},
   {id: 'note', header: 'Note', valueAccessor: (r) => r.note, cell: {type: 'rating'}},
@@ -81,7 +82,7 @@ describe('cellules prêtes à l’emploi (NgTableColumn.cell)', () => {
   });
 
   it('barre de données : l’étendue suit les lignes filtrées', async () => {
-    fixture.componentInstance['columnFilters'].set({montant: '<200'});
+    fixture.componentInstance.filtering.columnFilters.set({montant: '<200'});
     await fixture.whenStable();
     expect(cells(3).map((cell) => cell.querySelector<HTMLElement>('.ngt-data-bar__fill')?.style.width)).toEqual(['100%']);
   });

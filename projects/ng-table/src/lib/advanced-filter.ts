@@ -10,7 +10,7 @@
  * Sans dépendance Angular.
  */
 import {compileColumnFilter} from './filter-compile';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 /** Une condition : la colonne `columnId` passe le filtre `value` (ou ne le passe pas, avec `not`). */
 export interface NgTableFilterCondition {

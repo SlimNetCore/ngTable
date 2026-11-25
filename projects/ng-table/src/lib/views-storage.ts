@@ -1,4 +1,4 @@
-import type {NgTableView, NgTableViewsStore} from './ng-table.component';
+import type {NgTableView, NgTableViewsStore} from './ng-table.models';
 
 /**
  * Version du format persisté en `localStorage`. À incrémenter à chaque changement

@@ -7,7 +7,6 @@ import {NgTableTooltipDirective} from './tooltip.directive';
  */
 @Directive({
   selector: '[ngTableTruncateTooltip]',
-  standalone: true,
 })
 export class TruncateTooltipDirective extends NgTableTooltipDirective {
   @Input('ngTableTruncateTooltip') text = '';

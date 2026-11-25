@@ -3640,7 +3640,7 @@ Rien à modifier dans le code : aucune entrée, sortie, méthode ni type n'est r
 | Textes du pivot et de la barre de zoom du graphique | Toujours en français sans `[labels]` / `[zoomTexts]` | Ceux de `provideNgTableLabels` (clés `pivot…`, `chart…`) | Rien si l'application est en français. Sinon, vérifier que le pivot s'affiche bien dans la langue voulue |
 | Défilement virtuel, Ctrl+Fin, Ctrl+Début, Page suivante / précédente | Bornés aux lignes rendues | Visent la liste entière | Rien |
 | Surbrillance du mode live avec « moins d'animations » | Disparaissait aussitôt | Reste affichée sans fondu pendant `[flashDurationMs]` | Rien |
-| Moteur de rendu | `CdkTable` du CDK | Rendu direct ; classes, attributs `cdk-*` et rôles gardés | Rien, sauf si vos styles ou tests lisaient les styles en ligne `left` / `right` / `z-index` des colonnes figées (maintenant `inset-inline-start` / `-end`) ou les classes `cdk-table-sticky-border-elem-left` / `-right` (maintenant `ngt-sticky-edge-start` / `-end`) |
+| Moteur de rendu | `CdkTable` du CDK | Rendu direct ; classes `cdk-*` et rôles gardés, attributs `cdk-*` retirés | Rien, sauf si vos styles ou tests ciblaient un attribut (`tr[cdk-row]` devient `tr.cdk-row`), lisaient les styles en ligne `left` / `right` / `z-index` des colonnes figées (maintenant `inset-inline-start` / `-end`) ou les classes `cdk-table-sticky-border-elem-left` / `-right` (maintenant `ngt-sticky-edge-start` / `-end`) |
 | Colonne de nombres | Alignée à gauche | Alignée à droite, chiffres à chasse fixe | Pour l'ancien alignement : `align: 'start'` sur la colonne |
 | Ligne sélectionnée | Seule la case cochée la distinguait | Fond teinté et liseré | Pour retirer le fond : `--ngt-row-selected-bg: transparent` (à éviter avec des colonnes figées) |
 | Bouton de filtre au repos | Entonnoir barré | Entonnoir simple, atténué ; plein avec un point quand le filtre est actif | Rien |
@@ -3712,6 +3712,25 @@ La démo présente la lib en trois modes, un par page :
 | Expert | `/expert` | Faux serveur (mode `remote`), état contrôlé par le parent, filtre personnalisé, `applyQueryState()`, export serveur, journal des événements. |
 
 Suivi des évolutions : `CHANGELOG.md` ; feuille de route : `ROADMAP.md`.
+
+### Organisation du code de la table
+
+`projects/ng-table/src/lib/ng-table.component.ts` porte l'API publique (entrées, sorties, méthodes) et rien d'autre : chaque méthode publique délègue à une classe du dossier `lib/table/`, une par domaine.
+
+| Fichier de `lib/table/` | Domaine |
+|---|---|
+| `table-column-layout`, `table-column-move`, `table-column-resize`, `table-sticky` | Colonnes : visibilité, ordre, épinglage, largeurs, déplacement, colonnes figées |
+| `table-data`, `table-sorting`, `table-filtering`, `table-paging`, `table-query-state` | Données : magasin de lignes, tri, filtres, recherche, pagination, état de requête |
+| `table-grouping`, `table-tree`, `table-detail` | Regroupement, arbre, ligne détail |
+| `table-viewport`, `table-row-reuse`, `table-remote-blocks`, `table-scroll-markers` | Défilement virtuel, réutilisation des lignes, source distante par blocs, repères |
+| `table-render`, `table-aria` | Lignes et cellules à afficher, rangs ARIA |
+| `table-keyboard`, `table-focus` | Navigation au clavier, conservation du focus |
+| `table-cell-editing`, `table-range-selection`, `table-cell-copy` | Édition, plage de cellules, copie |
+| `table-selection`, `table-row-move`, `table-context-menu` | Sélection de lignes, déplacement de lignes, menu contextuel |
+| `table-views`, `table-export`, `table-live-updates` | Vues enregistrées, export, mises à jour en direct |
+| `table-status-bar`, `table-side-panel` | Barre d'état, panneau latéral |
+
+Chaque classe reçoit la table à sa construction, garde son état (signaux) et ses opérations, et lit les autres par `this.table.<classe>`. Le gabarit les lit directement (`sorting.onHeaderSort(column)`). Les effets vivent dans la classe qu'ils concernent, dans une méthode nommée ; le constructeur du composant les met en route dans un ordre fixe, qui est celui de leur exécution. Les types publics sont dans `ng-table.models.ts`. Ces classes ne font pas partie de l'API : elles sont marquées `@internal` et absentes des typings publiés.
 
 ### Site de documentation
 

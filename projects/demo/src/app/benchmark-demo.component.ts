@@ -372,7 +372,6 @@ const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floo
  */
 @Component({
   selector: 'app-benchmark-demo',
-  standalone: true,
   imports: [DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `

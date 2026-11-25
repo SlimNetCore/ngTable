@@ -1,0 +1,65 @@
+/*
+ * Variables CSS que la table lit sans les définir.
+ *
+ * Ce fichier n'est ni chargé ni livré : aucun composant ne le référence. Il déclare ces variables pour les outils
+ * (l'IDE signale sinon chaque `var(--…)` comme introuvable), sur un sélecteur qui ne correspond à aucun élément.
+ * Chaque lecture dans les feuilles de style a une valeur de repli ; la liste se lit aussi comme le contrat de thème.
+ */
+
+/* Fournies par la page hôte (voir « Thème » dans le README) : la table les reprend quand ses jetons `--ngt-*` sont absents. */
+:root:not(:root) {
+  --app-blur: initial;
+  --app-border: initial;
+  --app-border-strong: initial;
+  --app-field-bg: initial;
+  --app-field-hover-bg: initial;
+  --app-filter-panel-bg: initial;
+  --app-frost: initial;
+  --app-hover-surface: initial;
+  --app-muted: initial;
+  --app-primary: initial;
+  --app-primary-outline: initial;
+  --app-primary-soft: initial;
+  --app-surface: initial;
+  --app-surface-alt: initial;
+  --app-surface-soft: initial;
+  --app-text: initial;
+  --app-text-muted: initial;
+}
+
+/* Points de réglage facultatifs de la table : à définir sur `ng-table` ou plus haut pour changer la valeur par défaut. */
+:root:not(:root) {
+  --ngt-detail-bg: initial;
+  --ngt-flash-change-bg: initial;
+  --ngt-flash-down-bg: initial;
+  --ngt-flash-up-bg: initial;
+  --ngt-font-family: initial;
+  --ngt-font-size: initial;
+  --ngt-header-font-size: initial;
+  --ngt-header-font-weight: initial;
+  --ngt-header-height: initial;
+  --ngt-header-height-compact: initial;
+  --ngt-radius-button: initial;
+  --ngt-radius-card: initial;
+  --ngt-radius-control: initial;
+  --ngt-rating-color: initial;
+  --ngt-row-alt-bg: initial;
+  --ngt-row-height: initial;
+  --ngt-row-height-compact: initial;
+  --ngt-row-selected-bg: initial;
+  --ngt-row-selected-hover-bg: initial;
+  --ngt-scale-color: initial;
+  --ngt-scale-negative-color: initial;
+  --ngt-scale-ratio: initial;
+  --ngt-search-hit-bg: initial;
+  --ngt-search-hit-text: initial;
+  --ngt-tone: initial;
+  --ngt-tooltip-bg: initial;
+  --ngt-tooltip-color: initial;
+  --ngt-tooltip-font-family: initial;
+  --ngt-tooltip-font-size: initial;
+  --ngt-tooltip-font-weight: initial;
+  --ngt-tooltip-line-height: initial;
+  --ngt-tooltip-max-width: initial;
+  --ngt-tooltip-radius: initial;
+}

@@ -2,7 +2,7 @@ import {ChangeDetectionStrategy, Component, computed, effect, inject, input, mod
 import {isFilterGroup, NgTableFilterCondition, NgTableFilterGroup, NgTableFilterNode} from './advanced-filter';
 import {NgTableIconComponent} from './ng-table-icon.component';
 import {NG_TABLE_DEFAULT_LABELS, NG_TABLE_LABELS, NgTableLabels, resolveNgTableLabelsSource} from './ng-table-labels';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 /** Niveaux de groupes imbriqués au plus (au-delà, un filtre devient illisible). */
 const MAX_DEPTH = 3;

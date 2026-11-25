@@ -22,7 +22,7 @@ describe('apparence (provideNgTableLook)', () => {
   beforeEach(() => document.documentElement.classList.remove(NG_TABLE_LOOK_CLASS));
   afterEach(() => document.documentElement.classList.remove(NG_TABLE_LOOK_CLASS));
 
-  it('par défaut : icônes au trait, aucune classe sur <html>', () => {
+  it('par défaut : icônes au trait, aucune classe sur l’élément html', () => {
     const fixture = render();
     const svg = fixture.nativeElement.querySelector('svg') as SVGElement;
     expect(TestBed.inject(NG_TABLE_ICON_STYLE)).toBe('outline');
@@ -31,7 +31,7 @@ describe('apparence (provideNgTableLook)', () => {
     expect(document.documentElement.classList.contains(NG_TABLE_LOOK_CLASS)).toBe(false);
   });
 
-  it('« material » : icônes pleines et classe ngt-look-material sur <html>', () => {
+  it('« material » : icônes pleines et classe ngt-look-material sur l’élément html', () => {
     const fixture = render('material');
     const svg = fixture.nativeElement.querySelector('svg') as SVGElement;
     expect(TestBed.inject(NG_TABLE_ICON_STYLE)).toBe('filled');

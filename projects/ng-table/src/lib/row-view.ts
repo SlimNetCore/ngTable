@@ -1,4 +1,4 @@
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 /** Ce que le template affiche pour une cellule, calculé une fois par ligne et par colonne. */
 export interface NgTableCellView<T> {

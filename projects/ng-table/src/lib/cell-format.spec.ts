@@ -27,8 +27,8 @@ describe('cell-format', () => {
   });
 
   it('badgeTone : table ou fonction, neutre par défaut', () => {
-    expect(badgeTone({type: 'badge', tone: {Validée: 'success'}}, 'Validée', null)).toBe('success');
-    expect(badgeTone({type: 'badge', tone: {Validée: 'success'}}, 'Autre', null)).toBe('neutral');
+    expect(badgeTone({type: 'badge', tone: {'Validée': 'success'}}, 'Validée', null)).toBe('success');
+    expect(badgeTone({type: 'badge', tone: {'Validée': 'success'}}, 'Autre', null)).toBe('neutral');
     expect(badgeTone({type: 'badge'}, 'Validée', null)).toBe('neutral');
     expect(badgeTone({type: 'badge', tone: (_value, row: {late: boolean}) => (row.late ? 'danger' : 'info')}, 'x', {late: true})).toBe('danger');
     expect(badgeTone({type: 'badge', tone: {'': 'warning'}}, null, null)).toBe('warning');

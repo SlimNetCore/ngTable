@@ -14,7 +14,7 @@ async function open(page: Page, scheme: 'light' | 'dark', look: 'material' | 'de
     [look, scheme],
   );
   await page.goto('/#/avance');
-  await page.locator('tr[cdk-row]:not(.spacer-row)').first().waitFor();
+  await page.locator('tr.cdk-row:not(.spacer-row)').first().waitFor();
 }
 
 for (const scheme of ['light', 'dark'] as const) {
