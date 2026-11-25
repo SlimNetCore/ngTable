@@ -195,7 +195,7 @@ export class NgTableFilterGroupComponent<T = any> {
     .ngt-fb__field {
       min-height: 32px;
       padding: 4px 8px;
-      border: 1px solid var(--ngt-border-strong, rgba(20, 33, 43, 0.3));
+      border: 1px solid var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
       border-radius: 6px;
       background: var(--ngt-field-bg, #fff);
       color: inherit;
@@ -220,7 +220,7 @@ export class NgTableFilterGroupComponent<T = any> {
       gap: 4px;
       min-height: 32px;
       padding: 4px 10px;
-      border: 1px solid var(--ngt-border-strong, rgba(20, 33, 43, 0.3));
+      border: 1px solid var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
       border-radius: 6px;
       background: var(--ngt-surface, #fff);
       color: inherit;

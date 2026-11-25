@@ -145,6 +145,7 @@ function makeQuote(id: number): Quote {
       [showTotals]="totals()"
       [globalSearchEnabled]="true"
       [multiSort]="true"
+      [livePauseButton]="true"
       [showActiveFiltersBar]="true"
       (asyncTransactionsFlushed)="onFlushed()"
     />

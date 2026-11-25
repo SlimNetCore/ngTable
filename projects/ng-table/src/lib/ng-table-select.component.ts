@@ -15,6 +15,7 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 import {NgTableIconComponent} from './ng-table-icon.component';
+import {injectNgTableLabels} from './ng-table-labels';
 
 export interface NgTableSelectOption {
   value: string;
@@ -57,10 +58,10 @@ const GAP = 4;
           <div class="ngt-select__search">
             <ng-table-icon aria-hidden="true" name="search"/>
             <input #search (input)="onSearch(search.value)" [attr.aria-activedescendant]="activeId()" [attr.aria-controls]="listId"
-                   [attr.aria-label]="searchLabel()" [placeholder]="searchLabel()" [value]="query()" autocomplete="off" role="combobox"
+                   [attr.aria-label]="searchText()" [placeholder]="searchText()" [value]="query()" autocomplete="off" role="combobox"
                    aria-expanded="true" type="text"/>
             @if (query()) {
-              <button (click)="onSearch(''); search.focus()" [attr.aria-label]="clearLabel()" class="ngt-select__clear" type="button">
+              <button (click)="onSearch(''); search.focus()" [attr.aria-label]="clearText()" class="ngt-select__clear" type="button">
                 <ng-table-icon aria-hidden="true" name="close"/>
               </button>
             }
@@ -85,7 +86,7 @@ const GAP = 4;
               }
             </li>
           } @empty {
-            <li aria-live="polite" class="ngt-select__empty" role="presentation">{{ emptyLabel() }}</li>
+            <li aria-live="polite" class="ngt-select__empty" role="presentation">{{ emptyText() }}</li>
           }
         </ul>
       </div>
@@ -106,7 +107,7 @@ const GAP = 4;
       width: 100%;
       min-height: 40px;
       padding: 0 8px 0 12px;
-      border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
+      border: 1px solid var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
       border-radius: var(--ngt-radius-control, 10px);
       background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
       color: var(--ngt-text, var(--app-text, #14212b));
@@ -219,6 +220,9 @@ const GAP = 4;
     }
 
     .ngt-select__option--active {
+      /* Contour en plus du fond : l'option active au clavier doit se distinguer sans dépendre d'un fond à 1,07:1 (WCAG 2.4.7). */
+      outline: 2px solid var(--ngt-primary, var(--app-primary, #2f6fa8));
+      outline-offset: -2px;
       background: var(--ngt-hover-surface, var(--app-hover-surface, #f3f7fb));
     }
 
@@ -278,9 +282,14 @@ export class NgTableSelectComponent {
   readonly placeholder = input('');
   /** Champ de recherche en tête du panneau. */
   readonly searchable = input(false);
-  readonly searchLabel = input('Rechercher');
-  readonly clearLabel = input('Effacer');
-  readonly emptyLabel = input('Aucun résultat');
+  /** Textes du panneau. Non renseignés : ceux de `provideNgTableLabels` (`search`, `clearGlobalSearch`, `noData`). */
+  readonly searchLabel = input<string | null>(null);
+  readonly clearLabel = input<string | null>(null);
+  readonly emptyLabel = input<string | null>(null);
+  private readonly sharedLabels = injectNgTableLabels();
+  protected readonly searchText = computed(() => this.searchLabel() ?? this.sharedLabels().search);
+  protected readonly clearText = computed(() => this.clearLabel() ?? this.sharedLabels().clearGlobalSearch);
+  protected readonly emptyText = computed(() => this.emptyLabel() ?? this.sharedLabels().noData);
   /** Sélection simple : libellé de l'option « tout » (valeur vide) placée en tête ; `null` : pas d'option. */
   readonly allLabel = input<string | null>(null);
   readonly ariaLabel = input<string | null>(null);
@@ -522,7 +531,8 @@ export class NgTableSelectComponent {
         this.close(true);
         return;
       case 'Tab':
-        this.close(false);
+        // Le focus revient au champ avant que le navigateur ne poursuive Tab : il ne se perd plus avec le panneau.
+        this.close(true);
         return;
     }
   }

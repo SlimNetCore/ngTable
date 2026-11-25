@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {compileAdvancedFilter} from './advanced-filter';
 import {ComputeWorkerClient, ComputeWorkerLike} from './compute-worker-client';
 import {rowsPatch, RowStore} from './live-rows';
 import {computePivot, PivotConfig} from './pivot';
@@ -258,6 +259,33 @@ describe('calcul en worker', () => {
     expect(client.stats.columnsSent).toBe(5);
     await client.pivot(rows, configs[0]);
     expect(client.stats.columnsSent, 'même jeu de lignes : rien n’est renvoyé').toBe(5);
+    client.dispose();
+  });
+
+  it('filtre avancé (ET / OU, « sauf ») dans le worker : mêmes lignes que sur le fil principal', async () => {
+    const worker = inProcessWorker();
+    const client = new ComputeWorkerClient(() => worker);
+    const filter = {
+      operator: 'and' as const,
+      children: [
+        {operator: 'or' as const, children: [{columnId: 'zone', value: 'Nord'}, {columnId: 'zone', value: 'Sud'}]},
+        {columnId: 'amount', value: '>40'},
+        {columnId: 'name', value: 'client 1', not: true},
+      ],
+    };
+    const {order} = await client.compute(rows, {
+      filterColumns: [when],
+      filters: {when: '2026-02-01..2026-03-31'},
+      levels: [{column: amount, factor: -1}],
+      advanced: {filter, columns: [zone, amount, name]},
+      search: null,
+      collator: {options: collatorOptions},
+    });
+    const advanced = compileAdvancedFilter(filter, columns)!;
+    const byColumn = compileFilters(columns, {when: '2026-02-01..2026-03-31'})!;
+    const expected = sortRows(rows.filter((row) => byColumn(row) && advanced(row)), [{column: amount, factor: -1}], collator).map((row) => row.id);
+    expect(expected.length).toBeGreaterThan(20);
+    expect([...order].map((index) => rows[index].id)).toEqual(expected);
     client.dispose();
   });
 

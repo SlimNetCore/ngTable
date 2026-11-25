@@ -149,3 +149,18 @@ export function sanitizeFilterGroup(value: unknown, depth = 0): NgTableFilterGro
   }
   return children.length > 0 ? {operator: candidate.operator, children} : null;
 }
+
+/** Ids des colonnes citées par les conditions d'un filtre avancé (sans doublon, dans l'ordre de rencontre). */
+export function filterColumnIds(node: NgTableFilterNode | null | undefined, ids: string[] = []): string[] {
+  if (!node) {
+    return ids;
+  }
+  if (isFilterGroup(node)) {
+    for (const child of node.children) {
+      filterColumnIds(child, ids);
+    }
+  } else if (node.value.trim() !== '' && !ids.includes(node.columnId)) {
+    ids.push(node.columnId);
+  }
+  return ids;
+}

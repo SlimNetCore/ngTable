@@ -68,13 +68,31 @@ export interface NgTablePageEvent {
       gap: 8px;
     }
 
+    /* Même aspect que les listes de la table (bord, rayon, chevron), en gardant la liste native du système :
+       c'est elle qui est la plus sûre au clavier, au lecteur d'écran et sur un téléphone. */
     .ngt-pager__select {
-      padding: 4px 8px;
-      border: 1px solid var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.18)));
-      border-radius: 6px;
-      background: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
+      appearance: none;
+      min-height: 2rem;
+      padding: 4px 28px 4px 12px;
+      padding-inline: 12px 28px;
+      border: 1px solid var(--ngt-control-border, var(--ngt-border-strong, var(--app-border-strong, rgba(20, 33, 43, 0.5))));
+      border-radius: var(--ngt-radius-control, 10px);
+      background-color: var(--ngt-field-bg, var(--app-field-bg, #ffffff));
+      background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position: right 14px center, right 9px center;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
       color: var(--ngt-text, var(--app-text, #14212b));
       font: inherit;
+      cursor: pointer;
+    }
+
+    .ngt-pager__select:dir(rtl) {
+      background-position: left 9px center, left 14px center;
+    }
+
+    .ngt-pager__select:hover {
+      background-color: var(--ngt-field-hover-bg, var(--app-field-hover-bg, #f8fafc));
     }
 
     .ngt-pager__buttons {

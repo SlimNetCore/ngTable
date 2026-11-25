@@ -1,4 +1,4 @@
-import {DestroyRef, Directive, ElementRef, inject, input} from '@angular/core';
+import {afterNextRender, DestroyRef, Directive, ElementRef, inject, input} from '@angular/core';
 import {DOCUMENT} from '@angular/common';
 
 let nextId = 0;
@@ -24,10 +24,10 @@ const MARGIN = 8;
   selector: '[ngTableTooltip]',
   host: {
     '(mouseenter)': 'open(300)',
-    '(mouseleave)': 'close()',
+    '(mouseleave)': 'closeSoon()',
     '(focusin)': 'open(0)',
     '(focusout)': 'close()',
-    '(keydown.escape)': 'close()',
+    '(keydown.escape)': 'onEscape($event)',
   },
 })
 export class NgTableTooltipDirective {
@@ -43,8 +43,67 @@ export class NgTableTooltipDirective {
   private readonly id = `ngt-tooltip-${nextId++}`;
   private readonly onScroll = () => this.close();
 
+  private readonly onDocumentKeydown = (event: KeyboardEvent): void => {
+    // Échap ferme la bulle même quand elle a été ouverte au survol, sans que l'élément ait le focus (WCAG 1.4.13).
+    if (event.key === 'Escape' && this.bubble) {
+      // La touche a servi à fermer la bulle de l'élément qui a le focus : elle ne doit pas, en plus, déclencher
+      // l'action d'un parent (vider la sélection, fermer un panneau).
+      if (event.target instanceof Node && this.host.contains(event.target)) {
+        event.stopPropagation();
+      }
+      this.close();
+    }
+  };
+  private leaveTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.close());
+    inject(DestroyRef).onDestroy(() => {
+      this.close();
+      this.anchor?.removeEventListener('focus', this.onAnchorFocus);
+      this.anchor?.removeEventListener('blur', this.onAnchorBlur);
+    });
+    // Un texte tronqué n'est pas focalisable lui-même : la bulle s'ouvre aussi quand la cellule ou le bouton qui le
+    // contient reçoit le focus, pour qu'il soit lisible en entier au clavier (WCAG 1.4.13, 2.1.1).
+    afterNextRender(() => {
+      const anchor = this.host.closest<HTMLElement>('td, th button, button');
+      if (anchor && anchor !== this.host) {
+        this.anchor = anchor;
+        anchor.addEventListener('focus', this.onAnchorFocus);
+        anchor.addEventListener('blur', this.onAnchorBlur);
+      }
+    });
+  }
+
+  private anchor: HTMLElement | null = null;
+  private readonly onAnchorFocus = (): void => {
+    // Seulement au clavier : après un clic, une bulle sous le pointeur gênerait.
+    if (this.anchor?.matches(':focus-visible')) {
+      this.open(0);
+    }
+  };
+  private readonly onAnchorBlur = (): void => this.close();
+
+  /**
+   * Le pointeur quitte l'élément : la bulle reste un court instant, le temps de l'atteindre. Tant que le pointeur est
+   * dessus, elle reste affichée (WCAG 1.4.13 : contenu survolable, utile avec une loupe d'écran).
+   */
+  protected closeSoon(): void {
+    if (!this.bubble) {
+      this.close();
+      return;
+    }
+    this.leaveTimer = setTimeout(() => this.close(), 150);
+  }
+
+  /**
+   * Échap ferme la bulle (WCAG 1.4.13). Quand une bulle était affichée, la touche s'arrête là : elle ne doit pas, en
+   * plus, déclencher l'action d'un parent (vider la sélection, fermer un panneau).
+   */
+  protected onEscape(event: Event): void {
+    if (this.bubble) {
+      event.stopPropagation();
+    }
+    this.close();
   }
 
   /** Texte à afficher à l'ouverture ; une sous-classe peut le calculer au dernier moment. */
@@ -66,6 +125,10 @@ export class NgTableTooltipDirective {
   }
 
   close(): void {
+    if (this.leaveTimer !== null) {
+      clearTimeout(this.leaveTimer);
+      this.leaveTimer = null;
+    }
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -75,6 +138,7 @@ export class NgTableTooltipDirective {
       this.bubble = null;
       this.host.removeAttribute('aria-describedby');
       this.document.removeEventListener('scroll', this.onScroll, true);
+      this.document.removeEventListener('keydown', this.onDocumentKeydown, true);
     }
   }
 
@@ -91,8 +155,16 @@ export class NgTableTooltipDirective {
     this.document.body.appendChild(bubble);
     this.bubble = bubble;
     this.host.setAttribute('aria-describedby', this.id);
+    bubble.addEventListener('mouseenter', () => {
+      if (this.leaveTimer !== null) {
+        clearTimeout(this.leaveTimer);
+        this.leaveTimer = null;
+      }
+    });
+    bubble.addEventListener('mouseleave', () => this.close());
     this.place(bubble);
     this.document.addEventListener('scroll', this.onScroll, true);
+    this.document.addEventListener('keydown', this.onDocumentKeydown, true);
   }
 
   private place(bubble: HTMLElement): void {

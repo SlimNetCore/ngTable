@@ -95,6 +95,7 @@ function addDays(isoDay: string, days: number): string {
     <ng-table
       [ngTableUrlState]="'av'"
       [ariaLabel]="'Commandes (mode avancé)'"
+      [autoSizeColumns]="true"
       [columns]="columns()"
       [rows]="rows()"
       [rowKeyAccessor]="rowKey"
@@ -453,6 +454,7 @@ filteredTotal = signal(0);   // total APRÈS filtres : seul ng-table le connaît
       header: 'Montant HT (€)',
       valueAccessor: (c) => c.montant,
       sortable: true,
+      numberFormat: {minimumFractionDigits: 2, maximumFractionDigits: 2},
       filter: {type: 'number', placeholder: '>1000, 100..500'},
       aggregate: 'sum',
     },
@@ -461,10 +463,11 @@ filteredTotal = signal(0);   // total APRÈS filtres : seul ng-table le connaît
       header: 'Montant TTC (€)',
       valueAccessor: (c) => Math.round(c.montant * 120) / 100,
       sortable: true,
+      numberFormat: {minimumFractionDigits: 2, maximumFractionDigits: 2},
       filter: {type: 'numberRange'},
       aggregate: 'sum',
     },
-    {id: 'dateCommande', header: 'Commande', valueAccessor: (c) => c.dateCommande, sortable: true, filter: {type: 'range'}},
+    {id: 'dateCommande', header: 'Commande', valueAccessor: (c) => c.dateCommande, sortable: true, dateFormat: true, filter: {type: 'range'}},
     {
       id: 'livraison',
       header: 'Livraison',
