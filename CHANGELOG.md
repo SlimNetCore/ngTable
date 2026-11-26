@@ -4,6 +4,8 @@ Toutes les évolutions notables de `@sbourahla/ng-table`. Format inspiré de [Ke
 
 ## [Non publié]
 
+## [6.0.1] — 2026-11-26
+
 - **Attributs `cdk-*` retirés du gabarit.** Ils n'avaient plus de directive derrière eux depuis la 6.0.0 (`cdk-table`, `cdk-header-row`, `cdk-row`, `cdk-cell`, `cdk-footer-row`…). Les classes `cdk-*` et les rôles restent. **À vérifier si vos styles ou vos tests ciblaient un attribut** : `tr[cdk-row]` devient `tr.cdk-row`.
 - **Code du composant découpé**, sans changement d'API. `ng-table.component.ts` passe de 7 495 à environ 1 230 lignes : il garde les entrées, les sorties et les méthodes publiques, et relie 31 classes du dossier `lib/table/`, une par domaine (colonnes, tri, filtres, données, édition, sélection, vues, export…). Les types publics sont dans `ng-table.models.ts` ; les imports depuis `@sbourahla/ng-table` ne changent pas. Les 200 membres publics du composant sont les mêmes dans les typings publiés ; les classes internes n'y figurent pas (`stripInternal`). Cinq membres morts depuis le retrait du `CdkTable` sont supprimés, ainsi que les `standalone: true` devenus inutiles. Le fichier de tests du composant (3 917 lignes) est découpé en dix fichiers par thème.
 - **Signalements de l'IDE** (WebStorm, 569 au départ) : propriétés CSS déclarées deux fois retirées, blocs répétés du client de worker réunis en deux méthodes, test `instanceof` des colonnes de nombres réuni dans `isNumberColumn`, expressions à virgule réécrites, une variable CSS morte et une classe inutilisée retirées de la démo. `host-variables.css` (non chargé, non livré) déclare pour les outils les 50 variables CSS que la table lit sans les définir : `--app-*` de la page hôte et points de réglage `--ngt-*` facultatifs.
