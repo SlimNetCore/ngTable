@@ -28,7 +28,6 @@ const TOTAL_SERVEUR = 1_000_000;
  */
 @Component({
   selector: 'app-whats-new-demo',
-  standalone: true,
   imports: [NgTableComponent, NgTableFilterBuilderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
@@ -328,7 +327,7 @@ export class WhatsNewDemoComponent {
       header: 'Statut',
       valueAccessor: (c) => STATUT_LABELS[c.statut],
       sortable: true,
-      cell: {type: 'badge', tone: {Brouillon: 'neutral', Validée: 'info', Expédiée: 'success', Annulée: 'danger'}},
+      cell: {type: 'badge', tone: {Brouillon: 'neutral', 'Validée': 'info', 'Expédiée': 'success', 'Annulée': 'danger'}},
     },
     {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, cell: {type: 'dataBar'}},
     {id: 'avancement', header: 'Avancement', valueAccessor: (c) => c.avancement, sortable: true, cell: {type: 'progress'}},
@@ -341,7 +340,7 @@ export class WhatsNewDemoComponent {
   {id: 'reference', header: 'Référence', valueAccessor: (c) => c.reference,
    cell: {type: 'link', href: (c) => '/commandes/' + c.reference}},
   {id: 'statut', header: 'Statut', valueAccessor: (c) => c.statut,
-   cell: {type: 'badge', tone: {Validée: 'info', Expédiée: 'success', Annulée: 'danger'}}},
+   cell: {type: 'badge', tone: {'Validée': 'info', 'Expédiée': 'success', 'Annulée': 'danger'}}},
   {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, cell: {type: 'dataBar'}},
   {id: 'avancement', header: 'Avancement', valueAccessor: (c) => c.avancement, cell: {type: 'progress'}},
   {id: 'note', header: 'Note', valueAccessor: (c) => c.note, cell: {type: 'rating'}},
@@ -404,7 +403,7 @@ export class WhatsNewDemoComponent {
       header: 'Statut',
       valueAccessor: (c) => STATUT_LABELS[c.statut],
       sortable: true,
-      cell: {type: 'badge', tone: {Brouillon: 'neutral', Validée: 'info', Expédiée: 'success', Annulée: 'danger'}},
+      cell: {type: 'badge', tone: {Brouillon: 'neutral', 'Validée': 'info', 'Expédiée': 'success', 'Annulée': 'danger'}},
     },
     {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, aggregate: 'sum'},
   ];

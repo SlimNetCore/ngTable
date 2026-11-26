@@ -72,7 +72,7 @@ export function ngAdd(options: NgAddOptions): Rule {
       const indexPath = typeof configured === 'string' ? configured : `${definition?.sourceRoot ?? 'src'}/index.html`;
       rules.push((host: Tree) => {
         if (!setHtmlLanguage(host, indexPath, locale)) {
-          context.logger.warn(`Ajoutez lang="${locale}"${RTL_LOCALES.has(locale) ? ' dir="rtl"' : ''} à la balise <html> de ${indexPath}.`);
+          context.logger.warn(`Ajoutez lang="${locale}"${RTL_LOCALES.has(locale) ? ' dir="rtl"' : ''} à la balise html de ${indexPath}.`);
         }
       });
     } else {

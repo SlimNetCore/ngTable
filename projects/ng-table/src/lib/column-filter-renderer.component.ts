@@ -59,7 +59,6 @@ export type ColumnFilterType =
  */
 @Component({
   selector: 'ng-table-column-filter',
-  standalone: true,
   imports: [
     CommonModule,
     NgTableIconComponent,

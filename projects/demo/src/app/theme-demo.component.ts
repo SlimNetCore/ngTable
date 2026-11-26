@@ -71,7 +71,6 @@ const tokenByName = new Map(NG_TABLE_TOKENS.map((token) => [token.name, token]))
  */
 @Component({
   selector: 'app-theme-demo',
-  standalone: true,
   imports: [NgTableComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
@@ -116,7 +115,7 @@ const tokenByName = new Map(NG_TABLE_TOKENS.map((token) => [token.name, token]))
     .field {
       min-height: 32px;
       padding: 4px 10px;
-      border: 1px solid var(--demo-control-border, rgba(110, 120, 130, 0.75));
+      border: 1px solid rgba(110, 120, 130, 0.75);
       border-radius: 8px;
       background: var(--demo-surface);
       color: inherit;
@@ -201,7 +200,7 @@ const tokenByName = new Map(NG_TABLE_TOKENS.map((token) => [token.name, token]))
       width: 36px;
       height: 28px;
       padding: 0;
-      border: 1px solid var(--demo-control-border, rgba(110, 120, 130, 0.75));
+      border: 1px solid rgba(110, 120, 130, 0.75);
       border-radius: 6px;
       background: none;
     }
@@ -210,7 +209,7 @@ const tokenByName = new Map(NG_TABLE_TOKENS.map((token) => [token.name, token]))
       width: 118px;
       min-height: 28px;
       padding: 2px 6px;
-      border: 1px solid var(--demo-control-border, rgba(110, 120, 130, 0.75));
+      border: 1px solid rgba(110, 120, 130, 0.75);
       border-radius: 6px;
       background: transparent;
       color: inherit;
@@ -220,7 +219,7 @@ const tokenByName = new Map(NG_TABLE_TOKENS.map((token) => [token.name, token]))
     .token button {
       min-width: 28px;
       min-height: 28px;
-      border: 1px solid var(--demo-control-border, rgba(110, 120, 130, 0.75));
+      border: 1px solid rgba(110, 120, 130, 0.75);
       border-radius: 6px;
       background: transparent;
       color: inherit;
@@ -295,7 +294,7 @@ const tokenByName = new Map(NG_TABLE_TOKENS.map((token) => [token.name, token]))
       min-height: 90px;
       box-sizing: border-box;
       padding: 8px;
-      border: 1px solid var(--demo-control-border, rgba(110, 120, 130, 0.75));
+      border: 1px solid rgba(110, 120, 130, 0.75);
       border-radius: 8px;
       background: transparent;
       color: inherit;
@@ -479,7 +478,7 @@ export class ThemeDemoComponent {
       header: 'Statut',
       valueAccessor: (c) => STATUT_LABELS[c.statut],
       sortable: true,
-      cell: {type: 'badge', tone: {Brouillon: 'neutral', Validée: 'info', Expédiée: 'success', Annulée: 'danger'}},
+      cell: {type: 'badge', tone: {Brouillon: 'neutral', 'Validée': 'info', 'Expédiée': 'success', 'Annulée': 'danger'}},
     },
     {id: 'montant', header: 'Montant (€)', valueAccessor: (c) => c.montant, sortable: true, aggregate: 'sum', filter: {type: 'number'}, cell: {type: 'dataBar'}},
     {id: 'tendance', header: 'Tendance', valueAccessor: (c) => c.tendance, sparkline: {type: 'area'}},

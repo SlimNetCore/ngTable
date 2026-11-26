@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {buildSortOrder, radixSortByKeys, sortRowsFast} from './fast-sort';
 import {sortRows} from './row-pipeline';
 import type {SortLevel} from './row-pipeline';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 interface Row {
   id: number;

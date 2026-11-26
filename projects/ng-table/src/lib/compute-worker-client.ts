@@ -4,6 +4,7 @@
  */
 import {
   FromWorker,
+  isNumberColumn,
   isPackedStrings,
   packValues,
   PIVOT_PREFIX,
@@ -19,7 +20,7 @@ import {
 } from './worker-compute';
 import type {PivotConfig, PivotResult} from './pivot';
 import {pivotColumnFields} from './pivot';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import type {SortLevel} from './row-pipeline';
 import {NG_TABLE_WORKER_SOURCE} from './worker-source.generated';
 
@@ -97,17 +98,7 @@ export class ComputeWorkerClient {
     if (rows !== this.rows && patch && this.sendPatch(worker, rows, patch)) {
       this.rows = rows; // même jeu de données côté worker, retouché
     }
-    if (rows !== this.rows) {
-      if (this.dataset > 0) {
-        worker.postMessage({type: 'drop', dataset: this.dataset});
-      }
-      this.dataset++;
-      this.rows = rows;
-      this.loaded.clear();
-      this.readers.clear();
-      this.searchSource = null;
-      this.announced = false;
-    }
+    this.startDatasetIfNew(worker, rows);
 
     const entries: Record<string, WorkerValues> = {};
     const add = (key: string, accessor: unknown, read: (row: never) => unknown) => {
@@ -131,11 +122,7 @@ export class ComputeWorkerClient {
       this.searchSource = input.search.source;
       this.stats.columnsSent++;
     }
-    if (Object.keys(entries).length > 0 || !this.announced) {
-      this.announced = true;
-      const transfer = Object.values(entries).flatMap((values) => (values instanceof Float64Array ? [values.buffer] : isPackedStrings(values) ? [values.packedStrings.buffer] : []));
-      worker.postMessage({type: 'data', dataset: this.dataset, count: rows.length, entries}, transfer);
-    }
+    this.sendEntries(worker, rows.length, entries);
 
     const job = ++this.job;
     const request: WorkerRequest = {
@@ -159,17 +146,7 @@ export class ComputeWorkerClient {
    */
   pivot<T>(rows: readonly T[], config: PivotConfig<T>): Promise<{result: PivotResult; job: number}> {
     const worker = this.ensureWorker();
-    if (rows !== this.rows) {
-      if (this.dataset > 0) {
-        worker.postMessage({type: 'drop', dataset: this.dataset});
-      }
-      this.dataset++;
-      this.rows = rows;
-      this.loaded.clear();
-      this.readers.clear();
-      this.searchSource = null;
-      this.announced = false;
-    }
+    this.startDatasetIfNew(worker, rows);
     const fields = [...config.rows, ...pivotColumnFields(config), ...config.values];
     const entries: Record<string, WorkerValues> = {};
     for (const field of fields) {
@@ -182,11 +159,7 @@ export class ComputeWorkerClient {
         this.stats.columnsSent++;
       }
     }
-    if (Object.keys(entries).length > 0 || !this.announced) {
-      this.announced = true;
-      const transfer = Object.values(entries).flatMap((values) => (values instanceof Float64Array ? [values.buffer] : isPackedStrings(values) ? [values.packedStrings.buffer] : []));
-      worker.postMessage({type: 'data', dataset: this.dataset, count: rows.length, entries}, transfer);
-    }
+    this.sendEntries(worker, rows.length, entries);
     const describe = (field: {id: string; header: string}) => ({id: field.id, header: field.header});
     const spec: WorkerPivotSpec = {
       rows: config.rows.map(describe),
@@ -243,6 +216,32 @@ export class ComputeWorkerClient {
     this.loaded.clear();
     this.readers.clear();
     this.announced = false;
+  }
+
+  /** Nouveau tableau de lignes : le worker oublie l'ancien jeu de données, et le client ce qu'il lui avait envoyé. */
+  private startDatasetIfNew(worker: ComputeWorkerLike, rows: readonly unknown[]): void {
+    if (rows === this.rows) {
+      return;
+    }
+    if (this.dataset > 0) {
+      worker.postMessage({type: 'drop', dataset: this.dataset});
+    }
+    this.dataset++;
+    this.rows = rows;
+    this.loaded.clear();
+    this.readers.clear();
+    this.searchSource = null;
+    this.announced = false;
+  }
+
+  /** Envoie les colonnes nouvelles ou modifiées ; leurs tampons sont transférés, pas copiés. */
+  private sendEntries(worker: ComputeWorkerLike, count: number, entries: Record<string, WorkerValues>): void {
+    if (Object.keys(entries).length === 0 && this.announced) {
+      return;
+    }
+    this.announced = true;
+    const transfer = Object.values(entries).flatMap((values) => (isNumberColumn(values) ? [values.buffer] : isPackedStrings(values) ? [values.packedStrings.buffer] : []));
+    worker.postMessage({type: 'data', dataset: this.dataset, count, entries}, transfer);
   }
 
   private ensureWorker(): ComputeWorkerLike {

@@ -3,6 +3,7 @@
  */
 
 export * from './lib/ng-table.component';
+export * from './lib/ng-table.models';
 export * from './lib/ng-table-labels';
 // Apparaît dans l'API publique (`NgTableFilterConfig.type`) : doit être importable.
 export type {ColumnFilterType} from './lib/column-filter-renderer.component';

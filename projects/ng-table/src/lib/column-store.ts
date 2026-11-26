@@ -19,7 +19,7 @@
  * Sans dépendance Angular.
  */
 import {SortDigits, sortDigits, sortKeyColumn} from './fast-sort';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 /** Colonnes gardées au plus pour un jeu de lignes (8 octets par ligne et par colonne). */
 const MAX_COLUMNS = 8;

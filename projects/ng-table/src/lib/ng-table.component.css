@@ -88,8 +88,6 @@
 .global-search__clear[ngt-icon-button] {
   width: 32px;
   height: 32px;
-  width: 32px;
-  height: 32px;
   padding: 4px;
 }
 
@@ -415,8 +413,6 @@
   width: 28px;
   height: 28px;
   flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
   padding: 0;
 }
 
@@ -920,8 +916,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
   padding: 0;
   line-height: 1;
   border-radius: 10px;
@@ -1101,8 +1095,6 @@
 .active-filter-chip__clear {
   width: 22px;
   height: 22px;
-  width: 22px;
-  height: 22px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -1188,8 +1180,6 @@
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
   padding: 4px;
   color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }
@@ -1698,8 +1688,6 @@
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
   padding: 4px;
   color: var(--ngt-text-muted, var(--app-muted, #5f7080));
 }

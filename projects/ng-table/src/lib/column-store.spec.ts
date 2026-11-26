@@ -4,7 +4,7 @@ import {radixSortByDigits, sortDigits} from './fast-sort';
 import {IncrementalPipeline, PipelineConfig, RowStore} from './live-rows';
 import {sortRows} from './row-pipeline';
 import type {SortLevel} from './row-pipeline';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 interface Row {
   id: number;
@@ -70,7 +70,10 @@ describe('column-store', () => {
   describe('ColumnStore', () => {
     it('ne lit les valeurs qu’une fois par jeu de lignes', () => {
       let reads = 0;
-      const counted: NgTableColumn<Row> = {id: 'n', header: 'n', valueAccessor: (r) => (reads++, r.n)};
+      const counted: NgTableColumn<Row> = {id: 'n', header: 'n', valueAccessor: (r) => {
+        reads++;
+        return r.n;
+      }};
       const rows = makeRows(100, 1);
       const store = new ColumnStore<Row>();
       const first = store.sortDigits(rows, counted, collator);
@@ -110,7 +113,10 @@ describe('column-store', () => {
   describe('dictionnaires', () => {
     it('valeurs distinctes et numéro par ligne, lus une seule fois', () => {
       let reads = 0;
-      const counted: NgTableColumn<Row> = {id: 's', header: 's', valueAccessor: (r) => (reads++, r.s)};
+      const counted: NgTableColumn<Row> = {id: 's', header: 's', valueAccessor: (r) => {
+        reads++;
+        return r.s;
+      }};
       const rows = makeRows(2500, 8);
       const store = new ColumnStore<Row>();
       const dictionary = store.dictionary(rows, counted)!;
@@ -164,7 +170,10 @@ describe('column-store', () => {
 
     it('inverser le sens ne relit pas les valeurs', () => {
       let reads = 0;
-      const counted: NgTableColumn<Row> = {id: 's', header: 's', valueAccessor: (r) => (reads++, r.s)};
+      const counted: NgTableColumn<Row> = {id: 's', header: 's', valueAccessor: (r) => {
+        reads++;
+        return r.s;
+      }};
       const rows = makeRows(500, 9);
       const store = new RowStore(keyOf);
       store.replaceAll(rows);

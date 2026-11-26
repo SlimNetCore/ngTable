@@ -1,7 +1,8 @@
 import {Component, provideZonelessChangeDetection, signal, TemplateRef, viewChild} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {NgTableColumn, NgTableComponent, NgTableDetailToggleEvent} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn, NgTableDetailToggleEvent} from './ng-table.models';
 
 interface Row {
   id: string;

@@ -4,7 +4,7 @@
 //   node scripts/generate-theme-css.mjs          écrit le fichier
 //   node scripts/generate-theme-css.mjs --check  échoue s'il n'est pas à jour (à lancer en intégration continue)
 import {readFileSync, writeFileSync} from 'node:fs';
-import {fileURLToPath, pathToFileURL} from 'node:url';
+import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
 import ts from 'typescript';
 

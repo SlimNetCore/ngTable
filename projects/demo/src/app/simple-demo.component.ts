@@ -11,7 +11,6 @@ const STATUTS = Object.values(STATUT_LABELS).map((label) => ({value: label, labe
  */
 @Component({
   selector: 'app-simple-demo',
-  standalone: true,
   imports: [NgTableComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

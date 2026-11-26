@@ -8,7 +8,6 @@ import {ChangeDetectionStrategy, Component, input, output} from '@angular/core';
  */
 @Component({
   selector: 'app-montant-preset-filter',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host { display: flex; flex-wrap: wrap; gap: 6px; }

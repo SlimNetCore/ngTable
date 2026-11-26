@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {compileAdvancedFilter, countActiveConditions, describeAdvancedFilter, NgTableFilterGroup, NgTableFilterNode, sanitizeFilterGroup} from './advanced-filter';
 import {compileColumnFilter} from './filter-compile';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 
 interface Row {
   id: number;

@@ -5,7 +5,6 @@ import {NgTableTooltipDirective} from './tooltip.directive';
 import {TruncateTooltipDirective} from './truncate-tooltip.directive';
 
 @Component({
-  standalone: true,
   imports: [NgTableTooltipDirective, TruncateTooltipDirective],
   template: `
     <button #plain [ngTableTooltip]="text()" [ngTableTooltipDisabled]="disabled()" type="button">Copier</button>

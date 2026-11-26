@@ -8,7 +8,7 @@ async function open(page: Page, route: string, language = 'fr'): Promise<void> {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.addInitScript((lang) => localStorage.setItem('ngt-demo-lang', lang), language);
   await page.goto(`/#/${route}`);
-  await page.locator('tr[cdk-row]:not(.spacer-row)').first().waitFor();
+  await page.locator('tr.cdk-row:not(.spacer-row)').first().waitFor();
 }
 
 async function expectNoViolations(page: Page, selector?: string): Promise<void> {

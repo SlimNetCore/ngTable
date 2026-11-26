@@ -19,7 +19,6 @@ const ROWS: Row[] = [
 ];
 
 @Component({
-  standalone: true,
   imports: [NgTableComponent],
   template: `
     <ng-table

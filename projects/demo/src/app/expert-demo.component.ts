@@ -38,7 +38,6 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
  */
 @Component({
   selector: 'app-expert-demo',
-  standalone: true,
   imports: [NgTableComponent, JsonPipe, MatButtonModule, MatButtonToggleModule, MatIconModule, MatSlideToggleModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
@@ -126,7 +125,7 @@ type CellTemplate = NgTableColumn<Commande>['cellTemplate'];
           <mat-icon>restart_alt</mat-icon> Réinitialiser (applyQueryState)
         </button>
         <button (click)="toggleDescription()" mat-stroked-button type="button">
-          <mat-icon>view_column</mat-icon> {{ columnVisibility()['description'] === false ? 'Afficher' : 'Masquer' }} « Description »
+          <mat-icon>view_column</mat-icon> {{ (columnVisibility()['description'] ?? true) ? 'Masquer' : 'Afficher' }} « Description »
         </button>
         <button (click)="selectedKeys.set([])" [disabled]="selectedKeys().length === 0" mat-stroked-button type="button">
           <mat-icon>deselect</mat-icon> Vider la sélection ({{ selectedKeys().length }})
@@ -502,7 +501,7 @@ export class ExpertDemoComponent {
   }
 
   protected toggleDescription(): void {
-    const visible = this.columnVisibility()['description'] !== false;
+    const visible = this.columnVisibility()['description'] ?? true;
     this.columnVisibility.update((current) => ({...current, description: !visible}));
   }
 

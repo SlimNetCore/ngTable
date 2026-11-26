@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {compileColumnFilter, compileFilters} from './filter-compile';
 import {matchesColumnFilter} from './row-pipeline';
 import {compileSetMatcher, distinctSetValues, parseSetFilter, serializeSetFilter, setFilterKey} from './set-filter';

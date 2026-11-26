@@ -1,0 +1,17 @@
+/*
+ * Configuration lue par l'éditeur pour les sources de la bibliothèque ; les constructions passent par
+ * `../tsconfig.lib.json` et `../tsconfig.spec.json`.
+ *
+ * Elle retire l'alias `@sbourahla/ng-table` : c'est le nom du paquet lui-même, et un fichier de la bibliothèque qui
+ * l'importe la fait dépendre d'elle-même (`ng build` s'arrête). Sans l'alias, l'éditeur ne le propose plus.
+ */
+{
+  "extends": "../tsconfig.lib.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {},
+    "types": ["vitest/globals"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": []
+}

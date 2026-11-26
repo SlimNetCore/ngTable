@@ -1,7 +1,8 @@
 import {provideZonelessChangeDetection} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {NgTableColumn, NgTableComponent, NgTableGroupSummary, NgTableRemoteQuery} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn, NgTableGroupSummary, NgTableRemoteQuery} from './ng-table.models';
 
 /**
  * Performance en mode serveur (`dataMode='remote'`) sur 1 000 000 de lignes.
@@ -99,7 +100,7 @@ describe('NgTableComponent — performance en mode serveur (1 000 000 de lignes)
     const fixture = await createRemoteTable(MILLION);
 
     expect(renderedRows(fixture)).toHaveLength(PAGE_SIZE);
-    expect(fixture.componentInstance['paginatorLength']()).toBe(MILLION);
+    expect(fixture.componentInstance.paging.paginatorLength()).toBe(MILLION);
   });
 
   it('atteint la dernière page (20 000) avec les bonnes lignes', async () => {
@@ -108,7 +109,7 @@ describe('NgTableComponent — performance en mode serveur (1 000 000 de lignes)
     fixture.componentInstance.remoteQueryChange.subscribe((query) => queries.push(query));
 
     const lastPage = MILLION / PAGE_SIZE - 1;
-    fixture.componentInstance['onPage']({pageIndex: lastPage, pageSize: PAGE_SIZE, length: MILLION, previousPageIndex: 0});
+    fixture.componentInstance.paging.onPage({pageIndex: lastPage, pageSize: PAGE_SIZE, length: MILLION, previousPageIndex: 0});
     expect(queries.at(-1)?.page).toEqual({index: lastPage, size: PAGE_SIZE});
 
     await showPage(fixture, lastPage, MILLION);

@@ -49,7 +49,6 @@ function makeQuote(id: number): Quote {
  */
 @Component({
   selector: 'app-live-demo',
-  standalone: true,
   imports: [NgTableComponent, MatButtonModule, MatButtonToggleModule, MatIconModule, MatSlideToggleModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
@@ -61,7 +60,6 @@ function makeQuote(id: number): Quote {
     .metrics .bad strong { color: var(--demo-bad); }
     .up { color: var(--demo-good); font-variant-numeric: tabular-nums; }
     .down { color: var(--demo-bad); font-variant-numeric: tabular-nums; }
-    .num { font-variant-numeric: tabular-nums; }
     .error { color: #b3261e; font-weight: 600; }
     .hint { margin: 8px 0 0; color: var(--demo-muted); }
   `,

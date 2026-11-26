@@ -6,7 +6,7 @@ import {computePivot, PivotConfig} from './pivot';
 import {compileFilters} from './filter-compile';
 import {matchesSearchTerms, searchTerms} from './filter-matching';
 import {sortRows} from './row-pipeline';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {FromWorker, isPackedStrings, packValues, ToWorker, WorkerComputeCore} from './worker-compute';
 
 interface Row {

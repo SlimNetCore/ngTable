@@ -5,7 +5,7 @@ async function open(page: Page, route: string): Promise<void> {
   await page.emulateMedia({reducedMotion: 'reduce'});
   await page.addInitScript(() => localStorage.setItem('ngt-demo-lang', 'fr'));
   await page.goto(`/#/${route}`);
-  await page.locator('tr[cdk-row]:not(.spacer-row)').first().waitFor();
+  await page.locator('tr.cdk-row:not(.spacer-row)').first().waitFor();
 }
 
 test.describe('défilement virtuel : aria-rowcount et aria-rowindex', () => {

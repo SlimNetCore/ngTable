@@ -1,7 +1,8 @@
 import {provideZonelessChangeDetection} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {NgTableColumn, NgTableComponent} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {matchesAllFilters, sortRows} from './row-pipeline';
 
 /**
@@ -70,9 +71,9 @@ describe('NgTableComponent — performance du mode live (100 000 lignes)', () =>
     }
     await fixture.whenStable();
     const component = fixture.componentInstance;
-    component['onHeaderSort'](columns[2]);
-    component['onHeaderSort'](columns[2]); // prix décroissant
-    component['commitFilterValue']('sector', 'Banque,Tech,Santé'); // 60 % des lignes
+    component.sorting.onHeaderSort(columns[2]);
+    component.sorting.onHeaderSort(columns[2]); // prix décroissant
+    component.filtering.commitFilterValue('sector', 'Banque,Tech,Santé'); // 60 % des lignes
     await fixture.whenStable();
   });
 
@@ -108,7 +109,7 @@ describe('NgTableComponent — performance du mode live (100 000 lignes)', () =>
     for (let i = 0; i < 3; i++) {
       await tick(1000); // échauffement
     }
-    const rebuildsBefore = component['pipeline'].stats.rebuilds;
+    const rebuildsBefore = component.data.pipeline.stats.rebuilds;
 
     const times: number[] = [];
     pipelineTimes.length = 0;
@@ -135,7 +136,7 @@ describe('NgTableComponent — performance du mode live (100 000 lignes)', () =>
       `dont pipeline ${pipelineMs.toFixed(1)} ms (recalcul complet : ${fullMs.toFixed(1)} ms), ${rendered} lignes rendues, ` +
       `~${Math.round(1000 / tickMs * 1000).toLocaleString('fr-FR')} mises à jour/s`);
 
-    expect(component['pipeline'].stats.rebuilds).toBe(rebuildsBefore); // que des fusions
+    expect(component.data.pipeline.stats.rebuilds).toBe(rebuildsBefore); // que des fusions
     expect(rendered).toBeLessThan(60);
     expect(tickMs).toBeLessThan(fullMs);
     // Ordre exact après tous les lots : identique à un recalcul complet.

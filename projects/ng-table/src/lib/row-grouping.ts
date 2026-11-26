@@ -3,7 +3,7 @@
  * des groupes, découpage en pages (un groupe replié compte pour une ligne), et calcul
  * des agrégats par colonne.
  */
-import type {NgTableAggregate, NgTableColumn} from './ng-table.component';
+import type {NgTableAggregate, NgTableColumn} from './ng-table.models';
 import {toIsoDay} from './filter-matching';
 import {compareSortValues, getSortValue, numericValue} from './row-pipeline';
 

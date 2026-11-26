@@ -10,7 +10,6 @@ const OPTIONS: NgTableSelectOption[] = [
 ];
 
 @Component({
-  standalone: true,
   imports: [NgTableSelectComponent],
   template: `
     <ng-table-select [allLabel]="multiple() ? null : 'Tous'" [multiple]="multiple()" [options]="options" [searchable]="searchable()"

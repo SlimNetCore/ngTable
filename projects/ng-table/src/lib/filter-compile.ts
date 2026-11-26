@@ -8,7 +8,7 @@
  * aléatoires.
  */
 import {compileSetMatcher} from './set-filter';
-import type {NgTableColumn} from './ng-table.component';
+import type {NgTableColumn} from './ng-table.models';
 import {matchesDate, normalizeIsoDay, parseNumber, toIsoDay} from './filter-matching';
 import type {NgTableTextOperator} from './filter-matching';
 

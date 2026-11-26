@@ -1,7 +1,8 @@
 import {Component, TemplateRef, viewChild} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {describe, expect, it} from 'vitest';
-import {NgTableColumn, NgTableComponent, NgTableTreeToggleEvent} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn, NgTableTreeToggleEvent} from './ng-table.models';
 
 interface Node {
   id: string;
@@ -97,22 +98,22 @@ describe('données arborescentes', () => {
 
   it('le tri se fait entre frères, sans casser l’arbre', async () => {
     const fixture = await create({treeDefaultExpanded: true});
-    fixture.componentInstance['onHeaderSort'](COLUMNS[1]); // taille croissante
+    fixture.componentInstance.sorting.onHeaderSort(COLUMNS[1]); // taille croissante
     await fixture.whenStable();
     // Documents (racine) avant Images ; sous Documents : CV (30) avant Impôts (0)… trié par taille : Impôts (0), CV (30).
     expect(names(fixture)).toEqual(['Documents', 'Impôts', 'Déclaration 2026', 'CV', 'Images', 'Chat']);
-    fixture.componentInstance['onHeaderSort'](COLUMNS[1]); // décroissante
+    fixture.componentInstance.sorting.onHeaderSort(COLUMNS[1]); // décroissante
     await fixture.whenStable();
     expect(names(fixture)).toEqual(['Documents', 'CV', 'Impôts', 'Déclaration 2026', 'Images', 'Chat']); // racines à égalité : ordre d'arrivée
   });
 
   it('un filtre garde les correspondances et leurs ancêtres, dépliés', async () => {
     const fixture = await create({filterDebounceMs: 0});
-    fixture.componentInstance['commitFilterValue']('name', 'Déclaration');
+    fixture.componentInstance.filtering.commitFilterValue('name', 'Déclaration');
     await fixture.whenStable();
     expect(names(fixture)).toEqual(['Documents', 'Impôts', 'Déclaration 2026']);
 
-    fixture.componentInstance['commitFilterValue']('name', '');
+    fixture.componentInstance.filtering.commitFilterValue('name', '');
     await fixture.whenStable();
     expect(names(fixture)).toEqual(['Documents', 'Images']);
   });
@@ -154,7 +155,6 @@ describe('données arborescentes', () => {
 
 describe('maître / détail imbriqué', () => {
   @Component({
-    standalone: true,
     imports: [NgTableComponent],
     template: `
       <ng-template #detail let-order>

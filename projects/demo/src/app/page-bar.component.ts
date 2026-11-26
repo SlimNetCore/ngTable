@@ -8,18 +8,17 @@ import {ChangeDetectionStrategy, Component, computed, input, model} from '@angul
  */
 @Component({
   selector: 'app-page-bar',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     :host {
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
-      margin-top: 8px; padding: 10px 14px; background: var(--demo-surface); color: var(--demo-text); border: 1px solid var(--demo-border); border-radius: 12px;
+      margin-top: 8px; padding: 10px 14px; background: var(--demo-surface); border: 1px solid var(--demo-border); border-radius: 12px;
       font-size: .85rem; color: var(--demo-muted);
     }
     nav { display: flex; align-items: center; gap: 4px; }
     button {
       min-width: 34px; height: 34px; padding: 0 8px; border: 1px solid var(--demo-border); border-radius: 8px;
-      background: var(--demo-surface); color: var(--demo-text); color: var(--demo-text); font: inherit; cursor: pointer;
+      background: var(--demo-surface); color: var(--demo-text); font: inherit; cursor: pointer;
     }
     button:disabled { opacity: .4; cursor: default; }
     button[aria-current='page'] { background: var(--demo-accent); border-color: var(--demo-accent); color: var(--demo-surface); font-weight: 600; }

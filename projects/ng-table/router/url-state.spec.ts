@@ -3,8 +3,8 @@ import {TestBed} from '@angular/core/testing';
 import {provideRouter, Router} from '@angular/router';
 import {RouterTestingHarness} from '@angular/router/testing';
 import {describe, expect, it} from 'vitest';
-import {NgTableColumn, NgTableComponent, NgTableQueryState} from '../src/public-api';
-import {NgTableUrlStateDirective} from './ng-table-url-state.directive';
+import {NgTableColumn, NgTableComponent, NgTableQueryState} from '@sbourahla/ng-table';
+import {NgTableUrlStateDirective} from './public-api';
 import {fromUrlParams, toUrlParams} from './url-state';
 
 const EMPTY: NgTableQueryState = {sorts: [], filters: {}, search: '', pageIndex: 0, pageSize: 10, groupBy: null, collapsedGroups: [], advancedFilter: null};
@@ -64,7 +64,6 @@ interface Row {
 }
 
 @Component({
-  standalone: true,
   imports: [NgTableComponent, NgTableUrlStateDirective],
   template: `<ng-table ngTableUrlState [columns]="columns" [rows]="rows" [globalSearchEnabled]="true" [paginator]="true" [pageSize]="1" />`,
 })

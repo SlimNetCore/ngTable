@@ -3,7 +3,8 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it} from 'vitest';
 import type {NgTableFilterGroup} from './advanced-filter';
 import {NgTableFilterBuilderComponent} from './ng-table-filter-builder.component';
-import {NgTableColumn, NgTableComponent, NgTableRemoteQuery} from './ng-table.component';
+import {NgTableComponent} from './ng-table.component';
+import type {NgTableColumn, NgTableRemoteQuery} from './ng-table.models';
 
 interface Row {
   id: string;

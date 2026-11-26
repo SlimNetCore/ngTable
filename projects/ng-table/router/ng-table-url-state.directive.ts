@@ -20,7 +20,6 @@ import {fromUrlParams, sameUrlState, toUrlParams} from './url-state';
  */
 @Directive({
   selector: 'ng-table[ngTableUrlState]',
-  standalone: true,
 })
 export class NgTableUrlStateDirective {
   /** Préfixe des paramètres d'URL (plusieurs tables sur une même page). */

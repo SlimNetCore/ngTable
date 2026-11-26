@@ -9,7 +9,7 @@ async function open(page: Page, route: string, theme: 'light' | 'dark' = 'light'
     localStorage.setItem('ngt-demo-theme', value);
   }, theme);
   await page.goto(`/#/${route}`);
-  await page.locator('tr[cdk-row]:not(.spacer-row)').first().waitFor();
+  await page.locator('tr.cdk-row:not(.spacer-row)').first().waitFor();
 }
 
 test('mises à jour en direct : un repère de forme accompagne la couleur de la surbrillance', async ({page}) => {
